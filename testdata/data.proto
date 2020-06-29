@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package flames;
+
+message Config {
+  string agent_type = 1;
+}
+
+message Vec2 {
+  float x = 1;
+  float y = 2;
+}
+
+message ObjectInfo {
+  Vec2 position = 1;
+  Vec2 destination = 2;
+  float target_orientation = 3; // in radians, 0/2PI is up
+}
+
+enum CellState {
+  UNKNOWN = 0;
+  BLANK = 1;
+  ON_FIRE = 2;
+  TREE = 3;
+  CHARRED = 4;
+  DOUSED = 5;
+
+  UNKNOWN_OLD = 32;
+  BLANK_OLD = 33;
+  ON_FIRE_OLD = 34;
+  TREE_OLD = 35;
+  CHARRED_OLD = 36;
+  DOUSED_OLD = 37;
+}
+
+message Observation {
+  int32 grid_width = 1;
+  int32 grid_height = 2;
+
+  ObjectInfo copter = 3;
+  repeated ObjectInfo drones = 4;
+
+  repeated CellState cells = 5;
+  repeated int32 cell_age = 6;
+
+  bool done = 7;
+  string agent_type = 8;
+
+  float remaining_forests = 9;
+}
+
+message ObservationDelta {
+  repeated int32 updated_cells_list = 1;
+  repeated CellState new_cell_states = 2;
+
+ObjectInfo copter = 3;
+  repeated ObjectInfo drones = 4;
+
+  bool done = 5;
+  float remaining_forests = 6;
+}
+
+message Ai_DroneAction {
+  repeated Vec2 path = 1;
+}
+
+message Human_PlaneAction {
+  repeated Vec2 path = 1;
+
+  Ai_DroneAction ai_override = 2;
+
+  //Only applies if ai_override is set.
+  int32 ai_override_target = 3;
+}

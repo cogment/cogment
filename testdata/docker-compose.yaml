@@ -1,0 +1,97 @@
+version: '3.7'
+
+services:
+  grpc-cli:
+    image: namely/grpc-cli
+
+  cogment-cli:
+    image: registry.gitlab.com/cogment/cogment/cli
+    volumes:
+      - ./:/app
+
+
+  the-driver:
+    image: registry.gitlab.com/change_me/the_driver
+    build:
+      context: .
+      dockerfile: agents/the_driver/Dockerfile
+    volumes:
+      - ./:/app
+    environment:
+      - COGMENT_GRPC_REFLECTION=1
+    x-cogment:
+      ports:
+        - port: 9000
+      environment:
+        COGMENT_GRPC_REFLECTION: 1
+        AGENT: "DRIVER"
+      entrypoint: "python"
+      command: "-u agent.py"
+
+
+
+  the-shooter:
+    image: registry.gitlab.com/change_me/the_shooter
+    build: .
+    #      dockerfile: agents/the_shooter/Dockerfile
+    volumes:
+      - ./:/app
+    environment:
+      - COGMENT_GRPC_REFLECTION=1
+    x-cogment:
+      ports:
+        - port: 9000
+          public: False
+      environment:
+        COGMENT_GRPC_REFLECTION: 1
+        DEBUG: On
+        AGENT: "  shooter  "
+
+
+  env:
+    image: registry.gitlab.com/change_me/env
+    build:
+      context: .
+      dockerfile: envs/Dockerfile
+    volumes:
+      - ./:/app
+    environment:
+      - COGMENT_GRPC_REFLECTION=1
+    x-cogment:
+      ports:
+        - port: 9000
+        - port: 9001
+          public: True
+
+  orchestrator:
+    image: registry.gitlab.com/change_me/orchestrator:2.1
+    build:
+      context: .
+      dockerfile: orchestrator/Dockerfile
+    volumes:
+      - .:/app
+    ports:
+      - "9000:9000"
+    x-cogment:
+      ports:
+        - port: 9000
+
+    depends_on:
+      - env
+      - the-driver
+      - the-shooter
+
+  redis:
+    image: redis:5-alpine
+    x-cogment:
+      ports:
+        - port: 6379
+
+  client:
+    build:
+      context: .
+      dockerfile: clients/Dockerfile
+    volumes:
+      - ./:/app
+    stdin_open: true
+    tty: true

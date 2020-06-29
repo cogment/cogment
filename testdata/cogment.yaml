@@ -1,0 +1,67 @@
+import:
+  proto:
+    - data.proto
+    - subdir/otherdata.proto
+  python:
+    - delta
+  javascript:
+    - delta
+
+trial:
+  config_type: flames.TrialConfig
+  pre_hooks:
+    - grpc://supervisor:9000
+
+environment:
+  config_type: foo.Data
+
+actor_classes:
+  - id: plane
+    action:
+      space: flames.Human_PlaneAction
+    observation:
+      space: flames.Observation
+      delta: flames.ObservationDelta
+      delta_apply_fn:
+        python: delta.apply_delta
+        javascript: delta.apply_delta
+
+  - id: ai_drone
+    config_type: flames.DroneConfig
+    action:
+      space: flames.Ai_DroneAction
+    observation:
+      space: flames.Observation
+      delta: flames.ObservationDelta
+      delta_apply_fn:
+        python: delta.apply_delta
+        javascript: delta.apply_delta
+
+trial_params:
+  environment:
+    endpoint: grpc://env:9000
+    config:
+      initial_fires: 5
+  actors:
+    - actor_class: plane
+      endpoint: human
+    - actor_class: ai_drone
+      endpoint: grpc://random-drone:9000
+      config:
+        name: "bozo"
+    - actor_class: ai_drone
+      endpoint: grpc://random-drone:9000
+      config:
+        name: "Bob"
+    - actor_class: ai_drone
+      endpoint: grpc://random-drone:9000
+      config:
+        name: "Mike"
+    - actor_class: ai_drone
+      endpoint: grpc://random-drone:9000
+      config:
+        name: "Clyde"
+    - actor_class: ai_drone
+      endpoint: grpc://random-drone:9000
+      config:
+        name: "Blinky"
