@@ -5,6 +5,9 @@ stages:
   - lint
   - build
 
+before_script:
+  - git submodule update --init
+  
 cpp_lint:
   stage: lint
   image: registry.gitlab.com/ai-r/cogment-build-env:d4cb2debeaeb34ca32c6d72702330eacee666664
