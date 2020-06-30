@@ -17,7 +17,6 @@ Orchestrator::Orchestrator(Trial_spec trial_spec,
       actor_service_(this),
       trial_lifecycle_service_(this) {}
 
-
 Orchestrator::~Orchestrator() {}
 
 Future<std::shared_ptr<Trial>> Orchestrator::start_trial(
