@@ -1,20 +1,31 @@
-# aom-orchestrator
+# cogment-orchestrator
 
-# Hacking on the orchestrator
+## Building the orchestrator
+
+The orchestrator has a few dependecies:
+
+* googletest
+* grpc
+* easy-grpc
+* var_futures
+* yaml-cpp
+* spdlog
+
+The easiest way to build the orchestrator is to make use of [cogment build env](https://gitlab.com/ai-r/cogment-build-env)
+Docker image:
 
 ```
-# Launch a dev_env docker container with the framework source mounted
-me@machine:~/git/aom-framework/orchestrator$ ./dev_env.sh
+docker run --rm -it -v$(pwd):/workspace registry.gitlab.com/ai-r/cogment-build-env:latest
+cd /workspace
+mkdir _bld
+cd _bld
+cmake ..
+make
+```
 
-# Build the orchestrator
-bash-4.4# mkdir _bld
-bash-4.4# cd _bld
-bash-4.4# cmake ..
-bash-4.4# make -j $(nproc) aom_orchestrator
 
-# Run tests
-bash-4.4# ctest
-
-# Launch the orchestrator
-bash-4.4# ./orchestrator/aom_orchestrator
+## Auto-formatting code
+The following will apply clang-format to all included source, with the exception of the third_party directory:
+```
+make format
 ```

@@ -1,0 +1,3 @@
+[submodule "api/cogment/api"]
+	path = api/cogment/api
+	url = https://gitlab.com/ai-r/cogment-api.git

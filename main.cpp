@@ -3,9 +3,9 @@
 
 namespace rpc = easy_grpc;
 
-#include "aom/orch_config.h"
-#include "aom/orchestrator.h"
-#include "aom/stub_pool.h"
+#include "cogment/orch_config.h"
+#include "cogment/orchestrator.h"
+#include "cogment/stub_pool.h"
 
 #include <prometheus/exposer.h>
 #include <prometheus/registry.h>
@@ -20,38 +20,43 @@ namespace rpc = easy_grpc;
 #include <thread>
 
 namespace settings {
-slt::Setting lifecycle_port = slt::Setting_builder<std::uint16_t>()
-                                  .with_default(9000)
-                                  .with_description("The port to listen for trial lifecycle on")
-                                  .with_env_variable("TRIAL_LIFECYCLE_PORT")
-                                  .with_arg("lifecycle_port");
+slt::Setting lifecycle_port =
+    slt::Setting_builder<std::uint16_t>()
+        .with_default(9000)
+        .with_description("The port to listen for trial lifecycle on")
+        .with_env_variable("TRIAL_LIFECYCLE_PORT")
+        .with_arg("lifecycle_port");
 
-slt::Setting actor_port = slt::Setting_builder<std::uint16_t>()
-                              .with_default(9000)
-                              .with_description("The port to listen for trial actors on")
-                              .with_env_variable("TRIAL_ACTOR_PORT")
-                              .with_arg("actor_port");
+slt::Setting actor_port =
+    slt::Setting_builder<std::uint16_t>()
+        .with_default(9000)
+        .with_description("The port to listen for trial actors on")
+        .with_env_variable("TRIAL_ACTOR_PORT")
+        .with_arg("actor_port");
 
 slt::Setting config_file = slt::Setting_builder<std::string>()
                                .with_default("cogment.yaml")
                                .with_description("The trial configuration file")
                                .with_arg("config");
 
-slt::Setting prometheus_port = slt::Setting_builder<std::uint16_t>()
-                                   .with_default(8080)
-                                   .with_description("The port to broadcast prometheus metrics on")
-                                   .with_env_variable("PROMETHEUS_PORT")
-                                   .with_arg("prometheus_port");
+slt::Setting prometheus_port =
+    slt::Setting_builder<std::uint16_t>()
+        .with_default(8080)
+        .with_description("The port to broadcast prometheus metrics on")
+        .with_env_variable("PROMETHEUS_PORT")
+        .with_arg("prometheus_port");
 
-slt::Setting display_version = slt::Setting_builder<bool>()
-                                   .with_default(false)
-                                   .with_description("Display the orchestrator's version and quit")
-                                   .with_arg("version");
+slt::Setting display_version =
+    slt::Setting_builder<bool>()
+        .with_default(false)
+        .with_description("Display the orchestrator's version and quit")
+        .with_arg("version");
 
-slt::Setting status_file = slt::Setting_builder<std::string>()
-                               .with_default("")
-                               .with_description("File to store orchestrator status to.")
-                               .with_arg("status_file");
+slt::Setting status_file =
+    slt::Setting_builder<std::string>()
+        .with_default("")
+        .with_description("File to store orchestrator status to.")
+        .with_arg("status_file");
 }  // namespace settings
 
 namespace {
@@ -89,7 +94,8 @@ int main(int argc, const char* argv[]) {
     try {
       cogment_yaml = YAML::LoadFile(settings::config_file.get());
     } catch (std::exception& e) {
-      spdlog::error("failed to load {}: {}", settings::config_file.get(), e.what());
+      spdlog::error("failed to load {}: {}", settings::config_file.get(),
+                    e.what());
       return 1;
     }
 
@@ -101,9 +107,11 @@ int main(int argc, const char* argv[]) {
     spdlog::info("Cogment API v. {}", COGMENT_API_VERSION);
 
     // ******************* Endpoints *******************
-    auto lifecycle_endpoint = fmt::format("0.0.0.0:{}", settings::lifecycle_port.get());
+    auto lifecycle_endpoint =
+        fmt::format("0.0.0.0:{}", settings::lifecycle_port.get());
     auto actor_endpoint = fmt::format("0.0.0.0:{}", settings::actor_port.get());
-    auto prometheus_endpoint = fmt::format("0.0.0.0:{}", settings::prometheus_port.get());
+    auto prometheus_endpoint =
+        fmt::format("0.0.0.0:{}", settings::prometheus_port.get());
 
     // ******************* Monitoring *******************
     spdlog::info("starting prometheus at: {}", prometheus_endpoint);
@@ -113,11 +121,14 @@ int main(int argc, const char* argv[]) {
     cogment::Trial_spec trial_spec(cogment_yaml);
     auto params = cogment::load_params(cogment_yaml, trial_spec);
 
-    cogment::Orchestrator orchestrator(std::move(trial_spec), std::move(params));
+    cogment::Orchestrator orchestrator(std::move(trial_spec),
+                                       std::move(params));
 
     // ******************* Networking *******************
-    cogment::Stub_pool<cogment::TrialHooks> hook_stubs(orchestrator.channel_pool(), orchestrator.client_queue());
-    std::vector<std::shared_ptr<cogment::Stub_pool<cogment::TrialHooks>::Entry>> hooks;
+    cogment::Stub_pool<cogment::TrialHooks> hook_stubs(
+        orchestrator.channel_pool(), orchestrator.client_queue());
+    std::vector<std::shared_ptr<cogment::Stub_pool<cogment::TrialHooks>::Entry>>
+        hooks;
 
     if (cogment_yaml["trial"]) {
       for (auto hook : cogment_yaml["trial"]["pre_hooks"]) {
@@ -128,14 +139,16 @@ int main(int argc, const char* argv[]) {
 
     if (cogment_yaml["datalog"] && cogment_yaml["datalog"]["type"]) {
       auto datalog_type = cogment_yaml["datalog"]["type"].as<std::string>();
-      auto datalog = cogment::Datalog_storage_interface::create(datalog_type, cogment_yaml);
+      auto datalog = cogment::Datalog_storage_interface::create(datalog_type,
+                                                                cogment_yaml);
       orchestrator.set_log_exporter(std::move(datalog));
     }
 
     std::vector<rpc::server::Server> servers;
 
     rpc::server::Config cfg;
-    cfg.add_default_listening_queues({server_queues.begin(), server_queues.end()})
+    cfg.add_default_listening_queues(
+           {server_queues.begin(), server_queues.end()})
         .add_feature(rpc::Reflection_feature())
         .add_service(orchestrator.trial_lifecycle_service())
         .add_listening_port(lifecycle_endpoint);
@@ -146,7 +159,9 @@ int main(int argc, const char* argv[]) {
       cfg.add_service(orchestrator.actor_service());
     } else {
       rpc::server::Config actor_cfg;
-      actor_cfg.add_default_listening_queues({server_queues.begin(), server_queues.end()})
+      actor_cfg
+          .add_default_listening_queues(
+              {server_queues.begin(), server_queues.end()})
           .add_feature(rpc::Reflection_feature())
           .add_service(orchestrator.actor_service())
           .add_listening_port(actor_endpoint);

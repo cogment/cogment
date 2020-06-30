@@ -1,0 +1,20 @@
+stages:
+  - lint
+  - build
+
+cpp_lint:
+  stage: lint
+  image: registry.gitlab.com/ai-r/cogment-build-env:d4cb2debeaeb34ca32c6d72702330eacee666664
+  script:
+    - cmake .
+    - make format
+    - git diff --exit-code
+
+build:
+  stage: build
+  image: registry.gitlab.com/ai-r/cogment-build-env:d4cb2debeaeb34ca32c6d72702330eacee666664
+  script:
+    - mkdir build
+    - cd build
+    - cmake ..
+    - make

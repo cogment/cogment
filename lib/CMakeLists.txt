@@ -6,8 +6,8 @@ find_package(Threads REQUIRED)
 
 file(READ version.txt COGMENT_ORCH_VERSION)
 
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/aom/orch_config.h.in"
-               "${CMAKE_CURRENT_SOURCE_DIR}/aom/orch_config.h" )
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cogment/orch_config.h.in"
+               "${CMAKE_CURRENT_SOURCE_DIR}/cogment/orch_config.h" )
 
 set(GENERATED_PROTOBUF_PATH ${CMAKE_CURRENT_BINARY_DIR}/generated)
 file(MAKE_DIRECTORY ${GENERATED_PROTOBUF_PATH})
@@ -19,10 +19,10 @@ macro(compile_proto PROTO)
                         "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.cc"
                 COMMAND ${Protobuf_PROTOC_EXECUTABLE}
                 ARGS 
-                "--proto_path=${CMAKE_CURRENT_SOURCE_DIR}/../../api/"
+                "--proto_path=${CMAKE_CURRENT_SOURCE_DIR}/../api/"
                 "--cpp_out=${GENERATED_PROTOBUF_PATH}"
-                "${CMAKE_CURRENT_SOURCE_DIR}/../../api/cogment/api/${PROTO}.proto"
-                MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/../../api/cogment/api/${PROTO}.proto
+                "${CMAKE_CURRENT_SOURCE_DIR}/../api/cogment/api/${PROTO}.proto"
+                MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/../api/cogment/api/${PROTO}.proto
           )
 
         list(APPEND PROTO_SRC ${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.cc)
@@ -37,12 +37,12 @@ macro(compile_grpc_proto PROTO)
                         "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.cc"
                 COMMAND ${Protobuf_PROTOC_EXECUTABLE}
                 ARGS 
-                "--proto_path=${CMAKE_CURRENT_SOURCE_DIR}/../../api/"
+                "--proto_path=${CMAKE_CURRENT_SOURCE_DIR}/../api/"
                 "--egrpc_out=${GENERATED_PROTOBUF_PATH}"
                 "--cpp_out=${GENERATED_PROTOBUF_PATH}"
                 "--plugin=protoc-gen-egrpc=$<TARGET_FILE:easy_grpc_protoc_plugin>"
-                "${CMAKE_CURRENT_SOURCE_DIR}/../../api/cogment/api/${PROTO}.proto"
-                MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/../../api/cogment/api/${PROTO}.proto
+                "${CMAKE_CURRENT_SOURCE_DIR}/../api/cogment/api/${PROTO}.proto"
+                MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/../api/cogment/api/${PROTO}.proto
                 )
         list(APPEND PROTO_SRC ${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.egrpc.pb.cc)
         list(APPEND PROTO_SRC ${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.cc)
@@ -58,21 +58,21 @@ compile_grpc_proto(hooks)
 
 
 add_library(orchestrator_lib 
-  #aom/actor.cpp
-  #aom/agent.cpp
-  aom/base64.cpp
-  #aom/config_file.cpp
-  #aom/human.cpp
-  aom/orchestrator.cpp
-  aom/trial_params.cpp
-  aom/trial_spec.cpp
-  aom/trial.cpp
+  #cogment/actor.cpp
+  #cogment/agent.cpp
+  cogment/base64.cpp
+  #cogment/config_file.cpp
+  #cogment/human.cpp
+  cogment/orchestrator.cpp
+  cogment/trial_params.cpp
+  cogment/trial_spec.cpp
+  cogment/trial.cpp
 
-  aom/datalog/storage_interface.cpp
-  aom/datalog/grpc_exporter.cpp
+  cogment/datalog/storage_interface.cpp
+  cogment/datalog/grpc_exporter.cpp
 
-  aom/services/actor_service.cpp
-  aom/services/trial_lifecycle_service.cpp
+  cogment/services/actor_service.cpp
+  cogment/services/trial_lifecycle_service.cpp
 
   ${PROTO_SRC}
 )
