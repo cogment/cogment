@@ -1,4 +1,4 @@
-FROM registry.gitlab.com/ai-r/cogment-build-env:orchestrator_protos as build
+FROM registry.gitlab.com/ai-r/cogment-build-env:50609b20f26403391631ba91c3d734f71499f4e3 as build
 
 WORKDIR workspace
 
