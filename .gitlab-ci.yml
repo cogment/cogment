@@ -28,6 +28,7 @@ build:
 
 deploy:
   stage: deploy
+  image: docker:19.03-dind
   before_script:
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
   services:
@@ -44,6 +45,7 @@ deploy:
 
 release:
   stage: deploy
+  image: docker:19.03-dind
   before_script:
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
   services:
