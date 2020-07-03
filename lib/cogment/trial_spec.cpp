@@ -8,12 +8,18 @@ class ProtoErrorCollector
  public:
   void AddError(const google::protobuf::string& filename, int line, int column,
                 const google::protobuf::string& message) override {
+    (void)filename;
+    (void)line;
+    (void)column;
     spdlog::error("{}", message);
   }
 
   void AddWarning(const google::protobuf::string& filename, int line,
                   int column,
                   const google::protobuf::string& message) override {
+    (void)filename;
+    (void)line;
+    (void)column;
     spdlog::warn("{}", message);
   }
 };
@@ -38,10 +44,11 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
   message_factory_ = std::make_unique<google::protobuf::DynamicMessageFactory>(
       importer_->pool());
 
-  if (root["environment"] && root["environment"]["config_type"]) {
-    auto config_type = importer_->pool()->FindMessageTypeByName(
+  if (root["environment"] != nullptr &&
+      root["environment"]["config_type"] != nullptr) {
+    const auto* config_type = importer_->pool()->FindMessageTypeByName(
         root["environment"]["config_type"].as<std::string>());
-    if (!config_type) {
+    if (config_type != nullptr) {
       spdlog::error("Failed to lookup message type: {}",
                     root["environment"]["config_type"].as<std::string>());
       throw std::runtime_error("init failure");
@@ -50,10 +57,10 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
     env_config_prototype = message_factory_->GetPrototype(config_type);
   }
 
-  if (root["trial"] && root["trial"]["config_type"]) {
-    auto config_type = importer_->pool()->FindMessageTypeByName(
+  if (root["trial"] != nullptr && root["trial"]["config_type"] != nullptr) {
+    const auto* config_type = importer_->pool()->FindMessageTypeByName(
         root["trial"]["config_type"].as<std::string>());
-    if (!config_type) {
+    if (config_type != nullptr) {
       spdlog::error("Failed to lookup message type: {}",
                     root["trial"]["config_type"].as<std::string>());
       throw std::runtime_error("init failure");
@@ -62,8 +69,6 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
     trial_config_prototype = message_factory_->GetPrototype(config_type);
   }
 
-  const auto& actors = root[cfg_file::actors_key];
-
   for (const auto& a_class : root[cfg_file::actors_key]) {
     actor_classes.push_back({});
 
@@ -71,10 +76,10 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
     actor_class.name = a_class["id"].as<std::string>();
     spdlog::info("Adding actor class {}", actor_class.name);
 
-    if (a_class["config_type"]) {
-      auto config_type = importer_->pool()->FindMessageTypeByName(
+    if (a_class["config_type"] != nullptr) {
+      const auto* config_type = importer_->pool()->FindMessageTypeByName(
           a_class["config_type"].as<std::string>());
-      if (!config_type) {
+      if (config_type != nullptr) {
         spdlog::error("Failed to lookup message type: {}",
                       a_class["config_type"].as<std::string>());
         throw std::runtime_error("init failure");
@@ -84,9 +89,9 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
           message_factory_->GetPrototype(config_type);
     }
 
-    auto observation_space = importer_->pool()->FindMessageTypeByName(
+    const auto* observation_space = importer_->pool()->FindMessageTypeByName(
         a_class["observation"]["space"].as<std::string>());
-    if (!observation_space) {
+    if (observation_space == nullptr) {
       spdlog::error("Failed to lookup message type: {}",
                     a_class["observation"]["space"].as<std::string>());
       throw std::runtime_error("init failure");
@@ -95,8 +100,8 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
     actor_class.observation_space_prototype =
         message_factory_->GetPrototype(observation_space);
 
-    if (root["datalog"] && root["datalog"]["fields"] &&
-        root["datalog"]["fields"]["exclude"]) {
+    if (root["datalog"] != nullptr && root["datalog"]["fields"] != nullptr &&
+        root["datalog"]["fields"]["exclude"] != nullptr) {
       for (const auto& f : root["datalog"]["fields"]["exclude"]) {
         auto field_name = f.as<std::string>();
         if (field_name.find(observation_space->full_name()) == 0) {
@@ -106,16 +111,16 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
           continue;
         }
 
-        auto x = observation_space->FindFieldByName(field_name);
-        if (x) {
+        const auto* x = observation_space->FindFieldByName(field_name);
+        if (x != nullptr) {
           actor_class.cleared_observation_fields.push_back(x);
         }
       }
     }
-    if (a_class["observation"]["delta"]) {
-      auto observation_delta = importer_->pool()->FindMessageTypeByName(
+    if (a_class["observation"]["delta"] != nullptr) {
+      const auto* observation_delta = importer_->pool()->FindMessageTypeByName(
           a_class["observation"]["delta"].as<std::string>());
-      if (!observation_delta) {
+      if (observation_delta == nullptr) {
         spdlog::error("Failed to lookup message type: {}",
                       a_class["observation"]["delta"].as<std::string>());
         throw std::runtime_error("init failure");
@@ -123,8 +128,8 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
 
       actor_class.observation_delta_prototype =
           message_factory_->GetPrototype(observation_delta);
-      if (root["datalog"] && root["datalog"]["fields"] &&
-          root["datalog"]["fields"]["exclude"]) {
+      if (root["datalog"] != nullptr && root["datalog"]["fields"] != nullptr &&
+          root["datalog"]["fields"]["exclude"] != nullptr) {
         for (const auto& f : root["datalog"]["fields"]["exclude"]) {
           auto field_name = f.as<std::string>();
           if (field_name.find(observation_delta->full_name()) == 0 &&
@@ -136,8 +141,8 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
             continue;
           }
 
-          auto x = observation_delta->FindFieldByName(field_name);
-          if (x) {
+          const auto* x = observation_delta->FindFieldByName(field_name);
+          if (x != nullptr) {
             actor_class.cleared_delta_fields.push_back(x);
           }
         }
@@ -151,9 +156,9 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
     spdlog::info("clearing {} delta fields",
                  actor_class.cleared_delta_fields.size());
 
-    auto action_space = importer_->pool()->FindMessageTypeByName(
+    const auto* action_space = importer_->pool()->FindMessageTypeByName(
         a_class["action"]["space"].as<std::string>());
-    if (!action_space) {
+    if (action_space != nullptr) {
       spdlog::error("Failed to lookup message type: {}",
                     a_class["action"]["space"].as<std::string>());
       throw std::runtime_error("init failure");

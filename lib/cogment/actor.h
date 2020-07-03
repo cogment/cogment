@@ -32,7 +32,7 @@ class Actor {
 
   virtual bool is_human() const { return false; }
   virtual void terminate() {}
-  virtual void send_final_observation(cogment::Observation&& obs) {}
+  virtual void send_final_observation(cogment::Observation&& /*obs*/) {}
 
   virtual ::easy_grpc::Future<::cogment::TrialActionReply> user_acted(
       cogment::TrialActionRequest req) = 0;

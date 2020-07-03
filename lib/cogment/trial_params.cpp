@@ -22,7 +22,9 @@ std::string yaml_to_json(YAML::Node yaml) {
 // "content" member that holds the base64 encoded version of that object.
 void encode_user_config(YAML::Node config_node,
                         const google::protobuf::Message* proto) {
-  if (!proto) {
+  // This will happen if the cogment.yaml does not specify that config type,
+  // but still provides a value for it.
+  if (proto == nullptr) {
     throw std::runtime_error("Unexpected user config");
   }
 
@@ -52,24 +54,24 @@ cogment::TrialParams load_params(const YAML::Node& yaml,
                                  const Trial_spec& spec) {
   cogment::TrialParams result;
 
-  if (yaml["trial_params"]) {
+  if (yaml["trial_params"] != nullptr) {
     YAML::Node yaml_params = yaml["trial_params"];
 
     // The user specifies his own protocol buffers in the yaml, but the actual
     // forat for TrialParams uses bytes fields instead, so we translate
 
-    if (yaml_params["trial_config"]) {
+    if (yaml_params["trial_config"] != nullptr) {
       encode_user_config(yaml_params["trial_config"],
                          spec.trial_config_prototype);
     }
 
-    if (yaml_params["environment"]["config"]) {
+    if (yaml_params["environment"]["config"] != nullptr) {
       encode_user_config(yaml_params["environment"]["config"],
                          spec.env_config_prototype);
     }
 
     for (auto actor : yaml_params["actors"]) {
-      if (actor["config"]) {
+      if (actor["config"] != nullptr) {
         auto class_id =
             spec.get_class_id(actor["actor_class"].as<std::string>());
 

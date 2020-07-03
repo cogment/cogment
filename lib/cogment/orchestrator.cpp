@@ -2,12 +2,15 @@
 #include "slt/settings.h"
 
 namespace settings {
+
+constexpr std::uint32_t default_garbage_collection_frequency = 10;
+
 slt::Setting garbage_collection_frequency =
     slt::Setting_builder<std::uint32_t>()
-        .with_default(10)
+        .with_default(default_garbage_collection_frequency)
         .with_description("Number of trials between garbage collection runs")
         .with_arg("gb_freq");
-}
+}  // namespace settings
 
 namespace cogment {
 Orchestrator::Orchestrator(Trial_spec trial_spec,
@@ -23,7 +26,7 @@ Future<std::shared_ptr<Trial>> Orchestrator::start_trial(
     cogment::TrialParams params, std::string user_id) {
   check_garbage_collection_();
 
-  auto new_trial = std::make_shared<Trial>(this, std::move(user_id));
+  auto new_trial = std::make_shared<Trial>(this, user_id);
 
   // Register the trial immediately.
   {
@@ -42,7 +45,7 @@ Future<std::shared_ptr<Trial>> Orchestrator::start_trial(
       .then([new_trial](auto final_ctx) {
         return new_trial->configure(std::move(*final_ctx.mutable_params()));
       })
-      .then([this, new_trial]() {
+      .then([new_trial]() {
         spdlog::info("trial {} successfully initialized",
                      to_string(new_trial->id()));
         return new_trial;

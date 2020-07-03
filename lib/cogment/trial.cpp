@@ -81,8 +81,6 @@ void Trial::refresh_activity() {
 }
 
 bool Trial::is_stale() const {
-  auto dt = std::chrono::duration_cast<std::chrono::seconds>(
-      std::chrono::steady_clock::now() - last_activity_);
   bool stale = std::chrono::steady_clock::now() - last_activity_ >
                std::chrono::seconds(params_.max_inactivity());
   return params_.max_inactivity() > 0 && stale;
