@@ -26,6 +26,9 @@
 */
 
 #include "cogment/base64.h"
+#include <memory>
+#include <tuple>
+
 namespace {
 const std::string base64_chars =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -45,7 +48,7 @@ std::string base64_encode(const std::string& data) {
       reinterpret_cast<const unsigned char*>(data.data());
   unsigned int in_len = data.length();
 
-  while (in_len--) {
+  while (in_len-- != 0) {
     char_array_3[i++] = *(bytes_to_encode++);
     if (i == 3) {
       char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
@@ -55,13 +58,17 @@ std::string base64_encode(const std::string& data) {
           ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
       char_array_4[3] = char_array_3[2] & 0x3f;
 
-      for (i = 0; (i < 4); i++) ret += base64_chars[char_array_4[i]];
+      for (i = 0; (i < 4); i++) {
+        ret += base64_chars[char_array_4[i]];
+      }
       i = 0;
     }
   }
 
-  if (i) {
-    for (j = i; j < 3; j++) char_array_3[j] = '\0';
+  if (i != 0) {
+    for (j = i; j < 3; j++) {
+      char_array_3[j] = '\0';
+    }
 
     char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
     char_array_4[1] =
@@ -70,9 +77,13 @@ std::string base64_encode(const std::string& data) {
         ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
     char_array_4[3] = char_array_3[2] & 0x3f;
 
-    for (j = 0; (j < i + 1); j++) ret += base64_chars[char_array_4[j]];
+    for (j = 0; (j < i + 1); j++) {
+      ret += base64_chars[char_array_4[j]];
+    }
 
-    while ((i++ < 3)) ret += '=';
+    while ((i++ < 3)) {
+      ret += '=';
+    }
   }
 
   return ret;

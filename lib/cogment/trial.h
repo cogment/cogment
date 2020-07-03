@@ -26,11 +26,10 @@ class Trial : public std::enable_shared_from_this<Trial> {
 
  public:
   Trial(Orchestrator* orch, std::string user_id);
-
   ~Trial();
-  Trial(Trial&&) = default;
-  Trial& operator=(Trial&&) = default;
 
+  Trial(Trial&&) = delete;
+  Trial& operator=(Trial&&) = delete;
   Trial(const Trial&) = delete;
   Trial& operator=(const Trial&) = delete;
 

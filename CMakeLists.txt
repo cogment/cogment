@@ -11,6 +11,8 @@ find_package(spdlog REQUIRED)
 add_subdirectory(third_party/slt_concur)
 add_subdirectory(third_party/slt_setting)
 
+find_program(CLANG_TIDY "clang-tidy")
+
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -24,6 +26,9 @@ SET(ORCHESTRATOR_SRC
 )
 
 add_executable(orchestrator ${ORCHESTRATOR_SRC})
+IF(CLANG_TIDY)
+  set_target_properties(orchestrator PROPERTIES CXX_CLANG_TIDY "clang-tidy;--format-style=file")
+ENDIF()
 
 target_include_directories(orchestrator PRIVATE .)
 

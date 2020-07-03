@@ -19,7 +19,9 @@ Grpc_datalog_exporter_base::Trial_log::~Trial_log() {
 
 void Grpc_datalog_exporter_base::Trial_log::lazy_start_stream_() {
   if (!output_promise_) {
-    auto [stream, reply] = owner_->stub_->Log();
+    auto stream_reply = owner_->stub_->Log();
+    auto& stream = std::get<0>(stream_reply);
+    auto& reply = std::get<1>(stream_reply);
 
     // We'll just ignore whatever comes back from the log exporter service
     reply.finally([](auto) {});

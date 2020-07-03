@@ -57,6 +57,15 @@ compile_grpc_proto(environment)
 compile_grpc_proto(hooks)
 
 
+add_library(orchestrator_protos
+  ${PROTO_SRC}
+)
+
+target_include_directories(orchestrator_protos 
+PUBLIC 
+    ${GENERATED_PROTOBUF_PATH}
+)
+
 add_library(orchestrator_lib 
   #cogment/actor.cpp
   #cogment/agent.cpp
@@ -73,11 +82,14 @@ add_library(orchestrator_lib
 
   cogment/services/actor_service.cpp
   cogment/services/trial_lifecycle_service.cpp
-
-  ${PROTO_SRC}
 )
 
+IF(CLANG_TIDY)
+  set_target_properties(orchestrator_lib PROPERTIES CXX_CLANG_TIDY "clang-tidy;--format-style=file")
+ENDIF()
+
 target_link_libraries(orchestrator_lib
+    orchestrator_protos
     spdlog::spdlog
     slt_settings
     slt_concur
@@ -95,5 +107,4 @@ target_compile_options(orchestrator_lib PUBLIC -Wno-unused-parameter)
 target_include_directories(orchestrator_lib 
 PUBLIC 
     .
-    ${GENERATED_PROTOBUF_PATH}
     ../third_party)

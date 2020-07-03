@@ -116,11 +116,13 @@ template <typename T>
 struct Setting_value_assign<std::vector<T>> {
   static std::vector<T> assign(std::string_view val) {
     std::vector<T> result;
+    (void)val;
     assert(false);
     return result;
   }
 
   static std::string to_string(const bool& val) {
+    (void)val;
     return "[]";
   }
 };
@@ -191,7 +193,7 @@ class [[nodiscard]] Setting : public Setting_base {
     value_ = std::move(v); 
   }
 
-  bool is_valid() const {
+  bool is_valid() const override {
     return validator_ == nullptr || validator_(value_);
   }
 

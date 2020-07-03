@@ -11,6 +11,7 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch)
 ::easy_grpc::Future<::cogment::TrialStartReply>
 TrialLifecycleService::StartTrial(::cogment::TrialStartRequest req,
                                   easy_grpc::Context ctx) {
+  (void)ctx;
   auto params = orchestrator_->default_trial_params();
 
   // Apply config override if provided
@@ -33,6 +34,7 @@ TrialLifecycleService::StartTrial(::cogment::TrialStartRequest req,
 
 ::cogment::TerminateTrialReply TrialLifecycleService::TerminateTrial(
     ::cogment::TerminateTrialRequest, easy_grpc::Context ctx) {
+  (void)ctx;
   orchestrator_->end_trial(
       uuids::uuid::from_string(ctx.get_client_header("trial-id")));
   return {};
@@ -41,12 +43,13 @@ TrialLifecycleService::StartTrial(::cogment::TrialStartRequest req,
 ::easy_grpc::Future<::cogment::MessageDispatchReply>
 TrialLifecycleService::SendMessage(::cogment::MasterMessageDispatchRequest,
                                    easy_grpc::Context ctx) {
-  // TODO.
+  (void)ctx;
   return {};
 }
 
 ::cogment::TrialInfoReply TrialLifecycleService::TrialInfo(
     ::cogment::TrialInfoRequest, easy_grpc::Context ctx) {
+  (void)ctx;
   ::cogment::TrialInfoReply result;
   auto add_trial = [&](Trial* trial) {
     auto trial_info = result.add_trial();
@@ -74,6 +77,7 @@ TrialLifecycleService::SendMessage(::cogment::MasterMessageDispatchRequest,
 
 ::cogment::VersionInfo TrialLifecycleService::Version(::cogment::VersionRequest,
                                                       easy_grpc::Context ctx) {
+  (void)ctx;
   ::cogment::VersionInfo result;
   auto v = result.add_versions();
 

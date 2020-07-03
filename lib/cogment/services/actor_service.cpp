@@ -8,6 +8,7 @@ ActorService::ActorService(Orchestrator* orch) : orchestrator_(orch) {}
 
 ::easy_grpc::Future<::cogment::TrialJoinReply> ActorService::JoinTrial(
     ::cogment::TrialJoinRequest, easy_grpc::Context ctx) {
+  (void)ctx;
   return {};
 }
 
@@ -15,26 +16,31 @@ ActorService::ActorService(Orchestrator* orch) : orchestrator_(orch) {}
 ActorService::ActionStream(
     ::easy_grpc::Stream_future<::cogment::TrialActionRequest>,
     easy_grpc::Context ctx) {
+  (void)ctx;
   return {};
 }
 
 ::easy_grpc::Future<::cogment::TrialActionReply> ActorService::Action(
     ::cogment::TrialActionRequest, easy_grpc::Context ctx) {
+  (void)ctx;
   return {};
 }
 
 ::easy_grpc::Future<::cogment::TrialHeartbeatReply> ActorService::Heartbeat(
     ::cogment::TrialHeartbeatRequest, easy_grpc::Context ctx) {
+  (void)ctx;
   return {};
 }
 
 ::easy_grpc::Future<::cogment::TrialFeedbackReply> ActorService::GiveFeedback(
     ::cogment::TrialFeedbackRequest, easy_grpc::Context ctx) {
+  (void)ctx;
   return {};
 }
 
 ::cogment::VersionInfo ActorService::Version(::cogment::VersionRequest,
                                              easy_grpc::Context ctx) {
+  (void)ctx;
   ::cogment::VersionInfo result;
   auto v = result.add_versions();
 
