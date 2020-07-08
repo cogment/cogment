@@ -13,7 +13,12 @@ class Trial;
 class Agent : public Actor {
  public:
   using stub_type = std::shared_ptr<Stub_pool<cogment::AgentEndpoint>::Entry>;
-  Agent(Trial* owner, stub_type stub, std::optional<std::string> config_data);
+  Agent(Trial* owner, 
+        std::uint32_t actor_id, 
+        const ActorClass* actor_class, 
+        stub_type stub, 
+        std::optional<std::string> config_data);
+  
   ~Agent();
 
   Future<void> init() override;
@@ -28,8 +33,9 @@ class Agent : public Actor {
   }
 
  private:
-  Trial* owner_;
   stub_type stub_;
+  std::vector<grpc_metadata> headers_;
+  
   cogment::Action latest_action_;
   std::optional<std::string> config_data_;
 };

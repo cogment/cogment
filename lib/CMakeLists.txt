@@ -67,8 +67,8 @@ PUBLIC
 )
 
 add_library(orchestrator_lib 
-  #cogment/actor.cpp
-  #cogment/agent.cpp
+  cogment/actor.cpp
+  cogment/agent.cpp
   cogment/base64.cpp
   #cogment/config_file.cpp
   #cogment/human.cpp

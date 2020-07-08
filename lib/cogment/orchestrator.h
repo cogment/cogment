@@ -45,11 +45,15 @@ class Orchestrator {
   // Semi-internal, rpc management related.
   easy_grpc::Completion_queue* client_queue() { return &client_queue_; }
   Channel_pool* channel_pool() { return &channel_pool_; }
+  Stub_pool<cogment::EnvironmentEndpoint>* env_pool() {return &env_stubs_;}
+  Stub_pool<cogment::AgentEndpoint>* agent_pool() {return &agent_stubs_;}
 
   const cogment::TrialParams& default_trial_params() const {
     return default_trial_params_;
   };
 
+  const Trial_spec& get_trial_spec() const { return trial_spec_;}
+ 
  private:
   // Configuration
   Trial_spec trial_spec_;
@@ -68,6 +72,10 @@ class Orchestrator {
   // Completion queue for handling requests returning from env/agent/hooks
   easy_grpc::Completion_queue client_queue_;
   Channel_pool channel_pool_;
+
+  Stub_pool<cogment::EnvironmentEndpoint> env_stubs_;
+  Stub_pool<cogment::AgentEndpoint> agent_stubs_;
+
 
   ActorService actor_service_;
   TrialLifecycleService trial_lifecycle_service_;

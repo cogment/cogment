@@ -17,6 +17,8 @@ Orchestrator::Orchestrator(Trial_spec trial_spec,
                            cogment::TrialParams default_trial_params)
     : trial_spec_(std::move(trial_spec)),
       default_trial_params_(std::move(default_trial_params)),
+      env_stubs_(&channel_pool_, &client_queue_),
+      agent_stubs_(&channel_pool_, &client_queue_),
       actor_service_(this),
       trial_lifecycle_service_(this) {}
 
@@ -128,4 +130,5 @@ std::vector<std::shared_ptr<Trial>> Orchestrator::all_trials() const {
 
   return result;
 }
+
 }  // namespace cogment

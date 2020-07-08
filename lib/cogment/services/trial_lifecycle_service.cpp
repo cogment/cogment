@@ -26,7 +26,7 @@ TrialLifecycleService::StartTrial(::cogment::TrialStartRequest req,
         reply.set_trial_id(to_string(trial->id()));
 
         for (const auto& actor : trial->actors()) {
-          reply.add_actor_class_idx(actor->actor_class->index);
+          reply.add_actor_class_idx(actor->actor_class()->index);
         }
         return reply;
       });
@@ -34,6 +34,7 @@ TrialLifecycleService::StartTrial(::cogment::TrialStartRequest req,
 
 ::cogment::TerminateTrialReply TrialLifecycleService::TerminateTrial(
     ::cogment::TerminateTrialRequest, easy_grpc::Context ctx) {
+      spdlog::info("terminating...");
   (void)ctx;
   orchestrator_->end_trial(
       uuids::uuid::from_string(ctx.get_client_header("trial-id")));

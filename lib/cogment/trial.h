@@ -5,6 +5,9 @@
 #include "cogment/utils.h"
 
 #include "cogment/api/orchestrator.pb.h"
+#include "cogment/api/environment.egrpc.pb.h"
+
+#include "cogment/stub_pool.h"
 
 #include "uuid.h"
 
@@ -71,10 +74,20 @@ class Trial : public std::enable_shared_from_this<Trial> {
   // Configuration
   cogment::TrialParams params_;
 
+  // Connections
+  std::shared_ptr<cogment::Stub_pool<cogment::EnvironmentEndpoint>::Entry> env_stub_;
+
   // State
   Trial_state state_;
   std::vector<std::unique_ptr<Actor>> actors_;
   std::chrono::time_point<std::chrono::steady_clock> last_activity_;
+
+
+  void fill_env_start_request(::cogment::EnvStartRequest* io_req);
+
+  std::vector<grpc_metadata> headers_;
+  easy_grpc::client::Call_options call_options_;
+
 };
 
 }  // namespace cogment

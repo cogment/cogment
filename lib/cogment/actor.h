@@ -23,11 +23,9 @@ struct ActorClass;
 
 class Actor {
  public:
-  Actor(std::string tid) : trial_id_(std::move(tid)) {}
-
+  Actor(Trial* trial, std::uint32_t actor_id, const ActorClass* actor_class);
   virtual ~Actor();
 
-  void set_actor_id(int actor_id) { actor_id_ = actor_id; }
   virtual aom::Future<void> init() = 0;
 
   virtual bool is_human() const { return false; }
@@ -42,15 +40,14 @@ class Actor {
   virtual Future<cogment::Action> request_decision(
       cogment::Observation&& obs) = 0;
 
-  const std::string& trial_id() const { return trial_id_; }
-  int actor_id() const { return actor_id_; };
-
-  // TODO: make accessor for this.
-  const ActorClass* actor_class;
+  Trial* trial() const;
+  std::uint32_t actor_id() const;
+  const ActorClass* actor_class() const;
 
  private:
-  std::string trial_id_;
-  int actor_id_ = -1;
+  Trial* trial_;
+  std::uint32_t actor_id_;
+  const ActorClass* actor_class_;
 };
 
 struct ActorClass {

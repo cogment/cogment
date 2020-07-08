@@ -33,9 +33,12 @@ ENDIF()
 target_include_directories(orchestrator PRIVATE .)
 
 target_link_libraries(orchestrator
+    debug -rdynamic
     orchestrator_lib
     prometheus-cpp::pull
 )
+
+set_target_properties(orchestrator PROPERTIES DEBUG_POSTFIX _dbg)
 
 install(TARGETS orchestrator
         DESTINATION bin)

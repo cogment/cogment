@@ -1,7 +1,7 @@
 #ifndef AOM_ORCHESTRATOR_HUMAN_H
 #define AOM_ORCHESTRATOR_HUMAN_H
 
-#include "aom/actor.h"
+#include "cogment/actor.h"
 
 namespace cogment {
 

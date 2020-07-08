@@ -38,7 +38,12 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
 
   for (const auto& i : root["import"]["proto"]) {
     spdlog::info("importing protobuf: {}", i.as<std::string>());
-    importer_->Import(i.as<std::string>());
+    auto fd = importer_->Import(i.as<std::string>());
+
+    if(!fd) {
+      spdlog::error("Failed to load proto file: {}", i.as<std::string>());
+      throw std::runtime_error("init failure");
+    }
   }
 
   message_factory_ = std::make_unique<google::protobuf::DynamicMessageFactory>(
@@ -48,7 +53,7 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
       root["environment"]["config_type"] != nullptr) {
     const auto* config_type = importer_->pool()->FindMessageTypeByName(
         root["environment"]["config_type"].as<std::string>());
-    if (config_type != nullptr) {
+    if (config_type == nullptr) {
       spdlog::error("Failed to lookup message type: {}",
                     root["environment"]["config_type"].as<std::string>());
       throw std::runtime_error("init failure");
@@ -60,7 +65,7 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
   if (root["trial"] != nullptr && root["trial"]["config_type"] != nullptr) {
     const auto* config_type = importer_->pool()->FindMessageTypeByName(
         root["trial"]["config_type"].as<std::string>());
-    if (config_type != nullptr) {
+    if (config_type == nullptr) {
       spdlog::error("Failed to lookup message type: {}",
                     root["trial"]["config_type"].as<std::string>());
       throw std::runtime_error("init failure");
@@ -79,7 +84,7 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
     if (a_class["config_type"] != nullptr) {
       const auto* config_type = importer_->pool()->FindMessageTypeByName(
           a_class["config_type"].as<std::string>());
-      if (config_type != nullptr) {
+      if (config_type == nullptr) {
         spdlog::error("Failed to lookup message type: {}",
                       a_class["config_type"].as<std::string>());
         throw std::runtime_error("init failure");
@@ -92,7 +97,7 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
     const auto* observation_space = importer_->pool()->FindMessageTypeByName(
         a_class["observation"]["space"].as<std::string>());
     if (observation_space == nullptr) {
-      spdlog::error("Failed to lookup message type: {}",
+      spdlog::error("Failed to lookup message type: \"{}\"",
                     a_class["observation"]["space"].as<std::string>());
       throw std::runtime_error("init failure");
     }
@@ -158,8 +163,8 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
 
     const auto* action_space = importer_->pool()->FindMessageTypeByName(
         a_class["action"]["space"].as<std::string>());
-    if (action_space != nullptr) {
-      spdlog::error("Failed to lookup message type: {}",
+    if (action_space == nullptr) {
+      spdlog::error("Failed to lookup message type: \"{}\"",
                     a_class["action"]["space"].as<std::string>());
       throw std::runtime_error("init failure");
     }
@@ -168,14 +173,14 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
   }
 }
 
-std::size_t Trial_spec::get_class_id(const std::string class_name) const {
-  for (std::size_t i = 0; i < actor_classes.size(); ++i) {
-    if (actor_classes[i].name == class_name) {
-      return i;
+  const ActorClass& Trial_spec::get_actor_class(const std::string& class_name) const {
+    for (const auto& actor_class : actor_classes ) {
+      if(actor_class.name == class_name) {
+        return actor_class;
+      }
     }
-  }
 
-  spdlog::error("trying to use unregistered actor class: {}", class_name);
-  throw std::runtime_error("unknown actor class");
-}
+    spdlog::error("trying to use unregistered actor class: {}", class_name);
+    throw std::runtime_error("unknown actor class");
+  }
 }  // namespace cogment

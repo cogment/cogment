@@ -62,21 +62,20 @@ cogment::TrialParams load_params(const YAML::Node& yaml,
 
     if (yaml_params["trial_config"] != nullptr) {
       encode_user_config(yaml_params["trial_config"],
-                         spec.trial_config_prototype);
+                         spec.get_trial_config_proto());
     }
 
     if (yaml_params["environment"]["config"] != nullptr) {
       encode_user_config(yaml_params["environment"]["config"],
-                         spec.env_config_prototype);
+                         spec.get_env_config_prototype());
     }
 
     for (auto actor : yaml_params["actors"]) {
       if (actor["config"] != nullptr) {
-        auto class_id =
-            spec.get_class_id(actor["actor_class"].as<std::string>());
+        const auto& actor_class = spec.get_actor_class(actor["actor_class"].as<std::string>());
 
         encode_user_config(actor["config"],
-                           spec.actor_classes[class_id].config_prototype);
+                           actor_class.config_prototype);
       }
     }
 
