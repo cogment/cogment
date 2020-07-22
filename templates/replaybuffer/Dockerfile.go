@@ -1,7 +1,7 @@
-package clients
+package replaybuffer
 
 const DOCKERFILE = `
-FROM python:3.7
+FROM python:3.7.7
 
 ENV PYTHONPATH /app
 
@@ -12,11 +12,14 @@ ENV PYTHONPATH /app
 ADD requirements.txt .
 RUN pip install -r requirements.txt
 
+RUN pip install redis==2.10.6
+
 WORKDIR /app
 
-ADD clients .
+#ADD arena ./arena
+ADD replaybuffer ./replaybuffer
 ADD cog_settings.py .
-ADD *_pb2.py .
+ADD *_pb2.py ./
 
-CMD ["python", "clients/main.py"]
+CMD ["python", "replaybuffer/replaybuffer.py", "run"]
 `

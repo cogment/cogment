@@ -12,6 +12,10 @@ import {{$proto}} as {{index $.Import.ProtoAlias $i}}
 import {{.}}
 {{end}}
 
+{{range .Import.Proto -}}
+protolib = "{{.}}"
+{{end}}
+
 
 {{- range .ActorClasses}}
 _{{.Id}}_class = _cog.ActorClass(
@@ -23,7 +27,8 @@ _{{.Id}}_class = _cog.ActorClass(
     observation_delta={{if .Delta}}{{.Delta}}{{else}}{{.Space}}{{end}},
     observation_delta_apply_fn={{if .DeltaApplyFn}}{{.DeltaApplyFn.Python}}{{else}}_cog.delta_encoding._apply_delta_replace{{end}},
     {{end -}}    
-    feedback_space=None
+    feedback_space=None,
+    message_space=None
 )
 {{end}}
 
@@ -31,6 +36,12 @@ actor_classes = _cog.actor_class.ActorClassList(
 {{- range .ActorClasses}}
     _{{.Id}}_class,
 {{- end}}
+)
+
+env_class = _cog.EnvClass(
+    id='env',
+    config_type=None,
+    message_space=None
 )
 
 trial = SimpleNamespace(

@@ -3,10 +3,14 @@ package agents
 const DOCKERFILE = `
 FROM python:3.7
 
-ENV COGMENT_VERSION 0.2
 ENV PYTHONPATH /app
 
-RUN pip install cogment==$COGMENT_VERSION
+# Uncomment following and set specific version if required for only this service
+#ENV COGMENT_VERSION 0.3.0a5
+#RUN pip install cogment==$COGMENT_VERSION
+# Comment following if above is used
+ADD requirements.txt .
+RUN pip install -r requirements.txt
 
 WORKDIR /app
 

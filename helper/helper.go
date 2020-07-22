@@ -35,3 +35,8 @@ func Pascalify(data string) string {
 	data = space.ReplaceAllString(data, "")
 	return data
 }
+
+func Tocaps(data string) string {
+	data = strings.ToUpper(data)
+	return data
+}

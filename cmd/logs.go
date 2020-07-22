@@ -108,9 +108,9 @@ var logsCmd = &cobra.Command{
 			for _, entry := range result.Results {
 				service := entry.ServiceName
 
-				sec, dec := math.Modf(entry.Timestamp)
-				dec = math.Ceil(dec*1000) / 1000
-				ts := time.Unix(int64(sec), int64(dec*(1e9))).UTC()
+				// We don't feed the full uint64 as nanoseconds, because we could overflow the int64 (in 2038!)
+                ts := time.Unix(int64(entry.Timestamp / 1000000000), int64(entry.Timestamp % 1000000000)).UTC()
+
 
 				row := []string{
 					getColoredService(service),
