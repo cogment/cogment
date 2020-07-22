@@ -17,7 +17,8 @@ const _{{.Id}}_class = {
   observation_space: {{.Observation.Space}},
   observation_delta: {{if .Observation.Delta}}{{.Observation.Delta}}{{else}}{{.Observation.Space}}{{end}},
   observation_delta_apply_fn: {{if .Observation.DeltaApplyFn}}{{.Observation.DeltaApplyFn.Javascript}}{{else}}apply_delta_replace{{end}},
-  feedback_space: null
+  feedback_space: null,
+  message_space: null
 };
 {{end}}
 
@@ -35,7 +36,14 @@ const settings = {
 
   environment: {
     config_type: {{if .Environment.ConfigType}}{{.Environment.ConfigType}}{{else}}null{{end}},
+  },
+
+  env_class: {
+    id: 'env',
+    config_type: null,
+    message_space: null
   }
+
 };
 
 export default settings;

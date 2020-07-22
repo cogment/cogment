@@ -18,6 +18,10 @@ class {{.|pascalify}}(Agent):
     def reward(self, reward):
         print("{{.|pascalify}} reward")
 
+    def on_message(self, sender, msg):
+        if msg:
+            print(f'Agent {self.id_in_class} received message - {msg} from sender {sender}')
+
     def end(self):
         print("{{.|pascalify}} end")
 

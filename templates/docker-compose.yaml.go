@@ -1,13 +1,11 @@
 package templates
 
-const ROOT_DOCKER_COMPOSE = `
-{{ $config := . }}
-
+const ROOT_DOCKER_COMPOSE = `{{ $config := . }}
 version: '3.7'
 
 services:
   grpc-cli:
-    image: namely/grpc-cli 
+    image: namely/grpc-cli:1.28_1
   
   cogment-cli:
     image: registry.gitlab.com/cogment/cogment/cli
@@ -78,5 +76,130 @@ services:
     environment: 
       - PYTHONUNBUFFERED=1
     stdin_open: true
-    tty: true          
+    tty: true
+
+#################################
+# browser use
+#################################
+  webui:
+    image: registry.gitlab.com/change_me/webui
+    build: 
+      context: .
+      dockerfile: clients/js/Dockerfile
+      target: dev
+    volumes:
+      - ./clients/js:/app
+      - /app/node_modules
+    ports:
+      - "8080:8080"
+
+  envoy:
+    image: envoyproxy/envoy:v1.13.0
+    volumes:
+      - ./envoy/envoy.yaml:/etc/envoy/envoy.yaml
+    ports:
+      - "8088:8088/tcp"
+    restart: 'always'
+
+################################
+# configurator/supervisor
+################################
+#  configurator:
+#    image: registry.gitlab.com/ai-r/change_me/configurator
+#    build:
+#      context: .
+#      dockerfile: configurator/Dockerfile
+#    volumes:
+#      - .:/app
+#    environment:
+#      - PYTHONPATH=/app
+#      - COGMENT_GRPC_REFLECTION=1
+#
+################################
+
+
+################################
+# grafana
+################################
+#
+#  grafana:
+#    image: grafana/grafana
+#    volumes:
+#      - ./configs/grafana/provisioning/:/etc/grafana/provisioning/
+#    environment:
+#      - GF_SECURITY_ADMIN_PASSWORD=password
+#      - GF_INSTALL_PLUGINS=grafana-simple-json-datasource
+#      - GF_AUTH_ANONYMOUS_ORG_NAME=Main Org.
+#    ports:
+#      - "3001:3000"
+#
+################################
+
+################################
+# prometheus
+################################
+#  prometheus:
+#    image: prom/prometheus
+#    volumes:
+#      - ./configs/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+#    ports:
+#      - "9090:9090/tcp"
+#
+################################
+
+################################
+# replay buffer & redis
+################################
+#
+#replaybuffer:
+#    image: registry.gitlab.com/ai-r/change_me/replaybuffer
+#    build:
+#      context: .
+#      dockerfile: replaybuffer/Dockerfile
+#    volumes:
+#      - .:/app
+#    environment:
+#      - COGMENT_GRPC_REFLECTION=1
+#      - PYTHONUNBUFFERED=1
+#    x-cogment:
+#      ports:
+#        - port: 9000
+#    depends_on:
+#      - redis
+#    command: ["python", "replaybuffer/replaybuffer.py", "run", "--debug"]
+#
+#  redis:
+#    image: redis
+#
+###################################
+
+################################
+# log exporter with postgres db
+################################
+#
+#  log_exporter:
+#    image: registry.gitlab.com/cogment/cogment/log_exporter
+#    volumes:
+#      - .:/app
+#    environment:
+#      - COGMENT_GRPC_REFLECTION=1
+#      - POSTGRES_ENGINE=postgres://postgres:postgres@db:5432/postgres
+#      - GRPC_VERBOSITY=DEBUG
+#    depends_on:
+#      - db
+#
+#  db:
+#    restart: always
+#    image: postgres:11-alpine
+#    volumes:
+#      - postgres_database:/var/lib/postgresql/data:Z
+#    environment:
+#      - POSTGRES_PASSWORD=postgres
+#    ports:
+#      - 5432:5432
+#
+#volumes:
+#  postgres_database:
+#    external: true
+#################################
 `

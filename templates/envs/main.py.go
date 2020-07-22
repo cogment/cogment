@@ -32,6 +32,10 @@ class Env(Environment):
 
         return obs_table
 
+    def on_message(self, sender, msg):
+        if msg:
+            print(f'Environment received message - {msg} from sender {sender}')
+
     def end(self):
         print("environment end")
 

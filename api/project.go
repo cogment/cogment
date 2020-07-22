@@ -7,6 +7,8 @@ type ProjectConfig struct {
 	Environment  *Environment
 	ActorClasses []*ActorClass `yaml:"actor_classes"`
 	TrialParams  *TrialParams  `yaml:"trial_params"`
+	ProjectName	 string
+	CliVersion	 string
 }
 
 type Environment struct {

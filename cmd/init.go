@@ -27,6 +27,13 @@ import (
 	"gitlab.com/cogment/cogment/templates/clients"
 	"gitlab.com/cogment/cogment/templates/envs"
 	"gitlab.com/cogment/cogment/templates/orchestrator"
+	"gitlab.com/cogment/cogment/templates/envoy"
+	"gitlab.com/cogment/cogment/templates/js_clients"
+	"gitlab.com/cogment/cogment/templates/configs"
+	"gitlab.com/cogment/cogment/templates/replaybuffer"
+	"gitlab.com/cogment/cogment/templates/revisioning"
+	"gitlab.com/cogment/cogment/templates/configurator"
+	"gitlab.com/cogment/cogment/version"
 	"html/template"
 	"io"
 	"log"
@@ -66,6 +73,10 @@ var initCmd = &cobra.Command{
 			log.Fatalln(err)
 		}
 
+		projectname := strings.Split(dst, "/")
+		config.ProjectName = projectname[len(projectname)-1]
+		config.CliVersion = version.CliVersion
+
 		err = createProjectFiles(dst, config)
 		if err != nil {
 			log.Fatalln(err)
@@ -80,6 +91,10 @@ func createProjectFiles(dst string, config *api.ProjectConfig) error {
 	}
 
 	if err := generateFromTemplate(templates.ROOT_DOCKER_COMPOSE, dst+"/docker-compose.yaml", config); err != nil {
+		return err
+	}
+
+	if err := generateFromTemplate(templates.ROOT_DOCKER_COMPOSE_OVERRIDE, dst+"/docker-compose.override.template.yaml", config); err != nil {
 		return err
 	}
 
@@ -114,6 +129,71 @@ func createProjectFiles(dst string, config *api.ProjectConfig) error {
 	if err := generateFromTemplate(clients.MAIN_PY, dst+"/clients/main.py", config); err != nil {
 		return err
 	}
+
+	if err := generateFromTemplate(envoy.ENVOY_YAML, dst+"/envoy/envoy.yaml", config); err != nil {
+		return err
+	}
+
+	if err := generateFromTemplate(js_clients.MAIN_JS, dst+"/clients/js/main.js", config); err != nil {
+		return err
+	}
+
+	if err := generateFromTemplate(js_clients.INDEX_HTML, dst+"/clients/js/index.html", config); err != nil {
+		return err
+	}
+
+	if err := generateFromTemplate(js_clients.PACKAGE_JSON, dst+"/clients/js/package.json", config); err != nil {
+		return err
+	}
+
+	if err := generateFromTemplate(js_clients.WEBPACK_CONFIG_JS, dst+"/clients/js/webpack.config.js", config); err != nil {
+		return err
+	}
+
+	if err := generateFromTemplate(js_clients.DOCKERFILE, dst+"/clients/js/Dockerfile", config); err != nil {
+		return err
+	}
+
+	if err := generateFromTemplate(configs.PROMETHEUS_YAML, dst+"/configs/prometheus/prometheus.yaml", config); err != nil {
+		return err
+	}
+
+	if err := generateFromTemplate(configs.GRAFANA_DASHBOARD_JSON, dst+"/configs/grafana/dashboards/dashboard.json", config); err != nil {
+		return err
+	}
+
+	if err := generateFromTemplate(configs.GRAFANA_DASHBOARD_YAML, dst+"/configs/grafana/dashboards/dashboard.yaml", config); err != nil {
+		return err
+	}
+
+	if err := generateFromTemplate(configs.GRAFANA_DATASOURCE_YAML, dst+"/configs/grafana/datasources/datasource.yaml", config); err != nil {
+		return err
+	}
+
+	if err := generateFromTemplate(replaybuffer.DOCKERFILE, dst+"/replaybuffer/Dockerfile", config); err != nil {
+		return err
+	}
+
+	if err := generateFromTemplate(replaybuffer.REPLAYBUFFER_PY, dst+"/replaybuffer/replaybuffer.py", config); err != nil {
+		return err
+	}
+
+	if err := generateFromTemplate(revisioning.REQUIREMENTS_TXT, dst+"/requirements.txt", config); err != nil {
+		return err
+	}
+
+	if err := generateFromTemplate(revisioning.COGMENT_SH, dst+"/cogment.sh", config); err != nil {
+		return err
+	}
+
+	if err := generateFromTemplate(configurator.DOCKERFILE, dst+"/configurator/Dockerfile", config); err != nil {
+		return err
+	}
+
+	if err := generateFromTemplate(configurator.CONFIGURATOR_PY, dst+"/configurator/main.py", config); err != nil {
+		return err
+	}
+
 
 	for k, actor := range config.ActorClasses {
 		countAi, _ := config.CountActorsByActorClass(config.ActorClasses[k].Id)
@@ -150,6 +230,7 @@ func generateFromTemplate(tplStr, dst string, config interface{}) error {
 		"snakeify":  helper.Snakeify,
 		"kebabify":  helper.Kebabify,
 		"pascalify": helper.Pascalify,
+		"tocaps": helper.Tocaps,
 	})
 
 	t = template.Must(t.Parse(tplStr))
@@ -179,57 +260,63 @@ func createProjectConfigFromReader(stdin io.Reader) (*api.ProjectConfig, error) 
 
 	config := api.ProjectConfig{TrialParams: &api.TrialParams{}}
 
-	nbActors, err := getTotalActorsFromReader(reader)
+	name, err := getClientNameFromReader(reader)
 	if err != nil {
 		return nil, err
 	}
 
-	totalHuman := 0
-	for len(config.ActorClasses) < nbActors {
+	actorClass := api.ActorClass{Id: name}
 
-		name, err := getActorClassNameFromReader(reader)
+	config.ActorClasses = append(config.ActorClasses, &actorClass)
+
+	actor := api.Actor{
+		ActorClass: name,
+		Endpoint:   "human",
+	}
+
+	config.TrialParams.Actors = append(config.TrialParams.Actors, &actor)
+
+	nbAgentActors, err := getTotalAgentsFromReader(reader)
+	if err != nil {
+		return nil, err
+	}
+
+	for i := 0; i < nbAgentActors; i++ {
+
+		name, err := getAgentClassNameFromReader(reader, i)
 		for _, val := range config.ActorClasses {
 			if name == val.Id {
 				err = fmt.Errorf("this name is already taken")
 			}
 		}
 		if err != nil {
-			fmt.Println(err)
-			continue
+			return nil, err
 		}
 
-		nbAi, nbHuman := getActorClassFromReader(reader, name)
 		actorClass := api.ActorClass{Id: name}
 
-		for i := 0; i < nbAi; i++ {
+		config.ActorClasses = append(config.ActorClasses, &actorClass)
+
+		nbAgentInstances, err := getAgentInstantsFromReader(reader, name)
+		if err != nil {
+			return nil, err
+		}
+
+		for j := 0; j < nbAgentInstances; j++ {
 			actor := api.Actor{
 				ActorClass: name,
 				Endpoint:   "grpc://" + helper.Kebabify(name) + ":9000",
 			}
 
 			config.TrialParams.Actors = append(config.TrialParams.Actors, &actor)
+
 		}
 
-		for i := 0; i < nbHuman; i++ {
-			actor := api.Actor{
-				ActorClass: name,
-				Endpoint:   "human",
-			}
-
-			config.TrialParams.Actors = append(config.TrialParams.Actors, &actor)
-		}
-
-		if totalHuman+nbHuman > 1 {
-			fmt.Println("cogment doesn't support more than 1 human now")
-			continue
-		}
-		totalHuman += nbHuman
-
-		config.ActorClasses = append(config.ActorClasses, &actorClass)
 	}
 
 	return &config, nil
 }
+
 
 func getActorClassFromReader(reader *bufio.Reader, name string) (totalAi, totalHuman int) {
 
@@ -294,6 +381,78 @@ func getActorClassNameFromReader(reader *bufio.Reader) (string, error) {
 	}
 
 	return input, nil
+}
+
+func getClientNameFromReader(reader *bufio.Reader) (string, error) {
+	fmt.Printf("Master client actor name: ")
+	input, _ := reader.ReadString('\n')
+	input = strings.TrimSpace(input)
+
+	if input == "" {
+		return input, fmt.Errorf("name can't be empty")
+	}
+	if input != strings.ToLower(input) {
+		return input, fmt.Errorf("no upper case letters")
+	}
+	if strings.Contains(input, "-") {
+		return input, fmt.Errorf("no dashes/hyphens")
+	}
+	if strings.Contains("0123456789",input[0:1]) {
+		return input, fmt.Errorf("name can't start with numeric")
+	}
+
+	return input, nil
+}
+
+func getAgentClassNameFromReader(reader *bufio.Reader, agent_number int) (string, error) {
+	fmt.Printf("Agent actor type " + strconv.Itoa(agent_number + 1) + " name: ")
+	input, _ := reader.ReadString('\n')
+	input = strings.TrimSpace(input)
+
+	if input == "" {
+		return input, fmt.Errorf("name can't be empty")
+	}
+	if input != strings.ToLower(input) {
+		return input, fmt.Errorf("no upper case letters")
+	}
+	if strings.Contains(input, "-") {
+		return input, fmt.Errorf("no dashed/hyphens")
+	}
+	if strings.Contains("0123456789",input[0:1]) {
+		return input, fmt.Errorf("name can't start with numeric")
+	}
+
+	return input, nil
+}
+
+func getTotalAgentsFromReader(reader *bufio.Reader) (int, error) {
+
+	for {
+		fmt.Print("Number of agent actor types: ")
+
+		result, err := getIntegerFromReader(reader)
+
+		if err == nil && result > 0 {
+			return result, nil
+		}
+
+		fmt.Println("this value must be an integer greater than 0")
+	}
+}
+
+func getAgentInstantsFromReader(reader *bufio.Reader, agent_name string) (int, error) {
+
+	for {
+		fmt.Print("Number of agent '" + agent_name + "' instances: ")
+
+		result, err := getIntegerFromReader(reader)
+
+		if err == nil && result > 0 {
+			return result, nil
+		}
+
+		fmt.Println("this value must be an integer greater than 0")
+	}
 }
 
 func init() {

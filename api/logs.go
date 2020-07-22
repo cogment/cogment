@@ -9,6 +9,6 @@ type SearchLogsResult struct {
 type LogEntry struct {
 	ServiceName string  `json:"service_name"`
 	Message     string  `json:"message"`
-	Timestamp   float64 `json:"timestamp"`
+	Timestamp   uint64 `json:"timestamp"`
 	Source      string  `json:"source"`
 }
