@@ -12,23 +12,34 @@ variables:
   DOCKER_HOST: tcp://docker:2376
   DOCKER_TLS_CERTDIR: "/certs"
 
-before_script:
-  - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
-
 build:
   stage: build
   script:
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
     - docker pull $CI_REGISTRY_IMAGE:latest || true
     - docker build --cache-from $CI_REGISTRY_IMAGE:latest .
   except:
     - master
 
+# To an inteneral publish on every master revision (for dev convenience)
 publish:
-  stage: build
+  stage: publish
   script:
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
     - docker pull $CI_REGISTRY_IMAGE:latest || true
     - docker build --cache-from $CI_REGISTRY_IMAGE:latest --tag $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA --tag $CI_REGISTRY_IMAGE:latest .
     - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
     - docker push $CI_REGISTRY_IMAGE:latest
   only:
     - master
+
+publish:
+  stage: publish
+  script:
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
+    - docker pull $CI_REGISTRY_IMAGE:latest || true
+    - docker login -u "$CI_DOCKERHUB_USER" -p "$CI_DOCKERHUB_PASSWD"
+    - docker build --cache-from $CI_REGISTRY_IMAGE:latest --tag cogment/cli:$CI_COMMIT_TAG .
+    - docker push cogment/cli:$CI_COMMIT_TAG
+  only:
+    - tags

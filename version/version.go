@@ -1,5 +1,5 @@
 package version
 
 var (
-	CliVersion = "dev"
+	CliVersion = "0.4.0"
 )
