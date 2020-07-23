@@ -38,7 +38,7 @@ publish:
   script:
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
     - docker pull $CI_REGISTRY_IMAGE:latest || true
-    - docker login -u "$CI_DOCKERHUB_USER" -p "$CI_DOCKERHUB_PASSWD"
+    - docker login -u "$DOCKER_USER" -p "$DOCKER_PASSWORD"
     - docker build --cache-from $CI_REGISTRY_IMAGE:latest --tag cogment/cli:$CI_COMMIT_TAG .
     - docker push cogment/cli:$CI_COMMIT_TAG
   only:
