@@ -36,7 +36,7 @@ publish:
 publish:
   stage: publish
   script:
-    - docker login
+    - docker login -u $DOCKER_USER -p $DOCKER_PASSWORD
     - docker build --tag cogment/cli:$CI_COMMIT_TAG .
     - docker push cogment/cli:$CI_COMMIT_TAG
   only:
