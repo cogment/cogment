@@ -68,6 +68,35 @@ Future<void> Agent::init() {
   });
 }
 
+void Agent::dispatch_observation(cogment::Observation&& obs) {
+  lazy_start_decision_stream();
+
+  ::cogment::AgentDataRequest req;
+  *req.mutable_observation() = std::move(obs);
+  outgoing_observations_->push(std::move(req));
+}
+
+void Agent::lazy_start_decision_stream() {
+  if (!outgoing_observations_) {
+    expected_action = Promise<cogment::Action>();
+
+    easy_grpc::client::Call_options options;
+    options.headers = &headers_;
+
+    auto stream = stub_->stub.Decide(options);
+
+    outgoing_observations_ = std::move(std::get<0>(stream));
+    auto incoming_actions = std::move(std::get<1>(stream));
+    incoming_actions
+        .for_each([this](auto act) {
+          // That's not quite right.
+          expected_action.set_value(act.action());
+          expected_action = Promise<cogment::Action>();
+        })
+        .finally([this](auto) { outgoing_observations_ = std::nullopt; });
+  }
+}
+
 void Agent::terminate() {
   AGENT_DEBUG_LOG("Agent::terminate: {} {}", to_string(trial()->id()), actor_id());
   cogment::AgentEndRequest req;
@@ -90,12 +119,8 @@ void Agent::dispatch_reward(int tick_id, const ::cogment::Reward& reward) {
 }
 
 Future<cogment::Action> Agent::request_decision(cogment::Observation&& obs) {
-  cogment::AgentDecideRequest req;
-  *req.mutable_observation() = std::move(obs);
+  dispatch_observation(std::move(obs));
 
-  easy_grpc::client::Call_options options;
-  options.headers = &headers_;
-
-  return stub_->stub.Decide(req, options).then([](auto rep) { return rep.action(); });
+  return expected_action.get_future();
 }
 }  // namespace cogment

@@ -35,6 +35,7 @@ class Agent : public Actor {
   Future<void> init() override;
   void terminate() override;
 
+  void dispatch_observation(cogment::Observation&& obs) override;
   void dispatch_reward(int tick_id, const ::cogment::Reward& reward) override;
   Future<cogment::Action> request_decision(cogment::Observation&& obs) override;
 
@@ -43,11 +44,16 @@ class Agent : public Actor {
   }
 
   private:
+  void lazy_start_decision_stream();
+
   stub_type stub_;
   std::vector<grpc_metadata> headers_;
 
   cogment::Action latest_action_;
   std::optional<std::string> config_data_;
+
+  std::optional<::easy_grpc::Stream_promise<::cogment::AgentDataRequest>> outgoing_observations_;
+  Promise<cogment::Action> expected_action;
 };
 }  // namespace cogment
 #endif
