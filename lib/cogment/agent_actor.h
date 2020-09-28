@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef AOM_ORCHESTRATOR_AGENT_H
-#define AOM_ORCHESTRATOR_AGENT_H
+#ifndef AOM_ORCHESTRATOR_AGENT_ACTOR_H
+#define AOM_ORCHESTRATOR_AGENT_ACTOR_H
 
 #include "cogment/actor.h"
 #include "cogment/api/agent.egrpc.pb.h"
@@ -27,7 +27,7 @@ class Trial;
 class Agent : public Actor {
   public:
   using stub_type = std::shared_ptr<Stub_pool<cogment::AgentEndpoint>::Entry>;
-  Agent(Trial* owner, std::uint32_t actor_id, const ActorClass* actor_class, stub_type stub,
+  Agent(Trial* owner, std::uint32_t actor_id, const ActorClass* actor_class, const std::string& impl, stub_type stub,
         std::optional<std::string> config_data);
 
   ~Agent();
@@ -35,9 +35,8 @@ class Agent : public Actor {
   Future<void> init() override;
   void terminate() override;
 
-  void dispatch_observation(cogment::Observation&& obs) override;
+  void dispatch_observation(const cogment::Observation& obs) override;
   void dispatch_reward(int tick_id, const ::cogment::Reward& reward) override;
-  Future<cogment::Action> request_decision(cogment::Observation&& obs) override;
 
   ::easy_grpc::Future<::cogment::TrialActionReply> user_acted(cogment::TrialActionRequest req) override {
     throw std::runtime_error("agent is recieving human action.");
@@ -53,7 +52,8 @@ class Agent : public Actor {
   std::optional<std::string> config_data_;
 
   std::optional<::easy_grpc::Stream_promise<::cogment::AgentDataRequest>> outgoing_observations_;
-  Promise<cogment::Action> expected_action;
+
+  std::string impl_;
 };
 }  // namespace cogment
 #endif

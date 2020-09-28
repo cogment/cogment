@@ -15,7 +15,7 @@
 #include "cogment/trial.h"
 #include "cogment/orchestrator.h"
 
-#include "cogment/agent.h"
+#include "cogment/agent_actor.h"
 
 namespace cogment {
 
@@ -60,7 +60,7 @@ Trial::Trial(Orchestrator* orch, std::string user_id)
   refresh_activity();
 }
 
-Trial::~Trial() {}
+Trial::~Trial() { spdlog::info("tearing down trial {}", to_string(id_)); }
 
 std::lock_guard<std::mutex> Trial::lock() { return std::lock_guard(lock_); }
 
@@ -84,7 +84,7 @@ Future<void> Trial::configure(cogment::TrialParams params) {
   params_ = std::move(params);
 
   grpc_metadata trial_header;
-  trial_header.key = grpc_slice_from_static_string("trial_id");
+  trial_header.key = grpc_slice_from_static_string("trial-id");
   trial_header.value = grpc_slice_from_copied_string(to_string(id_).c_str());
   headers_.push_back(trial_header);
   call_options_.headers = &headers_;
@@ -94,13 +94,15 @@ Future<void> Trial::configure(cogment::TrialParams params) {
   ::cogment::EnvStartRequest env_start_req;
   fill_env_start_request(&env_start_req);
 
-  std::vector<aom::Future<void>> agents_ready;
   for (const auto& actor_info : params_.actors()) {
     auto url = actor_info.endpoint();
     const auto& actor_class = orchestrator_->get_trial_spec().get_actor_class(actor_info.actor_class());
-    env_start_req.add_actor_class_idx(actor_class.index);
 
-    if (url == "connect") {
+    auto actor_in_trial = env_start_req.add_actors_in_trial();
+    actor_in_trial->set_actor_class(actor_class.name);
+    actor_in_trial->set_name(actor_info.name());
+
+    if (url == "client") {
       //      auto human_actor = std::make_unique<Human>(trial_id);
       //      human_actor->actor_class = &owner_->trial_spec_.actor_classes[class_id];
       //      actors_.push_back(std::move(human_actor));
@@ -111,11 +113,19 @@ Future<void> Trial::configure(cogment::TrialParams params) {
         config = actor_info.config().content();
       }
       auto stub_entry = orchestrator_->agent_pool()->get_stub(url);
-      auto agent_actor = std::make_unique<Agent>(this, actors_.size(), &actor_class, stub_entry, config);
-
-      agents_ready.push_back(agent_actor->init());
+      auto agent_actor =
+          std::make_unique<Agent>(this, actors_.size(), &actor_class, actor_info.impl(), stub_entry, config);
       actors_.push_back(std::move(agent_actor));
     }
+  }
+
+  actions_.resize(actors_.size());
+
+  state_ = Trial_state::pending;
+
+  std::vector<aom::Future<void>> actors_ready;
+  for (const auto& actor : actors_) {
+    actors_ready.push_back(actor->init());
   }
 
   auto env_ready = (*env_stub_)->Start(std::move(env_start_req), call_options_).then_expect([](auto rep) {
@@ -131,9 +141,86 @@ Future<void> Trial::configure(cogment::TrialParams params) {
     return rep;
   });
 
-  return join(env_ready, concat(agents_ready.begin(), agents_ready.end())).then([](auto) {
-    // everyone is ready...
+  return join(env_ready, concat(actors_ready.begin(), actors_ready.end())).then([this](auto env_rep) {
+    latest_observations_ = std::move(*env_rep.mutable_observation_set());
+    state_ = Trial_state::running;
+
+    run_environment();
+    dispatch_observations();
   });
+}
+
+void Trial::dispatch_observations() {
+  std::uint32_t actor_id = 0;
+  for (const auto& actor : actors_) {
+    auto obs_index = latest_observations_.actors_map(actor_id);
+    actor->dispatch_observation(latest_observations_.observations(obs_index));
+    ++actor_id;
+  }
+}
+
+void Trial::run_environment() {
+  // Bootstrap the log with the initial observation
+  // This will also create a landing pad for the incoming actions
+  step_data_.emplace_back();
+
+  auto& sample = step_data_.back();
+  sample.mutable_observations()->CopyFrom(latest_observations_);
+  sample.mutable_actions()->Reserve(actors_.size());
+  for (const auto& actor : actors_) {
+    (void)actor;
+    sample.mutable_actions()->Add();
+  }
+
+  // Launch the main update stream
+  auto streams = (*env_stub_)->Update(call_options_);
+
+  outgoing_actions_ = std::move(std::get<0>(streams));
+  auto incoming_updates = std::move(std::get<1>(streams));
+
+  // Whenever we get an update, advance the datalog table.
+  incoming_updates
+      .for_each([this](auto obs) {
+        spdlog::info("receiving update from env...");
+        latest_observations_ = std::move(*obs.mutable_observation_set());
+
+        step_data_.emplace_back();
+        auto& sample = step_data_.back();
+        sample.mutable_observations()->CopyFrom(latest_observations_);
+        sample.mutable_actions()->Reserve(actors_.size());
+        for (const auto& actor : actors_) {
+          (void)actor;
+          sample.mutable_actions()->Add();
+        }
+        dispatch_observations();
+      })
+      .finally([](auto) {
+
+      });
+}
+
+void Trial::actor_acted(std::uint32_t actor_id, const cogment::Action& action) {
+  if (actions_[actor_id] == std::nullopt) {
+    ++gathered_actions_;
+  }
+
+  actions_[actor_id] = action;
+
+  if (gathered_actions_ == actions_.size()) {
+    gathered_actions_ = 0;
+
+    ::cogment::EnvUpdateRequest req;
+    for (const auto& act : actions_) {
+      if (act) {
+        req.mutable_action_set()->add_actions(act->content());
+      }
+      else {
+        req.mutable_action_set()->add_actions("");
+      }
+    }
+
+    outgoing_actions_->push(std::move(req));
+  }
 }
 
 void Trial::terminate() { state_ = Trial_state::terminating; }

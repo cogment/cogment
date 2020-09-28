@@ -18,6 +18,7 @@
 #include "cogment/actor.h"
 #include "cogment/utils.h"
 
+#include "cogment/api/data.pb.h"
 #include "cogment/api/environment.egrpc.pb.h"
 #include "cogment/api/orchestrator.pb.h"
 
@@ -26,6 +27,7 @@
 #include "uuid.h"
 
 #include <chrono>
+#include <deque>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -76,6 +78,8 @@ class Trial : public std::enable_shared_from_this<Trial> {
   // Marks the trial as being active.
   void refresh_activity();
 
+  void actor_acted(std::uint32_t actor_id, const cogment::Action& action);
+
   private:
   Orchestrator* orchestrator_;
 
@@ -95,11 +99,21 @@ class Trial : public std::enable_shared_from_this<Trial> {
   Trial_state state_;
   std::vector<std::unique_ptr<Actor>> actors_;
   std::chrono::time_point<std::chrono::steady_clock> last_activity_;
+  ObservationSet latest_observations_;
 
   void fill_env_start_request(::cogment::EnvStartRequest* io_req);
 
   std::vector<grpc_metadata> headers_;
   easy_grpc::client::Call_options call_options_;
+
+  void dispatch_observations();
+  void run_environment();
+  void gather_actions();
+
+  std::optional<::easy_grpc::Stream_promise<::cogment::EnvUpdateRequest>> outgoing_actions_;
+  std::vector<std::optional<cogment::Action>> actions_;
+  std::uint32_t gathered_actions_ = 0;
+  std::deque<cogment::DatalogSample> step_data_;
 };
 
 }  // namespace cogment

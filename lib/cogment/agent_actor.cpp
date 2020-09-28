@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "cogment/agent.h"
+#include "cogment/agent_actor.h"
 #include "cogment/trial.h"
 
 #include "spdlog/spdlog.h"
@@ -25,15 +25,18 @@
 #endif
 
 namespace cogment {
-Agent::Agent(Trial* owner, std::uint32_t in_actor_id, const ActorClass* actor_class, stub_type stub,
-             std::optional<std::string> config_data)
-    : Actor(owner, in_actor_id, actor_class), stub_(std::move(stub)), config_data_(std::move(config_data)) {
+Agent::Agent(Trial* owner, std::uint32_t in_actor_id, const ActorClass* actor_class, const std::string& impl,
+             stub_type stub, std::optional<std::string> config_data)
+    : Actor(owner, in_actor_id, actor_class),
+      stub_(std::move(stub)),
+      config_data_(std::move(config_data)),
+      impl_(impl) {
   grpc_metadata trial_header;
-  trial_header.key = grpc_slice_from_static_string("trial_id");
+  trial_header.key = grpc_slice_from_static_string("trial-id");
   trial_header.value = grpc_slice_from_copied_string(to_string(trial()->id()).c_str());
 
   grpc_metadata actor_header;
-  actor_header.key = grpc_slice_from_static_string("actor_id");
+  actor_header.key = grpc_slice_from_static_string("actor-id");
   actor_header.value = grpc_slice_from_copied_string(std::to_string(actor_id()).c_str());
 
   headers_ = {trial_header, actor_header};
@@ -43,10 +46,14 @@ Agent::Agent(Trial* owner, std::uint32_t in_actor_id, const ActorClass* actor_cl
 
 Agent::~Agent() { AGENT_DEBUG_LOG("~Agent(): {} {}", to_string(trial()->id()), actor_id()); }
 
+Agent::~Agent() { AGENT_DEBUG_LOG("~Agent(): {} {}", to_string(trial()->id()), actor_id()); }
+
 Future<void> Agent::init() {
   AGENT_DEBUG_LOG("Agent::init(): {} {}", to_string(trial()->id()), actor_id());
 
   cogment::AgentStartRequest req;
+
+  req.set_impl_name(impl_);
 
   if (config_data_) {
     req.mutable_config()->set_content(*config_data_);
@@ -58,28 +65,33 @@ Future<void> Agent::init() {
   }
 
   for (const auto& actor : trial()->actors()) {
-    req.add_actor_class_idx(actor->actor_class()->index);
+    auto actor_in_trial = req.add_actors_in_trial();
+    actor_in_trial->set_actor_class(actor->actor_class()->name);
+    actor_in_trial->set_name(actor->name());
   }
+  easy_grpc::client::Call_options options;
+  options.headers = &headers_;
 
-  return stub_->stub.Start(req).then([this](auto rep) {
+  return stub_->stub.Start(req, options).then([this](auto rep) {
     (void)rep;
     (void)this;
     AGENT_DEBUG_LOG("Agent init start complete: {} {}", to_string(trial()->id()), actor_id());
   });
 }
 
-void Agent::dispatch_observation(cogment::Observation&& obs) {
+void Agent::dispatch_observation(const cogment::Observation& obs) {
+  spdlog::info("pushing observation??");
   lazy_start_decision_stream();
 
+  spdlog::info("pushing observation");
   ::cogment::AgentDataRequest req;
-  *req.mutable_observation() = std::move(obs);
+  *req.mutable_observation() = obs;
   outgoing_observations_->push(std::move(req));
+  spdlog::info("observation pushed...");
 }
 
 void Agent::lazy_start_decision_stream() {
   if (!outgoing_observations_) {
-    expected_action = Promise<cogment::Action>();
-
     easy_grpc::client::Call_options options;
     options.headers = &headers_;
 
@@ -87,12 +99,7 @@ void Agent::lazy_start_decision_stream() {
 
     outgoing_observations_ = std::move(std::get<0>(stream));
     auto incoming_actions = std::move(std::get<1>(stream));
-    incoming_actions
-        .for_each([this](auto act) {
-          // That's not quite right.
-          expected_action.set_value(act.action());
-          expected_action = Promise<cogment::Action>();
-        })
+    incoming_actions.for_each([this](auto act) { trial()->actor_acted(actor_id(), act.action()); })
         .finally([this](auto) { outgoing_observations_ = std::nullopt; });
   }
 }
@@ -118,9 +125,4 @@ void Agent::dispatch_reward(int tick_id, const ::cogment::Reward& reward) {
   stub_->stub.Reward(req, options).finally([](auto) {});
 }
 
-Future<cogment::Action> Agent::request_decision(cogment::Observation&& obs) {
-  dispatch_observation(std::move(obs));
-
-  return expected_action.get_future();
-}
 }  // namespace cogment

@@ -48,18 +48,20 @@ class Actor {
 
   virtual ::easy_grpc::Future<::cogment::TrialActionReply> user_acted(cogment::TrialActionRequest req) = 0;
 
-  virtual void dispatch_observation(cogment::Observation&& obs) = 0;
+  virtual void dispatch_observation(const cogment::Observation& obs) = 0;
   virtual void dispatch_reward(int tick_id, const ::cogment::Reward& reward) = 0;
-  virtual Future<cogment::Action> request_decision(cogment::Observation&& obs) = 0;
 
   Trial* trial() const;
   std::uint32_t actor_id() const;
   const ActorClass* actor_class() const;
 
+  const std::string& name() const { return name_; }
+
   private:
   Trial* trial_;
   std::uint32_t actor_id_;
   const ActorClass* actor_class_;
+  std::string name_;
 };
 
 struct ActorClass {

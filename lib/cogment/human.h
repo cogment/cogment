@@ -32,7 +32,6 @@ class Human : public Actor {
 
   void dispatch_reward(int tick_id, const ::cogment::Reward& reward) override { latest_reward_ = reward; }
 
-  Future<cogment::Action> request_decision(cogment::Observation&& obs) override;
   ::easy_grpc::Future<::cogment::TrialActionReply> user_acted(cogment::TrialActionRequest req) override;
 
   private:

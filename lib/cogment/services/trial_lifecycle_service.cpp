@@ -37,8 +37,11 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_
     reply.set_trial_id(to_string(trial->id()));
 
     for (const auto& actor : trial->actors()) {
-      reply.add_actor_class_idx(actor->actor_class()->index);
+      auto actor_in_trial = reply.add_actors_in_trial();
+      actor_in_trial->set_actor_class(actor->actor_class()->name);
+      actor_in_trial->set_name(actor->name());
     }
+
     return reply;
   });
 }

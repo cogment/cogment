@@ -52,21 +52,4 @@ void Human::send_final_observation(cogment::Observation&& obs) {
   human_observation_promise_.set_value(std::move(rep));
 }
 
-Future<cogment::Action> Human::request_decision(cogment::Observation&& obs) {
-  human_action_promise_ = Promise<cogment::Action>{};
-  auto result = human_action_promise_.get_future();
-
-  ::cogment::TrialActionReply rep;
-
-  *rep.mutable_observation() = std::move(obs);
-
-  if (latest_reward_) {
-    *rep.mutable_reward() = std::move(*latest_reward_);
-  }
-  latest_reward_ = std::nullopt;
-
-  human_observation_promise_.set_value(std::move(rep));
-
-  return result;
-}
 }  // namespace cogment

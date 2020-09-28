@@ -1,6 +1,6 @@
-FROM registry.gitlab.com/ai-r/cogment-build-env:50609b20f26403391631ba91c3d734f71499f4e3 as build
+FROM registry.gitlab.com/ai-r/cogment-build-env:8569ce3ca4e591d0965a4fa838b03aff0fb9d40a as build
 
-WORKDIR workspace
+WORKDIR /workspace
 
 COPY . .
 
