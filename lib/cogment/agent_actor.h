@@ -35,7 +35,7 @@ class Agent : public Actor {
   Future<void> init() override;
   void terminate() override;
 
-  void dispatch_observation(const cogment::Observation& obs) override;
+  void dispatch_observation(const cogment::Observation& obs, bool end_of_trial) override;
   void dispatch_reward(int tick_id, const ::cogment::Reward& reward) override;
 
   ::easy_grpc::Future<::cogment::TrialActionReply> user_acted(cogment::TrialActionRequest req) override {

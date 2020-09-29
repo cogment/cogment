@@ -67,7 +67,7 @@ class Trial : public std::enable_shared_from_this<Trial> {
   Future<void> configure(cogment::TrialParams params);
   const cogment::TrialParams& params() const;
 
-  // Ends the trial. terminatr() will hold a shared_ptr to the trial until
+  // Ends the trial. terminate() will hold a shared_ptr to the trial until
   // termination is complete, so it's safe to let go of the trial once
   // this has been called.
   void terminate();
@@ -79,6 +79,7 @@ class Trial : public std::enable_shared_from_this<Trial> {
   void refresh_activity();
 
   void actor_acted(std::uint32_t actor_id, const cogment::Action& action);
+  std::shared_ptr<Trial> get_shared() { return shared_from_this(); }
 
   private:
   Orchestrator* orchestrator_;
@@ -99,20 +100,22 @@ class Trial : public std::enable_shared_from_this<Trial> {
   Trial_state state_;
   std::vector<std::unique_ptr<Actor>> actors_;
   std::chrono::time_point<std::chrono::steady_clock> last_activity_;
-  ObservationSet latest_observations_;
 
   void fill_env_start_request(::cogment::EnvStartRequest* io_req);
 
   std::vector<grpc_metadata> headers_;
   easy_grpc::client::Call_options call_options_;
 
-  void dispatch_observations();
+  void dispatch_observations(bool end_of_trial);
   void run_environment();
   void gather_actions();
 
   std::optional<::easy_grpc::Stream_promise<::cogment::EnvUpdateRequest>> outgoing_actions_;
+
+  ObservationSet latest_observations_;
   std::vector<std::optional<cogment::Action>> actions_;
-  std::uint32_t gathered_actions_ = 0;
+  std::uint32_t gathered_actions_count_ = 0;
+
   std::deque<cogment::DatalogSample> step_data_;
 };
 

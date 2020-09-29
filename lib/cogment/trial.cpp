@@ -146,31 +146,30 @@ Future<void> Trial::configure(cogment::TrialParams params) {
     state_ = Trial_state::running;
 
     run_environment();
-    dispatch_observations();
+    // Send the initial state
+    dispatch_observations(false);
   });
 }
 
-void Trial::dispatch_observations() {
+void Trial::dispatch_observations(bool end_of_trial) {
   std::uint32_t actor_id = 0;
   for (const auto& actor : actors_) {
     auto obs_index = latest_observations_.actors_map(actor_id);
-    actor->dispatch_observation(latest_observations_.observations(obs_index));
+
+    spdlog::info("dispatching as {}, {}", end_of_trial, latest_observations_.observations(obs_index).DebugString());
+    actor->dispatch_observation(latest_observations_.observations(obs_index), end_of_trial);
     ++actor_id;
   }
 }
 
 void Trial::run_environment() {
+  auto self = shared_from_this();
+
   // Bootstrap the log with the initial observation
-  // This will also create a landing pad for the incoming actions
   step_data_.emplace_back();
 
   auto& sample = step_data_.back();
   sample.mutable_observations()->CopyFrom(latest_observations_);
-  sample.mutable_actions()->Reserve(actors_.size());
-  for (const auto& actor : actors_) {
-    (void)actor;
-    sample.mutable_actions()->Add();
-  }
 
   // Launch the main update stream
   auto streams = (*env_stub_)->Update(call_options_);
@@ -180,50 +179,75 @@ void Trial::run_environment() {
 
   // Whenever we get an update, advance the datalog table.
   incoming_updates
-      .for_each([this](auto obs) {
-        spdlog::info("receiving update from env...");
-        latest_observations_ = std::move(*obs.mutable_observation_set());
+      .for_each([this](auto update) {
+        spdlog::info("update: {}", update.DebugString());
+
+        latest_observations_ = std::move(*update.mutable_observation_set());
 
         step_data_.emplace_back();
         auto& sample = step_data_.back();
         sample.mutable_observations()->CopyFrom(latest_observations_);
-        sample.mutable_actions()->Reserve(actors_.size());
-        for (const auto& actor : actors_) {
-          (void)actor;
-          sample.mutable_actions()->Add();
-        }
-        dispatch_observations();
-      })
-      .finally([](auto) {
 
+        if (update.end_trial()) {
+          // The environment has requested the end of the trial.
+          spdlog::info("end received");
+          terminate();
+        }
+        else {
+          dispatch_observations(false);
+        }
+      })
+      .finally([self](auto) {
+        // We are holding on to self until the rpc is over.
+        // This is important because we call terminate() from within
+        // this handler.
       });
 }
 
+void Trial::terminate() {
+  state_ = Trial_state::terminating;
+
+  // Send the final observation to actors
+  dispatch_observations(true);
+
+  // Stop sending actions to the environment
+  outgoing_actions_->complete();
+  actors_.clear();
+  outgoing_actions_ = std::nullopt;
+}
+
 void Trial::actor_acted(std::uint32_t actor_id, const cogment::Action& action) {
+  spdlog::info("received action from {}", actor_id);
+
+  if (!outgoing_actions_) {
+    return;
+  }
+
   if (actions_[actor_id] == std::nullopt) {
-    ++gathered_actions_;
+    ++gathered_actions_count_;
   }
 
   actions_[actor_id] = action;
 
-  if (gathered_actions_ == actions_.size()) {
-    gathered_actions_ = 0;
+  if (gathered_actions_count_ == actions_.size()) {
+    gathered_actions_count_ = 0;
 
     ::cogment::EnvUpdateRequest req;
-    for (const auto& act : actions_) {
+    for (auto& act : actions_) {
       if (act) {
         req.mutable_action_set()->add_actions(act->content());
       }
       else {
         req.mutable_action_set()->add_actions("");
       }
+
+      act = std::nullopt;
     }
 
+    spdlog::info("sending actions...");
     outgoing_actions_->push(std::move(req));
   }
 }
-
-void Trial::terminate() { state_ = Trial_state::terminating; }
 
 const cogment::TrialParams& Trial::params() const { return params_; }
 

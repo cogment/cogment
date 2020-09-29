@@ -46,8 +46,6 @@ Agent::Agent(Trial* owner, std::uint32_t in_actor_id, const ActorClass* actor_cl
 
 Agent::~Agent() { AGENT_DEBUG_LOG("~Agent(): {} {}", to_string(trial()->id()), actor_id()); }
 
-Agent::~Agent() { AGENT_DEBUG_LOG("~Agent(): {} {}", to_string(trial()->id()), actor_id()); }
-
 Future<void> Agent::init() {
   AGENT_DEBUG_LOG("Agent::init(): {} {}", to_string(trial()->id()), actor_id());
 
@@ -79,15 +77,18 @@ Future<void> Agent::init() {
   });
 }
 
-void Agent::dispatch_observation(const cogment::Observation& obs) {
-  spdlog::info("pushing observation??");
+void Agent::dispatch_observation(const cogment::Observation& obs, bool end_of_trial) {
   lazy_start_decision_stream();
 
-  spdlog::info("pushing observation");
   ::cogment::AgentDataRequest req;
+  req.set_final(end_of_trial);
   *req.mutable_observation() = obs;
   outgoing_observations_->push(std::move(req));
-  spdlog::info("observation pushed...");
+
+  if (end_of_trial) {
+    spdlog::info("completing Decide");
+    outgoing_observations_->complete();
+  }
 }
 
 void Agent::lazy_start_decision_stream() {
@@ -99,8 +100,18 @@ void Agent::lazy_start_decision_stream() {
 
     outgoing_observations_ = std::move(std::get<0>(stream));
     auto incoming_actions = std::move(std::get<1>(stream));
-    incoming_actions.for_each([this](auto act) { trial()->actor_acted(actor_id(), act.action()); })
-        .finally([this](auto) { outgoing_observations_ = std::nullopt; });
+
+    std::weak_ptr trial_weak = trial()->get_shared();
+    auto a_id = actor_id();
+
+    incoming_actions
+        .for_each([trial_weak, a_id](auto act) {
+          auto trial = trial_weak.lock();
+          if (trial) {
+            trial->actor_acted(a_id, act.action());
+          }
+        })
+        .finally([](auto) {});
   }
 }
 

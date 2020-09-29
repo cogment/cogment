@@ -48,7 +48,7 @@ class Actor {
 
   virtual ::easy_grpc::Future<::cogment::TrialActionReply> user_acted(cogment::TrialActionRequest req) = 0;
 
-  virtual void dispatch_observation(const cogment::Observation& obs) = 0;
+  virtual void dispatch_observation(const cogment::Observation& obs, bool end_of_trial) = 0;
   virtual void dispatch_reward(int tick_id, const ::cogment::Reward& reward) = 0;
 
   Trial* trial() const;
