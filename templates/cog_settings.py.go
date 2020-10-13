@@ -67,37 +67,4 @@ class ActionsTable:
     def all_actions(self):
         return {{range $i, $ac := .ActorClasses}}{{if $i}} + {{end}}self.{{.Id}}{{end}}
 
-{{ range .ActorClasses}}
-class {{.Id}}_ObservationProxy(_cog.env_service.ObservationProxy):
-{{- with .Observation}}
-    @property
-    def snapshot(self) -> {{.Space}}:
-        return self._get_snapshot({{.Space}})
-
-    @snapshot.setter
-    def snapshot(self, v):
-        self._set_snapshot(v)
-
-    @property
-    def delta(self) -> {{if .Delta}}{{.Delta}}{{else}}{{.Space}}{{end}}:
-        return self._get_delta({{if .Delta}}{{.Delta}}{{else}}{{.Space}}{{end}})
-
-    @delta.setter
-    def delta(self, v):
-        self._set_delta(v)
-{{end -}}
-{{end}}
-
-class ObservationsTable:
-{{- range .ActorClasses}}
-    {{.Id}}: List[{{.Id}}_ObservationProxy]
-{{- end}}
-
-    def __init__(self, trial):
-{{- range $i, $ac := .ActorClasses}}
-        self.{{$ac.Id}} = [{{$ac.Id}}_ObservationProxy() for _ in range(trial.actor_counts[{{$i}}])]
-{{- end}}
-
-    def all_observations(self):
-        return {{range $i, $ac := .ActorClasses}}{{if $i}} + {{end}}self.{{.Id}}{{end}}
 `
