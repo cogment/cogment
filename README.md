@@ -30,7 +30,7 @@ On windows:
 docker run --rm -v%cd%:/cogment -v//var/run/docker.sock://var/run/docker.sock cogment-cli run build
 ```
 
-On linux (TODO: verify):
+On linux and macOS:
 ```
 docker run --rm -v$(pwd):/cogment -v/var/run/docker.sock:/var/run/docker.sock cogment-cli run build
 ```
