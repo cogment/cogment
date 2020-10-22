@@ -5,12 +5,10 @@
 
 namespace cogment {
 
-TrialLifecycleService::TrialLifecycleService(Orchestrator* orch)
-    : orchestrator_(orch) {}
+TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_(orch) {}
 
-::easy_grpc::Future<::cogment::TrialStartReply>
-TrialLifecycleService::StartTrial(::cogment::TrialStartRequest req,
-                                  easy_grpc::Context ctx) {
+::easy_grpc::Future<::cogment::TrialStartReply> TrialLifecycleService::StartTrial(::cogment::TrialStartRequest req,
+                                                                                  easy_grpc::Context ctx) {
   (void)ctx;
   auto params = orchestrator_->default_trial_params();
 
@@ -19,37 +17,33 @@ TrialLifecycleService::StartTrial(::cogment::TrialStartRequest req,
     params.mutable_trial_config()->set_content(req.config().content());
   }
 
-  return orchestrator_->start_trial(std::move(params), req.user_id())
-      .then([](std::shared_ptr<Trial> trial) {
-        ::cogment::TrialStartReply reply;
+  return orchestrator_->start_trial(std::move(params), req.user_id()).then([](std::shared_ptr<Trial> trial) {
+    ::cogment::TrialStartReply reply;
 
-        reply.set_trial_id(to_string(trial->id()));
+    reply.set_trial_id(to_string(trial->id()));
 
-        for (const auto& actor : trial->actors()) {
-          reply.add_actor_class_idx(actor->actor_class()->index);
-        }
-        return reply;
-      });
+    for (const auto& actor : trial->actors()) {
+      reply.add_actor_class_idx(actor->actor_class()->index);
+    }
+    return reply;
+  });
 }
 
-::cogment::TerminateTrialReply TrialLifecycleService::TerminateTrial(
-    ::cogment::TerminateTrialRequest, easy_grpc::Context ctx) {
-      spdlog::info("terminating...");
+::cogment::TerminateTrialReply TrialLifecycleService::TerminateTrial(::cogment::TerminateTrialRequest,
+                                                                     easy_grpc::Context ctx) {
+  spdlog::info("terminating...");
   (void)ctx;
-  orchestrator_->end_trial(
-      uuids::uuid::from_string(ctx.get_client_header("trial-id")));
+  orchestrator_->end_trial(uuids::uuid::from_string(ctx.get_client_header("trial-id")));
   return {};
 }
 
-::easy_grpc::Future<::cogment::MessageDispatchReply>
-TrialLifecycleService::SendMessage(::cogment::MasterMessageDispatchRequest,
-                                   easy_grpc::Context ctx) {
+::easy_grpc::Future<::cogment::MessageDispatchReply> TrialLifecycleService::SendMessage(
+    ::cogment::MasterMessageDispatchRequest, easy_grpc::Context ctx) {
   (void)ctx;
   return {};
 }
 
-::cogment::TrialInfoReply TrialLifecycleService::TrialInfo(
-    ::cogment::TrialInfoRequest, easy_grpc::Context ctx) {
+::cogment::TrialInfoReply TrialLifecycleService::TrialInfo(::cogment::TrialInfoRequest, easy_grpc::Context ctx) {
   (void)ctx;
   ::cogment::TrialInfoReply result;
   auto add_trial = [&](Trial* trial) {
@@ -67,7 +61,8 @@ TrialLifecycleService::SendMessage(::cogment::MasterMessageDispatchRequest,
     for (auto& trial : trials) {
       add_trial(trial.get());
     }
-  } else {
+  }
+  else {
     auto trial_id = uuids::uuid::from_string(trial_id_str);
     auto trial = orchestrator_->get_trial(trial_id);
     add_trial(trial.get());
@@ -76,8 +71,7 @@ TrialLifecycleService::SendMessage(::cogment::MasterMessageDispatchRequest,
   return result;
 }
 
-::cogment::VersionInfo TrialLifecycleService::Version(::cogment::VersionRequest,
-                                                      easy_grpc::Context ctx) {
+::cogment::VersionInfo TrialLifecycleService::Version(::cogment::VersionRequest, easy_grpc::Context ctx) {
   (void)ctx;
   ::cogment::VersionInfo result;
   auto v = result.add_versions();

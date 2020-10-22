@@ -20,8 +20,7 @@ std::string yaml_to_json(YAML::Node yaml) {
 // This function takes a config node, containing a yaml object describing
 // a protobuf of the "proto" type, and replaces it with an object with a single
 // "content" member that holds the base64 encoded version of that object.
-void encode_user_config(YAML::Node config_node,
-                        const google::protobuf::Message* proto) {
+void encode_user_config(YAML::Node config_node, const google::protobuf::Message* proto) {
   // This will happen if the cogment.yaml does not specify that config type,
   // but still provides a value for it.
   if (proto == nullptr) {
@@ -32,8 +31,7 @@ void encode_user_config(YAML::Node config_node,
 
   // Convert from the json to protobuf
   std::unique_ptr<google::protobuf::Message> user_msg(proto->New());
-  auto status = google::protobuf::util::JsonStringToMessage(config_as_json,
-                                                            user_msg.get());
+  auto status = google::protobuf::util::JsonStringToMessage(config_as_json, user_msg.get());
 
   if (!status.ok()) {
     spdlog::error("{}", status.error_message().as_string());
@@ -50,8 +48,7 @@ void encode_user_config(YAML::Node config_node,
 }  // namespace
 
 // Loads and interprets the default params structure from the root cogment.yaml
-cogment::TrialParams load_params(const YAML::Node& yaml,
-                                 const Trial_spec& spec) {
+cogment::TrialParams load_params(const YAML::Node& yaml, const Trial_spec& spec) {
   cogment::TrialParams result;
 
   if (yaml["trial_params"] != nullptr) {
@@ -61,26 +58,22 @@ cogment::TrialParams load_params(const YAML::Node& yaml,
     // forat for TrialParams uses bytes fields instead, so we translate
 
     if (yaml_params["trial_config"] != nullptr) {
-      encode_user_config(yaml_params["trial_config"],
-                         spec.get_trial_config_proto());
+      encode_user_config(yaml_params["trial_config"], spec.get_trial_config_proto());
     }
 
     if (yaml_params["environment"]["config"] != nullptr) {
-      encode_user_config(yaml_params["environment"]["config"],
-                         spec.get_env_config_prototype());
+      encode_user_config(yaml_params["environment"]["config"], spec.get_env_config_prototype());
     }
 
     for (auto actor : yaml_params["actors"]) {
       if (actor["config"] != nullptr) {
         const auto& actor_class = spec.get_actor_class(actor["actor_class"].as<std::string>());
 
-        encode_user_config(actor["config"],
-                           actor_class.config_prototype);
+        encode_user_config(actor["config"], actor_class.config_prototype);
       }
     }
 
-    auto status = google::protobuf::util::JsonStringToMessage(
-        yaml_to_json(yaml_params), &result);
+    auto status = google::protobuf::util::JsonStringToMessage(yaml_to_json(yaml_params), &result);
 
     if (!status.ok()) {
       spdlog::error("{}", status.error_message().as_string());

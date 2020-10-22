@@ -7,8 +7,7 @@
 
 namespace cogment {
 
-Grpc_datalog_exporter_base::Trial_log::Trial_log(
-    Grpc_datalog_exporter_base* owner, Trial* trial)
+Grpc_datalog_exporter_base::Trial_log::Trial_log(Grpc_datalog_exporter_base* owner, Trial* trial)
     : owner_(owner), trial_(trial) {}
 
 Grpc_datalog_exporter_base::Trial_log::~Trial_log() {
@@ -34,8 +33,7 @@ void Grpc_datalog_exporter_base::Trial_log::lazy_start_stream_() {
   }
 }
 
-void Grpc_datalog_exporter_base::Trial_log::add_sample(
-    cogment::DatalogSample data) {
+void Grpc_datalog_exporter_base::Trial_log::add_sample(cogment::DatalogSample data) {
   lazy_start_stream_();
 
   cogment::DatalogMsg msg;
@@ -43,13 +41,11 @@ void Grpc_datalog_exporter_base::Trial_log::add_sample(
   output_promise_->push(std::move(msg));
 }
 
-std::unique_ptr<Trial_log_interface> Grpc_datalog_exporter_base::begin_trial(
-    Trial* trial) {
+std::unique_ptr<Trial_log_interface> Grpc_datalog_exporter_base::begin_trial(Trial* trial) {
   return std::make_unique<Grpc_datalog_exporter::Trial_log>(this, trial);
 }
 
-Grpc_datalog_exporter::Grpc_datalog_exporter(const std::string& url)
-    : channel(url, &work_thread), stub_impl(&channel) {
+Grpc_datalog_exporter::Grpc_datalog_exporter(const std::string& url) : channel(url, &work_thread), stub_impl(&channel) {
   set_stub(&stub_impl);
 
   spdlog::info("sending datalog to service running at: {}", url);

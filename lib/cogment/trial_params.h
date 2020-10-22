@@ -8,8 +8,7 @@ namespace cogment {
 // This expects the `trial_params` root node of cogment.yaml,
 // and generates a TrialParams.
 struct Trial_spec;
-cogment::TrialParams load_params(const YAML::Node& yaml,
-                                 const Trial_spec& spec);
+cogment::TrialParams load_params(const YAML::Node& yaml, const Trial_spec& spec);
 }  // namespace cogment
 
 #endif

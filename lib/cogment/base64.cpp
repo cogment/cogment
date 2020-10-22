@@ -30,10 +30,9 @@
 #include <tuple>
 
 namespace {
-const std::string base64_chars =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    "abcdefghijklmnopqrstuvwxyz"
-    "0123456789+/";
+const std::string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                 "abcdefghijklmnopqrstuvwxyz"
+                                 "0123456789+/";
 }
 
 namespace cogment {
@@ -44,18 +43,15 @@ std::string base64_encode(const std::string& data) {
   unsigned char char_array_3[3];
   unsigned char char_array_4[4];
 
-  unsigned char const* bytes_to_encode =
-      reinterpret_cast<const unsigned char*>(data.data());
+  unsigned char const* bytes_to_encode = reinterpret_cast<const unsigned char*>(data.data());
   unsigned int in_len = data.length();
 
   while (in_len-- != 0) {
     char_array_3[i++] = *(bytes_to_encode++);
     if (i == 3) {
       char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
-      char_array_4[1] =
-          ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
-      char_array_4[2] =
-          ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
+      char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
+      char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
       char_array_4[3] = char_array_3[2] & 0x3f;
 
       for (i = 0; (i < 4); i++) {
@@ -71,10 +67,8 @@ std::string base64_encode(const std::string& data) {
     }
 
     char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
-    char_array_4[1] =
-        ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
-    char_array_4[2] =
-        ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
+    char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
+    char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
     char_array_4[3] = char_array_3[2] & 0x3f;
 
     for (j = 0; (j < i + 1); j++) {

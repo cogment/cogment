@@ -21,9 +21,8 @@ using cogment::AgentStartReply;
 using cogment::EnvStartReply;
 using cogment::TrialStartReply;
 
-Orchestrator::Orchestrator(
-    Trial_spec trial_spec, cogment::TrialParams default_trial_params,
-    std::unique_ptr<Datalog_storage_interface> datalog_iface)
+Orchestrator::Orchestrator(Trial_spec trial_spec, cogment::TrialParams default_trial_params,
+                           std::unique_ptr<Datalog_storage_interface> datalog_iface)
     : trial_spec_(std::move(trial_spec)),
       storage_(std::move(datalog_iface)),
       default_trial_params_(std::move(default_trial_params)),
@@ -41,12 +40,9 @@ Orchestrator::~Orchestrator() {
   }
 }
 
-void Orchestrator::add_prehook(cogment::TrialHooks::Stub_interface* hook) {
-  prehooks_.push_back(hook);
-}
+void Orchestrator::add_prehook(cogment::TrialHooks::Stub_interface* hook) { prehooks_.push_back(hook); }
 
-::easy_grpc::Future<TrialStartReply> Orchestrator::Start(
-    TrialStartRequest req) {
+::easy_grpc::Future<TrialStartReply> Orchestrator::Start(TrialStartRequest req) {
   SPDLOG_TRACE("Orchestrator::Start");
 
   if (++started_trials_ == garbage_collection_frequency) {
@@ -66,26 +62,21 @@ void Orchestrator::add_prehook(cogment::TrialHooks::Stub_interface* hook) {
     ctx.set_trial_id(to_string(new_trial->id()));
     ctx.set_user_id(req.user_id());
     if (req.has_config()) {
-      ctx.mutable_params()->mutable_trial_config()->set_content(
-          req.config().content());
+      ctx.mutable_params()->mutable_trial_config()->set_content(req.config().content());
     }
     prom.set_value(ctx);
   }
 
   // Run prehooks.
   for (auto& hook : prehooks_) {
-    trial_params = trial_params.then(
-        [this, hook](auto p) { return hook->PreTrial(std::move(p)); });
+    trial_params = trial_params.then([this, hook](auto p) { return hook->PreTrial(std::move(p)); });
   }
 
   return trial_params
-      .then([new_trial](auto params) {
-        return new_trial->configure(std::move(*params.mutable_params()));
-      })
+      .then([new_trial](auto params) { return new_trial->configure(std::move(*params.mutable_params())); })
       .then([this, new_trial]() {
         // Make the trial persist
-        spdlog::info("trial {} successfully initialized",
-                     to_string(new_trial->id()));
+        spdlog::info("trial {} successfully initialized", to_string(new_trial->id()));
 
         {
           std::lock_guard l(trials_mutex_);
@@ -152,8 +143,7 @@ namespace {
   return {};
 }
 
-::easy_grpc::Future<::cogment::TrialActionReply> Orchestrator::Action(
-    ::cogment::TrialActionRequest request) {
+::easy_grpc::Future<::cogment::TrialActionReply> Orchestrator::Action(::cogment::TrialActionRequest request) {
   SPDLOG_TRACE("Orchestrator::Action");
   std::unique_lock l(trials_mutex_);
 
@@ -168,14 +158,12 @@ namespace {
   return trial->user_acted(request);
 }
 
-::easy_grpc::Stream_future<::cogment::TrialActionReply>
-Orchestrator::ActionStream(
+::easy_grpc::Stream_future<::cogment::TrialActionReply> Orchestrator::ActionStream(
     ::easy_grpc::Stream_future<::cogment::TrialActionRequest> request) {
   // This is a bridge implementation of ActionStream, it will ostensibly
   // behave identically to sending a sequence of individual Action() messages.
 
-  auto prom = std::make_shared<
-      ::easy_grpc::Stream_promise<::cogment::TrialActionReply>>();
+  auto prom = std::make_shared<::easy_grpc::Stream_promise<::cogment::TrialActionReply>>();
   auto result = prom->get_future();
 
   // For each incoming message
@@ -186,7 +174,8 @@ Orchestrator::ActionStream(
           // And put the reply in the outgoing stream
           if (rep) {
             prom->push(std::move(*rep));
-          } else {
+          }
+          else {
             prom->set_exception(rep.error());
           }
         });
@@ -194,7 +183,8 @@ Orchestrator::ActionStream(
       .finally([prom](auto status) {
         if (status) {
           prom->complete();
-        } else {
+        }
+        else {
           prom->set_exception(status.error());
         }
       });
@@ -202,8 +192,7 @@ Orchestrator::ActionStream(
   return result;
 }
 
-::cogment::TrialFeedbackReply Orchestrator::GiveFeedback(
-    ::cogment::TrialFeedbackRequest request) {
+::cogment::TrialFeedbackReply Orchestrator::GiveFeedback(::cogment::TrialFeedbackRequest request) {
   SPDLOG_TRACE("Orchestrator::GiveFeedback");
   std::unique_lock l(trials_mutex_);
 
@@ -216,8 +205,7 @@ Orchestrator::ActionStream(
   return {};
 }
 
-::cogment::TrialHeartbeatReply Orchestrator::Heartbeat(
-    ::cogment::TrialHeartbeatRequest request) {
+::cogment::TrialHeartbeatReply Orchestrator::Heartbeat(::cogment::TrialHeartbeatRequest request) {
   SPDLOG_TRACE("Orchestrator::Heartbeat");
   std::unique_lock l(trials_mutex_);
 

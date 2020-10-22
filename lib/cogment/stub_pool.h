@@ -22,19 +22,17 @@ namespace cogment {
 
 // A thread-safe pool of easy-grpc Communication channel
 class Channel_pool {
- public:
+  public:
   // Gets an easy-grpc channel to the target url, recycling an existing one if
   // present.
-  std::shared_ptr<::easy_grpc::client::Channel> get_channel(
-      const std::string& url) {
+  std::shared_ptr<::easy_grpc::client::Channel> get_channel(const std::string& url) {
     std::lock_guard l(mtx_);
 
     auto& found = channels_[url];
     auto result = found.lock();
 
     if (!result) {
-      result =
-          std::make_shared<::easy_grpc::client::Unsecure_channel>(url, nullptr);
+      result = std::make_shared<::easy_grpc::client::Unsecure_channel>(url, nullptr);
       spdlog::info("opening channel to {}", url);
       found = result;
     }
@@ -42,16 +40,15 @@ class Channel_pool {
     return result;
   }
 
- public:
+  public:
   std::mutex mtx_;
-  std::unordered_map<std::string, std::weak_ptr<::easy_grpc::client::Channel>>
-      channels_;
+  std::unordered_map<std::string, std::weak_ptr<::easy_grpc::client::Channel>> channels_;
 };
 
 // A thread-safe pool of easy-grpc connection stubs
 template <typename Service_T>
 class Stub_pool {
- public:
+  public:
   using stub_type = typename Service_T::Stub;
 
   // Constructor
@@ -80,19 +77,17 @@ class Stub_pool {
     auto result = found.lock();
 
     if (!result) {
-      spdlog::info("opening stub for {} at {}", typeid(Service_T).name(),
-                   real_url);
+      spdlog::info("opening stub for {} at {}", typeid(Service_T).name(), real_url);
       auto channel = channel_pool_->get_channel(real_url);
 
-      result = std::make_shared<Entry>(
-          Entry{channel, stub_type(channel.get(), queue_)});
+      result = std::make_shared<Entry>(Entry{channel, stub_type(channel.get(), queue_)});
       found = result;
     }
 
     return result;
   }
 
- private:
+  private:
   std::mutex mtx_;
   Channel_pool* channel_pool_;
   easy_grpc::Completion_queue* queue_;

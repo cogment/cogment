@@ -11,10 +11,10 @@ struct Trial_spec {
 
   const ActorClass& get_actor_class(const std::string& class_name) const;
 
-  const google::protobuf::Message* get_trial_config_proto() const {return trial_config_prototype;}
-  const google::protobuf::Message* get_env_config_prototype() const {return env_config_prototype;}
+  const google::protobuf::Message* get_trial_config_proto() const { return trial_config_prototype; }
+  const google::protobuf::Message* get_env_config_prototype() const { return env_config_prototype; }
 
-private:
+  private:
   std::unique_ptr<google::protobuf::compiler::DiskSourceTree> source_tree_;
   std::unique_ptr<google::protobuf::compiler::Importer> importer_;
   std::unique_ptr<google::protobuf::DynamicMessageFactory> message_factory_;

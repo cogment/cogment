@@ -6,7 +6,7 @@
 namespace cogment {
 
 class Human : public Actor {
- public:
+  public:
   Human(std::string tid);
   ~Human();
 
@@ -16,15 +16,12 @@ class Human : public Actor {
 
   bool is_human() const override { return true; }
 
-  void dispatch_reward(int tick_id, const ::cogment::Reward& reward) override {
-    latest_reward_ = reward;
-  }
+  void dispatch_reward(int tick_id, const ::cogment::Reward& reward) override { latest_reward_ = reward; }
 
   Future<cogment::Action> request_decision(cogment::Observation&& obs) override;
-  ::easy_grpc::Future<::cogment::TrialActionReply> user_acted(
-      cogment::TrialActionRequest req) override;
+  ::easy_grpc::Future<::cogment::TrialActionReply> user_acted(cogment::TrialActionRequest req) override;
 
- private:
+  private:
   std::optional<::cogment::Reward> latest_reward_;
   Promise<cogment::Action> human_action_promise_;
   Promise<::cogment::TrialActionReply> human_observation_promise_;

@@ -22,7 +22,7 @@ class Trial;
 struct ActorClass;
 
 class Actor {
- public:
+  public:
   Actor(Trial* trial, std::uint32_t actor_id, const ActorClass* actor_class);
   virtual ~Actor();
 
@@ -32,19 +32,16 @@ class Actor {
   virtual void terminate() {}
   virtual void send_final_observation(cogment::Observation&& /*obs*/) {}
 
-  virtual ::easy_grpc::Future<::cogment::TrialActionReply> user_acted(
-      cogment::TrialActionRequest req) = 0;
+  virtual ::easy_grpc::Future<::cogment::TrialActionReply> user_acted(cogment::TrialActionRequest req) = 0;
 
-  virtual void dispatch_reward(int tick_id,
-                               const ::cogment::Reward& reward) = 0;
-  virtual Future<cogment::Action> request_decision(
-      cogment::Observation&& obs) = 0;
+  virtual void dispatch_reward(int tick_id, const ::cogment::Reward& reward) = 0;
+  virtual Future<cogment::Action> request_decision(cogment::Observation&& obs) = 0;
 
   Trial* trial() const;
   std::uint32_t actor_id() const;
   const ActorClass* actor_class() const;
 
- private:
+  private:
   Trial* trial_;
   std::uint32_t actor_id_;
   const ActorClass* actor_class_;
@@ -55,8 +52,7 @@ struct ActorClass {
   std::uint32_t index;
 
   const google::protobuf::Message* observation_space_prototype = nullptr;
-  std::vector<const google::protobuf::FieldDescriptor*>
-      cleared_observation_fields;
+  std::vector<const google::protobuf::FieldDescriptor*> cleared_observation_fields;
 
   const google::protobuf::Message* observation_delta_prototype = nullptr;
   std::vector<const google::protobuf::FieldDescriptor*> cleared_delta_fields;

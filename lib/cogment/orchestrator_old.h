@@ -41,7 +41,7 @@ class Orchestrator {
   Stub_pool<cogment::Environment> env_stubs_;
   Stub_pool<cogment::Agent> agent_stubs_;
 
- public:
+  public:
   using service_type = cogment::Trial;
 
   Orchestrator(Trial_spec trial_spec, cogment::TrialParams default_trial_params,
@@ -50,15 +50,13 @@ class Orchestrator {
 
   void add_prehook(cogment::TrialHooks::Stub_interface*);
 
-  ::easy_grpc::Future<::cogment::TrialStartReply> Start(
-      ::cogment::TrialStartRequest);
+  ::easy_grpc::Future<::cogment::TrialStartReply> Start(::cogment::TrialStartRequest);
 
   ::cogment::TrialStartReply Join(::cogment::TrialJoinRequest);
 
   ::cogment::TrialEndReply End(::cogment::TrialEndRequest);
 
-  ::easy_grpc::Future<::cogment::TrialActionReply> Action(
-      ::cogment::TrialActionRequest);
+  ::easy_grpc::Future<::cogment::TrialActionReply> Action(::cogment::TrialActionRequest);
 
   ::easy_grpc::Stream_future<::cogment::TrialActionReply> ActionStream(
       ::easy_grpc::Stream_future<::cogment::TrialActionRequest>);

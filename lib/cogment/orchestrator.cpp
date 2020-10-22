@@ -5,16 +5,14 @@ namespace settings {
 
 constexpr std::uint32_t default_garbage_collection_frequency = 10;
 
-slt::Setting garbage_collection_frequency =
-    slt::Setting_builder<std::uint32_t>()
-        .with_default(default_garbage_collection_frequency)
-        .with_description("Number of trials between garbage collection runs")
-        .with_arg("gb_freq");
+slt::Setting garbage_collection_frequency = slt::Setting_builder<std::uint32_t>()
+                                                .with_default(default_garbage_collection_frequency)
+                                                .with_description("Number of trials between garbage collection runs")
+                                                .with_arg("gb_freq");
 }  // namespace settings
 
 namespace cogment {
-Orchestrator::Orchestrator(Trial_spec trial_spec,
-                           cogment::TrialParams default_trial_params)
+Orchestrator::Orchestrator(Trial_spec trial_spec, cogment::TrialParams default_trial_params)
     : trial_spec_(std::move(trial_spec)),
       default_trial_params_(std::move(default_trial_params)),
       env_stubs_(&channel_pool_, &client_queue_),
@@ -24,8 +22,7 @@ Orchestrator::Orchestrator(Trial_spec trial_spec,
 
 Orchestrator::~Orchestrator() {}
 
-Future<std::shared_ptr<Trial>> Orchestrator::start_trial(
-    cogment::TrialParams params, std::string user_id) {
+Future<std::shared_ptr<Trial>> Orchestrator::start_trial(cogment::TrialParams params, std::string user_id) {
   check_garbage_collection_();
 
   auto new_trial = std::make_shared<Trial>(this, user_id);
@@ -44,12 +41,9 @@ Future<std::shared_ptr<Trial>> Orchestrator::start_trial(
   auto final_ctx_fut = perform_pre_hooks_(std::move(init_ctx));
 
   return final_ctx_fut
-      .then([new_trial](auto final_ctx) {
-        return new_trial->configure(std::move(*final_ctx.mutable_params()));
-      })
+      .then([new_trial](auto final_ctx) { return new_trial->configure(std::move(*final_ctx.mutable_params())); })
       .then([new_trial]() {
-        spdlog::info("trial {} successfully initialized",
-                     to_string(new_trial->id()));
+        spdlog::info("trial {} successfully initialized", to_string(new_trial->id()));
         return new_trial;
       });
 }
@@ -71,34 +65,26 @@ void Orchestrator::end_trial(const uuids::uuid& trial_id) {
   trial->terminate();
 }
 
-void Orchestrator::add_prehook(cogment::TrialHooks::Stub_interface* hook) {
-  prehooks_.push_back(hook);
-}
+void Orchestrator::add_prehook(cogment::TrialHooks::Stub_interface* hook) { prehooks_.push_back(hook); }
 
-Future<cogment::TrialContext> Orchestrator::perform_pre_hooks_(
-    cogment::TrialContext ctx) {
+Future<cogment::TrialContext> Orchestrator::perform_pre_hooks_(cogment::TrialContext ctx) {
   aom::Promise<cogment::TrialContext> prom;
   auto result = prom.get_future();
   prom.set_value(std::move(ctx));
 
   // Run prehooks.
   for (auto& hook : prehooks_) {
-    result =
-        result.then([hook](auto p) { return hook->PreTrial(std::move(p)); });
+    result = result.then([hook](auto p) { return hook->PreTrial(std::move(p)); });
   }
 
   return result;
 }
 
-void Orchestrator::set_log_exporter(
-    std::unique_ptr<Datalog_storage_interface> le) {
-  log_exporter_ = std::move(le);
-}
+void Orchestrator::set_log_exporter(std::unique_ptr<Datalog_storage_interface> le) { log_exporter_ = std::move(le); }
 
 void Orchestrator::check_garbage_collection_() {
   if (--garbage_collection_countdown_ <= 0) {
-    garbage_collection_countdown_.store(
-        settings::garbage_collection_frequency.get());
+    garbage_collection_countdown_.store(settings::garbage_collection_frequency.get());
     perform_garbage_collection_();
   }
 }
@@ -112,8 +98,7 @@ void Orchestrator::perform_garbage_collection_() {
   }
 }
 
-std::shared_ptr<Trial> Orchestrator::get_trial(
-    const uuids::uuid& trial_id) const {
+std::shared_ptr<Trial> Orchestrator::get_trial(const uuids::uuid& trial_id) const {
   std::lock_guard l(trials_mutex_);
   return trials_.at(trial_id);
 }

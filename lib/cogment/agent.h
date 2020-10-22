@@ -11,14 +11,11 @@ namespace cogment {
 
 class Trial;
 class Agent : public Actor {
- public:
+  public:
   using stub_type = std::shared_ptr<Stub_pool<cogment::AgentEndpoint>::Entry>;
-  Agent(Trial* owner, 
-        std::uint32_t actor_id, 
-        const ActorClass* actor_class, 
-        stub_type stub, 
+  Agent(Trial* owner, std::uint32_t actor_id, const ActorClass* actor_class, stub_type stub,
         std::optional<std::string> config_data);
-  
+
   ~Agent();
 
   Future<void> init() override;
@@ -27,15 +24,14 @@ class Agent : public Actor {
   void dispatch_reward(int tick_id, const ::cogment::Reward& reward) override;
   Future<cogment::Action> request_decision(cogment::Observation&& obs) override;
 
-  ::easy_grpc::Future<::cogment::TrialActionReply> user_acted(
-      cogment::TrialActionRequest req) override {
+  ::easy_grpc::Future<::cogment::TrialActionReply> user_acted(cogment::TrialActionRequest req) override {
     throw std::runtime_error("agent is recieving human action.");
   }
 
- private:
+  private:
   stub_type stub_;
   std::vector<grpc_metadata> headers_;
-  
+
   cogment::Action latest_action_;
   std::optional<std::string> config_data_;
 };

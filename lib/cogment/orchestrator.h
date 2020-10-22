@@ -16,9 +16,8 @@
 
 namespace cogment {
 class Orchestrator {
- public:
-  Orchestrator(Trial_spec trial_spec,
-               cogment::TrialParams default_trial_params);
+  public:
+  Orchestrator(Trial_spec trial_spec, cogment::TrialParams default_trial_params);
   ~Orchestrator();
 
   // Initialization
@@ -26,15 +25,12 @@ class Orchestrator {
   void set_log_exporter(std::unique_ptr<Datalog_storage_interface> le);
 
   // Lifecycle
-  Future<std::shared_ptr<Trial>> start_trial(cogment::TrialParams params,
-                                             std::string user_id);
+  Future<std::shared_ptr<Trial>> start_trial(cogment::TrialParams params, std::string user_id);
   void end_trial(const uuids::uuid& trial_id);
 
   // Services
   ActorService& actor_service() { return actor_service_; }
-  TrialLifecycleService& trial_lifecycle_service() {
-    return trial_lifecycle_service_;
-  }
+  TrialLifecycleService& trial_lifecycle_service() { return trial_lifecycle_service_; }
 
   // Lookups
   std::shared_ptr<Trial> get_trial(const uuids::uuid& trial_id) const;
@@ -45,16 +41,14 @@ class Orchestrator {
   // Semi-internal, rpc management related.
   easy_grpc::Completion_queue* client_queue() { return &client_queue_; }
   Channel_pool* channel_pool() { return &channel_pool_; }
-  Stub_pool<cogment::EnvironmentEndpoint>* env_pool() {return &env_stubs_;}
-  Stub_pool<cogment::AgentEndpoint>* agent_pool() {return &agent_stubs_;}
+  Stub_pool<cogment::EnvironmentEndpoint>* env_pool() { return &env_stubs_; }
+  Stub_pool<cogment::AgentEndpoint>* agent_pool() { return &agent_stubs_; }
 
-  const cogment::TrialParams& default_trial_params() const {
-    return default_trial_params_;
-  };
+  const cogment::TrialParams& default_trial_params() const { return default_trial_params_; };
 
-  const Trial_spec& get_trial_spec() const { return trial_spec_;}
- 
- private:
+  const Trial_spec& get_trial_spec() const { return trial_spec_; }
+
+  private:
   // Configuration
   Trial_spec trial_spec_;
   cogment::TrialParams default_trial_params_;
@@ -75,7 +69,6 @@ class Orchestrator {
 
   Stub_pool<cogment::EnvironmentEndpoint> env_stubs_;
   Stub_pool<cogment::AgentEndpoint> agent_stubs_;
-
 
   ActorService actor_service_;
   TrialLifecycleService trial_lifecycle_service_;

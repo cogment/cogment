@@ -4,8 +4,8 @@
 #include "cogment/actor.h"
 #include "cogment/utils.h"
 
-#include "cogment/api/orchestrator.pb.h"
 #include "cogment/api/environment.egrpc.pb.h"
+#include "cogment/api/orchestrator.pb.h"
 
 #include "cogment/stub_pool.h"
 
@@ -27,7 +27,7 @@ cogment::TrialState get_trial_state_proto(Trial_state s);
 class Trial : public std::enable_shared_from_this<Trial> {
   static uuids::uuid_system_generator id_generator_;
 
- public:
+  public:
   Trial(Orchestrator* orch, std::string user_id);
   ~Trial();
 
@@ -62,7 +62,7 @@ class Trial : public std::enable_shared_from_this<Trial> {
   // Marks the trial as being active.
   void refresh_activity();
 
- private:
+  private:
   Orchestrator* orchestrator_;
 
   std::mutex lock_;
@@ -82,12 +82,10 @@ class Trial : public std::enable_shared_from_this<Trial> {
   std::vector<std::unique_ptr<Actor>> actors_;
   std::chrono::time_point<std::chrono::steady_clock> last_activity_;
 
-
   void fill_env_start_request(::cogment::EnvStartRequest* io_req);
 
   std::vector<grpc_metadata> headers_;
   easy_grpc::client::Call_options call_options_;
-
 };
 
 }  // namespace cogment

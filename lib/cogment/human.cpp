@@ -15,8 +15,7 @@ Future<void> Human::init() {
   return result;
 }
 
-::easy_grpc::Future<::cogment::TrialActionReply> Human::user_acted(
-    cogment::TrialActionRequest req) {
+::easy_grpc::Future<::cogment::TrialActionReply> Human::user_acted(cogment::TrialActionRequest req) {
   human_observation_promise_ = Promise<::cogment::TrialActionReply>();
   auto result = human_observation_promise_.get_future();
 
