@@ -16,7 +16,6 @@ Docker image:
 
 ```
 docker run --rm -it -v$(pwd):/workspace registry.gitlab.com/ai-r/cogment-build-env:latest
-cd /workspace
 mkdir _bld
 cd _bld
 cmake ..
@@ -25,7 +24,9 @@ make
 
 
 ## Auto-formatting code
+
 The following will apply clang-format to all included source, with the exception of the third_party directory:
+
 ```
 make format
 ```
