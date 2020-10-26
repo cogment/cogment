@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 package cmd
 
 import (
@@ -25,14 +24,14 @@ import (
 	"gitlab.com/cogment/cogment/templates"
 	"gitlab.com/cogment/cogment/templates/agents"
 	"gitlab.com/cogment/cogment/templates/clients"
-	"gitlab.com/cogment/cogment/templates/envs"
-	"gitlab.com/cogment/cogment/templates/orchestrator"
-	"gitlab.com/cogment/cogment/templates/envoy"
-	"gitlab.com/cogment/cogment/templates/js_clients"
 	"gitlab.com/cogment/cogment/templates/configs"
+	"gitlab.com/cogment/cogment/templates/configurator"
+	"gitlab.com/cogment/cogment/templates/envoy"
+	"gitlab.com/cogment/cogment/templates/envs"
+	"gitlab.com/cogment/cogment/templates/js_clients"
+	"gitlab.com/cogment/cogment/templates/orchestrator"
 	"gitlab.com/cogment/cogment/templates/replaybuffer"
 	"gitlab.com/cogment/cogment/templates/revisioning"
-	"gitlab.com/cogment/cogment/templates/configurator"
 	"gitlab.com/cogment/cogment/version"
 	"html/template"
 	"io"
@@ -194,7 +193,6 @@ func createProjectFiles(dst string, config *api.ProjectConfig) error {
 		return err
 	}
 
-
 	for k, actor := range config.ActorClasses {
 		countAi, _ := config.CountActorsByActorClass(config.ActorClasses[k].Id)
 		if countAi < 1 {
@@ -230,7 +228,7 @@ func generateFromTemplate(tplStr, dst string, config interface{}) error {
 		"snakeify":  helper.Snakeify,
 		"kebabify":  helper.Kebabify,
 		"pascalify": helper.Pascalify,
-		"tocaps": helper.Tocaps,
+		"tocaps":    helper.Tocaps,
 	})
 
 	t = template.Must(t.Parse(tplStr))
@@ -317,7 +315,6 @@ func createProjectConfigFromReader(stdin io.Reader) (*api.ProjectConfig, error) 
 	return &config, nil
 }
 
-
 func getActorClassFromReader(reader *bufio.Reader, name string) (totalAi, totalHuman int) {
 
 	for {
@@ -397,7 +394,7 @@ func getClientNameFromReader(reader *bufio.Reader) (string, error) {
 	if strings.Contains(input, "-") {
 		return input, fmt.Errorf("no dashes/hyphens")
 	}
-	if strings.Contains("0123456789",input[0:1]) {
+	if strings.Contains("0123456789", input[0:1]) {
 		return input, fmt.Errorf("name can't start with numeric")
 	}
 
@@ -405,7 +402,7 @@ func getClientNameFromReader(reader *bufio.Reader) (string, error) {
 }
 
 func getAgentClassNameFromReader(reader *bufio.Reader, agent_number int) (string, error) {
-	fmt.Printf("Agent actor type " + strconv.Itoa(agent_number + 1) + " name: ")
+	fmt.Printf("Agent actor type " + strconv.Itoa(agent_number+1) + " name: ")
 	input, _ := reader.ReadString('\n')
 	input = strings.TrimSpace(input)
 
@@ -418,7 +415,7 @@ func getAgentClassNameFromReader(reader *bufio.Reader, agent_number int) (string
 	if strings.Contains(input, "-") {
 		return input, fmt.Errorf("no dashed/hyphens")
 	}
-	if strings.Contains("0123456789",input[0:1]) {
+	if strings.Contains("0123456789", input[0:1]) {
 		return input, fmt.Errorf("name can't start with numeric")
 	}
 

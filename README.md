@@ -42,3 +42,17 @@ alias cogment="docker run --rm -v$(pwd):/cogment -v//var/run/docker.sock://var/r
 
 cogment run build
 ```
+
+### Formatting
+
+Having a working go installation locally, run the following to check for the format of the file using [gofmt](https://golang.org/cmd/gofmt/):
+
+```
+make lint
+```
+
+To reformat the code to fix issues, simply run the following:
+
+```
+make fmt
+```

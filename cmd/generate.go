@@ -12,14 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 package cmd
 
 import (
 	"fmt"
+	"github.com/golang/protobuf/proto"
 	"github.com/spf13/cobra"
 	"gitlab.com/cogment/cogment/api"
 	"gitlab.com/cogment/cogment/templates"
+	"google.golang.org/protobuf/reflect/protodesc"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/reflect/protoregistry"
+	"google.golang.org/protobuf/types/descriptorpb"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
@@ -28,11 +32,6 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
-	"google.golang.org/protobuf/reflect/protoreflect"
-	"google.golang.org/protobuf/reflect/protodesc"
-	"google.golang.org/protobuf/reflect/protoregistry"
-	"google.golang.org/protobuf/types/descriptorpb"
-	"github.com/golang/protobuf/proto"
 )
 
 const SETTINGS_FILENAME = "cog_settings"
@@ -72,9 +71,9 @@ func registerProtoFile(src string, filename string) error {
 
 	// First, convert the .proto file to a file descriptor
 	tmp_file := filename + "tmp.pb"
-	cmd := exec.Command("protoc", 
-		"--descriptor_set_out=" + tmp_file, 
-		"-I"+src, 
+	cmd := exec.Command("protoc",
+		"--descriptor_set_out="+tmp_file,
+		"-I"+src,
 		path.Join(src, filename))
 
 	cmd.Stdout = os.Stdout
@@ -127,10 +126,10 @@ func runGenerateCmd(cmd *cobra.Command) error {
 
 	config := CreateProjectConfigFromYaml(file)
 	for _, proto := range config.Import.Proto {
-			err = registerProtoFile(src, proto)
-			if err != nil {
-				return err
-			}
+		err = registerProtoFile(src, proto)
+		if err != nil {
+			return err
+		}
 	}
 
 	if cmd.Flags().Changed("python_dir") {
@@ -140,7 +139,7 @@ func runGenerateCmd(cmd *cobra.Command) error {
 		}
 
 		// We need to reload the config because it is being manipulated
-  	config = CreateProjectConfigFromYaml(file)
+		config = CreateProjectConfigFromYaml(file)
 		if err := generatePythonSettings(config, src, dest); err != nil {
 			return err
 		}
@@ -153,7 +152,7 @@ func runGenerateCmd(cmd *cobra.Command) error {
 		}
 
 		// We need to reload the config because it is being manipulated
-  	config = CreateProjectConfigFromYaml(file)
+		config = CreateProjectConfigFromYaml(file)
 		if err := generateJavascriptSettings(config, src, dest); err != nil {
 			return err
 		}
@@ -245,10 +244,9 @@ func updateConfigWithMessage(config *api.ProjectConfig) *api.ProjectConfig {
 	return config
 }
 
-
 func GetProtoAlias(protoFile string) string {
-  fname := strings.Split(protoFile, ".")[0]
-  return strings.ReplaceAll(fname, "/", "_") + "_pb"
+	fname := strings.Split(protoFile, ".")[0]
+	return strings.ReplaceAll(fname, "/", "_") + "_pb"
 }
 
 func CreateProjectConfigFromYaml(filename string) *api.ProjectConfig {
@@ -264,9 +262,8 @@ func CreateProjectConfigFromYaml(filename string) *api.ProjectConfig {
 		log.Fatalf("Unmarshal: %v", err)
 	}
 
-
 	for _, proto := range config.Import.Proto {
-			config.Import.ProtoAlias = append(config.Import.ProtoAlias, GetProtoAlias(proto))
+		config.Import.ProtoAlias = append(config.Import.ProtoAlias, GetProtoAlias(proto))
 	}
 
 	//fmt.Println(helper.PrettyPrint(m))

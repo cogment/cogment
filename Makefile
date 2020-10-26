@@ -7,7 +7,7 @@ LD_FLAGS="-s -w -X gitlab.com/cogment/cogment/version.CliVersion=$(CLI_VERSION)"
 GOCMD=go
 GOBUILD=$(GOCMD) build
 GOCLEAN=$(GOCMD) clean
-GOFMT=$(GOCMD) fmt
+GOFMT=gofmt
 GOTEST=$(GOCMD) test
 # GOGET=$(GOCMD) get
 BUILD_ARCH=amd64
@@ -33,7 +33,13 @@ run: build
 	./$(BINARY_NAME)
 
 fmt:
-	$(GOFMT) ./...
+	$(GOFMT) -l -w ./..
+
+lint: check-fmt
+
+check-fmt:
+	$(GOFMT) -l ./..
+	@test -z "$(shell $(GOFMT) -l ./..)"
 
 # # deps:
 # #     $(GOGET) github.com/markbates/goth

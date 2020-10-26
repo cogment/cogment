@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 package cmd
 
 import (
@@ -109,8 +108,7 @@ var logsCmd = &cobra.Command{
 				service := entry.ServiceName
 
 				// We don't feed the full uint64 as nanoseconds, because we could overflow the int64 (in 2038!)
-                ts := time.Unix(int64(entry.Timestamp / 1000000000), int64(entry.Timestamp % 1000000000)).UTC()
-
+				ts := time.Unix(int64(entry.Timestamp/1000000000), int64(entry.Timestamp%1000000000)).UTC()
 
 				row := []string{
 					getColoredService(service),

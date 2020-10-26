@@ -14,7 +14,7 @@
 
 package configurator
 
-const  CONFIGURATOR_PY = `{{ $config := . }}
+const CONFIGURATOR_PY = `{{ $config := . }}
 
 import traceback
 from cogment import TrialHooks, GrpcServer

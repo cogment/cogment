@@ -20,8 +20,8 @@ import (
 
 func NewRegistryCommand(verbose bool) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "registry",
-		Short: "Interact with Docker registries configuration",
+		Use:    "registry",
+		Short:  "Interact with Docker registries configuration",
 		Hidden: true,
 	}
 

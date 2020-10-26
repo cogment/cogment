@@ -44,12 +44,12 @@ var expectedConfig = api.ProjectConfig{
 func TestCreateProjectConfig(t *testing.T) {
 
 	input := []string{
-		"master",	// master client actor name
-		"2",		// Number of agent actor types
-		"smart",	// Agent actor type 1 name
-		"1",		// Number of agent 'smart' instances
-		"dumb",		// Agent actor type 2 name
-		"1",		// Number of agent 'dumb' instances
+		"master", // master client actor name
+		"2",      // Number of agent actor types
+		"smart",  // Agent actor type 1 name
+		"1",      // Number of agent 'smart' instances
+		"dumb",   // Agent actor type 2 name
+		"1",      // Number of agent 'dumb' instances
 	}
 
 	var stdin bytes.Buffer
@@ -64,12 +64,12 @@ func TestCreateProjectConfig(t *testing.T) {
 func TestCreateProjectConfigWindows(t *testing.T) {
 
 	input := []string{
-		"master",	// master client actor name
-		"2",		// Number of agent actor types
-		"smart",	// Agent actor type 1 name
-		"1",		// Number of agent 'smart' instances
-		"dumb",		// Agent actor type 2 name
-		"1",		// Number of agent 'dumb' instances
+		"master", // master client actor name
+		"2",      // Number of agent actor types
+		"smart",  // Agent actor type 1 name
+		"1",      // Number of agent 'smart' instances
+		"dumb",   // Agent actor type 2 name
+		"1",      // Number of agent 'dumb' instances
 	}
 
 	var stdin bytes.Buffer

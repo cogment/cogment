@@ -21,8 +21,8 @@ type SearchLogsResult struct {
 }
 
 type LogEntry struct {
-	ServiceName string  `json:"service_name"`
-	Message     string  `json:"message"`
+	ServiceName string `json:"service_name"`
+	Message     string `json:"message"`
 	Timestamp   uint64 `json:"timestamp"`
-	Source      string  `json:"source"`
+	Source      string `json:"source"`
 }

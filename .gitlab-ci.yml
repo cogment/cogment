@@ -1,8 +1,15 @@
 image: docker:19.03.1
 
 stages:
+  - lint
   - build
   - publish
+
+lint:
+  stage: lint
+  image: golang:1.13
+  script:
+    - make lint
 
 services:
   - docker:19.03.1-dind

@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 package cmd
 
 import (
@@ -86,18 +85,17 @@ func runRunCmd(command string) error {
 	commandFile, err := ioutil.TempFile("", "cogment-cli-*."+fileExtension)
 
 	if err != nil {
-	    log.Fatal(err)
+		log.Fatal(err)
 	}
 
 	if _, err := commandFile.Write([]byte(command)); err != nil {
 		log.Fatal(err)
 	}
 
-        err = commandFile.Close()
+	err = commandFile.Close()
 	if err != nil {
-	    log.Fatal(err)
+		log.Fatal(err)
 	}
-
 
 	err = os.Chmod(commandFile.Name(), 0755)
 	if err != nil {
@@ -105,7 +103,6 @@ func runRunCmd(command string) error {
 	}
 
 	defer os.Remove(commandFile.Name())
-
 
 	cmd := exec.Command(shellCommand, args, commandFile.Name())
 
