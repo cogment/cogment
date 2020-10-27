@@ -19,8 +19,11 @@ file(MAKE_DIRECTORY ${GENERATED_PROTOBUF_PATH})
 set(COGMENT_API_SRC "")
 set(PROTO_SRC "")
 
-macro(retrieve_protos COGMENT_API_VERSION)
-        set(COGMENT_API_ARCHIVE_PATH ${CMAKE_CURRENT_BINARY_DIR}/cogment-api.tar.gz)
+macro(retrieve_protos)
+        file(READ ../.cogment-api.yml COGMENT_API_VERSION_YML)
+        string(REGEX MATCH "^cogment_api_version: \"([a-zA-Z0-9\.]+)\"" COGMENT_API_VERSION_MATCH ${COGMENT_API_VERSION_YML})
+        set(COGMENT_API_VERSION ${CMAKE_MATCH_1})
+        set(COGMENT_API_ARCHIVE_PATH ${CMAKE_CURRENT_BINARY_DIR}/cogment-api-${COGMENT_API_VERSION}.tar.gz)
         file(
                 DOWNLOAD  "https://cogment.github.io/cogment-api/${COGMENT_API_VERSION}/cogment-api-${COGMENT_API_VERSION}.tar.gz"
                           ${COGMENT_API_ARCHIVE_PATH}
@@ -83,7 +86,7 @@ compile_grpc_proto(agent)
 compile_grpc_proto(environment)
 compile_grpc_proto(hooks)
 # Last one to be 'called' because ${COGMENT_API_SRC} is constructed by the previous calls.
-retrieve_protos(latest)
+retrieve_protos()
 
 add_library(orchestrator_protos
   ${PROTO_SRC}

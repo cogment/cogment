@@ -32,6 +32,11 @@ cmake ..
 make
 ```
 
+### Used Cogment protobuf API
+
+The version of the used cogment protobuf API is defined in the `.cogment-api.yml` file at the root of the repository.
+
+> For a change to be taken into account, you'll need to re-run `cmake`.
 
 ### Auto-formatting code
 
