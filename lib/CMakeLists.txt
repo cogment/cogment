@@ -9,22 +9,48 @@ file(READ version.txt COGMENT_ORCH_VERSION)
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cogment/orch_config.h.in"
                "${CMAKE_CURRENT_SOURCE_DIR}/cogment/orch_config.h" )
 
+
+set(COGMENT_API_DIR ${CMAKE_CURRENT_BINARY_DIR}/cogment-api)
+file(MAKE_DIRECTORY ${COGMENT_API_DIR}/cogment/api/)
+
 set(GENERATED_PROTOBUF_PATH ${CMAKE_CURRENT_BINARY_DIR}/generated)
 file(MAKE_DIRECTORY ${GENERATED_PROTOBUF_PATH})
 
-SET(PROTO_SRC "")
+set(COGMENT_API_SRC "")
+set(PROTO_SRC "")
+
+macro(retrieve_protos COGMENT_API_VERSION)
+        set(COGMENT_API_ARCHIVE_PATH ${CMAKE_CURRENT_BINARY_DIR}/cogment-api.tar.gz)
+        file(
+                DOWNLOAD  "https://cogment.github.io/cogment-api/${COGMENT_API_VERSION}/cogment-api-${COGMENT_API_VERSION}.tar.gz"
+                          ${COGMENT_API_ARCHIVE_PATH}
+                SHOW_PROGRESS
+                TLS_VERIFY ON
+        )
+        add_custom_command(
+                OUTPUT  ${COGMENT_API_SRC}
+                COMMAND ${CMAKE_COMMAND} -E tar xzf ${COGMENT_API_ARCHIVE_PATH}
+                MAIN_DEPENDENCY ${COGMENT_API_ARCHIVE_PATH}
+                WORKING_DIRECTORY ${COGMENT_API_DIR}/cogment/api
+                COMMENT "Unpacking the cogment-api archive, version \"${COGMENT_API_VERSION}\""
+                VERBATIM
+        )
+endmacro()
+
 macro(compile_proto PROTO)
+
         add_custom_command(
                 OUTPUT  "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.h"
                         "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.cc"
                 COMMAND ${Protobuf_PROTOC_EXECUTABLE}
-                ARGS 
-                "--proto_path=${CMAKE_CURRENT_SOURCE_DIR}/../api/"
+                ARGS
+                "--proto_path=${COGMENT_API_DIR}/"
                 "--cpp_out=${GENERATED_PROTOBUF_PATH}"
-                "${CMAKE_CURRENT_SOURCE_DIR}/../api/cogment/api/${PROTO}.proto"
-                MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/../api/cogment/api/${PROTO}.proto
+                "${COGMENT_API_DIR}/cogment/api/${PROTO}.proto"
+                MAIN_DEPENDENCY ${COGMENT_API_DIR}/cogment/api/${PROTO}.proto
           )
 
+        list(APPEND COGMENT_API_SRC ${COGMENT_API_DIR}/cogment/api/${PROTO}.proto)
         list(APPEND PROTO_SRC ${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.cc)
 
 endmacro()
@@ -36,14 +62,15 @@ macro(compile_grpc_proto PROTO)
                         "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.h"
                         "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.cc"
                 COMMAND ${Protobuf_PROTOC_EXECUTABLE}
-                ARGS 
-                "--proto_path=${CMAKE_CURRENT_SOURCE_DIR}/../api/"
+                ARGS
+                "--proto_path=${COGMENT_API_DIR}/"
                 "--egrpc_out=${GENERATED_PROTOBUF_PATH}"
                 "--cpp_out=${GENERATED_PROTOBUF_PATH}"
                 "--plugin=protoc-gen-egrpc=$<TARGET_FILE:easy_grpc_protoc_plugin>"
-                "${CMAKE_CURRENT_SOURCE_DIR}/../api/cogment/api/${PROTO}.proto"
-                MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/../api/cogment/api/${PROTO}.proto
+                "${COGMENT_API_DIR}/cogment/api/${PROTO}.proto"
+                MAIN_DEPENDENCY ${COGMENT_API_DIR}/cogment/api/${PROTO}.proto
                 )
+        list(APPEND COGMENT_API_SRC ${COGMENT_API_DIR}/cogment/api/${PROTO}.proto)
         list(APPEND PROTO_SRC ${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.egrpc.pb.cc)
         list(APPEND PROTO_SRC ${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.cc)
 endmacro()
@@ -55,18 +82,19 @@ compile_grpc_proto(orchestrator)
 compile_grpc_proto(agent)
 compile_grpc_proto(environment)
 compile_grpc_proto(hooks)
-
+# Last one to be 'called' because ${COGMENT_API_SRC} is constructed by the previous calls.
+retrieve_protos(latest)
 
 add_library(orchestrator_protos
   ${PROTO_SRC}
 )
 
-target_include_directories(orchestrator_protos 
-PUBLIC 
+target_include_directories(orchestrator_protos
+PUBLIC
     ${GENERATED_PROTOBUF_PATH}
 )
 
-add_library(orchestrator_lib 
+add_library(orchestrator_lib
   cogment/actor.cpp
   cogment/agent.cpp
   cogment/base64.cpp
@@ -104,7 +132,7 @@ target_link_libraries(orchestrator_lib
 )
 
 target_compile_options(orchestrator_lib PUBLIC -Wno-unused-parameter)
-target_include_directories(orchestrator_lib 
-PUBLIC 
+target_include_directories(orchestrator_lib
+PUBLIC
     .
     ../third_party)
