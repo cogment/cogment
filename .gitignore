@@ -1,2 +1,5 @@
 build/
 _bld/
+
+# Backup of "sed-ed" files
+*.bak
