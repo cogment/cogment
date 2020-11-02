@@ -26,10 +26,10 @@ build:
     - docker pull $CI_REGISTRY_IMAGE:latest || true
     - docker build --cache-from $CI_REGISTRY_IMAGE:latest .
   except:
-    - master
+    - develop
 
-# To an inteneral publish on every master revision (for dev convenience)
-publish:
+# INTERNAL AI-R HELPER - Publish the current version from the `develop` branch with the `latest` docker tag.
+publish_latest_docker_image:
   stage: publish
   script:
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
@@ -38,9 +38,9 @@ publish:
     - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
     - docker push $CI_REGISTRY_IMAGE:latest
   only:
-    - master
+    - develop
 
-publish:
+publish_tagged_docker_image:
   stage: publish
   script:
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
