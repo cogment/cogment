@@ -19,7 +19,20 @@ variables:
   DOCKER_HOST: tcp://docker:2376
   DOCKER_TLS_CERTDIR: "/certs"
 
-build:
+build_binaries:
+  stage: build
+  needs: []
+  image: golang:1.13
+  script:
+    - apt-get update -y
+    - apt-get install -y protobuf-compiler
+    - make release
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - build
+
+build_docker_image:
   stage: build
   script:
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
@@ -50,3 +63,19 @@ publish_tagged_docker_image:
     - docker push cogment/cli:$CI_COMMIT_TAG
   only:
     - tags
+
+publish_binaries_to_gh_release:
+  stage: publish
+  needs: ["build_binaries"]
+  image: ubuntu:focal
+  script:
+    - apt update -y
+    - apt-get install -y gnupg2 software-properties-common
+    - apt-key adv --keyserver keyserver.ubuntu.com --recv-key C99B11DEB97541F0
+    - apt-add-repository https://cli.github.com/packages
+    - apt update -y
+    - apt install gh -y
+    - gh auth login --with-token < $GH_TOKEN
+    - gh release create $CI_COMMIT_TAG ./build/* -t $CI_COMMIT_TAG -R cogment/cogment-cli
+  only:
+    - /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+(?:-[[:alnum:]]+)?$/

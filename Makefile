@@ -1,7 +1,4 @@
-ifndef CLI_VERSION
-override CLI_VERSION = dev
-endif
-LD_FLAGS="-s -w -X gitlab.com/cogment/cogment/version.CliVersion=$(CLI_VERSION)"
+LD_FLAGS="-s -w"
 
 # Go parameters
 GOCMD=go
