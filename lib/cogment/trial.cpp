@@ -114,7 +114,7 @@ Future<void> Trial::configure(cogment::TrialParams params) {
       }
       auto stub_entry = orchestrator_->agent_pool()->get_stub(url);
       auto agent_actor =
-          std::make_unique<Agent>(this, actors_.size(), &actor_class, actor_info.impl(), stub_entry, config);
+          std::make_unique<Agent>(this, actors_.size(), &actor_class, actor_info.implementation(), stub_entry, config);
       actors_.push_back(std::move(agent_actor));
     }
   }
@@ -156,8 +156,11 @@ void Trial::dispatch_observations(bool end_of_trial) {
   for (const auto& actor : actors_) {
     auto obs_index = latest_observations_.actors_map(actor_id);
 
-    spdlog::info("dispatching as {}, {}", end_of_trial, latest_observations_.observations(obs_index).DebugString());
-    actor->dispatch_observation(latest_observations_.observations(obs_index), end_of_trial);
+    cogment::Observation obs;
+    obs.set_tick_id(latest_observations_.tick_id());
+    obs.set_timestamp(latest_observations_.timestamp());
+    *obs.mutable_data() = latest_observations_.observations(obs_index);
+    actor->dispatch_observation(obs, end_of_trial);
     ++actor_id;
   }
 }

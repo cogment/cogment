@@ -35,6 +35,9 @@ class ActorService {
                                                                 easy_grpc::Context ctx);
   ::easy_grpc::Future<::cogment::TrialFeedbackReply> GiveFeedback(::cogment::TrialFeedbackRequest,
                                                                   easy_grpc::Context ctx);
+  ::easy_grpc::Future<::cogment::TrialMessageReply> SendChanMessage(::cogment::TrialMessageRequest,
+                                                                    easy_grpc::Context ctx);
+
   ::cogment::VersionInfo Version(::cogment::VersionRequest, easy_grpc::Context ctx);
 };
 }  // namespace cogment

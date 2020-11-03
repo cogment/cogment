@@ -24,8 +24,11 @@ macro(retrieve_protos)
         string(REGEX MATCH "^cogment_api_version: \"([a-zA-Z0-9\.]+)\"" COGMENT_API_VERSION_MATCH ${COGMENT_API_VERSION_YML})
         set(COGMENT_API_VERSION ${CMAKE_MATCH_1})
         set(COGMENT_API_ARCHIVE_PATH ${CMAKE_CURRENT_BINARY_DIR}/cogment-api-${COGMENT_API_VERSION}.tar.gz)
+        set(COGMENT_API_URL "https://cogment.github.io/cogment-api/${COGMENT_API_VERSION}/cogment-api-${COGMENT_API_VERSION}.tar.gz")
+
+        message("fetching cogment api from ${COGMENT_API_URL}")
         file(
-                DOWNLOAD  "https://cogment.github.io/cogment-api/${COGMENT_API_VERSION}/cogment-api-${COGMENT_API_VERSION}.tar.gz"
+                DOWNLOAD  ${COGMENT_API_URL}
                           ${COGMENT_API_ARCHIVE_PATH}
                 SHOW_PROGRESS
                 TLS_VERIFY ON

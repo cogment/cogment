@@ -50,6 +50,12 @@ ActorService::ActorService(Orchestrator* orch) : orchestrator_(orch) {}
   return {};
 }
 
+::easy_grpc::Future<::cogment::TrialMessageReply> ActorService::SendChanMessage(::cogment::TrialMessageRequest,
+                                                                                easy_grpc::Context ctx) {
+  (void)ctx;
+  return {};
+}
+
 ::cogment::VersionInfo ActorService::Version(::cogment::VersionRequest, easy_grpc::Context ctx) {
   (void)ctx;
   ::cogment::VersionInfo result;
