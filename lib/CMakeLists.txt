@@ -21,30 +21,43 @@ set(PROTO_SRC "")
 
 macro(retrieve_protos)
         file(READ ../.cogment-api.yml COGMENT_API_VERSION_YML)
-        string(REGEX MATCH "^cogment_api_version: \"([a-zA-Z0-9\.]+)\"" COGMENT_API_VERSION_MATCH ${COGMENT_API_VERSION_YML})
-        set(COGMENT_API_VERSION ${CMAKE_MATCH_1})
-        set(COGMENT_API_ARCHIVE_PATH ${CMAKE_CURRENT_BINARY_DIR}/cogment-api-${COGMENT_API_VERSION}.tar.gz)
-        set(COGMENT_API_URL "https://cogment.github.io/cogment-api/${COGMENT_API_VERSION}/cogment-api-${COGMENT_API_VERSION}.tar.gz")
+        string(REGEX MATCH "cogment_api_path: \"?(.+)\"?\n" COGMENT_API_PATH_MATCH ${COGMENT_API_VERSION_YML})
+        set(COGMENT_API_PATH ${CMAKE_MATCH_1})
+        if(COGMENT_API_PATH)
+          # Local cogment api
+          message("using local cogment api at \"${COGMENT_API_PATH}\"")
+          add_custom_command(
+                  OUTPUT ${COGMENT_API_SRC}
+                  COMMAND ${CMAKE_COMMAND} -E copy_directory ${COGMENT_API_PATH} ${COGMENT_API_DIR}/cogment/api
+                  COMMENT "Copying cogment api from \"${COGMENT_API_PATH}\""
+                  VERBATIM
+          )
+        else()
+          # Remote cogment api
+          string(REGEX MATCH "cogment_api_version: \"?([a-zA-Z0-9\.]+)\"?\n" COGMENT_API_VERSION_MATCH ${COGMENT_API_VERSION_YML})
+          set(COGMENT_API_VERSION ${CMAKE_MATCH_1})
+          set(COGMENT_API_ARCHIVE_PATH ${CMAKE_CURRENT_BINARY_DIR}/cogment-api-${COGMENT_API_VERSION}.tar.gz)
+          set(COGMENT_API_URL "https://cogment.github.io/cogment-api/${COGMENT_API_VERSION}/cogment-api-${COGMENT_API_VERSION}.tar.gz")
 
-        message("fetching cogment api from ${COGMENT_API_URL}")
-        file(
-                DOWNLOAD  ${COGMENT_API_URL}
-                          ${COGMENT_API_ARCHIVE_PATH}
-                SHOW_PROGRESS
-                TLS_VERIFY ON
-        )
-        add_custom_command(
-                OUTPUT  ${COGMENT_API_SRC}
-                COMMAND ${CMAKE_COMMAND} -E tar xzf ${COGMENT_API_ARCHIVE_PATH}
-                MAIN_DEPENDENCY ${COGMENT_API_ARCHIVE_PATH}
-                WORKING_DIRECTORY ${COGMENT_API_DIR}/cogment/api
-                COMMENT "Unpacking the cogment-api archive, version \"${COGMENT_API_VERSION}\""
-                VERBATIM
-        )
+          message("fetching cogment api version \"${COGMENT_API_VERSION}\" from \"${COGMENT_API_URL}\"")
+          file(
+                  DOWNLOAD  ${COGMENT_API_URL}
+                            ${COGMENT_API_ARCHIVE_PATH}
+                  SHOW_PROGRESS
+                  TLS_VERIFY ON
+          )
+          add_custom_command(
+                  OUTPUT  ${COGMENT_API_SRC}
+                  COMMAND ${CMAKE_COMMAND} -E tar xzf ${COGMENT_API_ARCHIVE_PATH}
+                  MAIN_DEPENDENCY ${COGMENT_API_ARCHIVE_PATH}
+                  WORKING_DIRECTORY ${COGMENT_API_DIR}/cogment/api
+                  COMMENT "Unpacking the cogment-api archive, version \"${COGMENT_API_VERSION}\""
+                  VERBATIM
+          )
+        endif()
 endmacro()
 
 macro(compile_proto PROTO)
-
         add_custom_command(
                 OUTPUT  "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.h"
                         "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.cc"
@@ -58,7 +71,6 @@ macro(compile_proto PROTO)
 
         list(APPEND COGMENT_API_SRC ${COGMENT_API_DIR}/cogment/api/${PROTO}.proto)
         list(APPEND PROTO_SRC ${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.cc)
-
 endmacro()
 
 macro(compile_grpc_proto PROTO)

@@ -36,7 +36,15 @@ make
 
 The version of the used cogment protobuf API is defined in the `.cogment-api.yml` file at the root of the repository.
 
+To use a **published version**, set `cogment_api_version`, by default it retrieved the _latest_ version of cogment api, i.e. the one on the `develop` branch for cogment-api.
+
+To use a **local version**, set `cogment_api_path` to the absolute path to the local cogment-api directory. When set, this local path overrides any `cogment_api_version` set.
+
+> ⚠️ when building in docker you need to mount the path to cogment api in the docker image. you can for example add `-v$(pwd)/../cogment-api/:/workspace/cogment-api` to the above `docker run` command line.
+
 > For a change to be taken into account, you'll need to re-run `cmake`.
+
+> ⚠️ Due to the limited parsing capabilities of CMake, commented out fully defined variables won't be ignored...
 
 ### Auto-formatting code
 
