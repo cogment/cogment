@@ -48,7 +48,6 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_
 
 ::cogment::TerminateTrialReply TrialLifecycleService::TerminateTrial(::cogment::TerminateTrialRequest,
                                                                      easy_grpc::Context ctx) {
-  spdlog::info("terminating...");
   (void)ctx;
   orchestrator_->end_trial(uuids::uuid::from_string(ctx.get_client_header("trial-id")));
   return {};

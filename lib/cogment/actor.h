@@ -42,14 +42,13 @@ class Actor {
 
   virtual aom::Future<void> init() = 0;
 
-  virtual bool is_human() const { return false; }
   virtual void terminate() {}
   virtual void send_final_observation(cogment::Observation&& /*obs*/) {}
 
-  virtual ::easy_grpc::Future<::cogment::TrialActionReply> user_acted(cogment::TrialActionRequest req) = 0;
-
   virtual void dispatch_observation(const cogment::Observation& obs, bool end_of_trial) = 0;
   virtual void dispatch_reward(int tick_id, const ::cogment::Reward& reward) = 0;
+
+  virtual bool is_active() const = 0;
 
   Trial* trial() const;
   std::uint32_t actor_id() const;

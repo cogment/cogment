@@ -86,7 +86,6 @@ void Agent::dispatch_observation(const cogment::Observation& obs, bool end_of_tr
   outgoing_observations_->push(std::move(req));
 
   if (end_of_trial) {
-    spdlog::info("completing Decide");
     outgoing_observations_->complete();
   }
 }
@@ -123,6 +122,12 @@ void Agent::terminate() {
   options.headers = &headers_;
 
   stub_->stub.End(req, options).finally([](auto) {});
+}
+
+bool Agent::is_active() const {
+  // Actors driven by agent services are always active since
+  // they are driven by the orchestrator itself.
+  return true;
 }
 
 void Agent::dispatch_reward(int tick_id, const ::cogment::Reward& reward) {

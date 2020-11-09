@@ -42,6 +42,12 @@ class Orchestrator {
   Future<std::shared_ptr<Trial>> start_trial(cogment::TrialParams params, std::string user_id);
   void end_trial(const uuids::uuid& trial_id);
 
+  // Client API
+  TrialJoinReply client_joined(TrialJoinRequest);
+  ::easy_grpc::Stream_future<::cogment::TrialActionReply> bind_client(
+      const uuids::uuid& trial_id, std::uint32_t actor_id,
+      ::easy_grpc::Stream_future<::cogment::TrialActionRequest> actions);
+
   // Services
   ActorService& actor_service() { return actor_service_; }
   TrialLifecycleService& trial_lifecycle_service() { return trial_lifecycle_service_; }

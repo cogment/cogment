@@ -34,6 +34,7 @@
 
 namespace cogment {
 class Orchestrator;
+class Client_actor;
 
 enum class Trial_state { initializing, pending, running, terminating, ended };
 
@@ -64,8 +65,11 @@ class Trial : public std::enable_shared_from_this<Trial> {
   const std::vector<std::unique_ptr<Actor>>& actors() const;
 
   // Initializes the trial
-  Future<void> configure(cogment::TrialParams params);
+  void configure(cogment::TrialParams params);
   const cogment::TrialParams& params() const;
+
+  // returns either a valid actor for the given request, or nullptr if none can be found
+  Client_actor* get_join_candidate(const TrialJoinRequest& req);
 
   // Ends the trial. terminate() will hold a shared_ptr to the trial until
   // termination is complete, so it's safe to let go of the trial once

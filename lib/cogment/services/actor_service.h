@@ -27,10 +27,10 @@ class ActorService {
 
   ActorService(Orchestrator* orch);
 
-  ::easy_grpc::Future<::cogment::TrialJoinReply> JoinTrial(::cogment::TrialJoinRequest, easy_grpc::Context ctx);
+  ::cogment::TrialJoinReply JoinTrial(::cogment::TrialJoinRequest, easy_grpc::Context ctx);
+
   ::easy_grpc::Stream_future<::cogment::TrialActionReply> ActionStream(
       ::easy_grpc::Stream_future<::cogment::TrialActionRequest>, easy_grpc::Context ctx);
-  ::easy_grpc::Future<::cogment::TrialActionReply> Action(::cogment::TrialActionRequest, easy_grpc::Context ctx);
   ::easy_grpc::Future<::cogment::TrialHeartbeatReply> Heartbeat(::cogment::TrialHeartbeatRequest,
                                                                 easy_grpc::Context ctx);
   ::easy_grpc::Future<::cogment::TrialFeedbackReply> GiveFeedback(::cogment::TrialFeedbackRequest,

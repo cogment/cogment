@@ -17,25 +17,21 @@
 #include "cogment/orch_config.h"
 #include "cogment/orchestrator.h"
 
+#include <string>
+
 namespace cogment {
 ActorService::ActorService(Orchestrator* orch) : orchestrator_(orch) {}
 
-::easy_grpc::Future<::cogment::TrialJoinReply> ActorService::JoinTrial(::cogment::TrialJoinRequest,
-                                                                       easy_grpc::Context ctx) {
-  (void)ctx;
-  return {};
+::cogment::TrialJoinReply ActorService::JoinTrial(::cogment::TrialJoinRequest req, easy_grpc::Context) {
+  return orchestrator_->client_joined(std::move(req));
 }
 
 ::easy_grpc::Stream_future<::cogment::TrialActionReply> ActorService::ActionStream(
-    ::easy_grpc::Stream_future<::cogment::TrialActionRequest>, easy_grpc::Context ctx) {
-  (void)ctx;
-  return {};
-}
+    ::easy_grpc::Stream_future<::cogment::TrialActionRequest> actions, easy_grpc::Context ctx) {
+  auto trial_id = uuids::uuid::from_string(ctx.get_client_header("trial-id"));
+  auto actor_id = std::stoul(std::string(ctx.get_client_header("actor-id")));
 
-::easy_grpc::Future<::cogment::TrialActionReply> ActorService::Action(::cogment::TrialActionRequest,
-                                                                      easy_grpc::Context ctx) {
-  (void)ctx;
-  return {};
+  return orchestrator_->bind_client(trial_id, actor_id, std::move(actions));
 }
 
 ::easy_grpc::Future<::cogment::TrialHeartbeatReply> ActorService::Heartbeat(::cogment::TrialHeartbeatRequest,

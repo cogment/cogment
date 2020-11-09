@@ -16,6 +16,7 @@
 #include "cogment/orchestrator.h"
 
 #include "cogment/agent_actor.h"
+#include "cogment/client_actor.h"
 
 namespace cogment {
 
@@ -80,7 +81,7 @@ void Trial::fill_env_start_request(::cogment::EnvStartRequest* io_req) {
   }
 }
 
-Future<void> Trial::configure(cogment::TrialParams params) {
+void Trial::configure(cogment::TrialParams params) {
   params_ = std::move(params);
 
   grpc_metadata trial_header;
@@ -103,9 +104,12 @@ Future<void> Trial::configure(cogment::TrialParams params) {
     actor_in_trial->set_name(actor_info.name());
 
     if (url == "client") {
-      //      auto human_actor = std::make_unique<Human>(trial_id);
-      //      human_actor->actor_class = &owner_->trial_spec_.actor_classes[class_id];
-      //      actors_.push_back(std::move(human_actor));
+      std::optional<std::string> config;
+      if (actor_info.has_config()) {
+        config = actor_info.config().content();
+      }
+      auto client_actor = std::make_unique<Client_actor>(this, actors_.size(), &actor_class, config);
+      actors_.push_back(std::move(client_actor));
     }
     else {
       std::optional<std::string> config;
@@ -141,14 +145,16 @@ Future<void> Trial::configure(cogment::TrialParams params) {
     return rep;
   });
 
-  return join(env_ready, concat(actors_ready.begin(), actors_ready.end())).then([this](auto env_rep) {
-    latest_observations_ = std::move(*env_rep.mutable_observation_set());
-    state_ = Trial_state::running;
+  join(env_ready, concat(actors_ready.begin(), actors_ready.end()))
+      .then([this](auto env_rep) {
+        latest_observations_ = std::move(*env_rep.mutable_observation_set());
+        state_ = Trial_state::running;
 
-    run_environment();
-    // Send the initial state
-    dispatch_observations(false);
-  });
+        run_environment();
+        // Send the initial state
+        dispatch_observations(false);
+      })
+      .finally([](auto) {});
 }
 
 void Trial::dispatch_observations(bool end_of_trial) {
@@ -220,8 +226,6 @@ void Trial::terminate() {
 }
 
 void Trial::actor_acted(std::uint32_t actor_id, const cogment::Action& action) {
-  spdlog::info("received action from {}", actor_id);
-
   if (!outgoing_actions_) {
     return;
   }
@@ -247,12 +251,40 @@ void Trial::actor_acted(std::uint32_t actor_id, const cogment::Action& action) {
       act = std::nullopt;
     }
 
-    spdlog::info("sending actions...");
     outgoing_actions_->push(std::move(req));
   }
 }
 
 const cogment::TrialParams& Trial::params() const { return params_; }
+
+Client_actor* Trial::get_join_candidate(const TrialJoinRequest& req) {
+  Actor* result = nullptr;
+
+  switch (req.slot_selection_case()) {
+  case TrialJoinRequest::kActorId:
+    if (!actors_.at(req.actor_id())->is_active()) {
+      result = actors_[req.actor_id()].get();
+    }
+    break;
+
+  case TrialJoinRequest::kActorClass:
+    for (auto& actor : actors_) {
+      if (actor->actor_class()->name == req.actor_class() && !actor->is_active()) {
+        result = actor.get();
+        break;
+      }
+    }
+    break;
+
+  case TrialJoinRequest::SLOT_SELECTION_NOT_SET:
+  default:
+    throw std::invalid_argument("must specify either actor_id or actor_class");
+  }
+
+  assert(result == nullptr || dynamic_cast<Client_actor*>(result) != nullptr);
+
+  return static_cast<Client_actor*>(result);
+}
 
 Trial_state Trial::state() const { return state_; }
 
