@@ -1,18 +1,18 @@
-FROM registry.gitlab.com/ai-r/cogment-build-env:bce25673a3e81ea03ab0723dac67d374aa584d97 as build
+FROM cogment/orchestrator-build-env:v1.0.0 as build
 
 WORKDIR /workspace
 
 COPY . .
 
 RUN mkdir build_dbg && cd build_dbg      \
-    && cmake -DCMAKE_BUILD_TYPE=Debug .. \
-    && make -j$(nproc)                   \
-    && make install
+  && cmake -DCMAKE_BUILD_TYPE=Debug .. \
+  && make -j$(nproc)                   \
+  && make install
 
 RUN mkdir build_rel && cd build_rel        \
-    && cmake -DCMAKE_BUILD_TYPE=Release .. \
-    && make -j$(nproc)                     \
-    && make install
+  && cmake -DCMAKE_BUILD_TYPE=Release .. \
+  && make -j$(nproc)                     \
+  && make install
 
 FROM ubuntu:20.04
 

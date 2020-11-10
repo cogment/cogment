@@ -1,27 +1,24 @@
-variables:
-    GIT_SUBMODULE_STRATEGY: recursive
-
 stages:
   - lint
   - build
   - deploy
 
-before_script:
-  - git submodule update --init
+.use_build_env:
+  image: cogment/orchestrator-build-env:v1.0.0
+  before_script:
+    - mkdir build
+    - cd build
+    - cmake ..
 
 cpp_lint:
+  extends: .use_build_env
   stage: lint
-  image: registry.gitlab.com/ai-r/cogment-build-env:bce25673a3e81ea03ab0723dac67d374aa584d97
   script:
-    - cmake .
     - make format
     - git diff --exit-code
 
 build:
+  extends: .use_build_env
   stage: build
-  image: registry.gitlab.com/ai-r/cogment-build-env:bce25673a3e81ea03ab0723dac67d374aa584d97
   script:
-    - mkdir build
-    - cd build
-    - cmake ..
     - make
