@@ -3,3 +3,6 @@ _bld/
 
 # Backup of "sed-ed" files
 *.bak
+
+# Generated files
+/lib/cogment/orch_config.h
