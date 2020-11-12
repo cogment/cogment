@@ -1,4 +1,6 @@
-# cogment-orchestrator
+# Cogment orchestrator
+
+[![Retrieve from Docker Hub](https://img.shields.io/docker/v/cogment/orchestrator?sort=semver&style=flat-square)](https://hub.docker.com/repository/docker/cogment/orchestrator) [![Apache 2 License](https://img.shields.io/badge/license-Apache%202-green)](./LICENSE) [![Changelog](https://img.shields.io/badge/-Changelog%20-blueviolet)](./CHANGELOG.md)
 
 ## Introduction
 
@@ -21,11 +23,10 @@ The orchestrator has a few dependecies:
 * yaml-cpp
 * spdlog
 
-The easiest way to build the orchestrator is to make use of [cogment orchestrator build env](https://hub.docker.com/repository/docker/cogment/orchestrator-build-env)
-Docker image:
+The easiest way to build the orchestrator is to make use of [cogment orchestrator build env](https://hub.docker.com/repository/docker/cogment/orchestrator) Docker image:
 
 ```
-docker run --rm -it -v$(pwd):/workspace cogment/orchestrator-build-env:v1.0.0
+docker run --rm -it -v$(pwd):/workspace cogment/orchestrator:v1.0.0
 mkdir _bld
 cd _bld
 cmake ..
