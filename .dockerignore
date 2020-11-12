@@ -1,1 +1,17 @@
+# git files
+.git
+.gitignore
+
+# "local" builds
+build/
+_bld/
+
+# Backup of "sed-ed" files
+*.bak
+
+# Docker files
 Dockerfile
+.dockerignore
+
+# Gitlab files
+.gitlab-ci.yml
