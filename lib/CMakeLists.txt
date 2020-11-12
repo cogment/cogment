@@ -4,12 +4,6 @@ find_package(yaml-cpp REQUIRED)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
-file(READ version.txt COGMENT_ORCH_VERSION)
-
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cogment/orch_config.h.in"
-               "${CMAKE_CURRENT_SOURCE_DIR}/cogment/orch_config.h" )
-
-
 set(COGMENT_API_DIR ${CMAKE_CURRENT_BINARY_DIR}/cogment-api)
 file(MAKE_DIRECTORY ${COGMENT_API_DIR}/cogment/api/)
 
@@ -102,6 +96,10 @@ compile_grpc_proto(environment)
 compile_grpc_proto(hooks)
 # Last one to be 'called' because ${COGMENT_API_SRC} is constructed by the previous calls.
 retrieve_protos()
+
+file(READ version.txt COGMENT_ORCH_VERSION)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cogment/orch_config.h.in"
+               "${CMAKE_CURRENT_SOURCE_DIR}/cogment/orch_config.h" )
 
 add_library(orchestrator_protos
   ${PROTO_SRC}
