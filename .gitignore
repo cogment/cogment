@@ -5,4 +5,5 @@ _bld/
 *.bak
 
 # Generated files
-/lib/cogment/orch_config.h
+/lib/cogment/versions.h
+.h

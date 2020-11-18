@@ -17,9 +17,9 @@
 
 namespace rpc = easy_grpc;
 
-#include "cogment/orch_config.h"
 #include "cogment/orchestrator.h"
 #include "cogment/stub_pool.h"
+#include "cogment/versions.h"
 
 #include <prometheus/exposer.h>
 #include <prometheus/registry.h>

@@ -14,8 +14,8 @@
 
 #include "cogment/services/actor_service.h"
 
-#include "cogment/orch_config.h"
 #include "cogment/orchestrator.h"
+#include "cogment/versions.h"
 
 #include <string>
 

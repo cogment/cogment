@@ -17,4 +17,4 @@ Dockerfile
 .gitlab-ci.yml
 
 # Generated files
-/lib/cogment/orch_config.h
+/lib/cogment/versions.h

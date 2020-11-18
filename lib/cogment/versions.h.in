@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef COGMENT_ORCHESTRATOR_CONFIG_H_INCLUDED
-#define COGMENT_ORCHESTRATOR_CONFIG_H_INCLUDED
+#ifndef COGMENT_VERSIONS_H_INCLUDED
+#define COGMENT_VERSIONS_H_INCLUDED
 
 #define COGMENT_ORCHESTRATOR_VERSION "@COGMENT_ORCH_VERSION@"
 #define COGMENT_API_VERSION "@COGMENT_API_VERSION@"

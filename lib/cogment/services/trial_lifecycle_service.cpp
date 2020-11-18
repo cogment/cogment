@@ -14,8 +14,8 @@
 
 #include "cogment/services/trial_lifecycle_service.h"
 
-#include "cogment/orch_config.h"
 #include "cogment/orchestrator.h"
+#include "cogment/versions.h"
 
 namespace cogment {
 

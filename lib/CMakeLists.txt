@@ -98,8 +98,8 @@ compile_grpc_proto(hooks)
 retrieve_protos()
 
 file(READ version.txt COGMENT_ORCH_VERSION)
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cogment/orch_config.h.in"
-               "${CMAKE_CURRENT_SOURCE_DIR}/cogment/orch_config.h" )
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cogment/versions.h.in"
+               "${CMAKE_CURRENT_SOURCE_DIR}/cogment/versions.h" )
 
 add_library(orchestrator_protos
   ${PROTO_SRC}
