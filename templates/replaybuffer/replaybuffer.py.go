@@ -19,7 +19,7 @@ import logging
 from distutils.util import strtobool
 import os
 from concurrent import futures
-from cogment.api.data_pb2 import LogReply, _LOGEXPORTER
+from cogment.api.data_pb2 import LogExporterSampleReply, _LOGEXPORTER
 from cogment.api.data_pb2_grpc import LogExporterServicer, add_LogExporterServicer_to_server
 import grpc
 from redis import Redis
@@ -43,7 +43,7 @@ class ReplayBuffer(LogExporterServicer):
     # pylint: disable=invalid-name
     # pylint: disable=broad-except
     # pylint: disable=unused-argument
-    def Log(self, request_iterator, context):
+    def OnLogSample(self, request_iterator, context):
         store_pipe = REDIS_CONNECT.pipeline()
 
         try:
@@ -63,7 +63,7 @@ class ReplayBuffer(LogExporterServicer):
         except Exception as e:
             self._logger.warning(f"{e}")
 
-        return LogReply()
+        return LogExporterSampleReply()
 
 
 def serve():
