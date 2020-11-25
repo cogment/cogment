@@ -76,16 +76,6 @@ const std::unique_ptr<Actor>& Trial::actor(const std::string& name) const {
   return actors_[actor_index];
 }
 
-void Trial::fill_env_start_request(::cogment::EnvStartRequest* io_req) {
-  if (params_.environment().has_config()) {
-    *io_req->mutable_config() = params_.environment().config();
-  }
-
-  if (params_.has_trial_config()) {
-    *io_req->mutable_trial_config() = params_.trial_config();
-  }
-}
-
 void Trial::configure(cogment::TrialParams params) {
   params_ = std::move(params);
 
@@ -98,7 +88,12 @@ void Trial::configure(cogment::TrialParams params) {
   env_stub_ = orchestrator_->env_pool()->get_stub(params_.environment().endpoint());
 
   ::cogment::EnvStartRequest env_start_req;
-  fill_env_start_request(&env_start_req);
+  if (params_.environment().has_config()) {
+    *env_start_req.mutable_config() = params_.environment().config();
+  }
+
+  // TODO: Figure out where the impl_name should come from and use that instead of hardcoded default
+  env_start_req.set_impl_name("default");
 
   for (const auto& actor_info : params_.actors()) {
     auto url = actor_info.endpoint();

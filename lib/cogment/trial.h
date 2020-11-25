@@ -107,8 +107,6 @@ class Trial : public std::enable_shared_from_this<Trial> {
   std::unordered_map<std::string, uint32_t> actor_indexes_;
   std::chrono::time_point<std::chrono::steady_clock> last_activity_;
 
-  void fill_env_start_request(::cogment::EnvStartRequest* io_req);
-
   std::vector<grpc_metadata> headers_;
   easy_grpc::client::Call_options call_options_;
 

@@ -61,12 +61,7 @@ Future<void> Agent::init() {
   req.set_impl_name(impl_);
 
   if (config_data_) {
-    req.mutable_config()->set_content(*config_data_);
-  }
-
-  const auto& trial_params = trial()->params();
-  if (trial_params.has_trial_config()) {
-    *req.mutable_trial_config() = trial_params.trial_config();
+    req.mutable_config()->set_content(config_data_.value());
   }
 
   for (const auto& actor : trial()->actors()) {

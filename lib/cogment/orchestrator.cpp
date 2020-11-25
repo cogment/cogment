@@ -103,16 +103,13 @@ TrialJoinReply Orchestrator::client_joined(TrialJoinRequest req) {
     }
   }
 
-  if (!joined_as_actor) {
+  if (joined_as_actor == nullptr) {
     throw std::runtime_error("Could not join trial");
   }
   auto config_data = joined_as_actor->join();
   if (config_data) {
-    // TODO: add the config field to TrialJoinReply
-    // result.mutable_config()->set_content(*config_data_);
+    result.mutable_config()->set_content(config_data.value());
   }
-
-  result.set_actor_class(joined_as_actor->actor_class()->name);
   result.set_actor_name(joined_as_actor->actor_name());
   result.set_trial_id(to_string(joined_as_actor->trial()->id()));
 
