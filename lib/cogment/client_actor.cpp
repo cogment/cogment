@@ -18,14 +18,18 @@
 #include "spdlog/spdlog.h"
 
 namespace cogment {
-Client_actor::Client_actor(Trial* owner, std::uint32_t actor_id, const ActorClass* actor_class,
+Client_actor::Client_actor(Trial* owner, const std::string& actor_name, const ActorClass* actor_class,
                            std::optional<std::string> config_data)
-    : Actor(owner, actor_id, actor_class),
+    : Actor(owner, actor_name, actor_class),
       joined_(false),
       config_data_(std::move(config_data)),
       outgoing_observations_future_(outgoing_observations_.get_future()) {}
 
-Client_actor::~Client_actor() {}
+Client_actor::~Client_actor() {
+  if (outgoing_observations_) {
+    outgoing_observations_.complete();
+  }
+}
 
 Future<void> Client_actor::init() {
   // Client actors are ready once a client has connected to it.
@@ -43,13 +47,13 @@ std::optional<std::string> Client_actor::join() {
 
 Client_actor::Observation_future Client_actor::bind(Client_actor::Action_future actions) {
   std::weak_ptr trial_weak = trial()->get_shared();
-  auto a_id = actor_id();
+  auto name = actor_name();
 
   actions
-      .for_each([trial_weak, a_id](auto act) {
+      .for_each([trial_weak, name](auto act) {
         auto trial = trial_weak.lock();
         if (trial) {
-          trial->actor_acted(a_id, act.action());
+          trial->actor_acted(name, act.action());
         }
       })
       .finally([](auto) {});
@@ -59,19 +63,11 @@ Client_actor::Observation_future Client_actor::bind(Client_actor::Action_future 
 
 void Client_actor::dispatch_observation(const cogment::Observation& obs, bool end_of_trial) {
   ::cogment::TrialActionReply req;
-  req.set_final(end_of_trial);
-  *req.mutable_observation() = obs;
+  req.set_final_data(end_of_trial);
+  auto new_obs = req.mutable_data()->add_observations();
+  *new_obs = obs;
+
   outgoing_observations_.push(std::move(req));
-
-  if (end_of_trial) {
-    outgoing_observations_.complete();
-  }
-}
-
-void Client_actor::terminate() {
-  if (outgoing_observations_) {
-    outgoing_observations_.complete();
-  }
 }
 
 void Client_actor::dispatch_reward(int /*tick_id*/, const ::cogment::Reward& /*reward*/) {}

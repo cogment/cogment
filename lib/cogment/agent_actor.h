@@ -24,16 +24,16 @@
 namespace cogment {
 
 class Trial;
+
 class Agent : public Actor {
   public:
   using stub_type = std::shared_ptr<Stub_pool<cogment::AgentEndpoint>::Entry>;
-  Agent(Trial* owner, std::uint32_t actor_id, const ActorClass* actor_class, const std::string& impl, stub_type stub,
-        std::optional<std::string> config_data);
+  Agent(Trial* owner, const std::string& actor_name, const ActorClass* actor_class, const std::string& impl,
+        stub_type stub, std::optional<std::string> config_data);
 
   ~Agent();
 
   Future<void> init() override;
-  void terminate() override;
 
   bool is_active() const override;
 
@@ -45,13 +45,16 @@ class Agent : public Actor {
 
   stub_type stub_;
   std::vector<grpc_metadata> headers_;
+  easy_grpc::client::Call_options options_;
 
   cogment::Action latest_action_;
   std::optional<std::string> config_data_;
 
-  std::optional<::easy_grpc::Stream_promise<::cogment::AgentDataRequest>> outgoing_observations_;
+  std::optional<::easy_grpc::Stream_promise<::cogment::AgentObservationRequest>> outgoing_observations_;
 
   std::string impl_;
 };
+
 }  // namespace cogment
+
 #endif

@@ -32,14 +32,14 @@ Grpc_datalog_exporter_base::Trial_log::~Trial_log() {
 
 void Grpc_datalog_exporter_base::Trial_log::lazy_start_stream_() {
   if (!output_promise_) {
-    auto stream_reply = owner_->stub_->Log();
+    auto stream_reply = owner_->stub_->OnLogSample();
     auto& stream = std::get<0>(stream_reply);
     auto& reply = std::get<1>(stream_reply);
 
     // We'll just ignore whatever comes back from the log exporter service
     reply.finally([](auto) {});
 
-    cogment::DatalogMsg msg;
+    cogment::LogExporterSampleRequest msg;
     *msg.mutable_trial_params() = trial_->params();
     stream.push(std::move(msg));
 
@@ -50,7 +50,7 @@ void Grpc_datalog_exporter_base::Trial_log::lazy_start_stream_() {
 void Grpc_datalog_exporter_base::Trial_log::add_sample(cogment::DatalogSample data) {
   lazy_start_stream_();
 
-  cogment::DatalogMsg msg;
+  cogment::LogExporterSampleRequest msg;
   *msg.mutable_sample() = std::move(data);
   output_promise_->push(std::move(msg));
 }

@@ -32,7 +32,7 @@ class TrialLifecycleService {
   ::cogment::TerminateTrialReply TerminateTrial(::cogment::TerminateTrialRequest, easy_grpc::Context ctx);
   ::easy_grpc::Future<::cogment::MessageDispatchReply> SendMessage(::cogment::MasterMessageDispatchRequest,
                                                                    easy_grpc::Context ctx);
-  ::cogment::TrialInfoReply TrialInfo(::cogment::TrialInfoRequest, easy_grpc::Context ctx);
+  ::cogment::TrialInfoReply GetTrialInfo(::cogment::TrialInfoRequest, easy_grpc::Context ctx);
   ::cogment::VersionInfo Version(::cogment::VersionRequest, easy_grpc::Context ctx);
 };
 }  // namespace cogment

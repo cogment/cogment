@@ -45,7 +45,7 @@ class Orchestrator {
   // Client API
   TrialJoinReply client_joined(TrialJoinRequest);
   ::easy_grpc::Stream_future<::cogment::TrialActionReply> bind_client(
-      const uuids::uuid& trial_id, std::uint32_t actor_id,
+      const uuids::uuid& trial_id, std::string& actor_name,
       ::easy_grpc::Stream_future<::cogment::TrialActionRequest> actions);
 
   // Services
@@ -97,7 +97,7 @@ class Orchestrator {
   void check_garbage_collection_();
   void perform_garbage_collection_();
 
-  Future<cogment::TrialContext> perform_pre_hooks_(cogment::TrialContext ctx);
+  Future<cogment::PreTrialContext> perform_pre_hooks_(cogment::PreTrialContext ctx, const std::string& trial_id);
 };
 }  // namespace cogment
 #endif

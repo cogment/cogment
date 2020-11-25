@@ -49,35 +49,31 @@ Future<std::shared_ptr<Trial>> Orchestrator::start_trial(cogment::TrialParams pa
     trials_[new_trial->id()] = new_trial;
   }
 
-  cogment::TrialContext init_ctx;
+  cogment::PreTrialContext init_ctx;
   *init_ctx.mutable_params() = std::move(params);
-  init_ctx.set_trial_id(to_string(new_trial->id()));
   init_ctx.set_user_id(user_id);
 
-  auto final_ctx_fut = perform_pre_hooks_(std::move(init_ctx));
+  auto trial_id = to_string(new_trial->id());
+  auto final_ctx_fut = perform_pre_hooks_(std::move(init_ctx), trial_id);
 
-  return final_ctx_fut.then([new_trial](auto final_ctx) {
+  return final_ctx_fut.then([new_trial, trial_id](auto final_ctx) {
     new_trial->configure(std::move(*final_ctx.mutable_params()));
-    spdlog::info("trial {} successfully initialized", to_string(new_trial->id()));
+    spdlog::info("trial {} successfully initialized", trial_id);
     return new_trial;
   });
 }
 
 void Orchestrator::end_trial(const uuids::uuid& trial_id) {
-  std::shared_ptr<Trial> trial;
-  {
-    std::lock_guard l(trials_mutex_);
+  std::lock_guard l(trials_mutex_);
 
-    auto trial_ite = trials_.find(trial_id);
-    if (trial_ite == trials_.end()) {
-      throw std::out_of_range("unknown trial id");
-    }
-
-    trial = trial_ite->second;
-    trials_.erase(trial_ite);
+  auto trial_itor = trials_.find(trial_id);
+  if (trial_itor == trials_.end()) {
+    throw std::out_of_range("unknown trial id");  // TODO: Add trial_id received in error string
   }
 
+  auto trial = trial_itor->second;
   trial->terminate();
+  trials_.erase(trial_itor);
 }
 
 TrialJoinReply Orchestrator::client_joined(TrialJoinRequest req) {
@@ -117,26 +113,26 @@ TrialJoinReply Orchestrator::client_joined(TrialJoinRequest req) {
   }
 
   result.set_actor_class(joined_as_actor->actor_class()->name);
-  result.set_actor_id(joined_as_actor->actor_id());
+  result.set_actor_name(joined_as_actor->actor_name());
   result.set_trial_id(to_string(joined_as_actor->trial()->id()));
 
   for (const auto& actor : joined_as_actor->trial()->actors()) {
     auto actor_in_trial = result.add_actors_in_trial();
     actor_in_trial->set_actor_class(actor->actor_class()->name);
-    actor_in_trial->set_name(actor->name());
+    actor_in_trial->set_name(actor->actor_name());
   }
 
   return result;
 }
 
 ::easy_grpc::Stream_future<::cogment::TrialActionReply> Orchestrator::bind_client(
-    const uuids::uuid& trial_id, std::uint32_t actor_id,
+    const uuids::uuid& trial_id, std::string& actor_name,
     ::easy_grpc::Stream_future<::cogment::TrialActionRequest> actions) {
   auto trial = get_trial(trial_id);
 
-  auto actor = dynamic_cast<Client_actor*>(trial->actors().at(actor_id).get());
+  auto actor = dynamic_cast<Client_actor*>(trial->actor(actor_name).get());
 
-  if (!actor) {
+  if (actor == nullptr) {
     throw std::runtime_error("attempting to bind a service-driven actor");
   }
 
@@ -145,14 +141,22 @@ TrialJoinReply Orchestrator::client_joined(TrialJoinRequest req) {
 
 void Orchestrator::add_prehook(cogment::TrialHooks::Stub_interface* hook) { prehooks_.push_back(hook); }
 
-Future<cogment::TrialContext> Orchestrator::perform_pre_hooks_(cogment::TrialContext ctx) {
-  aom::Promise<cogment::TrialContext> prom;
+Future<cogment::PreTrialContext> Orchestrator::perform_pre_hooks_(cogment::PreTrialContext ctx,
+                                                                  const std::string& trial_id) {
+  grpc_metadata trial_header;
+  trial_header.key = grpc_slice_from_static_string("trial-id");
+  trial_header.value = grpc_slice_from_copied_string(trial_id.c_str());
+  std::vector<grpc_metadata> headers = {trial_header};
+  easy_grpc::client::Call_options options;
+  options.headers = &headers;
+
+  aom::Promise<cogment::PreTrialContext> prom;
   auto result = prom.get_future();
   prom.set_value(std::move(ctx));
 
   // Run prehooks.
   for (auto& hook : prehooks_) {
-    result = result.then([hook](auto p) { return hook->PreTrial(std::move(p)); });
+    result = result.then([hook, options](auto context) { return hook->OnPreTrial(std::move(context), options); });
   }
 
   return result;

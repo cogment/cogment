@@ -40,7 +40,7 @@ class Grpc_datalog_exporter_base : public Datalog_storage_interface {
     Trial* trial_ = nullptr;
 
     void lazy_start_stream_();
-    std::optional<::easy_grpc::Stream_promise<::cogment::DatalogMsg>> output_promise_;
+    std::optional<::easy_grpc::Stream_promise<::cogment::LogExporterSampleRequest>> output_promise_;
   };
 
   std::unique_ptr<Trial_log_interface> begin_trial(Trial* trial) final override;

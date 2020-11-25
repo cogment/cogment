@@ -39,7 +39,7 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_
     for (const auto& actor : trial->actors()) {
       auto actor_in_trial = reply.add_actors_in_trial();
       actor_in_trial->set_actor_class(actor->actor_class()->name);
-      actor_in_trial->set_name(actor->name());
+      actor_in_trial->set_name(actor->actor_name());
     }
 
     return reply;
@@ -59,7 +59,7 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_
   return {};
 }
 
-::cogment::TrialInfoReply TrialLifecycleService::TrialInfo(::cogment::TrialInfoRequest, easy_grpc::Context ctx) {
+::cogment::TrialInfoReply TrialLifecycleService::GetTrialInfo(::cogment::TrialInfoRequest, easy_grpc::Context ctx) {
   (void)ctx;
   ::cogment::TrialInfoReply result;
   auto add_trial = [&](Trial* trial) {

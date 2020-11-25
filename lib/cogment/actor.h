@@ -37,12 +37,11 @@ struct ActorClass;
 
 class Actor {
   public:
-  Actor(Trial* trial, std::uint32_t actor_id, const ActorClass* actor_class);
+  Actor(Trial* trial, const std::string& actor_name, const ActorClass* actor_class);
   virtual ~Actor();
 
   virtual aom::Future<void> init() = 0;
 
-  virtual void terminate() {}
   virtual void send_final_observation(cogment::Observation&& /*obs*/) {}
 
   virtual void dispatch_observation(const cogment::Observation& obs, bool end_of_trial) = 0;
@@ -51,16 +50,13 @@ class Actor {
   virtual bool is_active() const = 0;
 
   Trial* trial() const;
-  std::uint32_t actor_id() const;
+  const std::string& actor_name() const;
   const ActorClass* actor_class() const;
-
-  const std::string& name() const { return name_; }
 
   private:
   Trial* trial_;
-  std::uint32_t actor_id_;
+  std::string actor_name_;
   const ActorClass* actor_class_;
-  std::string name_;
 };
 
 struct ActorClass {

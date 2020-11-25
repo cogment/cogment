@@ -63,6 +63,7 @@ class Trial : public std::enable_shared_from_this<Trial> {
 
   // Actors present in the trial
   const std::vector<std::unique_ptr<Actor>>& actors() const;
+  const std::unique_ptr<Actor>& actor(const std::string& name) const;
 
   // Initializes the trial
   void configure(cogment::TrialParams params);
@@ -82,7 +83,7 @@ class Trial : public std::enable_shared_from_this<Trial> {
   // Marks the trial as being active.
   void refresh_activity();
 
-  void actor_acted(std::uint32_t actor_id, const cogment::Action& action);
+  void actor_acted(const std::string& actor_name, const cogment::Action& action);
   std::shared_ptr<Trial> get_shared() { return shared_from_this(); }
 
   private:
@@ -103,6 +104,7 @@ class Trial : public std::enable_shared_from_this<Trial> {
   // State
   Trial_state state_;
   std::vector<std::unique_ptr<Actor>> actors_;
+  std::unordered_map<std::string, uint32_t> actor_indexes_;
   std::chrono::time_point<std::chrono::steady_clock> last_activity_;
 
   void fill_env_start_request(::cogment::EnvStartRequest* io_req);
@@ -114,7 +116,7 @@ class Trial : public std::enable_shared_from_this<Trial> {
   void run_environment();
   void gather_actions();
 
-  std::optional<::easy_grpc::Stream_promise<::cogment::EnvUpdateRequest>> outgoing_actions_;
+  std::optional<::easy_grpc::Stream_promise<::cogment::EnvActionRequest>> outgoing_actions_;
 
   ObservationSet latest_observations_;
   std::vector<std::optional<cogment::Action>> actions_;

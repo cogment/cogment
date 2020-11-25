@@ -71,6 +71,11 @@ const std::string& Trial::user_id() const { return user_id_; }
 
 const std::vector<std::unique_ptr<Actor>>& Trial::actors() const { return actors_; }
 
+const std::unique_ptr<Actor>& Trial::actor(const std::string& name) const {
+  auto actor_index = actor_indexes_.at(name);
+  return actors_[actor_index];
+}
+
 void Trial::fill_env_start_request(::cogment::EnvStartRequest* io_req) {
   if (params_.environment().has_config()) {
     *io_req->mutable_config() = params_.environment().config();
@@ -108,7 +113,7 @@ void Trial::configure(cogment::TrialParams params) {
       if (actor_info.has_config()) {
         config = actor_info.config().content();
       }
-      auto client_actor = std::make_unique<Client_actor>(this, actors_.size(), &actor_class, config);
+      auto client_actor = std::make_unique<Client_actor>(this, actor_info.name(), &actor_class, config);
       actors_.push_back(std::move(client_actor));
     }
     else {
@@ -117,10 +122,12 @@ void Trial::configure(cogment::TrialParams params) {
         config = actor_info.config().content();
       }
       auto stub_entry = orchestrator_->agent_pool()->get_stub(url);
-      auto agent_actor =
-          std::make_unique<Agent>(this, actors_.size(), &actor_class, actor_info.implementation(), stub_entry, config);
+      auto agent_actor = std::make_unique<Agent>(this, actor_info.name(), &actor_class, actor_info.implementation(),
+                                                 stub_entry, config);
       actors_.push_back(std::move(agent_actor));
     }
+
+    actor_indexes_.emplace(actor_info.name(), actors_.size() - 1);
   }
 
   actions_.resize(actors_.size());
@@ -132,7 +139,7 @@ void Trial::configure(cogment::TrialParams params) {
     actors_ready.push_back(actor->init());
   }
 
-  auto env_ready = (*env_stub_)->Start(std::move(env_start_req), call_options_).then_expect([](auto rep) {
+  auto env_ready = (*env_stub_)->OnStart(std::move(env_start_req), call_options_).then_expect([](auto rep) {
     if (!rep) {
       spdlog::error("failed to connect to environment");
       try {
@@ -158,16 +165,30 @@ void Trial::configure(cogment::TrialParams params) {
 }
 
 void Trial::dispatch_observations(bool end_of_trial) {
-  std::uint32_t actor_id = 0;
+  if (state_ == Trial_state::ended) {
+    return;
+  }
+
+  std::uint32_t actor_index = 0;
   for (const auto& actor : actors_) {
-    auto obs_index = latest_observations_.actors_map(actor_id);
+    auto obs_index = latest_observations_.actors_map(actor_index);
 
     cogment::Observation obs;
     obs.set_tick_id(latest_observations_.tick_id());
     obs.set_timestamp(latest_observations_.timestamp());
     *obs.mutable_data() = latest_observations_.observations(obs_index);
     actor->dispatch_observation(obs, end_of_trial);
-    ++actor_id;
+    ++actor_index;
+  }
+
+  if (end_of_trial) {
+    spdlog::info("ending trial");
+    // Stop sending actions to the environment
+    outgoing_actions_->complete();
+    actors_.clear();
+    actor_indexes_.clear();
+    outgoing_actions_ = std::nullopt;
+    state_ = Trial_state::ended;
   }
 }
 
@@ -181,7 +202,7 @@ void Trial::run_environment() {
   sample.mutable_observations()->CopyFrom(latest_observations_);
 
   // Launch the main update stream
-  auto streams = (*env_stub_)->Update(call_options_);
+  auto streams = (*env_stub_)->OnAction(call_options_);
 
   outgoing_actions_ = std::move(std::get<0>(streams));
   auto incoming_updates = std::move(std::get<1>(streams));
@@ -197,49 +218,76 @@ void Trial::run_environment() {
         auto& sample = step_data_.back();
         sample.mutable_observations()->CopyFrom(latest_observations_);
 
-        if (update.end_trial()) {
-          // The environment has requested the end of the trial.
-          spdlog::info("end received");
-          terminate();
+        if (update.final_update()) {
+          state_ = Trial_state::terminating;
         }
-        else {
-          dispatch_observations(false);
-        }
+        dispatch_observations(update.final_update());
       })
       .finally([self](auto) {
         // We are holding on to self until the rpc is over.
-        // This is important because we call terminate() from within
-        // this handler.
+        // This is important because we we still need to finish
+        // this call while the trial is "deleted".
       });
 }
 
 void Trial::terminate() {
+  auto self = shared_from_this();
   state_ = Trial_state::terminating;
 
-  // Send the final observation to actors
-  dispatch_observations(true);
+  cogment::EnvActionRequest req;
 
-  // Stop sending actions to the environment
-  outgoing_actions_->complete();
-  actors_.clear();
-  outgoing_actions_ = std::nullopt;
+  // Send the actions we have so far (partial set)
+  // TODO: Should we instead send all empty actions?
+  for (auto& act : actions_) {
+    // TODO: Synchronize properly with actor_acted()
+    if (act) {
+      req.mutable_action_set()->add_actions(act->content());
+    }
+    else {
+      req.mutable_action_set()->add_actions("");
+    }
+
+    act = std::nullopt;
+    gathered_actions_count_--;
+  }
+
+  // TODO: Add fail safe in case communication is broken or environment is down
+  (*env_stub_)
+      ->OnEnd(req, call_options_)
+      .then([this](auto rep) {
+        latest_observations_ = std::move(*rep.mutable_observation_set());
+
+        step_data_.emplace_back();
+        auto& sample = step_data_.back();
+        sample.mutable_observations()->CopyFrom(latest_observations_);
+
+        dispatch_observations(true);
+      })
+      .finally([self](auto) {
+        // We are holding on to self until the rpc is over.
+        // This is important because we we still need to finish
+        // this call while the trial is "deleted".
+      });
 }
 
-void Trial::actor_acted(std::uint32_t actor_id, const cogment::Action& action) {
+void Trial::actor_acted(const std::string& actor_name, const cogment::Action& action) {
   if (!outgoing_actions_) {
     return;
   }
 
-  if (actions_[actor_id] == std::nullopt) {
+  // TODO: Do we want to manage the exception if the name is not found?
+  auto actor_index = actor_indexes_.at(actor_name);
+
+  if (actions_[actor_index] == std::nullopt) {
     ++gathered_actions_count_;
   }
 
-  actions_[actor_id] = action;
+  actions_[actor_index] = action;
 
   if (gathered_actions_count_ == actions_.size()) {
     gathered_actions_count_ = 0;
 
-    ::cogment::EnvUpdateRequest req;
+    ::cogment::EnvActionRequest req;
     for (auto& act : actions_) {
       if (act) {
         req.mutable_action_set()->add_actions(act->content());
@@ -261,11 +309,13 @@ Client_actor* Trial::get_join_candidate(const TrialJoinRequest& req) {
   Actor* result = nullptr;
 
   switch (req.slot_selection_case()) {
-  case TrialJoinRequest::kActorId:
-    if (!actors_.at(req.actor_id())->is_active()) {
-      result = actors_[req.actor_id()].get();
+  case TrialJoinRequest::kActorName: {
+    auto actor_index = actor_indexes_.at(req.actor_name());
+    auto& actor = actors_.at(actor_index);
+    if (actor->is_active()) {
+      result = actor.get();
     }
-    break;
+  } break;
 
   case TrialJoinRequest::kActorClass:
     for (auto& actor : actors_) {
@@ -278,10 +328,12 @@ Client_actor* Trial::get_join_candidate(const TrialJoinRequest& req) {
 
   case TrialJoinRequest::SLOT_SELECTION_NOT_SET:
   default:
-    throw std::invalid_argument("must specify either actor_id or actor_class");
+    throw std::invalid_argument("Must specify either actor_name or actor_class");
   }
 
-  assert(result == nullptr || dynamic_cast<Client_actor*>(result) != nullptr);
+  if (result != nullptr && dynamic_cast<Client_actor*>(result) == nullptr) {
+    throw std::invalid_argument("Actor name or class is not a client actor");
+  }
 
   return static_cast<Client_actor*>(result);
 }

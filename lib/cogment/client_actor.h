@@ -31,13 +31,12 @@ class Client_actor : public Actor {
   using Observation_promise = ::easy_grpc::Stream_promise<::cogment::TrialActionReply>;
   using Observation_future = ::easy_grpc::Stream_future<::cogment::TrialActionReply>;
 
-  Client_actor(Trial* owner, std::uint32_t actor_id, const ActorClass* actor_class,
+  Client_actor(Trial* owner, const std::string& actor_name, const ActorClass* actor_class,
                std::optional<std::string> config_data);
 
   ~Client_actor();
 
   Future<void> init() override;
-  void terminate() override;
 
   void dispatch_observation(const cogment::Observation& obs, bool end_of_trial) override;
   void dispatch_reward(int tick_id, const ::cogment::Reward& reward) override;

@@ -25,9 +25,9 @@
 #endif
 
 namespace cogment {
-Agent::Agent(Trial* owner, std::uint32_t in_actor_id, const ActorClass* actor_class, const std::string& impl,
+Agent::Agent(Trial* owner, const std::string& in_actor_name, const ActorClass* actor_class, const std::string& impl,
              stub_type stub, std::optional<std::string> config_data)
-    : Actor(owner, in_actor_id, actor_class),
+    : Actor(owner, in_actor_name, actor_class),
       stub_(std::move(stub)),
       config_data_(std::move(config_data)),
       impl_(impl) {
@@ -36,18 +36,25 @@ Agent::Agent(Trial* owner, std::uint32_t in_actor_id, const ActorClass* actor_cl
   trial_header.value = grpc_slice_from_copied_string(to_string(trial()->id()).c_str());
 
   grpc_metadata actor_header;
-  actor_header.key = grpc_slice_from_static_string("actor-id");
-  actor_header.value = grpc_slice_from_copied_string(std::to_string(actor_id()).c_str());
+  actor_header.key = grpc_slice_from_static_string("actor-name");
+  actor_header.value = grpc_slice_from_copied_string(actor_name().c_str());
 
   headers_ = {trial_header, actor_header};
+  options_.headers = &headers_;
 
-  AGENT_DEBUG_LOG("Agent(): {} {}", to_string(trial()->id()), actor_id());
+  AGENT_DEBUG_LOG("Agent(): {} {}", to_string(trial()->id()), actor_name());
 }
 
-Agent::~Agent() { AGENT_DEBUG_LOG("~Agent(): {} {}", to_string(trial()->id()), actor_id()); }
+Agent::~Agent() {
+  AGENT_DEBUG_LOG("~Agent(): {} {}", to_string(trial()->id()), actor_name());
+
+  if (outgoing_observations_) {
+    outgoing_observations_->complete();
+  }
+}
 
 Future<void> Agent::init() {
-  AGENT_DEBUG_LOG("Agent::init(): {} {}", to_string(trial()->id()), actor_id());
+  AGENT_DEBUG_LOG("Agent::init(): {} {}", to_string(trial()->id()), actor_name());
 
   cogment::AgentStartRequest req;
 
@@ -65,63 +72,52 @@ Future<void> Agent::init() {
   for (const auto& actor : trial()->actors()) {
     auto actor_in_trial = req.add_actors_in_trial();
     actor_in_trial->set_actor_class(actor->actor_class()->name);
-    actor_in_trial->set_name(actor->name());
+    actor_in_trial->set_name(actor->actor_name());
   }
-  easy_grpc::client::Call_options options;
-  options.headers = &headers_;
 
-  return stub_->stub.Start(req, options).then([this](auto rep) {
+  return stub_->stub.OnStart(req, options_).then([this](auto rep) {
     (void)rep;
     (void)this;
-    AGENT_DEBUG_LOG("Agent init start complete: {} {}", to_string(trial()->id()), actor_id());
+    AGENT_DEBUG_LOG("Agent init start complete: {} {}", to_string(trial()->id()), actor_name());
   });
 }
 
 void Agent::dispatch_observation(const cogment::Observation& obs, bool end_of_trial) {
-  lazy_start_decision_stream();
+  if (!end_of_trial) {
+    lazy_start_decision_stream();
 
-  ::cogment::AgentDataRequest req;
-  req.set_final(end_of_trial);
-  *req.mutable_observation() = obs;
-  outgoing_observations_->push(std::move(req));
+    ::cogment::AgentObservationRequest req;
+    *req.mutable_observation() = obs;
+    outgoing_observations_->push(std::move(req));
+  }
+  else {
+    ::cogment::AgentEndRequest req;
+    auto new_obs = req.mutable_final_data()->add_observations();
+    *new_obs = obs;
 
-  if (end_of_trial) {
-    outgoing_observations_->complete();
+    stub_->stub.OnEnd(req, options_);
   }
 }
 
 void Agent::lazy_start_decision_stream() {
   if (!outgoing_observations_) {
-    easy_grpc::client::Call_options options;
-    options.headers = &headers_;
-
-    auto stream = stub_->stub.Decide(options);
+    auto stream = stub_->stub.OnObservation(options_);
 
     outgoing_observations_ = std::move(std::get<0>(stream));
     auto incoming_actions = std::move(std::get<1>(stream));
 
     std::weak_ptr trial_weak = trial()->get_shared();
-    auto a_id = actor_id();
+    auto name = actor_name();
 
     incoming_actions
-        .for_each([trial_weak, a_id](auto act) {
+        .for_each([trial_weak, name](auto act) {
           auto trial = trial_weak.lock();
           if (trial) {
-            trial->actor_acted(a_id, act.action());
+            trial->actor_acted(name, act.action());
           }
         })
         .finally([](auto) {});
   }
-}
-
-void Agent::terminate() {
-  AGENT_DEBUG_LOG("Agent::terminate: {} {}", to_string(trial()->id()), actor_id());
-  cogment::AgentEndRequest req;
-
-  easy_grpc::client::Call_options options;
-  options.headers = &headers_;
-
-  stub_->stub.End(req, options).finally([](auto) {});
 }
 
 bool Agent::is_active() const {
@@ -135,10 +131,7 @@ void Agent::dispatch_reward(int tick_id, const ::cogment::Reward& reward) {
   req.set_tick_id(tick_id);
   req.mutable_reward()->CopyFrom(reward);
 
-  easy_grpc::client::Call_options options;
-  options.headers = &headers_;
-
-  stub_->stub.Reward(req, options).finally([](auto) {});
+  stub_->stub.OnReward(req, options_).finally([](auto) {});
 }
 
 }  // namespace cogment

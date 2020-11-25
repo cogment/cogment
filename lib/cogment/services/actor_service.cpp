@@ -29,9 +29,9 @@ ActorService::ActorService(Orchestrator* orch) : orchestrator_(orch) {}
 ::easy_grpc::Stream_future<::cogment::TrialActionReply> ActorService::ActionStream(
     ::easy_grpc::Stream_future<::cogment::TrialActionRequest> actions, easy_grpc::Context ctx) {
   auto trial_id = uuids::uuid::from_string(ctx.get_client_header("trial-id"));
-  auto actor_id = std::stoul(std::string(ctx.get_client_header("actor-id")));
+  auto actor_name = std::string(ctx.get_client_header("actor-name"));
 
-  return orchestrator_->bind_client(trial_id, actor_id, std::move(actions));
+  return orchestrator_->bind_client(trial_id, actor_name, std::move(actions));
 }
 
 ::easy_grpc::Future<::cogment::TrialHeartbeatReply> ActorService::Heartbeat(::cogment::TrialHeartbeatRequest,
@@ -46,8 +46,8 @@ ActorService::ActorService(Orchestrator* orch) : orchestrator_(orch) {}
   return {};
 }
 
-::easy_grpc::Future<::cogment::TrialMessageReply> ActorService::SendChanMessage(::cogment::TrialMessageRequest,
-                                                                                easy_grpc::Context ctx) {
+::easy_grpc::Future<::cogment::TrialMessageReply> ActorService::SendMessage(::cogment::TrialMessageRequest,
+                                                                            easy_grpc::Context ctx) {
   (void)ctx;
   return {};
 }
