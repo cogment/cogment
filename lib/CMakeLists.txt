@@ -14,7 +14,7 @@ set(COGMENT_API_SRC "")
 set(PROTO_SRC "")
 
 macro(retrieve_protos)
-        file(READ ../.cogment-api.yml COGMENT_API_VERSION_YML)
+        file(READ ../.cogment-api.yaml COGMENT_API_VERSION_YML)
         string(REGEX MATCH "cogment_api_path: \"?(.+)\"?\n" COGMENT_API_PATH_MATCH ${COGMENT_API_VERSION_YML})
         set(COGMENT_API_PATH ${CMAKE_MATCH_1})
         if(COGMENT_API_PATH)
