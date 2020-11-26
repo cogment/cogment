@@ -3,7 +3,7 @@ stages:
   - build
   - publish
 
-.use_build_env:
+.base_cpp:
   image: cogment/orchestrator-build-env:v1.0.0
   before_script:
     - mkdir build
@@ -11,19 +11,19 @@ stages:
     - cmake ..
 
 cpp_lint:
-  extends: .use_build_env
+  extends: .base_cpp
   stage: lint
   script:
     - make format
     - git diff --exit-code
 
 build:
-  extends: .use_build_env
+  extends: .base_cpp
   stage: build
   script:
     - make
 
-.use_docker_in_docker:
+.base_docker:
   image: docker:19.03.1
   services:
     - docker:19.03.1-dind
@@ -36,7 +36,7 @@ build:
     - docker login -u $DOCKER_HUB_USERNAME -p $DOCKER_HUB_TOKEN
 
 build_docker:
-  extends: .use_docker_in_docker
+  extends: .base_docker
   stage: build
   variables:
     DOCKER_HUB_IMAGE: "cogment/orchestrator"
@@ -48,7 +48,7 @@ build_docker:
     - develop
 
 publish_latest:
-  extends: .use_docker_in_docker
+  extends: .base_docker
   stage: publish
   script:
     - docker pull $CI_REGISTRY_IMAGE:latest || true
@@ -58,7 +58,7 @@ publish_latest:
     - develop
 
 publish_tag:
-  extends: .use_docker_in_docker
+  extends: .base_docker
   stage: publish
   script:
     - docker pull $CI_REGISTRY_IMAGE:latest || true
