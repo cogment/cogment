@@ -28,6 +28,11 @@ lint:
   script:
     - make lint
 
+test:
+  extends: .base_golang
+  stage: test
+  script:
+    - make test
 
 build_binaries:
   extends: .base_golang
