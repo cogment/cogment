@@ -38,8 +38,6 @@ build:
 build_docker:
   extends: .base_docker
   stage: build
-  variables:
-    DOCKER_HUB_IMAGE: "cogment/orchestrator"
   script:
     - docker pull $CI_REGISTRY_IMAGE:latest || true
     - docker build --cache-from $CI_REGISTRY_IMAGE:latest .
@@ -60,6 +58,8 @@ publish_latest:
 publish_tag:
   extends: .base_docker
   stage: publish
+  variables:
+    DOCKER_HUB_IMAGE: "cogment/orchestrator"
   script:
     - docker pull $CI_REGISTRY_IMAGE:latest || true
     - docker build --cache-from $CI_REGISTRY_IMAGE:latest --tag $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG --tag $DOCKER_HUB_IMAGE:$CI_COMMIT_TAG --tag $CI_REGISTRY_IMAGE:latest --tag $DOCKER_HUB_IMAGE:latest .
