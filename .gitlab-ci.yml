@@ -1,31 +1,38 @@
-image: docker:19.03.1
-
 stages:
   - lint
+  - test
   - build
   - publish
 
-lint:
-  stage: lint
+.base_golang:
   image: golang:1.13
+  before_script:
+    - apt-get update -y
+    - apt-get install -y protobuf-compiler
+
+.base_docker:
+  image: docker:19.03.1
+  services:
+    - docker:19.03.1-dind
+  variables:
+      # Use TLS https://docs.gitlab.com/ee/ci/docker/using_docker_build.html#tls-enabled
+      DOCKER_HOST: tcp://docker:2376
+      DOCKER_TLS_CERTDIR: "/certs"
+  before_script:
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
+    - docker login -u $DOCKER_HUB_USERNAME -p $DOCKER_HUB_TOKEN
+
+lint:
+  extends: .base_golang
+  stage: lint
   script:
     - make lint
 
-services:
-  - docker:19.03.1-dind
-
-variables:
-  # Use TLS https://docs.gitlab.com/ee/ci/docker/using_docker_build.html#tls-enabled
-  DOCKER_HOST: tcp://docker:2376
-  DOCKER_TLS_CERTDIR: "/certs"
 
 build_binaries:
+  extends: .base_golang
   stage: build
-  needs: []
-  image: golang:1.13
   script:
-    - apt-get update -y
-    - apt-get install -y protobuf-compiler
     - make release
   artifacts:
     expire_in: 1 week
@@ -33,19 +40,20 @@ build_binaries:
       - build
 
 build_docker_image:
+  extends: .base_docker
   stage: build
   script:
-    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
     - docker pull $CI_REGISTRY_IMAGE:latest || true
     - docker build --cache-from $CI_REGISTRY_IMAGE:latest .
   except:
+    # This job is not run on `develop` because `publish_latest_docker_image` run there and "includes" the build
     - develop
 
 # INTERNAL AI-R HELPER - Publish the current version from the `develop` branch with the `latest` docker tag.
 publish_latest_docker_image:
+  extends: .base_docker
   stage: publish
   script:
-    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
     - docker pull $CI_REGISTRY_IMAGE:latest || true
     - docker build --cache-from $CI_REGISTRY_IMAGE:latest --tag $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA --tag $CI_REGISTRY_IMAGE:latest .
     - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
@@ -54,17 +62,19 @@ publish_latest_docker_image:
     - develop
 
 publish_tagged_docker_image:
+  extends: .base_docker
   stage: publish
+  variables:
+    DOCKER_HUB_IMAGE: "cogment/cli"
   script:
-    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
     - docker pull $CI_REGISTRY_IMAGE:latest || true
-    - docker login -u "$DOCKER_USER" -p "$DOCKER_PASSWORD"
-    - docker build --cache-from $CI_REGISTRY_IMAGE:latest --tag cogment/cli:$CI_COMMIT_TAG .
-    - docker push cogment/cli:$CI_COMMIT_TAG
+    - docker build --cache-from $CI_REGISTRY_IMAGE:latest --tag $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG --tag $DOCKER_HUB_IMAGE:$CI_COMMIT_TAG .
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
+    - docker push $DOCKER_HUB_IMAGE:$CI_COMMIT_TAG
   only:
-    - tags
+    - /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+(?:-[[:alnum:]]+)?$/
 
-publish_binaries_to_gh_release:
+publish_tagged_binaries:
   stage: publish
   needs: ["build_binaries"]
   image: ubuntu:focal
