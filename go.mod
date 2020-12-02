@@ -11,18 +11,19 @@ require (
 	github.com/go-resty/resty/v2 v2.0.0
 	github.com/golang/protobuf v1.4.0-rc.4
 	github.com/jarcoal/httpmock v1.0.4
+	github.com/jstemmer/go-junit-report v0.9.1 // indirect
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/magiconair/properties v1.8.0
 	github.com/mattn/go-colorable v0.1.4 // indirect
 	github.com/mattn/go-isatty v0.0.10 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/ryanuber/columnize v2.1.0+incompatible
+	github.com/sirupsen/logrus v1.7.0 // indirect
 	github.com/spf13/afero v1.2.2
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/pflag v1.0.3
 	github.com/spf13/viper v1.3.2
 	github.com/stretchr/testify v1.4.0
-	golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2
 	golang.org/x/net v0.0.0-20190827160401-ba9fcec4b297 // indirect
 	golang.org/x/text v0.3.2 // indirect
 	google.golang.org/protobuf v1.20.1

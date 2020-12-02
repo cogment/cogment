@@ -4,3 +4,6 @@ build
 
 # Backup of "sed-ed" files
 *.bak
+
+# Test reports
+report.xml

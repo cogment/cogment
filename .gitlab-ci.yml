@@ -32,7 +32,11 @@ test:
   extends: .base_golang
   stage: test
   script:
-    - make test
+    - make test-with-report
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
 
 build_binaries:
   extends: .base_golang

@@ -6,21 +6,21 @@ GOBUILD=$(GOCMD) build
 GOCLEAN=$(GOCMD) clean
 GOFMT=gofmt
 GOTEST=$(GOCMD) test
-# GOGET=$(GOCMD) get
+GOGET=$(GOCMD) get
 BUILD_ARCH=amd64
 BINARY_NAME=cogment
 BINARY_LINUX=$(BINARY_NAME)-linux-${BUILD_ARCH}
 BINARY_MAC=$(BINARY_NAME)-macOS-${BUILD_ARCH}
 BINARY_WINDOWS=$(BINARY_NAME)-windows-${BUILD_ARCH}.exe
 
-
-# all: test build build-linux build-mac
-
-builder:
+build:
 	$(GOBUILD) -o $(BINARY_NAME) -v
 
 test:
 	$(GOTEST) -v ./...
+
+test-with-report:
+	$(GOTEST) -v ./... 2>&1 | $(GOCMD) run github.com/jstemmer/go-junit-report > report.xml
 
 clean:
 	$(GOCLEAN)
@@ -37,10 +37,6 @@ lint: check-fmt
 check-fmt:
 	$(GOFMT) -l ./..
 	@test -z "$(shell $(GOFMT) -l ./..)"
-
-# # deps:
-# #     $(GOGET) github.com/markbates/goth
-# #     $(GOGET) github.com/markbates/pop
 
 # # Cross compilation
 build-linux:
