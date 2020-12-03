@@ -38,6 +38,9 @@ check-fmt:
 	$(GOFMT) -l ./..
 	@test -z "$(shell $(GOFMT) -l ./..)"
 
+check-codingstyle:
+	$(GOCMD) run golang.org/x/lint/golint  ./...
+
 # # Cross compilation
 build-linux:
 	CGO_ENABLED=0 GOOS=linux GOARCH=${BUILD_ARCH} $(GOBUILD) -ldflags ${LD_FLAGS} -o build/$(BINARY_LINUX) -v
