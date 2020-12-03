@@ -16,6 +16,14 @@ package cmd
 
 import (
 	"fmt"
+	"io/ioutil"
+	"log"
+	"os"
+	"os/exec"
+	"path"
+	"path/filepath"
+	"strings"
+
 	"github.com/golang/protobuf/proto"
 	"github.com/spf13/cobra"
 	"gitlab.com/cogment/cogment/api"
@@ -25,18 +33,13 @@ import (
 	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/descriptorpb"
 	"gopkg.in/yaml.v2"
-	"io/ioutil"
-	"log"
-	"os"
-	"os/exec"
-	"path"
-	"path/filepath"
-	"strings"
 )
 
-const SETTINGS_FILENAME = "cog_settings"
-const LANG_PYTHON = 0
-const LANG_JAVASCRIPT = 1
+const settingsFilename = "cog_settings"
+const (
+	python = iota
+	javascript
+)
 
 // generateCmd represents the generate command
 var generateCmd = &cobra.Command{
@@ -69,16 +72,24 @@ var generateCmd = &cobra.Command{
 func registerProtoFile(src string, filename string) error {
 	log.Printf("registering %s", filename)
 
-	// First, convert the .proto file to a file descriptor
-	tmp_file := filename + "tmp.pb"
+	// First, convert the .proto file to a file descriptor in a temp directory
+	tmpDir, err := ioutil.TempDir("", "registerprotofile")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmpDir)
+	tmpFile := path.Join(tmpDir, filename+".pb")
+
+	os.MkdirAll(path.Dir(tmpFile), 0755)
+
 	cmd := exec.Command("protoc",
-		"--descriptor_set_out="+tmp_file,
+		"--descriptor_set_out="+tmpFile,
 		"-I"+src,
 		path.Join(src, filename))
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	err := cmd.Run()
+	err = cmd.Run()
 	if err != nil {
 		if Verbose {
 			log.Println(cmd.String())
@@ -87,21 +98,18 @@ func registerProtoFile(src string, filename string) error {
 		return err
 	}
 
-	defer os.Remove(tmp_file)
-
 	// Now load that temporary file as a descriptor protobuf
-	protoFile, err := ioutil.ReadFile(tmp_file)
+	protoFile, err := ioutil.ReadFile(tmpFile)
 	if err != nil {
 		return err
 	}
 
-	pb_set := new(descriptorpb.FileDescriptorSet)
-	if err := proto.Unmarshal(protoFile, pb_set); err != nil {
+	pbSet := new(descriptorpb.FileDescriptorSet)
+	if err := proto.Unmarshal(protoFile, pbSet); err != nil {
 		return err
 	}
 
-	pb := pb_set.GetFile()[0]
-	log.Printf("%v", pb.GetPackage())
+	pb := pbSet.GetFile()[0]
 
 	// And initialized the descriptor with it
 	fd, err := protodesc.NewFile(pb, protoregistry.GlobalFiles)
@@ -124,7 +132,7 @@ func runGenerateCmd(cmd *cobra.Command) error {
 
 	src := filepath.Dir(file)
 
-	config := CreateProjectConfigFromYaml(file)
+	config := createProjectConfigFromYaml(file)
 	for _, proto := range config.Import.Proto {
 		err = registerProtoFile(src, proto)
 		if err != nil {
@@ -139,7 +147,7 @@ func runGenerateCmd(cmd *cobra.Command) error {
 		}
 
 		// We need to reload the config because it is being manipulated
-		config = CreateProjectConfigFromYaml(file)
+		config = createProjectConfigFromYaml(file)
 		if err := generatePythonSettings(config, src, dest); err != nil {
 			return err
 		}
@@ -152,7 +160,7 @@ func runGenerateCmd(cmd *cobra.Command) error {
 		}
 
 		// We need to reload the config because it is being manipulated
-		config = CreateProjectConfigFromYaml(file)
+		config = createProjectConfigFromYaml(file)
 		if err := generateJavascriptSettings(config, src, dest); err != nil {
 			return err
 		}
@@ -162,7 +170,7 @@ func runGenerateCmd(cmd *cobra.Command) error {
 }
 
 func generatePythonSettings(config *api.ProjectConfig, src, dir string) error {
-	dest := path.Join(dir, SETTINGS_FILENAME+".py")
+	dest := path.Join(dir, settingsFilename+".py")
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
@@ -175,7 +183,7 @@ func generatePythonSettings(config *api.ProjectConfig, src, dir string) error {
 			log.Println("Compiling " + proto)
 		}
 
-		if err = compileProto(src, dir, proto, LANG_PYTHON); err != nil {
+		if err = compileProto(src, dir, proto, python); err != nil {
 			break
 		}
 	}
@@ -192,7 +200,7 @@ func generatePythonSettings(config *api.ProjectConfig, src, dir string) error {
 }
 
 func generateJavascriptSettings(config *api.ProjectConfig, src, dir string) error {
-	dest := path.Join(dir, SETTINGS_FILENAME+".js")
+	dest := path.Join(dir, settingsFilename+".js")
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
@@ -204,7 +212,7 @@ func generateJavascriptSettings(config *api.ProjectConfig, src, dir string) erro
 			log.Println("Compiling " + proto)
 		}
 
-		if err = compileProto(src, dir, proto, LANG_JAVASCRIPT); err != nil {
+		if err = compileProto(src, dir, proto, javascript); err != nil {
 			break
 		}
 	}
@@ -244,12 +252,12 @@ func updateConfigWithMessage(config *api.ProjectConfig) *api.ProjectConfig {
 	return config
 }
 
-func GetProtoAlias(protoFile string) string {
+func getProtoAlias(protoFile string) string {
 	fname := strings.Split(protoFile, ".")[0]
 	return strings.ReplaceAll(fname, "/", "_") + "_pb"
 }
 
-func CreateProjectConfigFromYaml(filename string) *api.ProjectConfig {
+func createProjectConfigFromYaml(filename string) *api.ProjectConfig {
 
 	yamlFile, err := ioutil.ReadFile(filename)
 	if err != nil {
@@ -263,7 +271,7 @@ func CreateProjectConfigFromYaml(filename string) *api.ProjectConfig {
 	}
 
 	for _, proto := range config.Import.Proto {
-		config.Import.ProtoAlias = append(config.Import.ProtoAlias, GetProtoAlias(proto))
+		config.Import.ProtoAlias = append(config.Import.ProtoAlias, getProtoAlias(proto))
 	}
 
 	//fmt.Println(helper.PrettyPrint(m))
@@ -274,7 +282,7 @@ func lookupMessageType(name string) string {
 	s := strings.Split(name, ".")
 	protoFile := findFileContainingSymbol(name)
 
-	return GetProtoAlias(protoFile) + "." + s[len(s)-1]
+	return getProtoAlias(protoFile) + "." + s[len(s)-1]
 }
 
 func findFileContainingSymbol(name string) string {
@@ -292,8 +300,8 @@ func findFileContainingSymbol(name string) string {
 func compileProto(src, dest, proto string, language int8) error {
 
 	var params []string
-	if language == LANG_PYTHON {
-
+	switch language {
+	case python:
 		_, err := exec.LookPath("protoc-gen-mypy")
 		if err != nil {
 			log.Printf("Warning: protoc-gen-mypy not found, IDE autocomplete support will be limited.")
@@ -302,9 +310,9 @@ func compileProto(src, dest, proto string, language int8) error {
 		}
 
 		params = append(params, "-I"+src, "--python_out="+dest, path.Join(src, proto))
-	} else if language == LANG_JAVASCRIPT {
+	case javascript:
 		params = append(params, "-I"+src, "--js_out=import_style=commonjs,binary:"+dest, path.Join(src, proto))
-	} else {
+	default:
 		return fmt.Errorf("language %d is not supported", language)
 	}
 
