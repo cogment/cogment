@@ -20,6 +20,10 @@ message Config {
   string agent_type = 1;
 }
 
+message TrialConfig {
+  string foo = 1;
+}
+
 message Vec2 {
   float x = 1;
   float y = 2;
@@ -67,7 +71,7 @@ message ObservationDelta {
   repeated int32 updated_cells_list = 1;
   repeated CellState new_cell_states = 2;
 
-ObjectInfo copter = 3;
+  ObjectInfo copter = 3;
   repeated ObjectInfo drones = 4;
 
   bool done = 5;

@@ -14,8 +14,7 @@
 
 package templates
 
-const COG_SETTINGS_PY = `
-import cogment as _cog
+const COG_SETTINGS_PY = `import cogment as _cog
 from types import SimpleNamespace
 from typing import List
 
@@ -32,40 +31,29 @@ protolib = "{{.}}"
 
 
 {{- range .ActorClasses}}
-_{{.Id}}_class = _cog.ActorClass(
-    id='{{.Id}}',
+_{{.Id}}_class = _cog.actor.ActorClass(
+    id="{{.Id}}",
     config_type={{if .ConfigType}}{{.ConfigType}}{{else}}None{{end}},
     action_space={{.Action.Space}},
 	{{- with .Observation}}
     observation_space={{.Space}},
     observation_delta={{if .Delta}}{{.Delta}}{{else}}{{.Space}}{{end}},
     observation_delta_apply_fn={{if .DeltaApplyFn}}{{.DeltaApplyFn.Python}}{{else}}_cog.delta_encoding._apply_delta_replace{{end}},
-    {{end -}}    
-    feedback_space=None,
-    message_space=None
+    {{end -}}
+    feedback_space=None
 )
 {{end}}
 
-actor_classes = _cog.actor_class.ActorClassList(
+actor_classes = _cog.actor.ActorClassList(
 {{- range .ActorClasses}}
     _{{.Id}}_class,
 {{- end}}
 )
 
-env_class = _cog.EnvClass(
-    id='env',
-    config_type=None,
-    message_space=None
-)
-
-trial = SimpleNamespace(
-    config_type={{if .Trial}}{{if .Trial.ConfigType}}{{.Trial.ConfigType}}{{else}}None{{end}}{{else}}None{{end}},
-)
+trial = SimpleNamespace(config_type={{if .Trial}}{{if .Trial.ConfigType}}{{.Trial.ConfigType}}{{else}}None{{end}}{{else}}None{{end}})
 
 # Environment
-environment = SimpleNamespace(
-    config_type={{if .Environment}}{{if .Environment.ConfigType}}{{.Environment.ConfigType}}{{else}}None{{end}}{{else}}None{{end}},
-)
+environment = SimpleNamespace(config_type={{if .Environment}}{{if .Environment.ConfigType}}{{.Environment.ConfigType}}{{else}}None{{end}}{{else}}None{{end}})
 
 
 class ActionsTable:

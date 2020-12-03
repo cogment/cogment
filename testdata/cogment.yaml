@@ -1,6 +1,6 @@
 import:
   proto:
-    - data.proto
+    - somedata.proto
     - subdir/otherdata.proto
   python:
     - delta
@@ -27,7 +27,6 @@ actor_classes:
         javascript: delta.apply_delta
 
   - id: ai_drone
-    config_type: flames.DroneConfig
     action:
       space: flames.Ai_DroneAction
     observation:
