@@ -17,6 +17,12 @@ cpp_lint:
     - make format
     - git diff --exit-code
 
+apache_licenses_check:
+  stage: lint
+  image: registry.gitlab.com/ai-r/apache-license-checker:latest
+  script:
+    - apache-license-checker
+
 build:
   extends: .base_cpp
   stage: build
