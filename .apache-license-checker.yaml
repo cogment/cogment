@@ -1,0 +1,5 @@
+ignore:
+- "testdata"
+license:
+  CopyrightYear: 2020
+  Author: "Artificial Intelligence Redefined <dev+cogment@ai-r.com>"
