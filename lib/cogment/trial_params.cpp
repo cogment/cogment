@@ -14,6 +14,7 @@
 
 #include "cogment/trial_params.h"
 #include "cogment/base64.h"
+#include "cogment/config_file.h"
 #include "cogment/trial_spec.h"
 
 #include <google/protobuf/util/json_util.h>
@@ -65,25 +66,25 @@ void encode_user_config(YAML::Node config_node, const google::protobuf::Message*
 cogment::TrialParams load_params(const YAML::Node& yaml, const Trial_spec& spec) {
   cogment::TrialParams result;
 
-  if (yaml["trial_params"] != nullptr) {
-    YAML::Node yaml_params = yaml["trial_params"];
+  if (yaml[cfg_file::params_key] != nullptr) {
+    YAML::Node yaml_params = yaml[cfg_file::params_key];
 
     // The user specifies his own protocol buffers in the yaml, but the actual
-    // forat for TrialParams uses bytes fields instead, so we translate
+    // format for TrialParams uses bytes fields instead, so we translate
 
-    if (yaml_params["trial_config"] != nullptr) {
-      encode_user_config(yaml_params["trial_config"], spec.get_trial_config_proto());
+    if (yaml_params[cfg_file::p_trial_config_key] != nullptr) {
+      encode_user_config(yaml_params[cfg_file::p_trial_config_key], spec.get_trial_config_proto());
     }
 
-    if (yaml_params["environment"]["config"] != nullptr) {
-      encode_user_config(yaml_params["environment"]["config"], spec.get_env_config_prototype());
+    if (yaml_params[cfg_file::p_environment_key][cfg_file::p_env_config_key] != nullptr) {
+      encode_user_config(yaml_params[cfg_file::p_environment_key][cfg_file::p_env_config_key],
+                         spec.get_env_config_prototype());
     }
 
-    for (auto actor : yaml_params["actors"]) {
-      if (actor["config"] != nullptr) {
-        const auto& actor_class = spec.get_actor_class(actor["actor_class"].as<std::string>());
-
-        encode_user_config(actor["config"], actor_class.config_prototype);
+    for (auto actor : yaml_params[cfg_file::p_actors_key]) {
+      if (actor[cfg_file::p_act_config_key] != nullptr) {
+        const auto& actor_class = spec.get_actor_class(actor[cfg_file::p_act_ac_name_key].as<std::string>());
+        encode_user_config(actor[cfg_file::p_act_config_key], actor_class.config_prototype);
       }
     }
 

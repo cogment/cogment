@@ -17,17 +17,18 @@
 
 namespace rpc = easy_grpc;
 
+#include "cogment/config_file.h"
 #include "cogment/orchestrator.h"
 #include "cogment/stub_pool.h"
 #include "cogment/versions.h"
+
+namespace cfg_file = cogment::cfg_file;
 
 #include <prometheus/exposer.h>
 #include <prometheus/registry.h>
 
 #include "slt/settings.h"
 #include "spdlog/spdlog.h"
-
-#include "yaml-cpp/yaml.h"
 
 #include <csignal>
 #include <fstream>
@@ -133,15 +134,15 @@ int main(int argc, const char* argv[]) {
     cogment::Stub_pool<cogment::TrialHooks> hook_stubs(orchestrator.channel_pool(), orchestrator.client_queue());
     std::vector<std::shared_ptr<cogment::Stub_pool<cogment::TrialHooks>::Entry>> hooks;
 
-    if (cogment_yaml["trial"]) {
-      for (auto hook : cogment_yaml["trial"]["pre_hooks"]) {
+    if (cogment_yaml[cfg_file::trial_key]) {
+      for (auto hook : cogment_yaml[cfg_file::trial_key][cfg_file::t_pre_hooks_key]) {
         hooks.push_back(hook_stubs.get_stub(hook.as<std::string>()));
         orchestrator.add_prehook(&hooks.back()->stub);
       }
     }
 
-    if (cogment_yaml["datalog"] && cogment_yaml["datalog"]["type"]) {
-      auto datalog_type = cogment_yaml["datalog"]["type"].as<std::string>();
+    if (cogment_yaml[cfg_file::datalog_key] && cogment_yaml[cfg_file::datalog_key][cfg_file::d_type_key]) {
+      auto datalog_type = cogment_yaml[cfg_file::datalog_key][cfg_file::d_type_key].as<std::string>();
       auto datalog = cogment::Datalog_storage_interface::create(datalog_type, cogment_yaml);
       orchestrator.set_log_exporter(std::move(datalog));
     }

@@ -21,18 +21,52 @@
 namespace cogment {
 namespace cfg_file {
 // root
+constexpr const char* import_key = "import";
+constexpr const char* commands_key = "commands";
+constexpr const char* trial_key = "trial";
+constexpr const char* environment_key = "environment";
 constexpr const char* actors_key = "actor_classes";
+constexpr const char* params_key = "trial_params";
+constexpr const char* datalog_key = "datalog";
 
-// actor_classes
-constexpr const char* ac_action_space_key = "action_space";
-constexpr const char* instances_key = "instances";
+// import
+constexpr const char* i_proto_key = "proto";
+constexpr const char* i_python_key = "python";
+constexpr const char* i_javascript_key = "javascript";
 
-// actors
-constexpr const char* a_type_key = "type";
-constexpr const char* a_url_key = "url";
-constexpr const char* a_count_key = "count";
-constexpr const char* actortype_human = "human";
-constexpr const char* actortype_agent = "agent";
+// trial
+constexpr const char* t_config_type_key = "config_type";
+constexpr const char* t_pre_hooks_key = "pre_hooks";
+
+// environment
+constexpr const char* e_config_type_key = "config_type";
+
+// actor classes
+constexpr const char* ac_name_key = "id";
+constexpr const char* ac_action_key = "action";
+constexpr const char* ac_act_space_key = "space";
+constexpr const char* ac_observation_key = "observation";
+constexpr const char* ac_obs_space_key = "space";
+constexpr const char* ac_obs_delta_key = "delta";
+constexpr const char* ac_obs_delta_fn_key = "delta_apply_fn";
+constexpr const char* ac_config_type_key = "config_type";
+
+// params
+constexpr const char* p_trial_config_key = "trial_config";
+constexpr const char* p_environment_key = "environment";
+constexpr const char* p_env_endpoint_key = "endpoint";
+constexpr const char* p_env_config_key = "config";
+constexpr const char* p_actors_key = "actors";
+constexpr const char* p_act_name_key = "name";
+constexpr const char* p_act_ac_name_key = "actor_class";
+constexpr const char* p_act_endpoint_key = "endpoint";
+constexpr const char* p_act_config_key = "config";
+
+// datalog
+constexpr const char* d_fields_key = "fields";
+constexpr const char* d_fld_exclude_key = "exclude";
+constexpr const char* d_type_key = "type";
+constexpr const char* d_url_key = "url";
 
 }  // namespace cfg_file
 }  // namespace cogment

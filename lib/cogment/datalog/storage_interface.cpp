@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "cogment/datalog/storage_interface.h"
+#include "cogment/config_file.h"
 #include "cogment/datalog/grpc_exporter.h"
 
 #include "slt/settings.h"
@@ -62,7 +63,7 @@ std::unique_ptr<Datalog_storage_interface> Datalog_storage_interface::create(con
   }
 
   if (spec_l == "grpc") {
-    return std::make_unique<Grpc_datalog_exporter>(cfg["datalog"]["url"].as<std::string>());
+    return std::make_unique<Grpc_datalog_exporter>(cfg[cfg_file::datalog_key][cfg_file::d_url_key].as<std::string>());
   }
 
   throw std::runtime_error("invalid datalog specification.");
