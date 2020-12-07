@@ -98,6 +98,7 @@ compile_grpc_proto(hooks)
 retrieve_protos()
 
 file(READ version.txt COGMENT_ORCH_VERSION)
+string(STRIP "${COGMENT_ORCH_VERSION}" COGMENT_ORCH_VERSION)
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cogment/versions.h.in"
                "${CMAKE_CURRENT_SOURCE_DIR}/cogment/versions.h" )
 
