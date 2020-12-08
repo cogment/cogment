@@ -1,5 +1,8 @@
 # cogment-cli
 
+[![Latest GitHub release](https://img.shields.io/github/v/release/cogment/cogment-cli?label=binary%20release&sort=semver&style=flat-square)](https://github.com/cogment/cogment-cli/releases) [![Latest Docker release](https://img.shields.io/docker/v/cogment/cli?label=docker%20release&sort=semver&style=flat-square)](https://hub.docker.com/r/cogment/cli)  [![Apache 2 License](https://img.shields.io/badge/license-Apache%202-green?style=flat-square)](./LICENSE) [![Changelog](https://img.shields.io/badge/-Changelog%20-blueviolet?style=flat-square)](./CHANGELOG.md)
+
+
 ## Introduction
 
 The Cogment framework is a high-efficiency, open source framework designed to enable the training of models in environments where humans and agents interact with the environment and each other continuously. It’s capable of distributed, multi-agent, multi-model training.
