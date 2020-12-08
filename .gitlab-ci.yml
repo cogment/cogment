@@ -109,7 +109,7 @@ publish_tagged_binaries:
     - apt-add-repository https://cli.github.com/packages
     - apt update -y
     - apt install gh -y
-    - gh auth login --with-token < $GH_TOKEN
+    - echo $GH_TOKEN | gh auth login --with-token
     - gh release create $CI_COMMIT_TAG ./build/* -t $CI_COMMIT_TAG -R cogment/cogment-cli
   only:
     - /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+(?:-[[:alnum:]]+)?$/
