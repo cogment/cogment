@@ -57,6 +57,9 @@ build_docker_image:
   except:
     # This job is not run on `develop` because `publish_latest_docker_image` run there and "includes" the build
     - develop
+    # This job is not run on `main` because `publish_latest_public_docker_image` run there and "includes" the build
+    - main
+
 
 # INTERNAL AI-R HELPER - Publish the current version from the `develop` branch with the `latest` docker tag.
 publish_latest_docker_image:
@@ -69,6 +72,18 @@ publish_latest_docker_image:
     - docker push $CI_REGISTRY_IMAGE:latest
   only:
     - develop
+
+publish_latest_public_docker_image:
+  extends: .base_docker
+  stage: publish
+  variables:
+    DOCKER_HUB_IMAGE: "cogment/cli"
+  script:
+    - docker pull $CI_REGISTRY_IMAGE:latest || true
+    - docker build --cache-from $CI_REGISTRY_IMAGE:latest --tag $DOCKER_HUB_IMAGE:latest .
+    - docker push $DOCKER_HUB_IMAGE:latest
+  only:
+    - main
 
 publish_tagged_docker_image:
   extends: .base_docker
