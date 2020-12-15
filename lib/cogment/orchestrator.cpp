@@ -16,6 +16,7 @@
 #include "cogment/client_actor.h"
 
 #include "slt/settings.h"
+#include "spdlog/spdlog.h"
 
 namespace settings {
 
@@ -58,7 +59,7 @@ Future<std::shared_ptr<Trial>> Orchestrator::start_trial(cogment::TrialParams pa
 
   return final_ctx_fut.then([new_trial, trial_id](auto final_ctx) {
     new_trial->configure(std::move(*final_ctx.mutable_params()));
-    spdlog::info("trial {} successfully initialized", trial_id);
+    spdlog::info("Trial {} successfully initialized", trial_id);
     return new_trial;
   });
 }
@@ -85,9 +86,9 @@ TrialJoinReply Orchestrator::client_joined(TrialJoinRequest req) {
     std::lock_guard l(trials_mutex_);
 
     auto trial_uuid = uuids::uuid::from_string(req.trial_id());
-    auto trial_ite = trials_.find(trial_uuid);
-    if (trial_ite != trials_.end()) {
-      joined_as_actor = trial_ite->second->get_join_candidate(req);
+    auto trial_itor = trials_.find(trial_uuid);
+    if (trial_itor != trials_.end()) {
+      joined_as_actor = trial_itor->second->get_join_candidate(req);
     }
   }
   else {

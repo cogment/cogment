@@ -77,6 +77,7 @@ const std::string term_status_string = "T";
 
 int main(int argc, const char* argv[]) {
   slt::Settings_context ctx("orchestrator", argc, argv);
+  spdlog::set_level(spdlog::level::debug);  // Set global log level to debug
 
   if (ctx.help_requested()) {
     return 0;
@@ -121,7 +122,7 @@ int main(int argc, const char* argv[]) {
     auto prometheus_endpoint = fmt::format("0.0.0.0:{}", settings::prometheus_port.get());
 
     // ******************* Monitoring *******************
-    spdlog::info("starting prometheus at: {}", prometheus_endpoint);
+    spdlog::info("Starting prometheus at: {}", prometheus_endpoint);
     prometheus::Exposer ExposePublicParser(prometheus_endpoint);
 
     // ******************* Orchestrator *******************

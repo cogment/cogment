@@ -18,6 +18,13 @@
 #include "cogment/agent_actor.h"
 #include "cogment/client_actor.h"
 
+#include "spdlog/spdlog.h"
+
+#if COGMENT_DEBUG
+  #define TRIAL_DEBUG_LOG(...) spdlog::debug(__VA_ARGS__)
+#else
+  #define TRIAL_DEBUG_LOG(...)
+#endif
 namespace cogment {
 
 const char* get_trial_state_string(Trial_state s) {
@@ -61,7 +68,7 @@ Trial::Trial(Orchestrator* orch, std::string user_id)
   refresh_activity();
 }
 
-Trial::~Trial() { spdlog::info("tearing down trial {}", to_string(id_)); }
+Trial::~Trial() { spdlog::debug("Tearing down trial {}", to_string(id_)); }
 
 std::lock_guard<std::mutex> Trial::lock() { return std::lock_guard(lock_); }
 
@@ -92,7 +99,7 @@ void Trial::configure(cogment::TrialParams params) {
     *env_start_req.mutable_config() = params_.environment().config();
   }
 
-  // TODO: Figure out where the impl_name should come from and use that instead of hardcoded default
+  // TODO: Figure out where the impl_name should come from and use that instead of hardcoded "default"
   env_start_req.set_impl_name("default");
 
   for (const auto& actor_info : params_.actors()) {
@@ -140,7 +147,7 @@ void Trial::configure(cogment::TrialParams params) {
       try {
         std::rethrow_exception(rep.error());
       } catch (std::exception& e) {
-        spdlog::error(e.what());
+        spdlog::error("OnStart exception: {}", e.what());
       }
     }
 
@@ -157,6 +164,8 @@ void Trial::configure(cogment::TrialParams params) {
         dispatch_observations(false);
       })
       .finally([](auto) {});
+
+  spdlog::debug("Trial {} is configured", to_string(id_));
 }
 
 void Trial::dispatch_observations(bool end_of_trial) {
@@ -177,7 +186,7 @@ void Trial::dispatch_observations(bool end_of_trial) {
   }
 
   if (end_of_trial) {
-    spdlog::info("ending trial");
+    spdlog::debug("Ending trial");
     // Stop sending actions to the environment
     outgoing_actions_->complete();
     actors_.clear();
@@ -205,7 +214,7 @@ void Trial::run_environment() {
   // Whenever we get an update, advance the datalog table.
   incoming_updates
       .for_each([this](auto update) {
-        spdlog::info("update: {}", update.DebugString());
+        TRIAL_DEBUG_LOG("update: {}", update.DebugString());
 
         latest_observations_ = std::move(*update.mutable_observation_set());
 
@@ -314,7 +323,7 @@ Client_actor* Trial::get_join_candidate(const TrialJoinRequest& req) {
 
   case TrialJoinRequest::kActorClass:
     for (auto& actor : actors_) {
-      if (actor->actor_class()->name == req.actor_class() && !actor->is_active()) {
+      if (!actor->is_active() && actor->actor_class()->name == req.actor_class()) {
         result = actor.get();
         break;
       }

@@ -24,7 +24,7 @@ class ProtoErrorCollector : public google::protobuf::compiler::MultiFileErrorCol
     (void)filename;
     (void)line;
     (void)column;
-    spdlog::error("{}", message);
+    spdlog::error("e: {}", message);
   }
 
   void AddWarning(const google::protobuf::string& filename, int line, int column,
@@ -32,7 +32,7 @@ class ProtoErrorCollector : public google::protobuf::compiler::MultiFileErrorCol
     (void)filename;
     (void)line;
     (void)column;
-    spdlog::warn("{}", message);
+    spdlog::warn("w: {}", message);
   }
 };
 }  // namespace
@@ -48,7 +48,7 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
   importer_ = std::make_unique<google::protobuf::compiler::Importer>(source_tree_.get(), &error_collector_);
 
   for (const auto& i : root[cfg_file::import_key][cfg_file::i_proto_key]) {
-    spdlog::info("importing protobuf: {}", i.as<std::string>());
+    spdlog::info("Importing protobuf: {}", i.as<std::string>());
     auto fd = importer_->Import(i.as<std::string>());
 
     if (!fd) {
@@ -160,7 +160,7 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
       actor_class.cleared_delta_fields = actor_class.cleared_observation_fields;
     }
 
-    spdlog::info("clearing {} delta fields", actor_class.cleared_delta_fields.size());
+    spdlog::info("Clearing {} delta fields", actor_class.cleared_delta_fields.size());
 
     auto act_space = a_class[cfg_file::ac_action_key][cfg_file::ac_act_space_key].as<std::string>();
     const auto* action_space = importer_->pool()->FindMessageTypeByName(act_space);

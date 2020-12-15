@@ -17,9 +17,9 @@
 
 #include "spdlog/spdlog.h"
 
-#define COGMENT_DEBUG_AGENTS
-#ifdef COGMENT_DEBUG_AGENTS
-  #define AGENT_DEBUG_LOG(...) spdlog::info(__VA_ARGS__)
+#define COGMENT_DEBUG
+#ifdef COGMENT_DEBUG
+  #define AGENT_DEBUG_LOG(...) spdlog::debug(__VA_ARGS__)
 #else
   #define AGENT_DEBUG_LOG(...)
 #endif
@@ -42,11 +42,11 @@ Agent::Agent(Trial* owner, const std::string& in_actor_name, const ActorClass* a
   headers_ = {trial_header, actor_header};
   options_.headers = &headers_;
 
-  AGENT_DEBUG_LOG("Agent(): {} {}", to_string(trial()->id()), actor_name());
+  AGENT_DEBUG_LOG("Agent(): [{}] [{}] [{}]", to_string(trial()->id()), actor_name(), impl);
 }
 
 Agent::~Agent() {
-  AGENT_DEBUG_LOG("~Agent(): {} {}", to_string(trial()->id()), actor_name());
+  AGENT_DEBUG_LOG("~Agent(): [{}] [{}]", to_string(trial()->id()), actor_name());
 
   if (outgoing_observations_) {
     outgoing_observations_->complete();
@@ -54,7 +54,7 @@ Agent::~Agent() {
 }
 
 Future<void> Agent::init() {
-  AGENT_DEBUG_LOG("Agent::init(): {} {}", to_string(trial()->id()), actor_name());
+  AGENT_DEBUG_LOG("Agent::init(): [{}] [{}]", to_string(trial()->id()), actor_name());
 
   cogment::AgentStartRequest req;
 

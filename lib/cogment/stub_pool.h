@@ -47,7 +47,7 @@ class Channel_pool {
 
     if (!result) {
       result = std::make_shared<::easy_grpc::client::Unsecure_channel>(url, nullptr);
-      spdlog::info("opening channel to {}", url);
+      spdlog::info("Opening channel to {}", url);
       found = result;
     }
 
@@ -91,7 +91,7 @@ class Stub_pool {
     auto result = found.lock();
 
     if (!result) {
-      spdlog::info("opening stub for {} at {}", typeid(Service_T).name(), real_url);
+      spdlog::info("Opening stub for {} at {}", typeid(Service_T).name(), real_url);
       auto channel = channel_pool_->get_channel(real_url);
 
       result = std::make_shared<Entry>(Entry{channel, stub_type(channel.get(), queue_)});

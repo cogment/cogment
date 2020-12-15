@@ -49,7 +49,7 @@ void encode_user_config(YAML::Node config_node, const google::protobuf::Message*
   auto status = google::protobuf::util::JsonStringToMessage(config_as_json, user_msg.get());
 
   if (!status.ok()) {
-    spdlog::error("{}", status.error_message().as_string());
+    spdlog::error("Could not convert to protobuf: {}", status.error_message().as_string());
     throw std::runtime_error("Problem interpreting user config");
   }
 
@@ -88,16 +88,18 @@ cogment::TrialParams load_params(const YAML::Node& yaml, const Trial_spec& spec)
       }
     }
 
-    auto status = google::protobuf::util::JsonStringToMessage(yaml_to_json(yaml_params), &result);
+    auto json_params = yaml_to_json(yaml_params);
+    auto status = google::protobuf::util::JsonStringToMessage(json_params, &result);
 
     if (!status.ok()) {
-      spdlog::error("{}", status.error_message().as_string());
-      spdlog::error("{}", yaml_to_json(yaml_params));
+      spdlog::error("Could not create message: {}", status.error_message().as_string());
+      spdlog::error("Problematic parameters: {}", json_params);
+      spdlog::debug("Problematic message type: {}", result.descriptor()->DebugString());
       throw std::runtime_error("Problem rebuilding trial params");
     }
   }
 
-  spdlog::info("default trial params: {}", result.DebugString());
+  spdlog::debug("Default trial params:\n {}", result.DebugString());
   return result;
 }
 }  // namespace cogment

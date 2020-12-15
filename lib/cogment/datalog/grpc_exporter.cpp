@@ -62,7 +62,7 @@ std::unique_ptr<Trial_log_interface> Grpc_datalog_exporter_base::begin_trial(Tri
 Grpc_datalog_exporter::Grpc_datalog_exporter(const std::string& url) : channel(url, &work_thread), stub_impl(&channel) {
   set_stub(&stub_impl);
 
-  spdlog::info("sending datalog to service running at: {}", url);
+  spdlog::info("Sending datalog to service running at: {}", url);
 }
 
 }  // namespace cogment
