@@ -1,5 +1,9 @@
 # Cogment orchestrator
 
+> ⚠️ 🚧 This is part of an upcoming release of cogment and still unstable.
+>
+> Current stable version can be found at <https://gitlab.com/cogment/cogment>
+
 [![Retrieve from Docker Hub](https://img.shields.io/docker/v/cogment/orchestrator?sort=semver&style=flat-square)](https://hub.docker.com/repository/docker/cogment/orchestrator) [![Apache 2 License](https://img.shields.io/badge/license-Apache%202-green)](./LICENSE) [![Changelog](https://img.shields.io/badge/-Changelog%20-blueviolet)](./CHANGELOG.md)
 
 ## Introduction
