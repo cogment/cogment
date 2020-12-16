@@ -7,3 +7,6 @@ build
 
 # Test reports
 report.xml
+
+# generated files
+pkged.go

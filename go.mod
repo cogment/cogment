@@ -12,8 +12,8 @@ require (
 	github.com/golang/protobuf v1.4.0-rc.4
 	github.com/jarcoal/httpmock v1.0.4
 	github.com/jstemmer/go-junit-report v0.9.1 // indirect
-	github.com/kr/pretty v0.1.0 // indirect
 	github.com/magiconair/properties v1.8.0
+	github.com/markbates/pkger v0.17.1
 	github.com/mattn/go-colorable v0.1.4 // indirect
 	github.com/mattn/go-isatty v0.0.10 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
@@ -24,12 +24,10 @@ require (
 	github.com/spf13/pflag v1.0.3
 	github.com/spf13/viper v1.3.2
 	github.com/stretchr/testify v1.4.0
-	golang.org/x/lint v0.0.0-20200302205851-738671d3881b // indirect
 	golang.org/x/net v0.0.0-20190827160401-ba9fcec4b297 // indirect
 	golang.org/x/text v0.3.2 // indirect
 	google.golang.org/protobuf v1.20.1
-	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
-	gopkg.in/yaml.v2 v2.2.4
+	gopkg.in/yaml.v2 v2.2.7
 )
 
 replace github.com/Sirupsen/logrus v1.4.2 => github.com/sirupsen/logrus v1.4.2

@@ -1,1 +1,5 @@
 Dockerfile
+.dockerignore
+
+# generated files
+pkged.go

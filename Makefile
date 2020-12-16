@@ -13,17 +13,23 @@ BINARY_LINUX=$(BINARY_NAME)-linux-${BUILD_ARCH}
 BINARY_MAC=$(BINARY_NAME)-macOS-${BUILD_ARCH}
 BINARY_WINDOWS=$(BINARY_NAME)-windows-${BUILD_ARCH}.exe
 
-build:
+.PHONY: build
+
+generate:
+	$(GOCMD) run github.com/markbates/pkger/cmd/pkger
+
+build: generate
 	$(GOBUILD) -o $(BINARY_NAME) -v
 
-test:
+test: generate
 	$(GOTEST) -v ./...
 
-test-with-report:
+test-with-report: generate
 	$(GOTEST) -v ./... 2>&1 | $(GOCMD) run github.com/jstemmer/go-junit-report > report.xml
 
 clean:
 	$(GOCLEAN)
+	rm -f pkged.go
 	rm -f $(BINARY_NAME) $(BINARY_LINUX) $(BINARY_MAC)
 
 run: build
@@ -42,13 +48,13 @@ check-codingstyle:
 	$(GOCMD) run golang.org/x/lint/golint  ./...
 
 # # Cross compilation
-build-linux:
+build-linux: generate
 	CGO_ENABLED=0 GOOS=linux GOARCH=${BUILD_ARCH} $(GOBUILD) -ldflags ${LD_FLAGS} -o build/$(BINARY_LINUX) -v
 
-build-mac:
+build-mac: generate
 	CGO_ENABLED=0 GOOS=darwin GOARCH=${BUILD_ARCH} $(GOBUILD) -ldflags ${LD_FLAGS} -o build/$(BINARY_MAC) -v
 
-build-windows:
+build-windows: generate
 	CGO_ENABLED=0 GOOS=windows GOARCH=${BUILD_ARCH} $(GOBUILD) -ldflags ${LD_FLAGS} -o build/$(BINARY_WINDOWS) -v
 
 release: build-linux build-mac build-windows

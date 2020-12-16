@@ -194,7 +194,7 @@ func generatePythonSettings(config *api.ProjectConfig, src, dir string) error {
 
 	config = updateConfigWithMessage(config)
 
-	err = generateFromTemplate(templates.COG_SETTINGS_PY, dest, config)
+	err = templates.GenerateFromTemplate("/templates/cog_settings.py.tmpl", config, dest)
 
 	return err
 }
@@ -223,7 +223,7 @@ func generateJavascriptSettings(config *api.ProjectConfig, src, dir string) erro
 
 	config = updateConfigWithMessage(config)
 
-	err = generateFromTemplate(templates.COG_SETTINGS_JS, dest, config)
+	err = templates.GenerateFromTemplate("/templates/cog_settings.js.tmpl", config, dest)
 
 	return err
 }
