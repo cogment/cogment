@@ -16,14 +16,15 @@ package cmd
 
 import (
 	"bytes"
-	"github.com/stretchr/testify/assert"
-	"gitlab.com/cogment/cogment/api"
 	"io/ioutil"
 	"log"
 	"os"
 	"path"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"gitlab.com/cogment/cogment/api"
 )
 
 var expectedConfig = api.ProjectConfig{

@@ -17,7 +17,10 @@ package templates
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"text/template"
+
+	ignore "github.com/codeskyblue/dockerignore"
 
 	"github.com/markbates/pkger"
 	"gitlab.com/cogment/cogment/helper"
@@ -68,5 +71,40 @@ func GenerateFromTemplate(tmplPath string, config interface{}, outputPath string
 		return err
 	}
 
-	return err
+	return nil
+}
+
+// RecursivelyGenerateFromTemplates generates a file hierarchy from a template hierarchy
+func RecursivelyGenerateFromTemplates(tmplDir string, tmplIgnorePatterns []string, config interface{}, outputDir string) error {
+	return pkger.Walk(tmplDir, func(tmplPath string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		relativePath, err := filepath.Rel(tmplDir, strings.Split(tmplPath, ":")[1])
+		if err != nil {
+			return err
+		}
+
+		isIgnored, err := ignore.Matches(relativePath, tmplIgnorePatterns)
+		if err != nil {
+			return err
+		}
+		if isIgnored {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		if !info.IsDir() && filepath.Ext(relativePath) == ".tmpl" {
+			outputPath := filepath.Join(outputDir, relativePath[0:len(relativePath)-len(".tmpl")])
+			err = GenerateFromTemplate(tmplPath, config, outputPath)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
 }

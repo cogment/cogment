@@ -11,8 +11,8 @@ RUN pip install -r requirements.txt
 
 WORKDIR /app
 
-ADD agents/{{.|snakeify}} ./agents/{{.|snakeify}}
+ADD agents/{{.Id|snakeify}} ./agents/{{.Id|snakeify}}
 ADD cog_settings.py .
 ADD *_pb2.py .
 
-CMD ["python", "agents/{{.|snakeify}}/main.py"]
+CMD ["python", "agents/{{.Id|snakeify}}/main.py"]

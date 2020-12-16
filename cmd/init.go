@@ -74,111 +74,15 @@ var initCmd = &cobra.Command{
 
 func createProjectFiles(dst string, config *api.ProjectConfig) error {
 
-	if err := templates.GenerateFromTemplate("/templates/README.md.tmpl", config, dst+"/README.md"); err != nil {
-		return err
-	}
-
-	if err := templates.GenerateFromTemplate("/templates/docker-compose.yaml.tmpl", config, dst+"/docker-compose.yaml"); err != nil {
-		return err
-	}
-
-	if err := templates.GenerateFromTemplate("/templates/docker-compose.override.template.yaml.tmpl", config, dst+"/docker-compose.override.template.yaml"); err != nil {
-		return err
-	}
-
-	if err := templates.GenerateFromTemplate("/templates/data.proto.tmpl", config, dst+"/data.proto"); err != nil {
-		return err
-	}
-
-	if err := templates.GenerateFromTemplate("/templates/cogment.yaml.tmpl", config, dst+"/cogment.yaml"); err != nil {
-		return err
-	}
-
-	if err := templates.GenerateFromTemplate("/templates/.gitignore.tmpl", config, dst+"/.gitignore"); err != nil {
-		return err
-	}
-
-	if err := templates.GenerateFromTemplate("/templates/orchestrator/Dockerfile.tmpl", config, dst+"/orchestrator/Dockerfile"); err != nil {
-		return err
-	}
-
-	if err := templates.GenerateFromTemplate("/templates/envs/Dockerfile.tmpl", config, dst+"/envs/Dockerfile"); err != nil {
-		return err
-	}
-
-	if err := templates.GenerateFromTemplate("/templates/envs/main.py.tmpl", config, dst+"/envs/main.py"); err != nil {
-		return err
-	}
-
-	if err := templates.GenerateFromTemplate("/templates/clients/Dockerfile.tmpl", config, dst+"/clients/Dockerfile"); err != nil {
-		return err
-	}
-
-	if err := templates.GenerateFromTemplate("/templates/clients/main.py.tmpl", config, dst+"/clients/main.py"); err != nil {
-		return err
-	}
-
-	if err := templates.GenerateFromTemplate("/templates/envoy/envoy.yaml.tmpl", config, dst+"/envoy/envoy.yaml"); err != nil {
-		return err
-	}
-
-	if err := templates.GenerateFromTemplate("/templates/js/main.js.tmpl", config, dst+"/clients/js/main.js"); err != nil {
-		return err
-	}
-
-	if err := templates.GenerateFromTemplate("/templates/js/index.html.tmpl", config, dst+"/clients/js/index.html"); err != nil {
-		return err
-	}
-
-	if err := templates.GenerateFromTemplate("/templates/js/package.json.tmpl", config, dst+"/clients/js/package.json"); err != nil {
-		return err
-	}
-
-	if err := templates.GenerateFromTemplate("/templates/js/webpack.config.js.tmpl", config, dst+"/clients/js/webpack.config.js"); err != nil {
-		return err
-	}
-
-	if err := templates.GenerateFromTemplate("/templates/js/Dockerfile.tmpl", config, dst+"/clients/js/Dockerfile"); err != nil {
-		return err
-	}
-
-	if err := templates.GenerateFromTemplate("/templates/configs/prometheus/prometheus.yaml.tmpl", config, dst+"/configs/prometheus/prometheus.yaml"); err != nil {
-		return err
-	}
-
-	if err := templates.GenerateFromTemplate("/templates/configs/grafana/dashboards/dashboard.json.tmpl", config, dst+"/configs/grafana/dashboards/dashboard.json"); err != nil {
-		return err
-	}
-
-	if err := templates.GenerateFromTemplate("/templates/configs/grafana/dashboards/dashboard.yaml.tmpl", config, dst+"/configs/grafana/dashboards/dashboard.yaml"); err != nil {
-		return err
-	}
-
-	if err := templates.GenerateFromTemplate("/templates/configs/grafana/datasources/datasource.yaml.tmpl", config, dst+"/configs/grafana/datasources/datasource.yaml"); err != nil {
-		return err
-	}
-
-	if err := templates.GenerateFromTemplate("/templates/replaybuffer/Dockerfile.tmpl", config, dst+"/replaybuffer/Dockerfile"); err != nil {
-		return err
-	}
-
-	if err := templates.GenerateFromTemplate("/templates/replaybuffer/replaybuffer.py.tmpl", config, dst+"/replaybuffer/replaybuffer.py"); err != nil {
-		return err
-	}
-
-	if err := templates.GenerateFromTemplate("/templates/requirements.txt.tmpl", config, dst+"/requirements.txt"); err != nil {
-		return err
-	}
-
-	if err := templates.GenerateFromTemplate("/templates/cogment.sh.tmpl", config, dst+"/cogment.sh"); err != nil {
-		return err
-	}
-
-	if err := templates.GenerateFromTemplate("/templates/configurator/Dockerfile.tmpl", config, dst+"/configurator/Dockerfile"); err != nil {
-		return err
-	}
-
-	if err := templates.GenerateFromTemplate("/templates/configurator/main.py.tmpl", config, dst+"/configurator/main.py"); err != nil {
+	err := templates.RecursivelyGenerateFromTemplates(
+		"/templates",
+		[]string{
+			"agents/AGENT_NAME",
+			"cog_settings*",
+		},
+		config,
+		dst)
+	if err != nil {
 		return err
 	}
 
@@ -188,12 +92,8 @@ func createProjectFiles(dst string, config *api.ProjectConfig) error {
 			continue
 		}
 
-		name := helper.Snakeify(actor.Id)
-		if err := templates.GenerateFromTemplate("/templates/agents/AGENT_NAME/Dockerfile.tmpl", name, path.Join(dst, "agents", name, "Dockerfile")); err != nil {
-			return err
-		}
-
-		if err := templates.GenerateFromTemplate("/templates/agents/AGENT_NAME/main.py.tmpl", name, path.Join(dst, "agents", name, "main.py")); err != nil {
+		err := templates.RecursivelyGenerateFromTemplates("/templates/agents/AGENT_NAME", []string{}, actor, path.Join(dst, "agents", helper.Snakeify(actor.Id)))
+		if err != nil {
 			return err
 		}
 	}
@@ -205,7 +105,7 @@ func createProjectFiles(dst string, config *api.ProjectConfig) error {
 	//cmd.SetArgs([]string{"--file", dst + "/cogment.yaml", "--python-dir", dst})1
 	//cmd.ParseFlags()
 	cmd.ParseFlags(args)
-	err := runGenerateCmd(cmd)
+	err = runGenerateCmd(cmd)
 
 	//err := cmd.Execute()
 
