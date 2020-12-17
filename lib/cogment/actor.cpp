@@ -30,4 +30,8 @@ Trial* Actor::trial() const { return trial_; }
 const std::string& Actor::actor_name() const { return actor_name_; }
 
 const ActorClass* Actor::actor_class() const { return actor_class_; }
+
+void Actor::add_immediate_feedback(cogment::Feedback feedback) { feedback_accumulator_.push_back(feedback); }
+
+std::vector<cogment::Feedback> Actor::get_and_flush_immediate_feedback() { return std::move(feedback_accumulator_); }
 }  // namespace cogment

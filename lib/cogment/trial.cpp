@@ -17,6 +17,7 @@
 
 #include "cogment/agent_actor.h"
 #include "cogment/client_actor.h"
+#include "cogment/reward.h"
 
 #include "spdlog/spdlog.h"
 
@@ -168,6 +169,20 @@ void Trial::configure(cogment::TrialParams params) {
   spdlog::debug("Trial {} is configured", to_string(id_));
 }
 
+void Trial::feedback_received(const cogment::Feedback& feedback) {
+  // TODO: deferred feedback.
+
+  // Feedback is not dispatched as we receive it. It is accumulated, and sent once
+  // per update.
+  auto actor_index_itor = actor_indexes_.find(feedback.actor_name());
+  if (actor_index_itor != actor_indexes_.end()) {
+    // This is immediate feedback, accumulate it.
+    if (feedback.tick_id() == -1) {
+      actors_[actor_index_itor->second]->add_immediate_feedback(feedback);
+    }
+  }
+}
+
 void Trial::dispatch_observations(bool end_of_trial) {
   if (state_ == Trial_state::ended) {
     return;
@@ -182,11 +197,16 @@ void Trial::dispatch_observations(bool end_of_trial) {
     obs.set_timestamp(latest_observations_.timestamp());
     *obs.mutable_data() = latest_observations_.observations(obs_index);
     actor->dispatch_observation(obs, end_of_trial);
+
+    auto feedbacks = actor->get_and_flush_immediate_feedback();
+    if (!feedbacks.empty()) {
+      auto reward = build_reward(feedbacks);
+      actor->dispatch_reward(latest_observations_.tick_id(), reward);
+    }
     ++actor_index;
   }
 
   if (end_of_trial) {
-    spdlog::debug("Ending trial");
     // Stop sending actions to the environment
     outgoing_actions_->complete();
     actors_.clear();
@@ -221,6 +241,10 @@ void Trial::run_environment() {
         step_data_.emplace_back();
         auto& sample = step_data_.back();
         sample.mutable_observations()->CopyFrom(latest_observations_);
+
+        for (const auto& fb : update.feedbacks()) {
+          feedback_received(fb);
+        }
 
         if (update.final_update()) {
           state_ = Trial_state::terminating;

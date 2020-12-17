@@ -53,10 +53,16 @@ class Actor {
   const std::string& actor_name() const;
   const ActorClass* actor_class() const;
 
+  void add_immediate_feedback(cogment::Feedback feedback);
+  std::vector<cogment::Feedback> get_and_flush_immediate_feedback();
+
   private:
   Trial* trial_;
   std::string actor_name_;
   const ActorClass* actor_class_;
+
+  // This accumulates non-retroactive feedbacks.
+  std::vector<cogment::Feedback> feedback_accumulator_;
 };
 
 struct ActorClass {

@@ -84,6 +84,7 @@ class Trial : public std::enable_shared_from_this<Trial> {
   void refresh_activity();
 
   void actor_acted(const std::string& actor_name, const cogment::Action& action);
+  void feedback_received(const cogment::Feedback& feedback);
   std::shared_ptr<Trial> get_shared() { return shared_from_this(); }
 
   private:
