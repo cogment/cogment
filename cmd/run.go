@@ -16,14 +16,14 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/spf13/cobra"
-	"gitlab.com/cogment/cogment/api"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
 	"runtime"
+
+	"github.com/spf13/cobra"
+	"gitlab.com/cogment/cogment/api"
 )
 
 // runCmd represents the run command
@@ -35,22 +35,12 @@ var runCmd = &cobra.Command{
 	PreRun: func(cmd *cobra.Command, args []string) {
 		command := args[0]
 
-		file, err := cmd.Flags().GetString("file")
+		yamlFile, err := cmd.Flags().GetString("file")
 		if err != nil {
 			log.Fatalln(err)
 		}
 
-		if _, err := os.Stat(file); os.IsNotExist(err) {
-			log.Fatalf("%s doesn't exist", file)
-		}
-
-		yamlFile, err := ioutil.ReadFile(file)
-		if err != nil {
-			log.Printf("yamlFile.Get err   #%v ", err)
-		}
-
-		config := api.ProjectConfig{}
-		err = yaml.Unmarshal(yamlFile, &config)
+		config, err := api.CreateProjectConfigFromYaml(yamlFile)
 		if err != nil {
 			log.Fatalf("Unmarshal: %v", err)
 		}
@@ -58,7 +48,7 @@ var runCmd = &cobra.Command{
 		commands := config.Commands
 
 		if _, ok := commands[command]; !ok {
-			log.Fatalf("The command %s isn't define in the 'commands' section of %s", command, file)
+			log.Fatalf("The command %s isn't define in the 'commands' section of %s", command, yamlFile)
 		}
 
 		args[0] = commands[command]

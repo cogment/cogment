@@ -1,0 +1,43 @@
+
+
+version: '3.7'
+
+services:
+
+  smart:
+    volumes:
+      - ./:/app
+
+
+  dumb:
+    volumes:
+      - ./:/app
+
+
+
+  env:
+    volumes:
+      - ./:/app
+    environment:
+      - COGMENT_GRPC_REFLECTION=1
+      - PYTHONUNBUFFERED=1
+
+  orchestrator:
+    volumes:
+      - .:/app
+    ports:
+      - "9000:9000"
+
+  client:
+    volumes:
+      - ./:/app
+
+# log exporter with postgres db - need to add lan IP address
+#
+#  setup_db:
+#      environment:
+#        - IP= # Please specify your computer's LAN!
+#  truncate_db:
+#      environment:
+#        - IP= # Please specify your computer's LAN!
+

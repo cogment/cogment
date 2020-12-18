@@ -19,15 +19,16 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/bradleyjkemp/cupaloy"
 	"github.com/stretchr/testify/assert"
 	"gitlab.com/cogment/cogment/api"
 )
 
-var expectedConfig = api.ProjectConfig{
+var expectedConfig = api.ExtendDefaultProjectConfig(&api.ProjectConfig{
 	ActorClasses: []*api.ActorClass{
 		&api.ActorClass{Id: "master"},
 		&api.ActorClass{Id: "smart"},
@@ -40,7 +41,7 @@ var expectedConfig = api.ProjectConfig{
 			&api.Actor{ActorClass: "dumb", Endpoint: "grpc://dumb:9000"},
 		},
 	},
-}
+})
 
 func TestCreateProjectConfig(t *testing.T) {
 
@@ -59,7 +60,7 @@ func TestCreateProjectConfig(t *testing.T) {
 	config, err := createProjectConfigFromReader(&stdin)
 
 	assert.Nil(t, err)
-	assert.Equal(t, expectedConfig, *config)
+	assert.Equal(t, *expectedConfig, *config)
 }
 
 func TestCreateProjectConfigWindows(t *testing.T) {
@@ -79,30 +80,8 @@ func TestCreateProjectConfigWindows(t *testing.T) {
 	config, err := createProjectConfigFromReader(&stdin)
 
 	assert.Nil(t, err)
-	assert.Equal(t, expectedConfig, *config)
+	assert.Equal(t, *expectedConfig, *config)
 }
-
-// comment out for now
-// func TestCreateProjectConfigWhitespace(t *testing.T) {
-
-// 	input := []string{
-// 		"2",            // nb of actor types
-// 		" player red",   // name 1st
-// 		"1",            // nb ai
-// 		"1",            // nb human
-// 		"player white ", // name 2nd
-// 		"1",            // nb ai
-// 		"0",            // nb human
-// 	}
-
-// 	var stdin bytes.Buffer
-// 	stdin.Write([]byte(strings.Join(input, "\n") + "\n"))
-
-// 	config, err := createProjectConfigFromReader(&stdin)
-
-// 	assert.Nil(t, err)
-// 	assert.Equal(t, expectedConfig, *config)
-// }
 
 func TestCreateProjectFiles(t *testing.T) {
 
@@ -113,31 +92,45 @@ func TestCreateProjectFiles(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	expectedConfig.ProjectName = "testit"
+	config := api.ExtendDefaultProjectConfig(&api.ProjectConfig{
+		ProjectName: "testit",
+		Components: api.ComponentsConfigurations{
+			Orchestrator: api.OrchestratorConfiguration{Version: "v1.0"},
+		},
+		ActorClasses: []*api.ActorClass{
+			&api.ActorClass{Id: "master"},
+			&api.ActorClass{Id: "smart"},
+			&api.ActorClass{Id: "dumb"},
+		},
+		TrialParams: &api.TrialParams{
+			Actors: []*api.Actor{
+				&api.Actor{ActorClass: "master", Endpoint: "human"},
+				&api.Actor{ActorClass: "smart", Endpoint: "grpc://smart:9000"},
+				&api.Actor{ActorClass: "dumb", Endpoint: "grpc://dumb:9000"},
+			},
+		},
+	})
 
-	err = createProjectFiles(dir, &expectedConfig)
-
+	err = createProjectFiles(dir, config)
 	assert.NoError(t, err)
-	assert.FileExists(t, path.Join(dir, "agents", "smart", "main.py"))
-	assert.FileExists(t, path.Join(dir, "agents", "smart", "Dockerfile"))
-	assert.FileExists(t, path.Join(dir, "agents", "dumb", "main.py"))
-	assert.FileExists(t, path.Join(dir, "agents", "dumb", "Dockerfile"))
 
-	assert.FileExists(t, path.Join(dir, "clients", "main.py"))
-	assert.FileExists(t, path.Join(dir, "clients", "Dockerfile"))
+	generatedFiles := []string{}
+	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		assert.NoError(t, err)
+		if !info.IsDir() {
+			relativePath, err := filepath.Rel(dir, path)
+			assert.NoError(t, err)
+			generatedFiles = append(generatedFiles, relativePath)
 
-	assert.FileExists(t, path.Join(dir, "envs", "main.py"))
-	assert.FileExists(t, path.Join(dir, "envs", "Dockerfile"))
-
-	assert.FileExists(t, path.Join(dir, "orchestrator", "Dockerfile"))
-
-	assert.FileExists(t, path.Join(dir, ".gitignore"))
-	assert.FileExists(t, path.Join(dir, "cogment.yaml"))
-	assert.FileExists(t, path.Join(dir, "data.proto"))
-	assert.FileExists(t, path.Join(dir, "docker-compose.yaml"))
-	assert.FileExists(t, path.Join(dir, "README.md"))
-
-	assert.FileExists(t, path.Join(dir, "data_pb2.py"))
-	assert.FileExists(t, path.Join(dir, "cog_settings.py"))
-
+			t.Run(strings.ReplaceAll(relativePath, "/", "-"), func(t *testing.T) {
+				fileContent, err := ioutil.ReadFile(path)
+				assert.NoError(t, err)
+				// Check each file against the previously generated snapshot
+				cupaloy.SnapshotT(t, fileContent)
+			})
+		}
+		return nil
+	})
+	// Check the generate file lists against the previous snapshot
+	cupaloy.SnapshotT(t, generatedFiles)
 }

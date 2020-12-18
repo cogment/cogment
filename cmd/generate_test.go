@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"gitlab.com/cogment/cogment/api"
 )
 
 func TestGeneratePythonSettings(t *testing.T) {
@@ -32,7 +33,10 @@ func TestGeneratePythonSettings(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	config := createProjectConfigFromYaml("../testdata/cogment.yaml")
+	config, err := api.CreateProjectConfigFromYaml("../testdata/cogment.yaml")
+	if err != nil {
+		log.Fatal(err)
+	}
 	for _, proto := range config.Import.Proto {
 		err = registerProtoFile("../testdata/", proto)
 		if err != nil {

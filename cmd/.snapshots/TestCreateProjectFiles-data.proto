@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package testit;
+
+message EnvConfig {
+}
+
+message TrialConfig {
+	EnvConfig env_config = 1;
+}
+
+message Observation {}
+message MasterAction {}
+
+message SmartAction {}
+
+message DumbAction {}
+
+

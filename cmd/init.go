@@ -115,7 +115,7 @@ func createProjectFiles(dst string, config *api.ProjectConfig) error {
 func createProjectConfigFromReader(stdin io.Reader) (*api.ProjectConfig, error) {
 	reader := bufio.NewReader(stdin)
 
-	config := api.ProjectConfig{TrialParams: &api.TrialParams{}}
+	config := api.ExtendDefaultProjectConfig(&api.ProjectConfig{TrialParams: &api.TrialParams{}})
 
 	name, err := getClientNameFromReader(reader)
 	if err != nil {
@@ -171,7 +171,7 @@ func createProjectConfigFromReader(stdin io.Reader) (*api.ProjectConfig, error) 
 
 	}
 
-	return &config, nil
+	return config, nil
 }
 
 func getActorClassFromReader(reader *bufio.Reader, name string) (totalAi, totalHuman int) {

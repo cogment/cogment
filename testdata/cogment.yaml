@@ -1,3 +1,7 @@
+components:
+  orchestrator:
+    version: "v1.0"
+
 import:
   proto:
     - somedata.proto

@@ -32,7 +32,6 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/descriptorpb"
-	"gopkg.in/yaml.v2"
 )
 
 const settingsFilename = "cog_settings"
@@ -132,7 +131,10 @@ func runGenerateCmd(cmd *cobra.Command) error {
 
 	src := filepath.Dir(file)
 
-	config := createProjectConfigFromYaml(file)
+	config, err := api.CreateProjectConfigFromYaml(file)
+	if err != nil {
+		return err
+	}
 	for _, proto := range config.Import.Proto {
 		err = registerProtoFile(src, proto)
 		if err != nil {
@@ -147,7 +149,10 @@ func runGenerateCmd(cmd *cobra.Command) error {
 		}
 
 		// We need to reload the config because it is being manipulated
-		config = createProjectConfigFromYaml(file)
+		config, err := api.CreateProjectConfigFromYaml(file)
+		if err != nil {
+			return err
+		}
 		if err := generatePythonSettings(config, src, dest); err != nil {
 			return err
 		}
@@ -160,7 +165,10 @@ func runGenerateCmd(cmd *cobra.Command) error {
 		}
 
 		// We need to reload the config because it is being manipulated
-		config = createProjectConfigFromYaml(file)
+		config, err = api.CreateProjectConfigFromYaml(file)
+		if err != nil {
+			return err
+		}
 		if err := generateJavascriptSettings(config, src, dest); err != nil {
 			return err
 		}
@@ -252,37 +260,11 @@ func updateConfigWithMessage(config *api.ProjectConfig) *api.ProjectConfig {
 	return config
 }
 
-func getProtoAlias(protoFile string) string {
-	fname := strings.Split(protoFile, ".")[0]
-	return strings.ReplaceAll(fname, "/", "_") + "_pb"
-}
-
-func createProjectConfigFromYaml(filename string) *api.ProjectConfig {
-
-	yamlFile, err := ioutil.ReadFile(filename)
-	if err != nil {
-		log.Printf("yamlFile.Get err   #%v ", err)
-	}
-
-	config := api.ProjectConfig{}
-	err = yaml.Unmarshal(yamlFile, &config)
-	if err != nil {
-		log.Fatalf("Unmarshal: %v", err)
-	}
-
-	for _, proto := range config.Import.Proto {
-		config.Import.ProtoAlias = append(config.Import.ProtoAlias, getProtoAlias(proto))
-	}
-
-	//fmt.Println(helper.PrettyPrint(m))
-	return &config
-}
-
 func lookupMessageType(name string) string {
 	s := strings.Split(name, ".")
 	protoFile := findFileContainingSymbol(name)
 
-	return getProtoAlias(protoFile) + "." + s[len(s)-1]
+	return api.ProtoAliasFromProtoPath(protoFile) + "." + s[len(s)-1]
 }
 
 func findFileContainingSymbol(name string) string {

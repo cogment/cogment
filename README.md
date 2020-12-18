@@ -59,3 +59,19 @@ To reformat the code to fix issues, simply run the following:
 ```
 make fmt
 ```
+
+### Tests
+
+Run the tests using the following
+
+```
+make test
+```
+
+Some tests validate output against snapshots using [cupaloy](https://github.com/bradleyjkemp/cupaloy), you can update those snapshots using
+
+```
+make test-update-snapshots
+```
+
+Before committing updated snapshot, review their content.

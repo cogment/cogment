@@ -24,6 +24,9 @@ build: generate
 test: generate
 	$(GOTEST) -v ./...
 
+test-update-snapshots: generate
+	UPDATE_SNAPSHOTS=true $(GOTEST) -v ./...
+
 test-with-report: generate
 	$(GOTEST) -v ./... 2>&1 | $(GOCMD) run github.com/jstemmer/go-junit-report > report.xml
 

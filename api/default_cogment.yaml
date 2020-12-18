@@ -1,0 +1,5 @@
+# The content of this file will be merged by user provided cognemt.yaml
+components:
+  orchestrator:
+    image: cogment/orchestrator
+    version: v1.0.0-alpha1
