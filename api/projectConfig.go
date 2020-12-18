@@ -109,6 +109,7 @@ type ProjectConfig struct {
 // ComponentsConfigurations describes the configuration of the cogment components
 type ComponentsConfigurations struct {
 	Orchestrator OrchestratorConfiguration
+	Python       PythonConfiguration
 }
 
 // OrchestratorConfiguration is the configuration of the orchestrator
@@ -116,6 +117,14 @@ type ComponentsConfigurations struct {
 // Version is the version of its docker image
 type OrchestratorConfiguration struct {
 	Image   string
+	Version string
+}
+
+// PythonConfiguration is the configuration relative to the python sdk
+// Package is the name of the package
+// Version is the version of the package
+type PythonConfiguration struct {
+	Package string
 	Version string
 }
 

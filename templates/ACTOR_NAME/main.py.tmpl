@@ -1,0 +1,28 @@
+import cog_settings
+from data_pb2 import {{.Actor.Id|pascalify}}Action
+
+from cogment import Agent, GrpcServer
+
+class {{.Actor.Id|pascalify}}(Agent):
+    VERSIONS = {"{{.Actor.Id|snakeify}}": "1.0.0"}
+    actor_class = cog_settings.actor_classes.{{.Actor.Id|snakeify}}
+
+    def decide(self, observation: cog_settings.actor_classes.{{.Actor.Id|snakeify}}.observation_space):
+        print("{{.Actor.Id|pascalify}} decide")
+        action = {{.Actor.Id|pascalify}}Action()
+        return action
+
+    def reward(self, reward):
+        print("{{.Actor.Id|pascalify}} reward")
+
+    def on_message(self, sender, msg):
+        if msg:
+            print(f'Agent {self.id_in_class} received message - {msg} from sender {sender}')
+
+    def end(self):
+        print("{{.Actor.Id|pascalify}} end")
+
+
+if __name__ == '__main__':
+    server = GrpcServer({{.Actor.Id|pascalify}}, cog_settings)
+    server.serve()

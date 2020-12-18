@@ -77,7 +77,7 @@ func createProjectFiles(dst string, config *api.ProjectConfig) error {
 	err := templates.RecursivelyGenerateFromTemplates(
 		"/templates",
 		[]string{
-			"agents/AGENT_NAME",
+			"ACTOR_NAME",
 			"cog_settings*",
 		},
 		config,
@@ -92,7 +92,12 @@ func createProjectFiles(dst string, config *api.ProjectConfig) error {
 			continue
 		}
 
-		err := templates.RecursivelyGenerateFromTemplates("/templates/agents/AGENT_NAME", []string{}, actor, path.Join(dst, "agents", helper.Snakeify(actor.Id)))
+		actorTemplateConfig := map[string]interface{}{
+			"Project": config,
+			"Actor":   actor,
+		}
+
+		err := templates.RecursivelyGenerateFromTemplates("/templates/ACTOR_NAME", []string{}, actorTemplateConfig, path.Join(dst, helper.Snakeify(actor.Id)))
 		if err != nil {
 			return err
 		}
