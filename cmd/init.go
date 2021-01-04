@@ -103,18 +103,18 @@ func createProjectFiles(dst string, config *api.ProjectConfig) error {
 		}
 	}
 
-	cmd := generateCmd
-	//cmd := cobra.Command{}
-	args := []string{"--file", dst + "/cogment.yaml", "--python_dir", dst}
+	generatedProjectFile := path.Join(dst, "cogment.yaml")
+	pythonGenerationDirectories := []string{"environment", "client"}
+	for _, actor := range config.ActorClasses {
+		pythonGenerationDirectories = append(pythonGenerationDirectories, helper.Snakeify(actor.Id))
+	}
+	for _, pythonGenerationDirectory := range pythonGenerationDirectories {
+		if err = generate(generatedProjectFile, path.Join(dst, pythonGenerationDirectory), ""); err != nil {
+			return err
+		}
+	}
 
-	//cmd.SetArgs([]string{"--file", dst + "/cogment.yaml", "--python-dir", dst})1
-	//cmd.ParseFlags()
-	cmd.ParseFlags(args)
-	err = runGenerateCmd(cmd)
-
-	//err := cmd.Execute()
-
-	return err
+	return nil
 }
 
 func createProjectConfigFromReader(stdin io.Reader) (*api.ProjectConfig, error) {

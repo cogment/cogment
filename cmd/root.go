@@ -16,16 +16,17 @@ package cmd
 
 import (
 	"fmt"
+	"log"
+	"os"
+	"path"
+	"strconv"
+
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gitlab.com/cogment/cogment/cmd/configure"
 	"gitlab.com/cogment/cogment/cmd/registry"
 	"gitlab.com/cogment/cogment/helper"
-	"log"
-	"os"
-	"path"
-	"strconv"
 )
 
 //var cfgFile string

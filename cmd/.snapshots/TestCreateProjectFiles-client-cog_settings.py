@@ -44,7 +44,7 @@ actor_classes = _cog.actor.ActorClassList(
     _dumb_class,
 )
 
-trial = SimpleNamespace(config_type=None)
+trial = SimpleNamespace(config_type=data_pb.TrialConfig)
 
 # Environment
 environment = SimpleNamespace(config_type=data_pb.EnvConfig)

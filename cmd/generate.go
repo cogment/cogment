@@ -120,6 +120,10 @@ func registerProtoFile(src string, filename string) error {
 	return protoregistry.GlobalFiles.RegisterFile(fd)
 }
 
+func clearProtoRegistry() {
+	protoregistry.GlobalFiles = &protoregistry.Files{}
+}
+
 func runGenerateCmd(cmd *cobra.Command) error {
 
 	file, err := cmd.Flags().GetString("file")
@@ -127,49 +131,57 @@ func runGenerateCmd(cmd *cobra.Command) error {
 		log.Fatalln(err)
 	}
 
-	//TODO: validate logic in config
+	pythonGenerationDir := ""
+	if cmd.Flags().Changed("python_dir") {
+		pythonGenerationDir, err = cmd.Flags().GetString("python_dir")
+		if err != nil {
+			return err
+		}
+	}
 
-	src := filepath.Dir(file)
+	javascriptGenerationDir := ""
+	if cmd.Flags().Changed("js_dir") {
+		javascriptGenerationDir, err = cmd.Flags().GetString("js_dir")
+		if err != nil {
+			return err
+		}
+	}
 
-	config, err := api.CreateProjectConfigFromYaml(file)
+	return generate(file, pythonGenerationDir, javascriptGenerationDir)
+}
+
+func generate(projectFile string, pythonGenerationDir string, javascriptGenerationDir string) error {
+	projectDir := filepath.Dir(projectFile)
+
+	config, err := api.CreateProjectConfigFromYaml(projectFile)
 	if err != nil {
 		return err
 	}
+	defer clearProtoRegistry()
 	for _, proto := range config.Import.Proto {
-		err = registerProtoFile(src, proto)
-		if err != nil {
+		if err = registerProtoFile(projectDir, proto); err != nil {
 			return err
 		}
 	}
 
-	if cmd.Flags().Changed("python_dir") {
-		dest, err := cmd.Flags().GetString("python_dir")
-		if err != nil {
-			return err
-		}
-
+	if pythonGenerationDir != "" {
 		// We need to reload the config because it is being manipulated
-		config, err := api.CreateProjectConfigFromYaml(file)
+		config, err := api.CreateProjectConfigFromYaml(projectFile)
 		if err != nil {
 			return err
 		}
-		if err := generatePythonSettings(config, src, dest); err != nil {
+		if err := generatePythonSettings(config, projectDir, pythonGenerationDir); err != nil {
 			return err
 		}
 	}
 
-	if cmd.Flags().Changed("js_dir") {
-		dest, err := cmd.Flags().GetString("js_dir")
-		if err != nil {
-			return err
-		}
-
+	if javascriptGenerationDir != "" {
 		// We need to reload the config because it is being manipulated
-		config, err = api.CreateProjectConfigFromYaml(file)
+		config, err = api.CreateProjectConfigFromYaml(projectFile)
 		if err != nil {
 			return err
 		}
-		if err := generateJavascriptSettings(config, src, dest); err != nil {
+		if err := generateJavascriptSettings(config, projectDir, javascriptGenerationDir); err != nil {
 			return err
 		}
 	}
