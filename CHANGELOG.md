@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `cogment init` now generates working projectstructure and implementation for actor, client and environment services.
 - Build and publish a `latest` tag for `cogment/cli` on dockerhub at <https://hub.docker.com/r/cogment/cli>.
 - `cogment init` on project whose name contains a `-` now generates valid `.proto` files.
 

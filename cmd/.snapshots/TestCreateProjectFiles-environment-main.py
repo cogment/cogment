@@ -1,43 +1,38 @@
 import cog_settings
 from data_pb2 import Observation
 
-from cogment import Environment, GrpcServer
+import cogment
 
+import asyncio
 
-class Env(Environment):
-    VERSIONS = {"env": "1.0.0"}
+async def environment(environment_session):
+    print("environment starting")
+    # Create the initial observaton
+    observation = Observation()
 
-    def start(self, config):
-        print("environment starting")
-        observation = Observation()
+    # Start the trial and send that observation to all actors
+    environment_session.start([("*", observation)])
 
-        # Assign that observation to every single actor.
-        obs_table = cog_settings.ObservationsTable(self.trial)
-        for o in obs_table.all_observations():
-            o.snapshot = observation
+    async for event in environment_session.event_loop():
+        if "actions" in event:
+            print("environment updating")
+            observation = Observation()
+            environment_session.produce_observations([("*", observation)])
+        if "message" in event:
+            (msg, sender) = event["message"]
+            print(f"environment received message - {msg} from sender {sender}")
 
-        return obs_table
+    print("environment end")
 
-    def update(self, actions: cog_settings.ActionsTable):
-        print("environment updating")
-        observation = Observation()
+async def main():
+    print("Environment service up and running.")
 
-        # Assign that observation to every single actor.
-        obs_table = cog_settings.ObservationsTable(self.trial)
-        for o in obs_table.all_observations():
-            o.snapshot = observation
+    context = cogment.Context(cog_settings=cog_settings, user_id="testit")
 
-        return obs_table
+    context.register_environment(impl=environment)
 
-    def on_message(self, sender, msg):
-        if msg:
-            print(f'Environment received message - {msg} from sender {sender}')
+    await context.serve_all_registered(port=9000)
 
-    def end(self):
-        print("environment end")
-
-
-if __name__ == "__main__":
-    server = GrpcServer(Env, cog_settings)
-    server.serve()
+if __name__ == '__main__':
+    asyncio.run(main())
 

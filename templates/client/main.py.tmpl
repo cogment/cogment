@@ -1,31 +1,61 @@
-{{ $config := . }}
+{{- $config := . -}}
 import cog_settings
-
 {{range .ActorClasses}}
 {{- if $config.HasHumanByActorClass .Id}}from data_pb2 import {{.Id|pascalify}}Action{{end}}
 {{- end}}
+from data_pb2 import TrialConfig
 
-from cogment.client import Connection
+import cogment
 
-# Callback received message
-def handle_messages(sender, msg):
-    print(f'Client received message - {msg} from sender {sender}')
+import asyncio
 
-# Create a connection to the Orchestrator serving this project
-conn = Connection(cog_settings, "orchestrator:9000")
+{{range .ActorClasses -}}
+  {{- if $config.HasHumanByActorClass .Id -}}
+async def {{.Id|snakeify}}_human(actor_session):
+    actor_class = cog_settings.actor_classes.{{.Id|snakeify}}
 
-# Initiate a trial
-trial = conn.start_trial(cog_settings.actor_classes.{{range .ActorClasses}}{{if $config.HasHumanByActorClass .Id }}{{.Id|snakeify}}{{- end}}
-{{- end}})
+    actor_session.start()
 
-# Perform actions, and get observations
-{{- range .ActorClasses}}
-{{- if $config.HasHumanByActorClass .Id }}
-observation = trial.do_action({{.Id|pascalify}}Action(), on_message = handle_messages)
-observation = trial.do_action({{.Id|pascalify}}Action(), on_message = handle_messages)
-{{end -}}
-{{end}}
+    async for event in actor_session.event_loop():
+        if "observation" in event:
+            observation = event["observation"]
+            print("{{.Id|pascalify}} decide")
+            action = {{.Id|pascalify}}Action()
+            actor_session.do_action(action)
+        if "reward" in event:
+            reward = event["reward"]
+            print("{{.Id|pascalify}} reward")
+        if "message" in event:
+            (msg, sender) = event["message"]
+            print(f"{{.Id|pascalify}} received message - {msg} from sender {sender}")
+  {{- end -}}
+{{- end }}
 
+async def main():
+    print("Client up and running.")
 
-# cleanup
-trial.end()
+    context = cogment.Context(cog_settings=cog_settings, user_id="{{.ProjectName}}")
+{{range .ActorClasses -}}
+  {{- if $config.HasHumanByActorClass .Id }}
+    context.register_actor(
+        impl={{.Id|snakeify}}_human,
+        impl_name="{{.Id|snakeify}}_human",
+        actor_classes=["{{.Id|snakeify}}"])
+  {{- end -}}
+{{- end}}
+
+    # Create and join a new trial
+    trial_id = None
+    async def trial_controler(control_session):
+        nonlocal trial_id
+        print(f"Trial '{control_session.get_trial_id()}' starts")
+        trial_id = control_session.get_trial_id()
+        # Let the trial play for a while
+        await asyncio.sleep(10)
+        print(f"Trial '{control_session.get_trial_id()}' terminating")
+        await control_session.terminate_trial()
+
+    await context.start_trial(endpoint="orchestrator:9000", impl=trial_controler, trial_config=TrialConfig())
+
+if __name__ == '__main__':
+    asyncio.run(main())

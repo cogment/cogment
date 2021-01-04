@@ -1,29 +1,40 @@
 import cog_settings
 from data_pb2 import SmartAction
 
-from cogment import Agent, GrpcServer
+import cogment
 
-class Smart(Agent):
-    VERSIONS = {"smart": "1.0.0"}
+import asyncio
+
+async def smart_impl(actor_session):
     actor_class = cog_settings.actor_classes.smart
 
-    def decide(self, observation: cog_settings.actor_classes.smart.observation_space):
-        print("Smart decide")
-        action = SmartAction()
-        return action
+    actor_session.start()
 
-    def reward(self, reward):
-        print("Smart reward")
+    async for event in actor_session.event_loop():
+        if "observation" in event:
+            observation = event["observation"]
+            print("Smart decide")
+            action = SmartAction()
+            actor_session.do_action(action)
+        if "reward" in event:
+            reward = event["reward"]
+            print("Smart reward")
+        if "message" in event:
+            (msg, sender) = event["message"]
+            print(f"Smart received message - {msg} from sender {sender}")
 
-    def on_message(self, sender, msg):
-        if msg:
-            print(f'Agent {self.id_in_class} received message - {msg} from sender {sender}')
+async def main():
+    print("Smart service up and running.")
 
-    def end(self):
-        print("Smart end")
+    context = cogment.Context(cog_settings=cog_settings, user_id="testit")
 
+    context.register_actor(
+        impl=smart_impl,
+        impl_name="smart_impl",
+        actor_classes=["smart"])
+
+    await context.serve_all_registered(port=9000)
 
 if __name__ == '__main__':
-    server = GrpcServer(Smart, cog_settings)
-    server.serve()
+    asyncio.run(main())
 

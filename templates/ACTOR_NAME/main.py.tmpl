@@ -1,28 +1,39 @@
 import cog_settings
 from data_pb2 import {{.Actor.Id|pascalify}}Action
 
-from cogment import Agent, GrpcServer
+import cogment
 
-class {{.Actor.Id|pascalify}}(Agent):
-    VERSIONS = {"{{.Actor.Id|snakeify}}": "1.0.0"}
+import asyncio
+
+async def {{.Actor.Id|snakeify}}_impl(actor_session):
     actor_class = cog_settings.actor_classes.{{.Actor.Id|snakeify}}
 
-    def decide(self, observation: cog_settings.actor_classes.{{.Actor.Id|snakeify}}.observation_space):
-        print("{{.Actor.Id|pascalify}} decide")
-        action = {{.Actor.Id|pascalify}}Action()
-        return action
+    actor_session.start()
 
-    def reward(self, reward):
-        print("{{.Actor.Id|pascalify}} reward")
+    async for event in actor_session.event_loop():
+        if "observation" in event:
+            observation = event["observation"]
+            print("{{.Actor.Id|pascalify}} decide")
+            action = {{.Actor.Id|pascalify}}Action()
+            actor_session.do_action(action)
+        if "reward" in event:
+            reward = event["reward"]
+            print("{{.Actor.Id|pascalify}} reward")
+        if "message" in event:
+            (msg, sender) = event["message"]
+            print(f"{{.Actor.Id|pascalify}} received message - {msg} from sender {sender}")
 
-    def on_message(self, sender, msg):
-        if msg:
-            print(f'Agent {self.id_in_class} received message - {msg} from sender {sender}')
+async def main():
+    print("{{.Actor.Id|pascalify}} service up and running.")
 
-    def end(self):
-        print("{{.Actor.Id|pascalify}} end")
+    context = cogment.Context(cog_settings=cog_settings, user_id="{{.Project.ProjectName}}")
 
+    context.register_actor(
+        impl={{.Actor.Id|snakeify}}_impl,
+        impl_name="{{.Actor.Id|snakeify}}_impl",
+        actor_classes=["{{.Actor.Id|snakeify}}"])
+
+    await context.serve_all_registered(port=9000)
 
 if __name__ == '__main__':
-    server = GrpcServer({{.Actor.Id|pascalify}}, cog_settings)
-    server.serve()
+    asyncio.run(main())
