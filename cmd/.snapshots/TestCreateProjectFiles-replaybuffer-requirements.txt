@@ -1,3 +1,0 @@
-cogment==1.0.0-alpha2
-redis==2.10.6
-
