@@ -20,6 +20,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path"
 	"runtime"
 
 	"github.com/spf13/cobra"
@@ -28,40 +29,41 @@ import (
 
 // runCmd represents the run command
 var runCmd = &cobra.Command{
-	Use:   "run",
-	Short: "Run a command from a cogment.yaml 'commands' section.",
-	Args:  cobra.MinimumNArgs(1),
-	//The PreRun hook replaces the alias by the final command
-	PreRun: func(cmd *cobra.Command, args []string) {
-		command := args[0]
+	Use:          "run",
+	Short:        "Run a command from a cogment.yaml 'commands' section.",
+	Args:         cobra.MinimumNArgs(1),
+	SilenceUsage: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		commandName := args[0]
 
 		yamlFile, err := cmd.Flags().GetString("file")
 		if err != nil {
-			log.Fatalln(err)
+			return fmt.Errorf("Unable to retrieve the project config file: %w", err)
 		}
+
+		workingDir := path.Dir(yamlFile)
 
 		config, err := api.CreateProjectConfigFromYaml(yamlFile)
 		if err != nil {
-			log.Fatalf("Unmarshal: %v", err)
+			return fmt.Errorf("Unable to deserialize the project config from '%s': %w", yamlFile, err)
 		}
 
-		commands := config.Commands
+		command, ok := config.Commands[commandName]
 
-		if _, ok := commands[command]; !ok {
-			log.Fatalf("The command %s isn't define in the 'commands' section of %s", command, yamlFile)
+		if !ok {
+			return fmt.Errorf("Unknown command '%s': it is not define in the 'commands' section of '%s'", commandName, yamlFile)
 		}
 
-		args[0] = commands[command]
-
-	},
-	Run: func(cmd *cobra.Command, args []string) {
-		if err := runRunCmd(args[0]); err != nil {
-			log.Fatalln(err)
+		log.Printf("Executing %s in %s\n", command, workingDir)
+		err = runCommand(command, workingDir)
+		if err != nil {
+			return fmt.Errorf("Error while running command '%s': %w", commandName, err)
 		}
+		return nil
 	},
 }
 
-func runRunCmd(command string) error {
+func runCommand(command string, workingDir string) error {
 	shellCommand := "/bin/sh"
 	args := "-c"
 	fileExtension := "sh" // File extension is required on windows otherwise "cmd /C" won't work.
@@ -73,44 +75,37 @@ func runRunCmd(command string) error {
 	}
 
 	commandFile, err := ioutil.TempFile("", "cogment-cli-*."+fileExtension)
-
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	if _, err := commandFile.Write([]byte(command)); err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	err = commandFile.Close()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	err = os.Chmod(commandFile.Name(), 0755)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	defer os.Remove(commandFile.Name())
 
 	cmd := exec.Command(shellCommand, args, commandFile.Name())
+	cmd.Dir = workingDir
 
-	fmt.Printf("Executing %s\n", cmd)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
 	if err != nil {
-		if Verbose {
-			log.Println(command)
-			log.Printf("cmd.Run() failed with %s\n", err)
-		}
-		return err
+		return fmt.Errorf("'%s' failed (%w)", command, err)
 	}
-
 	return nil
-
 }
 
 func init() {

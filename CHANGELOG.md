@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Changed
+
+- `cogment run` now runs the command in the `cogment.yaml` directory.
+
 ### Fixed
 
 - Build and publish a `latest` tag for `cogment/cli` on dockerhub at <https://hub.docker.com/r/cogment/cli>
