@@ -85,7 +85,7 @@ func TestCreateProjectConfigWindows(t *testing.T) {
 
 func TestCreateProjectFiles(t *testing.T) {
 
-	dir, err := ioutil.TempDir("", "testcreateprojectfiles")
+	dir, err := ioutil.TempDir("", "TestCreateProjectFiles")
 
 	if err != nil {
 		log.Fatal(err)
@@ -133,4 +133,34 @@ func TestCreateProjectFiles(t *testing.T) {
 	})
 	// Check the generate file lists against the previous snapshot
 	cupaloy.SnapshotT(t, generatedFiles)
+}
+
+func TestCreateProjectFilesDashes(t *testing.T) {
+
+	dir, err := ioutil.TempDir("", "TestCreateProjectFilesDashes")
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
+	config := api.ExtendDefaultProjectConfig(&api.ProjectConfig{
+		ProjectName: "a-test-project-with-dashes",
+		Components: api.ComponentsConfigurations{
+			Orchestrator: api.OrchestratorConfiguration{Version: "v1.0"},
+		},
+		ActorClasses: []*api.ActorClass{
+			&api.ActorClass{Id: "smart"},
+			&api.ActorClass{Id: "dumb"},
+		},
+		TrialParams: &api.TrialParams{
+			Actors: []*api.Actor{
+				&api.Actor{ActorClass: "smart", Endpoint: "grpc://smart:9000"},
+				&api.Actor{ActorClass: "dumb", Endpoint: "grpc://dumb:9000"},
+			},
+		},
+	})
+
+	err = createProjectFiles(dir, config)
+	assert.NoError(t, err)
 }

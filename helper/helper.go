@@ -30,7 +30,7 @@ func PrettyPrint(i interface{}) string {
 }
 
 func Snakeify(data string) string {
-	space := regexp.MustCompile(`\s+`)
+	space := regexp.MustCompile(`(\s|-)+`)
 	data = strings.ToLower(data)
 	data = space.ReplaceAllString(data, "_")
 	return data

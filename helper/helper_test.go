@@ -15,8 +15,9 @@
 package helper
 
 import (
-	"github.com/magiconair/properties/assert"
 	"testing"
+
+	"github.com/magiconair/properties/assert"
 )
 
 func TestSnakeify(t *testing.T) {
@@ -25,6 +26,7 @@ func TestSnakeify(t *testing.T) {
 		expected string
 	}{
 		{"The     Agent", "the_agent"},
+		{"a-dashing-name", "a_dashing_name"},
 	}
 
 	for _, tt := range tests {

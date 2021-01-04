@@ -13,7 +13,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- Build and publish a `latest` tag for `cogment/cli` on dockerhub at <https://hub.docker.com/r/cogment/cli>
+- Build and publish a `latest` tag for `cogment/cli` on dockerhub at <https://hub.docker.com/r/cogment/cli>.
+- `cogment init` on project whose name contains a `-` now generates valid `.proto` files.
 
 ## v1.0.0-alpha1 - 2020-12-07
 
