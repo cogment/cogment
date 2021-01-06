@@ -19,13 +19,16 @@ generate:
 	$(GOCMD) run github.com/markbates/pkger/cmd/pkger
 
 build: generate
-	$(GOBUILD) -o $(BINARY_NAME) -v
+	$(GOBUILD) -o build/$(BINARY_NAME) -v
 
 test: generate
 	$(GOTEST) -v ./...
 
 test-update-snapshots: generate
 	UPDATE_SNAPSHOTS=true $(GOTEST) -v ./...
+
+install: generate test
+	$(GOCMD) install
 
 test-with-report: generate
 	$(GOTEST) -v ./... 2>&1 | $(GOCMD) run github.com/jstemmer/go-junit-report > report.xml
@@ -50,7 +53,7 @@ check-fmt:
 check-codingstyle:
 	$(GOCMD) run golang.org/x/lint/golint  ./...
 
-# # Cross compilation
+# Cross compilation
 build-linux: generate
 	CGO_ENABLED=0 GOOS=linux GOARCH=${BUILD_ARCH} $(GOBUILD) -ldflags ${LD_FLAGS} -o build/$(BINARY_LINUX) -v
 
