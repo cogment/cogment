@@ -112,6 +112,9 @@ void Agent::lazy_start_decision_stream() {
             for (const auto& fb : act.feedbacks()) {
               trial->feedback_received(fb);
             }
+            for (const auto& m : act.messages()) {
+              trial->message_received(m);
+            }
           }
         })
         .finally([](auto) {});
@@ -130,6 +133,14 @@ void Agent::dispatch_reward(int tick_id, const ::cogment::Reward& reward) {
   req.mutable_reward()->CopyFrom(reward);
 
   stub_->stub.OnReward(req, options_).finally([](auto) {});
+}
+
+void Agent::dispatch_message(int /*tick_id*/, const ::cogment::Message& message) {
+  cogment::AgentMessageRequest req;
+  auto* mess = req.add_messages();
+  mess->CopyFrom(message);
+
+  stub_->stub.OnMessage(req, options_).finally([](auto) {});
 }
 
 }  // namespace cogment

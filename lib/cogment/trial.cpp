@@ -183,6 +183,20 @@ void Trial::feedback_received(const cogment::Feedback& feedback) {
   }
 }
 
+void Trial::message_received(const cogment::Message& message) {
+  // TODO: deferred message.
+
+  // Message is not dispatched as we receive it. It is accumulated, and sent once
+  // per update.
+  auto actor_index_itor = actor_indexes_.find(message.receiver_name());
+  if (actor_index_itor != actor_indexes_.end()) {
+    // This is immediate message, accumulate it.
+    if (message.tick_id() == -1) {
+      actors_[actor_index_itor->second]->add_immediate_message(message);
+    }
+  }
+}
+
 void Trial::dispatch_observations(bool end_of_trial) {
   if (state_ == Trial_state::ended) {
     return;
@@ -203,6 +217,14 @@ void Trial::dispatch_observations(bool end_of_trial) {
       auto reward = build_reward(feedbacks);
       actor->dispatch_reward(latest_observations_.tick_id(), reward);
     }
+
+    auto messages = actor->get_and_flush_immediate_message();
+    if (!messages.empty()) {
+      for (auto message = messages.begin(); message != messages.end(); ++message) {
+        actor->dispatch_message(latest_observations_.tick_id(), *message);
+      }
+    }
+
     ++actor_index;
   }
 
@@ -244,6 +266,10 @@ void Trial::run_environment() {
 
         for (const auto& fb : update.feedbacks()) {
           feedback_received(fb);
+        }
+
+        for (const auto& m : update.messages()) {
+          message_received(m);
         }
 
         if (update.final_update()) {

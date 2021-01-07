@@ -34,4 +34,8 @@ const ActorClass* Actor::actor_class() const { return actor_class_; }
 void Actor::add_immediate_feedback(cogment::Feedback feedback) { feedback_accumulator_.push_back(feedback); }
 
 std::vector<cogment::Feedback> Actor::get_and_flush_immediate_feedback() { return std::move(feedback_accumulator_); }
+
+void Actor::add_immediate_message(cogment::Message message) { message_accumulator_.push_back(message); }
+
+std::vector<cogment::Message> Actor::get_and_flush_immediate_message() { return std::move(message_accumulator_); }
 }  // namespace cogment

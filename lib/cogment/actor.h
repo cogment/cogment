@@ -46,6 +46,7 @@ class Actor {
 
   virtual void dispatch_observation(const cogment::Observation& obs, bool end_of_trial) = 0;
   virtual void dispatch_reward(int tick_id, const ::cogment::Reward& reward) = 0;
+  virtual void dispatch_message(int tick_id, const ::cogment::Message& message) = 0;
 
   virtual bool is_active() const = 0;
 
@@ -56,6 +57,9 @@ class Actor {
   void add_immediate_feedback(cogment::Feedback feedback);
   std::vector<cogment::Feedback> get_and_flush_immediate_feedback();
 
+  void add_immediate_message(cogment::Message message);
+  std::vector<cogment::Message> get_and_flush_immediate_message();
+
   private:
   Trial* trial_;
   std::string actor_name_;
@@ -63,6 +67,8 @@ class Actor {
 
   // This accumulates non-retroactive feedbacks.
   std::vector<cogment::Feedback> feedback_accumulator_;
+
+  std::vector<cogment::Message> message_accumulator_;
 };
 
 struct ActorClass {
