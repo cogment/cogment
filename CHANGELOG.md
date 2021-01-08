@@ -8,7 +8,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## Unreleased
 
 ### Added
-- Orchestrator support messages, they can be sent between actors and the environment.
+
+- Add support for messages, they can be sent between actors and the environment.
+- Add dispatch of immediate rewards to actors.
+
+### Fixed
+
+- Fix the logging levels, making the default less verbose.
 
 ## v1.0.0-alpha1 - 2020-12-07
 
