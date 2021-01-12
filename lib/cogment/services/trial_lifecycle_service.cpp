@@ -53,12 +53,6 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_
   return {};
 }
 
-::easy_grpc::Future<::cogment::MessageDispatchReply> TrialLifecycleService::SendMessage(
-    ::cogment::MasterMessageDispatchRequest, easy_grpc::Context ctx) {
-  (void)ctx;
-  return {};
-}
-
 ::cogment::TrialInfoReply TrialLifecycleService::GetTrialInfo(::cogment::TrialInfoRequest, easy_grpc::Context ctx) {
   (void)ctx;
   ::cogment::TrialInfoReply result;
