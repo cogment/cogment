@@ -220,8 +220,8 @@ void Trial::dispatch_observations(bool end_of_trial) {
 
     auto messages = actor->get_and_flush_immediate_message();
     if (!messages.empty()) {
-      for (auto message = messages.begin(); message != messages.end(); ++message) {
-        actor->dispatch_message(latest_observations_.tick_id(), *message);
+      for (const auto& message : messages) {
+        actor->dispatch_message(latest_observations_.tick_id(), message);
       }
     }
 
@@ -268,8 +268,8 @@ void Trial::run_environment() {
           feedback_received(fb);
         }
 
-        for (const auto& m : update.messages()) {
-          message_received(m);
+        for (const auto& message : update.messages()) {
+          message_received(message);
         }
 
         if (update.final_update()) {

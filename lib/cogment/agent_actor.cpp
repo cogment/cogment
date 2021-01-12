@@ -112,8 +112,8 @@ void Agent::lazy_start_decision_stream() {
             for (const auto& fb : act.feedbacks()) {
               trial->feedback_received(fb);
             }
-            for (const auto& m : act.messages()) {
-              trial->message_received(m);
+            for (const auto& message : act.messages()) {
+              trial->message_received(message);
             }
           }
         })
