@@ -31,7 +31,10 @@ install: generate test
 	$(GOCMD) install
 
 test-with-report: generate
-	$(GOTEST) -v ./... 2>&1 | $(GOCMD) run github.com/jstemmer/go-junit-report > report.xml
+	rm -f test_failed.txt
+	$(GOTEST) -v ./... 2>&1 > raw_report.txt || echo test_failed > test_failed.txt
+	$(GOCMD) run github.com/jstemmer/go-junit-report < raw_report.txt > report.xml
+	@test ! -f test_failed.txt
 
 clean:
 	$(GOCLEAN)

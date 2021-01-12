@@ -6,6 +6,8 @@ build
 *.bak
 
 # Test reports
+test_failed.txt
+raw_report.txt
 report.xml
 
 # generated files
