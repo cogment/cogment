@@ -1,18 +1,22 @@
 import cog_settings
-from data_pb2 import SmartAction
-
+{{- range .Service.Implementations -}}
+{{- range .ActorClasses }}
+from data_pb2 import {{.|pascalify}}Action
+{{ end -}}
+{{- end }}
 import cogment
 
 import asyncio
 
-async def smart_impl(actor_session):
+{{ range .Service.Implementations -}}
+async def {{.Name|snakeify}}(actor_session):
     actor_session.start()
 
     async for event in actor_session.event_loop():
         if "observation" in event:
             observation = event["observation"]
             print(f"{actor_session.name} decide")
-            action = SmartAction()
+            action = {{index .ActorClasses 0|pascalify}}Action()
             actor_session.do_action(action)
         if "reward" in event:
             reward = event["reward"]
@@ -21,17 +25,21 @@ async def smart_impl(actor_session):
             (msg, sender) = event["message"]
             print(f"{actor_session.name} received a message - {msg} from sender {sender}")
 
-async def main():
-    print("Smart actor service up and running.")
+{{ end -}}
 
-    context = cogment.Context(cog_settings=cog_settings, user_id="testit")
+async def main():
+    print("{{.Service.Name|pascalify}} actor service up and running.")
+
+    context = cogment.Context(cog_settings=cog_settings, user_id="{{.Project.ProjectName}}")
+
+{{- range .Service.Implementations }}
     context.register_actor(
-        impl=smart_impl,
-        impl_name="smart_impl",
-        actor_classes=["smart",])
+        impl={{.Name|snakeify}},
+        impl_name="{{.Name|snakeify}}",
+        actor_classes=[{{range .ActorClasses}}"{{.|snakeify}}",{{end}}])
+{{- end}}
 
     await context.serve_all_registered(port=9000)
 
 if __name__ == '__main__':
     asyncio.run(main())
-

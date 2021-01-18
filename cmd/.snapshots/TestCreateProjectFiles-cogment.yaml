@@ -5,13 +5,13 @@ import:
 commands:
   generate: >
     cogment generate --python_dir=./environment &&
-    cogment generate --python_dir=./smart &&
     cogment generate --python_dir=./dumb &&
+    cogment generate --python_dir=./smart &&
     cogment generate --python_dir=./client
   build: docker-compose build
   # Start and stop services
-  start: docker-compose up orchestrator environment smart dumb
-  stop: docker-compose stop orchestrator environment smart dumb
+  start: docker-compose up orchestrator environment dumb smart
+  stop: docker-compose stop orchestrator environment dumb smart
   client: docker-compose run --rm client
 
 environment:
@@ -44,10 +44,15 @@ trial_params:
     endpoint: grpc://environment:9000
     #config: {}
   actors:
-    - actor_class: master
-      endpoint: human
-    - actor_class: smart
+    - name: human
+      actor_class: master
+      endpoint: client
+    - name: ai_1
+      actor_class: smart
+      implementation: smart_impl
       endpoint: grpc://smart:9000
-    - actor_class: dumb
+    - name: ai_2
+      actor_class: dumb
+      implementation: dumb_impl
       endpoint: grpc://dumb:9000
 

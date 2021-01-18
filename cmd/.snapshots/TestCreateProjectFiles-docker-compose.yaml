@@ -3,16 +3,6 @@ version: '3.7'
 services:
   grpc-cli:
     image: namely/grpc-cli:1.28_1
-
-  smart:
-    build:
-      context: smart
-      dockerfile: ../py_service.dockerfile
-    environment:
-      - COGMENT_GRPC_REFLECTION=1
-      - PYTHONUNBUFFERED=1
-
-
   dumb:
     build:
       context: dumb
@@ -21,6 +11,13 @@ services:
       - COGMENT_GRPC_REFLECTION=1
       - PYTHONUNBUFFERED=1
 
+  smart:
+    build:
+      context: smart
+      dockerfile: ../py_service.dockerfile
+    environment:
+      - COGMENT_GRPC_REFLECTION=1
+      - PYTHONUNBUFFERED=1
 
 
   environment:

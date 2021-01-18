@@ -16,6 +16,8 @@ package api
 
 import (
 	"io/ioutil"
+	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/imdario/mergo"
@@ -169,13 +171,15 @@ type TrialParams struct {
 		Endpoint string
 		Config   map[string]interface{}
 	}
-	Actors []*Actor
+	Actors []*TrialActor
 }
 
-type Actor struct {
-	ActorClass string `yaml:"actor_class"`
-	Endpoint   string
-	Config     map[string]interface{}
+type TrialActor struct {
+	Name           string
+	ActorClass     string `yaml:"actor_class"`
+	Endpoint       string
+	Implementation string
+	Config         map[string]interface{}
 }
 
 func (p *ProjectConfig) CountActorsByActorClass(id string) (countAi, countHuman int) {
@@ -197,12 +201,124 @@ func (p *ProjectConfig) CountActorsByActorClass(id string) (countAi, countHuman 
 	return countAi, countHuman
 }
 
-func (p *ProjectConfig) HasAiByActorClass(id string) bool {
-	countAi, _ := p.CountActorsByActorClass(id)
-	return countAi > 0
+var grpcHostRegex = regexp.MustCompile(`grpc://([A-Za-z0-9-]+):[0-9]+`)
+
+// EnvironmentServiceName is the name used for environment service
+var EnvironmentServiceName = "environment"
+
+// ClientServiceName is the name used for client service
+var ClientServiceName = "client"
+
+// ComputeTrialActorServiceName computes the service name for a given trial actor
+func ComputeTrialActorServiceName(actor *TrialActor) string {
+	matches := grpcHostRegex.FindStringSubmatch(actor.Endpoint)
+	if len(matches) != 0 && matches[1] != "" {
+		// We assume the name of the service is the name of the grpc host
+		return matches[1]
+	}
+	return ClientServiceName
 }
 
-func (p *ProjectConfig) HasHumanByActorClass(id string) bool {
-	_, countHuman := p.CountActorsByActorClass(id)
-	return countHuman > 0
+// ClientActorServiceEndpoint is the endpoint used for client actors
+var ClientActorServiceEndpoint = ClientServiceName
+
+// ActorService represents an actor service:
+//	- its unique name,
+//	- its endpoint, and
+//	- the actor implementations it hosts
+type ActorService struct {
+	Name            string
+	Endpoint        string
+	Implementations []ActorImplementation
+}
+
+// byServiceName implements sort.Interface for []ActorService based on the Name field.
+type byServiceName []ActorService
+
+func (a byServiceName) Len() int           { return len(a) }
+func (a byServiceName) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a byServiceName) Less(i, j int) bool { return a[i].Name < a[j].Name }
+
+// ActorImplementation represents an actor implementation:
+//	- its unique name, and
+//	- the actor classes it implements.
+type ActorImplementation struct {
+	Name         string
+	ActorClasses []string
+}
+
+// byImplementationName implements sort.Interface for []ActorImplementation based on the Name field.
+type byImplementationName []ActorImplementation
+
+func (a byImplementationName) Len() int           { return len(a) }
+func (a byImplementationName) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a byImplementationName) Less(i, j int) bool { return a[i].Name < a[j].Name }
+
+func (p *ProjectConfig) listImplementations(service *ActorService) []ActorImplementation {
+	var implMap = map[string]ActorImplementation{}
+	for _, actor := range p.TrialParams.Actors {
+		if actor.Endpoint == service.Endpoint {
+			impl, implListed := implMap[actor.Implementation]
+			if !implListed {
+				implMap[actor.Implementation] = ActorImplementation{
+					Name:         actor.Implementation,
+					ActorClasses: []string{actor.ActorClass},
+				}
+			} else {
+				classListed := false
+				for _, class := range impl.ActorClasses {
+					if class == actor.ActorClass {
+						classListed = true
+						break
+					}
+				}
+				if !classListed {
+					impl.ActorClasses = append(impl.ActorClasses, actor.ActorClass)
+				}
+			}
+		}
+	}
+	var implList = []ActorImplementation{}
+	for _, impl := range implMap {
+		implList = append(implList, impl)
+	}
+	sort.Sort(byImplementationName(implList))
+	return implList
+}
+
+// ListServiceActorServices lists the service actor services used by the default trial
+func (p *ProjectConfig) ListServiceActorServices() []ActorService {
+	var serviceMap = map[string]ActorService{}
+	for _, actor := range p.TrialParams.Actors {
+		serviceName := ComputeTrialActorServiceName(actor)
+		if serviceName != ClientServiceName {
+			// It's a service actor
+			_, serviceListed := serviceMap[serviceName]
+			if !serviceListed {
+				service := ActorService{
+					Name:            serviceName,
+					Endpoint:        actor.Endpoint,
+					Implementations: []ActorImplementation{},
+				}
+				service.Implementations = p.listImplementations(&service)
+				serviceMap[serviceName] = service
+			}
+		}
+	}
+	var serviceList = []ActorService{}
+	for _, service := range serviceMap {
+		serviceList = append(serviceList, service)
+	}
+	sort.Sort(byServiceName(serviceList))
+	return serviceList
+}
+
+// ListClientActorImplementations lists the client actor implementations from the default trial
+func (p *ProjectConfig) ListClientActorImplementations() []ActorImplementation {
+	service := ActorService{
+		Name:            ClientServiceName,
+		Endpoint:        ClientActorServiceEndpoint,
+		Implementations: []ActorImplementation{},
+	}
+	return p.listImplementations(&service)
 }

@@ -6,14 +6,14 @@ import:
 commands:
   generate: >
     cogment generate --python_dir=./environment &&
-    {{- range .ActorClasses }}
-      {{- if $config.HasAiByActorClass .Id -}}cogment generate --python_dir=./{{.Id|snakeify}} && {{- end }}
+    {{ range .ListServiceActorServices -}}
+    cogment generate --python_dir=./{{.Name|snakeify}} &&
     {{ end -}}
     cogment generate --python_dir=./client
   build: docker-compose build
   # Start and stop services
-  start: docker-compose up orchestrator environment {{- range .ActorClasses}} {{- if $config.HasAiByActorClass .Id }} {{.Id|kebabify}}{{end}}{{end}}
-  stop: docker-compose stop orchestrator environment {{- range .ActorClasses}} {{- if $config.HasAiByActorClass .Id }} {{.Id|kebabify}}{{end}}{{end}}
+  start: docker-compose up orchestrator environment{{ range .ListServiceActorServices }} {{.Name|kebabify}}{{end}}
+  stop: docker-compose stop orchestrator environment{{ range .ListServiceActorServices }} {{.Name|kebabify}}{{end}}
   client: docker-compose run --rm client
 
 environment:
@@ -39,6 +39,10 @@ trial_params:
     #config: {}
   actors:
   {{- range .TrialParams.Actors}}
-    - actor_class: {{.ActorClass|snakeify}}
+    - name: {{.Name|snakeify}}
+      actor_class: {{.ActorClass|snakeify}}
+      {{ if computeTrialActorServiceName . | ne "client" -}}
+      implementation: {{.Implementation}}
+      {{ end -}}
       endpoint: {{.Endpoint}}
   {{- end }}

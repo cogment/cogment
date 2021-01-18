@@ -77,7 +77,7 @@ func createProjectFiles(dst string, config *api.ProjectConfig) error {
 	err := templates.RecursivelyGenerateFromTemplates(
 		"/templates",
 		[]string{
-			"ACTOR_NAME",
+			"ACTOR_SERVICE_NAME",
 			"cog_settings*",
 		},
 		config,
@@ -86,27 +86,22 @@ func createProjectFiles(dst string, config *api.ProjectConfig) error {
 		return err
 	}
 
-	for k, actor := range config.ActorClasses {
-		countAi, _ := config.CountActorsByActorClass(config.ActorClasses[k].Id)
-		if countAi < 1 {
-			continue
-		}
-
-		actorTemplateConfig := map[string]interface{}{
+	for _, service := range config.ListServiceActorServices() {
+		actorServiceTemplateConfig := map[string]interface{}{
 			"Project": config,
-			"Actor":   actor,
+			"Service": service,
 		}
 
-		err := templates.RecursivelyGenerateFromTemplates("/templates/ACTOR_NAME", []string{}, actorTemplateConfig, path.Join(dst, helper.Snakeify(actor.Id)))
+		err := templates.RecursivelyGenerateFromTemplates("/templates/ACTOR_SERVICE_NAME", []string{}, actorServiceTemplateConfig, path.Join(dst, helper.Snakeify(service.Name)))
 		if err != nil {
 			return err
 		}
 	}
 
 	generatedProjectFile := path.Join(dst, "cogment.yaml")
-	pythonGenerationDirectories := []string{"environment", "client"}
-	for _, actor := range config.ActorClasses {
-		pythonGenerationDirectories = append(pythonGenerationDirectories, helper.Snakeify(actor.Id))
+	pythonGenerationDirectories := []string{api.EnvironmentServiceName, api.ClientServiceName}
+	for _, service := range config.ListServiceActorServices() {
+		pythonGenerationDirectories = append(pythonGenerationDirectories, helper.Snakeify(service.Name))
 	}
 	for _, pythonGenerationDirectory := range pythonGenerationDirectories {
 		if err = generate(generatedProjectFile, path.Join(dst, pythonGenerationDirectory), ""); err != nil {
@@ -117,205 +112,238 @@ func createProjectFiles(dst string, config *api.ProjectConfig) error {
 	return nil
 }
 
+func integerFromReader(reader *bufio.Reader, prompt string, defaultValue *int, validate func(int) (int, error), retryCount int) (int, error) {
+	for i := 0; i < retryCount; i++ {
+		fmt.Printf(prompt)
+		inputStr, _ := reader.ReadString('\n')
+		inputStr = strings.TrimSpace(inputStr)
+		if inputStr == "" && defaultValue != nil {
+			return *defaultValue, nil
+		}
+		inputInt, err := strconv.Atoi(inputStr)
+		if err != nil {
+			fmt.Printf("\t'%s' is invalid, expecting an integer.\n", inputStr)
+		} else if validatedInputInt, err := validate(inputInt); err != nil {
+			fmt.Printf("\t%s\n", err)
+		} else {
+			return validatedInputInt, nil
+		}
+	}
+	return 0, fmt.Errorf("Invalid user input")
+}
+
+func stringFromReader(reader *bufio.Reader, prompt string, defaultValue *string, validate func(string) (string, error), retryCount int) (string, error) {
+	for i := 0; i < retryCount; i++ {
+		fmt.Printf(prompt)
+		inputStr, _ := reader.ReadString('\n')
+		inputStr = strings.TrimSpace(inputStr)
+		if inputStr == "" && defaultValue != nil {
+			return *defaultValue, nil
+		}
+		if validatedInputStr, err := validate(inputStr); err != nil {
+			fmt.Printf("\t%s\n", err)
+		} else {
+			return validatedInputStr, nil
+		}
+	}
+	return "", fmt.Errorf("Invalid user input")
+}
+
+func validatePositiveNumber(input int) (int, error) {
+	if input < 0 {
+		return 0, fmt.Errorf("'%d' is invalid, expecting a positive value", input)
+	}
+	return input, nil
+}
+
+var yesNoAnswers = map[string]string{
+	"y":   "Y",
+	"yes": "Y",
+	"n":   "N",
+	"no":  "N",
+}
+
+func validateYesNoAnswer(input string) (string, error) {
+	validatedInput, inputIsValid := yesNoAnswers[strings.ToLower(input)]
+	if !inputIsValid {
+		return "", fmt.Errorf("'%s' is invalid, expecting Y or N", input)
+	}
+	return validatedInput, nil
+}
+
+func createValidateName(existingNames []string) func(string) (string, error) {
+	return func(input string) (string, error) {
+		if input == "" {
+			return "", fmt.Errorf("'%s' is invalid, expecting an non-empty name", input)
+		}
+		if strings.Contains("0123456789", input[0:1]) {
+			return "", fmt.Errorf("'%s' is invalid, expecting to not start with numeric character", input)
+		}
+		validatedInput := helper.Snakeify(input)
+		for _, existingName := range existingNames {
+			if validatedInput == existingName {
+				return "", fmt.Errorf("'%s' is invalid, expecting a unique name", input)
+			}
+		}
+		return validatedInput, nil
+	}
+}
+
 func createProjectConfigFromReader(stdin io.Reader) (*api.ProjectConfig, error) {
 	reader := bufio.NewReader(stdin)
 
 	config := api.ExtendDefaultProjectConfig(&api.ProjectConfig{TrialParams: &api.TrialParams{}})
 
-	name, err := getClientNameFromReader(reader)
+	actorClassesCount, err := integerFromReader(
+		reader,
+		"Enter how many actor classes should be created: ",
+		nil,
+		validatePositiveNumber,
+		3,
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	actorClass := api.ActorClass{Id: name}
-
-	config.ActorClasses = append(config.ActorClasses, &actorClass)
-
-	actor := api.Actor{
-		ActorClass: name,
-		Endpoint:   "human",
-	}
-
-	config.TrialParams.Actors = append(config.TrialParams.Actors, &actor)
-
-	nbAgentActors, err := getTotalAgentsFromReader(reader)
-	if err != nil {
-		return nil, err
-	}
-
-	for i := 0; i < nbAgentActors; i++ {
-
-		name, err := getAgentClassNameFromReader(reader, i)
-		for _, val := range config.ActorClasses {
-			if name == val.Id {
-				err = fmt.Errorf("this name is already taken")
-			}
+	actorClassNames := []string{}
+	implNames := []string{}
+	connectedImplCreated := false
+	for classIdx := 0; classIdx < actorClassesCount; classIdx++ {
+		className, err := stringFromReader(
+			reader,
+			fmt.Sprintf("[class %d] Enter the name of the class: ", classIdx+1),
+			nil,
+			createValidateName(actorClassNames),
+			3,
+		)
+		if err != nil {
+			return nil, err
 		}
+		class := api.ActorClass{Id: className}
+		config.ActorClasses = append(config.ActorClasses, &class)
+		actorClassNames = append(actorClassNames, className)
+
+		defaultServedImplCount := 1
+		servedImplCount, err := integerFromReader(
+			reader,
+			fmt.Sprintf(
+				"[class #%d '%s'] Enter the number of service implementations that should be created (empty for 1): ",
+				classIdx+1,
+				className,
+			),
+			&defaultServedImplCount,
+			validatePositiveNumber,
+			3,
+		)
 		if err != nil {
 			return nil, err
 		}
 
-		actorClass := api.ActorClass{Id: name}
+		for implIdx := 0; implIdx < servedImplCount; implIdx++ {
+			implName, err := stringFromReader(
+				reader,
+				fmt.Sprintf(
+					"[class #%d '%s' > service impl. #%d] Enter the name of the implementation: ",
+					classIdx+1,
+					className,
+					implIdx+1,
+				),
+				nil,
+				createValidateName(implNames),
+				3,
+			)
+			if err != nil {
+				return nil, err
+			}
+			implNames = append(implNames, implName)
 
-		config.ActorClasses = append(config.ActorClasses, &actorClass)
-
-		nbAgentInstances, err := getAgentInstantsFromReader(reader, name)
-		if err != nil {
-			return nil, err
-		}
-
-		for j := 0; j < nbAgentInstances; j++ {
-			actor := api.Actor{
-				ActorClass: name,
-				Endpoint:   "grpc://" + helper.Kebabify(name) + ":9000",
+			defaultActorsCount := 1
+			actorsCount, err := integerFromReader(
+				reader,
+				fmt.Sprintf(
+					"[class #%d '%s' > service impl. #%d '%s'] Enter the number of actor instances using this implementation (empty for 1): ",
+					classIdx+1,
+					className,
+					implIdx+1,
+					implName,
+				),
+				&defaultActorsCount,
+				validatePositiveNumber,
+				3,
+			)
+			if err != nil {
+				return nil, err
 			}
 
-			config.TrialParams.Actors = append(config.TrialParams.Actors, &actor)
+			for actorIdx := 0; actorIdx < actorsCount; actorIdx++ {
+				actorName := fmt.Sprintf(
+					"%s_%s_%d",
+					className,
+					implName,
+					actorIdx+1,
+				)
+				actor := api.TrialActor{
+					Name:           actorName,
+					ActorClass:     className,
+					Implementation: implName,
+					Endpoint:       "grpc://" + helper.Kebabify(implName) + ":9000",
+				}
 
+				config.TrialParams.Actors = append(config.TrialParams.Actors, &actor)
+			}
 		}
 
+		if !connectedImplCreated {
+			defaultCreateConnectedImpl := "Y"
+			createConnectedImpl, err := stringFromReader(
+				reader,
+				fmt.Sprintf(
+					"[class #%d '%s'] Should a client implementation be created (Y or N, empty for Y): ",
+					classIdx+1,
+					className,
+				),
+				&defaultCreateConnectedImpl,
+				validateYesNoAnswer,
+				3,
+			)
+			if err != nil {
+				return nil, err
+			}
+
+			if createConnectedImpl == "Y" {
+				defaultImplName := "human"
+				implName, err := stringFromReader(
+					reader,
+					fmt.Sprintf(
+						"[class #%d '%s' > client impl.] Enter the name of the implementation (empty for 'human'): ",
+						classIdx+1,
+						className,
+					),
+					&defaultImplName,
+					createValidateName(implNames),
+					3,
+				)
+				if err != nil {
+					return nil, err
+				}
+				implNames = append(implNames, implName)
+
+				actor := api.TrialActor{
+					Name:           implName,
+					ActorClass:     className,
+					Implementation: implName,
+					Endpoint:       api.ClientActorServiceEndpoint,
+				}
+
+				config.TrialParams.Actors = append(config.TrialParams.Actors, &actor)
+
+				connectedImplCreated = true
+			}
+		}
 	}
 
 	return config, nil
 }
-
-func getActorClassFromReader(reader *bufio.Reader, name string) (totalAi, totalHuman int) {
-
-	for {
-		fmt.Printf("Number of AI \"%s\": ", name)
-		result, err := getIntegerFromReader(reader)
-		if err == nil && result >= 0 {
-			totalAi = result
-			break
-		}
-
-		fmt.Println("This value must be an integer >= 0")
-	}
-
-	for {
-		fmt.Printf("Number of Human \"%s\": ", name)
-		result, err := getIntegerFromReader(reader)
-		if err == nil && result >= 0 {
-			totalHuman = result
-			break
-		}
-
-		fmt.Println("This value must be an integer >= 0")
-	}
-
-	return totalAi, totalHuman
-}
-
-func getIntegerFromReader(reader *bufio.Reader) (int, error) {
-	input, _ := reader.ReadString('\n')
-	input = strings.TrimSpace(input)
-
-	result, err := strconv.Atoi(input)
-	if err != nil {
-		return 0, err
-	}
-	return result, nil
-}
-
-func getTotalActorsFromReader(reader *bufio.Reader) (int, error) {
-
-	for {
-		fmt.Print("Number of actor types: ")
-
-		result, err := getIntegerFromReader(reader)
-
-		if err == nil && result > 0 {
-			return result, nil
-		}
-
-		fmt.Println("this value must be an integer greater than 0")
-	}
-}
-
-func getActorClassNameFromReader(reader *bufio.Reader) (string, error) {
-	fmt.Printf("Actor name: ")
-	input, _ := reader.ReadString('\n')
-	input = strings.TrimSpace(input)
-
-	if input == "" {
-		return input, fmt.Errorf("name can't be empty")
-	}
-
-	return input, nil
-}
-
-func getClientNameFromReader(reader *bufio.Reader) (string, error) {
-	fmt.Printf("Master client actor name: ")
-	input, _ := reader.ReadString('\n')
-	input = strings.TrimSpace(input)
-
-	if input == "" {
-		return input, fmt.Errorf("name can't be empty")
-	}
-	if input != strings.ToLower(input) {
-		return input, fmt.Errorf("no upper case letters")
-	}
-	if strings.Contains(input, "-") {
-		return input, fmt.Errorf("no dashes/hyphens")
-	}
-	if strings.Contains("0123456789", input[0:1]) {
-		return input, fmt.Errorf("name can't start with numeric")
-	}
-
-	return input, nil
-}
-
-func getAgentClassNameFromReader(reader *bufio.Reader, agentNumber int) (string, error) {
-	fmt.Printf("Agent actor type " + strconv.Itoa(agentNumber+1) + " name: ")
-	input, _ := reader.ReadString('\n')
-	input = strings.TrimSpace(input)
-
-	if input == "" {
-		return input, fmt.Errorf("name can't be empty")
-	}
-	if input != strings.ToLower(input) {
-		return input, fmt.Errorf("no upper case letters")
-	}
-	if strings.Contains(input, "-") {
-		return input, fmt.Errorf("no dashed/hyphens")
-	}
-	if strings.Contains("0123456789", input[0:1]) {
-		return input, fmt.Errorf("name can't start with numeric")
-	}
-
-	return input, nil
-}
-
-func getTotalAgentsFromReader(reader *bufio.Reader) (int, error) {
-
-	for {
-		fmt.Print("Number of agent actor types: ")
-
-		result, err := getIntegerFromReader(reader)
-
-		if err == nil && result > 0 {
-			return result, nil
-		}
-
-		fmt.Println("this value must be an integer greater than 0")
-	}
-}
-
-func getAgentInstantsFromReader(reader *bufio.Reader, agentName string) (int, error) {
-
-	for {
-		fmt.Print("Number of agent '" + agentName + "' instances: ")
-
-		result, err := getIntegerFromReader(reader)
-
-		if err == nil && result > 0 {
-			return result, nil
-		}
-
-		fmt.Println("this value must be an integer greater than 0")
-	}
-}
-
 func init() {
 	rootCmd.AddCommand(initCmd)
 }

@@ -6,33 +6,30 @@ import cogment
 
 import asyncio
 
-async def master_human(actor_session):
-    actor_class = cog_settings.actor_classes.master
-
+async def human(actor_session):
     actor_session.start()
 
     async for event in actor_session.event_loop():
         if "observation" in event:
             observation = event["observation"]
-            print("Master decide")
+            print(f"{actor_session.name} decide")
             action = MasterAction()
             actor_session.do_action(action)
         if "reward" in event:
             reward = event["reward"]
-            print("Master reward")
+            print(f"{actor_session.name} received a reward")
         if "message" in event:
             (msg, sender) = event["message"]
-            print(f"Master received message - {msg} from sender {sender}")
+            print(f"{actor_session.name} received a message - {msg} from sender {sender}")
 
 async def main():
     print("Client up and running.")
 
     context = cogment.Context(cog_settings=cog_settings, user_id="testit")
-
     context.register_actor(
-        impl=master_human,
-        impl_name="master_human",
-        actor_classes=["master"])
+        impl=human,
+        impl_name="human",
+        actor_classes=["master",])
 
     # Create and join a new trial
     trial_id = None

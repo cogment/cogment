@@ -10,10 +10,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - `cogment run` now runs the command in the `cogment.yaml` directory.
+- The `cogment init` prompt integrate the concept of actor implementation and make it optional to create an actor in the client.
+- Upgrade the version of cogment-orchestrator to `v1.0.0-alpha2`
+- Upgrade the version of cogment-py-sdk to `v1.0.0-alpha3`
 
 ### Fixed
 
-- `cogment init` now generates working projectstructure and implementation for actor, client and environment services.
+- `cogment init` now generates a working project structure and implementation for actor, client and environment services.
 - Build and publish a `latest` tag for `cogment/cli` on dockerhub at <https://hub.docker.com/r/cogment/cli>.
 - `cogment init` on project whose name contains a `-` now generates valid `.proto` files.
 

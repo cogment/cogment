@@ -35,10 +35,10 @@ var expectedConfig = api.ExtendDefaultProjectConfig(&api.ProjectConfig{
 		&api.ActorClass{Id: "dumb"},
 	},
 	TrialParams: &api.TrialParams{
-		Actors: []*api.Actor{
-			&api.Actor{ActorClass: "master", Endpoint: "human"},
-			&api.Actor{ActorClass: "smart", Endpoint: "grpc://smart:9000"},
-			&api.Actor{ActorClass: "dumb", Endpoint: "grpc://dumb:9000"},
+		Actors: []*api.TrialActor{
+			&api.TrialActor{Name: "human", ActorClass: "master", Implementation: "human", Endpoint: "client"},
+			&api.TrialActor{Name: "smart_smart_impl_1", ActorClass: "smart", Implementation: "smart_impl", Endpoint: "grpc://smart-impl:9000"},
+			&api.TrialActor{Name: "dumb_dumb_impl_1", ActorClass: "dumb", Implementation: "dumb_impl", Endpoint: "grpc://dumb-impl:9000"},
 		},
 	},
 })
@@ -46,12 +46,19 @@ var expectedConfig = api.ExtendDefaultProjectConfig(&api.ProjectConfig{
 func TestCreateProjectConfig(t *testing.T) {
 
 	input := []string{
-		"master", // master client actor name
-		"2",      // Number of agent actor types
-		"smart",  // Agent actor type 1 name
-		"1",      // Number of agent 'smart' instances
-		"dumb",   // Agent actor type 2 name
-		"1",      // Number of agent 'dumb' instances
+		"3",          // 3 actor classes
+		"master",     // class #1
+		"0",          // 0 service actor implementation of "master"
+		"Y",          // A client actor implementation of "master"
+		"human",      // Named "human"
+		"smart",      // class #2
+		"1",          // 1 service actor implementation of "smart"
+		"smart_impl", // Named "smart_impl"
+		"1",          // 1 actor using this implementation
+		"dumb",       // class #3
+		"1",          // 1 service actor implementation of "dumb"
+		"dumb_impl",  // Named "dumb_impl"
+		"1",          // 1 actor using this implementation
 	}
 
 	var stdin bytes.Buffer
@@ -66,12 +73,19 @@ func TestCreateProjectConfig(t *testing.T) {
 func TestCreateProjectConfigWindows(t *testing.T) {
 
 	input := []string{
-		"master", // master client actor name
-		"2",      // Number of agent actor types
-		"smart",  // Agent actor type 1 name
-		"1",      // Number of agent 'smart' instances
-		"dumb",   // Agent actor type 2 name
-		"1",      // Number of agent 'dumb' instances
+		"3",          // 3 actor classes
+		"master",     // class #1
+		"0",          // 0 service actor implementation of "master"
+		"Y",          // A client actor implementation of "master"
+		"human",      // Named "human"
+		"smart",      // class #2
+		"1",          // 1 service actor implementation of "smart"
+		"smart_impl", // Named "smart_impl"
+		"1",          // 1 actor using this implementation
+		"dumb",       // class #3
+		"1",          // 1 service actor implementation of "dumb"
+		"dumb_impl",  // Named "dumb_impl"
+		"1",          // 1 actor using this implementation
 	}
 
 	var stdin bytes.Buffer
@@ -103,10 +117,10 @@ func TestCreateProjectFiles(t *testing.T) {
 			&api.ActorClass{Id: "dumb"},
 		},
 		TrialParams: &api.TrialParams{
-			Actors: []*api.Actor{
-				&api.Actor{ActorClass: "master", Endpoint: "human"},
-				&api.Actor{ActorClass: "smart", Endpoint: "grpc://smart:9000"},
-				&api.Actor{ActorClass: "dumb", Endpoint: "grpc://dumb:9000"},
+			Actors: []*api.TrialActor{
+				&api.TrialActor{Name: "human", ActorClass: "master", Implementation: "human", Endpoint: "client"},
+				&api.TrialActor{Name: "ai_1", ActorClass: "smart", Implementation: "smart_impl", Endpoint: "grpc://smart:9000"},
+				&api.TrialActor{Name: "ai_2", ActorClass: "dumb", Implementation: "dumb_impl", Endpoint: "grpc://dumb:9000"},
 			},
 		},
 	})
@@ -157,9 +171,9 @@ func TestCreateProjectFilesDashes(t *testing.T) {
 			&api.ActorClass{Id: "dumb"},
 		},
 		TrialParams: &api.TrialParams{
-			Actors: []*api.Actor{
-				&api.Actor{ActorClass: "smart", Endpoint: "grpc://smart:9000"},
-				&api.Actor{ActorClass: "dumb", Endpoint: "grpc://dumb:9000"},
+			Actors: []*api.TrialActor{
+				&api.TrialActor{ActorClass: "smart", Endpoint: "grpc://smart:9000"},
+				&api.TrialActor{ActorClass: "dumb", Endpoint: "grpc://dumb:9000"},
 			},
 		},
 	})

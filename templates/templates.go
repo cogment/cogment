@@ -23,6 +23,7 @@ import (
 	ignore "github.com/codeskyblue/dockerignore"
 
 	"github.com/markbates/pkger"
+	"gitlab.com/cogment/cogment/api"
 	"gitlab.com/cogment/cogment/helper"
 )
 
@@ -48,10 +49,11 @@ func GenerateFromTemplate(tmplPath string, config interface{}, outputPath string
 	tmplFile.Read(tmplFileContent)
 
 	t := template.New(outputPath).Funcs(template.FuncMap{
-		"snakeify":  helper.Snakeify,
-		"kebabify":  helper.Kebabify,
-		"pascalify": helper.Pascalify,
-		"tocaps":    helper.Tocaps,
+		"snakeify":                     helper.Snakeify,
+		"kebabify":                     helper.Kebabify,
+		"pascalify":                    helper.Pascalify,
+		"tocaps":                       helper.Tocaps,
+		"computeTrialActorServiceName": api.ComputeTrialActorServiceName,
 	})
 
 	t = template.Must(t.Parse(string(tmplFileContent)))

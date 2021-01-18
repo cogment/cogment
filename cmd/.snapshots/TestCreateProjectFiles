@@ -1,4 +1,4 @@
-([]string) (len=25) {
+([]string) (len=23) {
   (string) (len=10) ".gitignore",
   (string) (len=9) "README.md",
   (string) (len=22) "client/cog_settings.py",
@@ -16,8 +16,6 @@
   (string) (len=23) "environment/data_pb2.py",
   (string) (len=19) "environment/main.py",
   (string) (len=28) "environment/requirements.txt",
-  (string) (len=22) "master/cog_settings.py",
-  (string) (len=18) "master/data_pb2.py",
   (string) (len=23) "orchestrator.dockerfile",
   (string) (len=21) "py_service.dockerfile",
   (string) (len=21) "smart/cog_settings.py",
