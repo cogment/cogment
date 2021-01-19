@@ -1,7 +1,7 @@
 {{- $config := . -}}
 import cog_settings
-{{- range .ListClientActorImplementations -}}
-{{- range .ActorClasses }}
+{{ range .ListClientActorImplementations -}}
+{{- range .ActorClasses -}}
 from data_pb2 import {{.|pascalify}}Action
 {{ end -}}
 {{- end -}}

@@ -206,7 +206,7 @@ func createProjectConfigFromReader(stdin io.Reader) (*api.ProjectConfig, error) 
 	}
 
 	actorClassNames := []string{}
-	implNames := []string{}
+	serviceImplNames := []string{}
 	connectedImplCreated := false
 	for classIdx := 0; classIdx < actorClassesCount; classIdx++ {
 		className, err := stringFromReader(
@@ -223,15 +223,15 @@ func createProjectConfigFromReader(stdin io.Reader) (*api.ProjectConfig, error) 
 		config.ActorClasses = append(config.ActorClasses, &class)
 		actorClassNames = append(actorClassNames, className)
 
-		defaultServedImplCount := 1
-		servedImplCount, err := integerFromReader(
+		defaultServiceImplCount := 1
+		serviceImplCount, err := integerFromReader(
 			reader,
 			fmt.Sprintf(
 				"[class #%d '%s'] Enter the number of service implementations that should be created (empty for 1): ",
 				classIdx+1,
 				className,
 			),
-			&defaultServedImplCount,
+			&defaultServiceImplCount,
 			validatePositiveNumber,
 			3,
 		)
@@ -239,7 +239,7 @@ func createProjectConfigFromReader(stdin io.Reader) (*api.ProjectConfig, error) 
 			return nil, err
 		}
 
-		for implIdx := 0; implIdx < servedImplCount; implIdx++ {
+		for implIdx := 0; implIdx < serviceImplCount; implIdx++ {
 			implName, err := stringFromReader(
 				reader,
 				fmt.Sprintf(
@@ -249,13 +249,13 @@ func createProjectConfigFromReader(stdin io.Reader) (*api.ProjectConfig, error) 
 					implIdx+1,
 				),
 				nil,
-				createValidateName(implNames),
+				createValidateName(serviceImplNames),
 				3,
 			)
 			if err != nil {
 				return nil, err
 			}
-			implNames = append(implNames, implName)
+			serviceImplNames = append(serviceImplNames, implName)
 
 			defaultActorsCount := 1
 			actorsCount, err := integerFromReader(
@@ -294,15 +294,15 @@ func createProjectConfigFromReader(stdin io.Reader) (*api.ProjectConfig, error) 
 		}
 
 		if !connectedImplCreated {
-			defaultCreateConnectedImpl := "Y"
-			createConnectedImpl, err := stringFromReader(
+			defaultCreateClientImpl := "Y"
+			createClientImpl, err := stringFromReader(
 				reader,
 				fmt.Sprintf(
 					"[class #%d '%s'] Should a client implementation be created (Y or N, empty for Y): ",
 					classIdx+1,
 					className,
 				),
-				&defaultCreateConnectedImpl,
+				&defaultCreateClientImpl,
 				validateYesNoAnswer,
 				3,
 			)
@@ -310,26 +310,13 @@ func createProjectConfigFromReader(stdin io.Reader) (*api.ProjectConfig, error) 
 				return nil, err
 			}
 
-			if createConnectedImpl == "Y" {
-				defaultImplName := "human"
-				implName, err := stringFromReader(
-					reader,
-					fmt.Sprintf(
-						"[class #%d '%s' > client impl.] Enter the name of the implementation (empty for 'human'): ",
-						classIdx+1,
-						className,
-					),
-					&defaultImplName,
-					createValidateName(implNames),
-					3,
-				)
-				if err != nil {
-					return nil, err
-				}
-				implNames = append(implNames, implName)
+			if createClientImpl == "Y" {
+				// cogment init only creates a single client actor, using default values
+				actorName := "client_actor"
+				implName := "client_actor_impl"
 
 				actor := api.TrialActor{
-					Name:           implName,
+					Name:           actorName,
 					ActorClass:     className,
 					Implementation: implName,
 					Endpoint:       api.ClientActorServiceEndpoint,

@@ -36,7 +36,7 @@ var expectedConfig = api.ExtendDefaultProjectConfig(&api.ProjectConfig{
 	},
 	TrialParams: &api.TrialParams{
 		Actors: []*api.TrialActor{
-			&api.TrialActor{Name: "human", ActorClass: "master", Implementation: "human", Endpoint: "client"},
+			&api.TrialActor{Name: "client_actor", ActorClass: "master", Implementation: "client_actor_impl", Endpoint: "client"},
 			&api.TrialActor{Name: "smart_smart_impl_1", ActorClass: "smart", Implementation: "smart_impl", Endpoint: "grpc://smart-impl:9000"},
 			&api.TrialActor{Name: "dumb_dumb_impl_1", ActorClass: "dumb", Implementation: "dumb_impl", Endpoint: "grpc://dumb-impl:9000"},
 		},
@@ -50,7 +50,6 @@ func TestCreateProjectConfig(t *testing.T) {
 		"master",     // class #1
 		"0",          // 0 service actor implementation of "master"
 		"Y",          // A client actor implementation of "master"
-		"human",      // Named "human"
 		"smart",      // class #2
 		"1",          // 1 service actor implementation of "smart"
 		"smart_impl", // Named "smart_impl"
@@ -77,7 +76,6 @@ func TestCreateProjectConfigWindows(t *testing.T) {
 		"master",     // class #1
 		"0",          // 0 service actor implementation of "master"
 		"Y",          // A client actor implementation of "master"
-		"human",      // Named "human"
 		"smart",      // class #2
 		"1",          // 1 service actor implementation of "smart"
 		"smart_impl", // Named "smart_impl"

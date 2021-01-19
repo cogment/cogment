@@ -1,6 +1,6 @@
 import cog_settings
-{{- range .Service.Implementations -}}
-{{- range .ActorClasses }}
+{{ range .Service.Implementations -}}
+{{- range .ActorClasses -}}
 from data_pb2 import {{.|pascalify}}Action
 {{ end -}}
 {{- end }}
