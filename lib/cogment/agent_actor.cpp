@@ -107,7 +107,7 @@ void Agent::lazy_start_decision_stream() {
     incoming_actions
         .for_each([trial_weak, name](auto act) {
           auto trial = trial_weak.lock();
-          if (trial) {
+          if (trial && trial->state() != Trial_state::ended) {
             trial->actor_acted(name, act.action());
             for (const auto& fb : act.feedbacks()) {
               trial->feedback_received(fb);
