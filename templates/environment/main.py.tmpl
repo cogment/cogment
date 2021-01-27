@@ -15,7 +15,11 @@ async def environment(environment_session):
 
     async for event in environment_session.event_loop():
         if "actions" in event:
-            print("environment updating")
+            actions = event["actions"]
+            print(f"environment received actions")
+            for actor, action in zip(environment_session.get_active_actors(), actions):
+                print(f" actor '{actor.actor_name}' did action '{action}'")
+
             observation = Observation()
             environment_session.produce_observations([("*", observation)])
         if "message" in event:
