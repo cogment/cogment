@@ -144,9 +144,13 @@ Future<cogment::PreTrialContext> Orchestrator::perform_pre_hooks_(cogment::PreTr
   grpc_metadata trial_header;
   trial_header.key = grpc_slice_from_static_string("trial-id");
   trial_header.value = grpc_slice_from_copied_string(trial_id.c_str());
-  std::vector<grpc_metadata> headers = {trial_header};
+
+  // We need this set of headers to live through the pre-hook RPCS, and there's not great place to anchor them.
+  // Since this is not performance critical, we'll just ref-count them on the ultimate result.
+  auto headers = std::make_shared<std::vector<grpc_metadata>>(std::vector<grpc_metadata>{trial_header});
+
   easy_grpc::client::Call_options options;
-  options.headers = &headers;
+  options.headers = headers.get();
 
   aom::Promise<cogment::PreTrialContext> prom;
   auto result = prom.get_future();
@@ -154,10 +158,11 @@ Future<cogment::PreTrialContext> Orchestrator::perform_pre_hooks_(cogment::PreTr
 
   // Run prehooks.
   for (auto& hook : prehooks_) {
-    result = result.then([hook, options](auto context) { return hook->OnPreTrial(std::move(context), options); });
+    result =
+        result.then([hook, options, headers](auto context) { return hook->OnPreTrial(std::move(context), options); });
   }
 
-  return result;
+  return result.then([headers](auto v) { return v; });
 }
 
 void Orchestrator::set_log_exporter(std::unique_ptr<Datalog_storage_interface> le) { log_exporter_ = std::move(le); }
