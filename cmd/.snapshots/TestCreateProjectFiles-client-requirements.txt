@@ -1,2 +1,2 @@
-cogment==1.0.0-alpha3
+cogment==1.0.0-alpha5
 
