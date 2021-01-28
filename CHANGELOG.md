@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v1.0.0-alpha3 - 2021-01-28
+
 ### Fixed
 
 - Fix a crash occuring at the end of trials.
