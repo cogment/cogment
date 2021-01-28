@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Fixed
+
+- Fix a crash occuring at the end of trials.
+- Fix occasional crash when employing prehooks.
+
 ## v1.0.0-alpha2 - 2021-01-11
 
 ### Added
