@@ -15,7 +15,6 @@ require (
 	github.com/imdario/mergo v0.3.11
 	github.com/jarcoal/httpmock v1.0.4
 	github.com/jinzhu/copier v0.1.0
-	github.com/jstemmer/go-junit-report v0.9.1 // indirect
 	github.com/magiconair/properties v1.8.0
 	github.com/markbates/pkger v0.17.1
 	github.com/mattn/go-colorable v0.1.4 // indirect
