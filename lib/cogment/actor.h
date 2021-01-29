@@ -57,7 +57,7 @@ class Actor {
   void add_immediate_feedback(cogment::Feedback feedback);
   std::vector<cogment::Feedback> get_and_flush_immediate_feedback();
 
-  void add_immediate_message(cogment::Message message);
+  void add_immediate_message(const cogment::Message& message, const std::string& source);
   std::vector<cogment::Message> get_and_flush_immediate_message();
 
   private:

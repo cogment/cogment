@@ -28,6 +28,8 @@
 #endif
 namespace cogment {
 
+const std::string ENVIRONMENT_ACTOR_NAME("env");
+
 const char* get_trial_state_string(Trial_state s) {
   switch (s) {
   case Trial_state::initializing:
@@ -183,7 +185,7 @@ void Trial::feedback_received(const cogment::Feedback& feedback) {
   }
 }
 
-void Trial::message_received(const cogment::Message& message) {
+void Trial::message_received(const cogment::Message& message, const std::string& source) {
   // TODO: deferred message.
 
   // Message is not dispatched as we receive it. It is accumulated, and sent once
@@ -192,7 +194,7 @@ void Trial::message_received(const cogment::Message& message) {
   if (actor_index_itor != actor_indexes_.end()) {
     // This is immediate message, accumulate it.
     if (message.tick_id() == -1) {
-      actors_[actor_index_itor->second]->add_immediate_message(message);
+      actors_[actor_index_itor->second]->add_immediate_message(message, source);
     }
   }
 }
@@ -269,7 +271,7 @@ void Trial::run_environment() {
         }
 
         for (const auto& message : update.messages()) {
-          message_received(message);
+          message_received(message, ENVIRONMENT_ACTOR_NAME);
         }
 
         if (update.final_update()) {

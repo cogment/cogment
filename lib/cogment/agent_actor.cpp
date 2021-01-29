@@ -113,7 +113,7 @@ void Agent::lazy_start_decision_stream() {
               trial->feedback_received(fb);
             }
             for (const auto& message : act.messages()) {
-              trial->message_received(message);
+              trial->message_received(message, name);
             }
           }
         })

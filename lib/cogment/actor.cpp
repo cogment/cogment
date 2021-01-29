@@ -35,7 +35,10 @@ void Actor::add_immediate_feedback(cogment::Feedback feedback) { feedback_accumu
 
 std::vector<cogment::Feedback> Actor::get_and_flush_immediate_feedback() { return std::move(feedback_accumulator_); }
 
-void Actor::add_immediate_message(cogment::Message message) { message_accumulator_.push_back(message); }
+void Actor::add_immediate_message(const cogment::Message& message, const std::string& source) {
+  message_accumulator_.emplace_back(message);
+  message_accumulator_.back().set_sender_name(source);
+}
 
 std::vector<cogment::Message> Actor::get_and_flush_immediate_message() { return std::move(message_accumulator_); }
 }  // namespace cogment
