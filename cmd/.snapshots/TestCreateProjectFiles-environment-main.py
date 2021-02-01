@@ -23,8 +23,16 @@ async def environment(environment_session):
             observation = Observation()
             environment_session.produce_observations([("*", observation)])
         if "message" in event:
-            (msg, sender) = event["message"]
-            print(f"environment received message - {msg} from sender {sender}")
+            (sender, message) = event["message"]
+            print(f"environment received a message from '{sender}': - '{message}'")
+        if "final_actions" in event:
+            actions = event["final_actions"]
+            print(f"environment received final actions")
+            for actor, action in zip(environment_session.get_active_actors(), actions):
+                print(f" actor '{actor.actor_name}' did action '{action}'")
+
+            observation = Observation()
+            environment_session.end([("*", observation)])
 
     print("environment end")
 

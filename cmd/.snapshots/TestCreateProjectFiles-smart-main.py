@@ -11,16 +11,23 @@ async def smart_impl(actor_session):
     async for event in actor_session.event_loop():
         if "observation" in event:
             observation = event["observation"]
-            print(f"{actor_session.name} decide")
+            print(f"'{actor_session.name}' received an observation: '{observation}'")
             action = SmartAction()
             actor_session.do_action(action)
         if "reward" in event:
             reward = event["reward"]
-            print(f"{actor_session.name} received a reward")
+            print(f"{actor_session.name} received a reward for tick #{reward.tick_id}: {reward.value}/{reward.confidence}")
         if "message" in event:
-            (msg, sender) = event["message"]
-            print(f"{actor_session.name} received a message - {msg} from sender {sender}")
-
+            (sender, message) = event["message"]
+            print(f"'{actor_session.name}' received a message from '{sender}': - '{message}'")
+        if "final_data" in event:
+            final_data = event["observation"]
+            for observation in final_data.observations:
+                print(f"'{actor_session.name}' received a final observation: '{observation}'")
+            for reward in final_data.rewards:
+                print(f"{actor_session.name} received a final reward for tick #{reward.tick_id}: {reward.value}/{reward.confidence}")
+            for message in final_data.messages:
+                print(f"'{actor_session.name}' received a final message from '{sender}': - '{message}'")
 async def main():
     print("Smart actor service up and running.")
 
