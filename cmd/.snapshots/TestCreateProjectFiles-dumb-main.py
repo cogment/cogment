@@ -29,7 +29,7 @@ async def dumb_impl(actor_session):
             for message in final_data.messages:
                 print(f"'{actor_session.name}' received a final message from '{sender}': - '{message}'")
 async def main():
-    print("Dumb actor service up and running.")
+    print("Dumb actor service starting...")
 
     context = cogment.Context(cog_settings=cog_settings, user_id="testit")
     context.register_actor(

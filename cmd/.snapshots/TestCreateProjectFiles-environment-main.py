@@ -37,7 +37,7 @@ async def environment(environment_session):
     print("environment end")
 
 async def main():
-    print("Environment service up and running.")
+    print("Environment service starting...")
 
     context = cogment.Context(cog_settings=cog_settings, user_id="testit")
 
