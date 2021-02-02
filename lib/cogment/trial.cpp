@@ -230,7 +230,8 @@ void Trial::dispatch_observations(bool end_of_trial) {
     ++actor_index;
   }
 
-  if (end_of_trial) {
+  // This is not ideal and should get cleaned up as we (finally) revise the end-of-trial flow.
+  if (end_of_trial && state_ != Trial_state::ended) {
     // Stop sending actions to the environment
     outgoing_actions_->complete();
     actors_.clear();
@@ -274,7 +275,7 @@ void Trial::run_environment() {
           message_received(message, ENVIRONMENT_ACTOR_NAME);
         }
 
-        if (update.final_update()) {
+        if (update.final_update() && state_ != Trial_state::ended) {
           state_ = Trial_state::terminating;
         }
         dispatch_observations(update.final_update());
@@ -288,7 +289,10 @@ void Trial::run_environment() {
 
 void Trial::terminate() {
   auto self = shared_from_this();
-  state_ = Trial_state::terminating;
+
+  if (state_ != Trial_state::ended) {
+    state_ = Trial_state::terminating;
+  }
 
   cogment::EnvActionRequest req;
 
