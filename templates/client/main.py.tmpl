@@ -23,17 +23,18 @@ async def {{.Name|snakeify}}(actor_session):
             actor_session.do_action(action)
         if "reward" in event:
             reward = event["reward"]
-            print(f"{actor_session.name} received a reward for tick #{reward.tick_id}: {reward.value}/{reward.confidence}")
+            print(f"'{actor_session.name}' received a reward for tick #{reward.tick_id}: {reward.value}/{reward.confidence}")
         if "message" in event:
             (sender, message) = event["message"]
             print(f"'{actor_session.name}' received a message from '{sender}': - '{message}'")
         if "final_data" in event:
-            final_data = event["observation"]
+            final_data = event["final_data"]
             for observation in final_data.observations:
                 print(f"'{actor_session.name}' received a final observation: '{observation}'")
             for reward in final_data.rewards:
-                print(f"{actor_session.name} received a final reward for tick #{reward.tick_id}: {reward.value}/{reward.confidence}")
+                print(f"'{actor_session.name}' received a final reward for tick #{reward.tick_id}: {reward.value}/{reward.confidence}")
             for message in final_data.messages:
+                (sender, message) = message
                 print(f"'{actor_session.name}' received a final message from '{sender}': - '{message}'")
 {{ end -}}
 
