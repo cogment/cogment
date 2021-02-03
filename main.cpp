@@ -156,7 +156,7 @@ int main(int argc, const char* argv[]) {
         .add_service(orchestrator.trial_lifecycle_service())
         .add_listening_port(lifecycle_endpoint);
 
-    // If the lifecycle endpoint is the same as the ActorEndpoint, then run them
+    // If the lifecycle endpoint is the same as the ClientActor, then run them
     // off the same server, otherwise, start a second server.
     if (lifecycle_endpoint == actor_endpoint) {
       cfg.add_service(orchestrator.actor_service());

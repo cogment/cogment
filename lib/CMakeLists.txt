@@ -88,7 +88,7 @@ macro(compile_grpc_proto PROTO)
 endmacro()
 
 compile_proto(common)
-compile_grpc_proto(data)
+compile_grpc_proto(datalog)
 compile_grpc_proto(orchestrator)
 compile_grpc_proto(agent)
 compile_grpc_proto(environment)

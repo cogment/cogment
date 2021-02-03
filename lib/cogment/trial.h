@@ -18,7 +18,7 @@
 #include "cogment/actor.h"
 #include "cogment/utils.h"
 
-#include "cogment/api/data.pb.h"
+#include "cogment/api/datalog.pb.h"
 #include "cogment/api/environment.egrpc.pb.h"
 #include "cogment/api/orchestrator.pb.h"
 

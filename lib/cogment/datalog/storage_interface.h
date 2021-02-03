@@ -15,7 +15,7 @@
 #ifndef AOM_DATALOG_STORAGE_INTERFACE_H
 #define AOM_DATALOG_STORAGE_INTERFACE_H
 
-#include "cogment/api/data.pb.h"
+#include "cogment/api/datalog.pb.h"
 #include "uuid.h"
 
 #include <fstream>

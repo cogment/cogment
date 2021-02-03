@@ -15,7 +15,7 @@
 #ifndef AOM_DATALOG_GRPC_EXPORTER_H
 #define AOM_DATALOG_GRPC_EXPORTER_H
 
-#include "cogment/api/data.egrpc.pb.h"
+#include "cogment/api/datalog.egrpc.pb.h"
 #include "cogment/datalog/storage_interface.h"
 #include "slt/concur/work_pool.h"
 
