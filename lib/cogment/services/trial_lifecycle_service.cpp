@@ -81,6 +81,12 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_
   return result;
 }
 
+::easy_grpc::Stream_future<::cogment::TrialListEntry> TrialLifecycleService::WatchTrials(::cogment::TrialListRequest,
+                                                                                         easy_grpc::Context) {
+  throw std::runtime_error("not implemented");
+  return {};
+}
+
 ::cogment::VersionInfo TrialLifecycleService::Version(::cogment::VersionRequest, easy_grpc::Context ctx) {
   (void)ctx;
   ::cogment::VersionInfo result;

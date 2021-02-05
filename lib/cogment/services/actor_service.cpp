@@ -40,8 +40,8 @@ ActorService::ActorService(Orchestrator* orch) : orchestrator_(orch) {}
   return {};
 }
 
-::easy_grpc::Future<::cogment::TrialFeedbackReply> ActorService::GiveFeedback(::cogment::TrialFeedbackRequest,
-                                                                              easy_grpc::Context ctx) {
+::easy_grpc::Future<::cogment::TrialRewardReply> ActorService::SendReward(::cogment::TrialRewardRequest,
+                                                                          easy_grpc::Context ctx) {
   (void)ctx;
   return {};
 }

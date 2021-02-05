@@ -70,7 +70,7 @@ void Client_actor::dispatch_observation(const cogment::Observation& obs, bool en
   outgoing_observations_.push(std::move(req));
 }
 
-void Client_actor::dispatch_reward(int /*tick_id*/, const ::cogment::Reward& /*reward*/) {}
+void Client_actor::dispatch_reward(const ::cogment::Reward& /*reward*/) {}
 
 void Client_actor::dispatch_message(int /*tick_id*/, const ::cogment::Message& /*message*/) {}
 

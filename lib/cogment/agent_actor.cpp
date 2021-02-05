@@ -109,8 +109,8 @@ void Agent::lazy_start_decision_stream() {
           auto trial = trial_weak.lock();
           if (trial && trial->state() != Trial_state::ended) {
             trial->actor_acted(name, act.action());
-            for (const auto& fb : act.feedbacks()) {
-              trial->feedback_received(fb);
+            for (const auto& rew : act.rewards()) {
+              trial->reward_received(rew, name);
             }
             for (const auto& message : act.messages()) {
               trial->message_received(message, name);
@@ -127,9 +127,8 @@ bool Agent::is_active() const {
   return true;
 }
 
-void Agent::dispatch_reward(int tick_id, const ::cogment::Reward& reward) {
+void Agent::dispatch_reward(const ::cogment::Reward& reward) {
   cogment::AgentRewardRequest req;
-  req.set_tick_id(tick_id);
   req.mutable_reward()->CopyFrom(reward);
 
   stub_->stub.OnReward(req, options_).finally([](auto) {});

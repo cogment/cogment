@@ -31,8 +31,11 @@ class TrialLifecycleService {
   ::easy_grpc::Future<::cogment::TrialStartReply> StartTrial(::cogment::TrialStartRequest, easy_grpc::Context ctx);
   ::cogment::TerminateTrialReply TerminateTrial(::cogment::TerminateTrialRequest, easy_grpc::Context ctx);
   ::cogment::TrialInfoReply GetTrialInfo(::cogment::TrialInfoRequest, easy_grpc::Context ctx);
+  ::easy_grpc::Stream_future<::cogment::TrialListEntry> WatchTrials(::cogment::TrialListRequest,
+                                                                    easy_grpc::Context ctx);
   ::cogment::VersionInfo Version(::cogment::VersionRequest, easy_grpc::Context ctx);
 };
+
 }  // namespace cogment
 
 #endif

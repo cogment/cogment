@@ -171,21 +171,24 @@ void Trial::configure(cogment::TrialParams params) {
   spdlog::debug("Trial {} is configured", to_string(id_));
 }
 
-void Trial::feedback_received(const cogment::Feedback& feedback) {
-  // TODO: deferred feedback.
+void Trial::reward_received(const cogment::Reward& reward, const std::string& sender) {
+  // TODO: deferred reward (i.e. with a specific tick_id != -1)
 
-  // Feedback is not dispatched as we receive it. It is accumulated, and sent once
+  // Rewards are not dispatched as we receive them. They are accumulated, and sent once
   // per update.
-  auto actor_index_itor = actor_indexes_.find(feedback.actor_name());
+  auto actor_index_itor = actor_indexes_.find(reward.receiver_name());
   if (actor_index_itor != actor_indexes_.end()) {
     // This is immediate feedback, accumulate it.
-    if (feedback.tick_id() == -1) {
-      actors_[actor_index_itor->second]->add_immediate_feedback(feedback);
+    if (reward.tick_id() == -1) {
+      // Normally we should have only one source when receiving
+      for (const auto& src : reward.sources()) {
+        actors_[actor_index_itor->second]->add_immediate_reward_src(src, sender);
+      }
     }
   }
 }
 
-void Trial::message_received(const cogment::Message& message, const std::string& source) {
+void Trial::message_received(const cogment::Message& message, const std::string& sender) {
   // TODO: deferred message.
 
   // Message is not dispatched as we receive it. It is accumulated, and sent once
@@ -194,7 +197,7 @@ void Trial::message_received(const cogment::Message& message, const std::string&
   if (actor_index_itor != actor_indexes_.end()) {
     // This is immediate message, accumulate it.
     if (message.tick_id() == -1) {
-      actors_[actor_index_itor->second]->add_immediate_message(message, source);
+      actors_[actor_index_itor->second]->add_immediate_message(message, sender);
     }
   }
 }
@@ -207,23 +210,26 @@ void Trial::dispatch_observations(bool end_of_trial) {
   std::uint32_t actor_index = 0;
   for (const auto& actor : actors_) {
     auto obs_index = latest_observations_.actors_map(actor_index);
+    const auto tick_id = latest_observations_.tick_id();
 
     cogment::Observation obs;
-    obs.set_tick_id(latest_observations_.tick_id());
+    obs.set_tick_id(tick_id);
     obs.set_timestamp(latest_observations_.timestamp());
     *obs.mutable_data() = latest_observations_.observations(obs_index);
     actor->dispatch_observation(obs, end_of_trial);
 
-    auto feedbacks = actor->get_and_flush_immediate_feedback();
-    if (!feedbacks.empty()) {
-      auto reward = build_reward(feedbacks);
-      actor->dispatch_reward(latest_observations_.tick_id(), reward);
+    auto sources = actor->get_and_flush_immediate_reward_src();
+    if (!sources.empty()) {
+      auto reward = build_reward(sources);
+      reward.set_tick_id(tick_id);
+      reward.set_receiver_name(actor->actor_name());
+      actor->dispatch_reward(reward);
     }
 
     auto messages = actor->get_and_flush_immediate_message();
     if (!messages.empty()) {
       for (const auto& message : messages) {
-        actor->dispatch_message(latest_observations_.tick_id(), message);
+        actor->dispatch_message(tick_id, message);
       }
     }
 
@@ -267,8 +273,8 @@ void Trial::run_environment() {
         auto& sample = step_data_.back();
         sample.mutable_observations()->CopyFrom(latest_observations_);
 
-        for (const auto& fb : update.feedbacks()) {
-          feedback_received(fb);
+        for (const auto& rew : update.rewards()) {
+          reward_received(rew, ENVIRONMENT_ACTOR_NAME);
         }
 
         for (const auto& message : update.messages()) {

@@ -31,13 +31,18 @@ const std::string& Actor::actor_name() const { return actor_name_; }
 
 const ActorClass* Actor::actor_class() const { return actor_class_; }
 
-void Actor::add_immediate_feedback(cogment::Feedback feedback) { feedback_accumulator_.push_back(feedback); }
+void Actor::add_immediate_reward_src(const cogment::RewardSource& source, const std::string& sender) {
+  reward_src_accumulator_.emplace_back(source);
+  reward_src_accumulator_.back().set_sender_name(sender);
+}
 
-std::vector<cogment::Feedback> Actor::get_and_flush_immediate_feedback() { return std::move(feedback_accumulator_); }
+std::vector<cogment::RewardSource> Actor::get_and_flush_immediate_reward_src() {
+  return std::move(reward_src_accumulator_);
+}
 
-void Actor::add_immediate_message(const cogment::Message& message, const std::string& source) {
+void Actor::add_immediate_message(const cogment::Message& message, const std::string& sender) {
   message_accumulator_.emplace_back(message);
-  message_accumulator_.back().set_sender_name(source);
+  message_accumulator_.back().set_sender_name(sender);
 }
 
 std::vector<cogment::Message> Actor::get_and_flush_immediate_message() { return std::move(message_accumulator_); }

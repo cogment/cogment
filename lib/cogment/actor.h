@@ -45,7 +45,7 @@ class Actor {
   virtual void send_final_observation(cogment::Observation&& /*obs*/) {}
 
   virtual void dispatch_observation(const cogment::Observation& obs, bool end_of_trial) = 0;
-  virtual void dispatch_reward(int tick_id, const ::cogment::Reward& reward) = 0;
+  virtual void dispatch_reward(const ::cogment::Reward& reward) = 0;
   virtual void dispatch_message(int tick_id, const ::cogment::Message& message) = 0;
 
   virtual bool is_active() const = 0;
@@ -54,8 +54,8 @@ class Actor {
   const std::string& actor_name() const;
   const ActorClass* actor_class() const;
 
-  void add_immediate_feedback(cogment::Feedback feedback);
-  std::vector<cogment::Feedback> get_and_flush_immediate_feedback();
+  void add_immediate_reward_src(const cogment::RewardSource& source, const std::string& sender);
+  std::vector<cogment::RewardSource> get_and_flush_immediate_reward_src();
 
   void add_immediate_message(const cogment::Message& message, const std::string& source);
   std::vector<cogment::Message> get_and_flush_immediate_message();
@@ -65,8 +65,8 @@ class Actor {
   std::string actor_name_;
   const ActorClass* actor_class_;
 
-  // This accumulates non-retroactive feedbacks.
-  std::vector<cogment::Feedback> feedback_accumulator_;
+  // This accumulates non-retroactive rewards.
+  std::vector<cogment::RewardSource> reward_src_accumulator_;
 
   std::vector<cogment::Message> message_accumulator_;
 };

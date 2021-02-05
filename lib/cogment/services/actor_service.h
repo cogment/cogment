@@ -33,8 +33,7 @@ class ActorService {
       ::easy_grpc::Stream_future<::cogment::TrialActionRequest>, easy_grpc::Context ctx);
   ::easy_grpc::Future<::cogment::TrialHeartbeatReply> Heartbeat(::cogment::TrialHeartbeatRequest,
                                                                 easy_grpc::Context ctx);
-  ::easy_grpc::Future<::cogment::TrialFeedbackReply> GiveFeedback(::cogment::TrialFeedbackRequest,
-                                                                  easy_grpc::Context ctx);
+  ::easy_grpc::Future<::cogment::TrialRewardReply> SendReward(::cogment::TrialRewardRequest, easy_grpc::Context ctx);
   ::easy_grpc::Future<::cogment::TrialMessageReply> SendMessage(::cogment::TrialMessageRequest, easy_grpc::Context ctx);
 
   ::cogment::VersionInfo Version(::cogment::VersionRequest, easy_grpc::Context ctx);

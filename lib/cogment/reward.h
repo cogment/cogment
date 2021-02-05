@@ -19,21 +19,21 @@ namespace cogment {
 // This is a template so that we can do it on either a std::vector<>
 // Or a regular protobuf collection
 template <typename contT>
-cogment::Reward build_reward(const contT& feedback_container) {
+cogment::Reward build_reward(const contT& reward_source_container) {
   cogment::Reward result;
 
   float value_accum = 0.0f;
   float confidence_accum = 0.0f;
 
-  for (const auto& feedback : feedback_container) {
-    auto fb_conf = feedback.confidence();
+  for (const auto& reward_source : reward_source_container) {
+    auto fb_conf = reward_source.confidence();
 
     if (fb_conf > 0.0f) {
-      value_accum += feedback.value() * fb_conf;
+      value_accum += reward_source.value() * fb_conf;
       confidence_accum += fb_conf;
     }
 
-    result.add_feedbacks()->CopyFrom(feedback);
+    result.add_sources()->CopyFrom(reward_source);
   }
 
   if (confidence_accum > 0.0f) {
@@ -41,7 +41,6 @@ cogment::Reward build_reward(const contT& feedback_container) {
   }
 
   result.set_value(value_accum);
-  result.set_confidence(1.0f);
   return result;
 }
 }  // namespace cogment
