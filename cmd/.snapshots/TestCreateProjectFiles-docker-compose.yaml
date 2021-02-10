@@ -44,3 +44,34 @@ services:
     stdin_open: true
     tty: true
 
+  dashboard:
+    image: cogment/dashboard:latest
+    ports:
+      - 3003:3000/tcp
+    depends_on:
+      - metrics
+
+  metrics:
+    image: cogment/metrics:latest
+    command: --config.file=/etc/prometheus/prometheus.yml
+    volumes:
+      - ./metrics/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./metrics/data:/prometheus
+    ports:
+      - 9090:9090/tcp
+
+  cadvisor:
+    privileged: true
+    devices:
+      - /dev/kmsg
+    image: gcr.io/cadvisor/cadvisor:latest
+    ports:
+      - 9088:8080
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+
+

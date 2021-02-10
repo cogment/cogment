@@ -10,8 +10,8 @@ commands:
     cogment generate --python_dir=./client
   build: docker-compose build
   # Start and stop services
-  start: docker-compose up orchestrator environment dumb smart
-  stop: docker-compose stop orchestrator environment dumb smart
+  start: docker-compose up orchestrator environment metrics dashboard dumb smart
+  stop: docker-compose stop orchestrator environment metrics dashboard dumb smart
   client: docker-compose run --rm client
 
 environment:

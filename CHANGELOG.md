@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - `cogment init` now generates actor & environment implementations handling all the possible events.
+- Initialize Metrics and Dashboard when `cogment init` is run
 
 ## v1.0.0-alpha2 - 2021-01-28
 

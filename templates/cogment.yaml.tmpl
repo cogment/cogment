@@ -12,8 +12,8 @@ commands:
     cogment generate --python_dir=./client
   build: docker-compose build
   # Start and stop services
-  start: docker-compose up orchestrator environment{{ range .ListServiceActorServices }} {{.Name|kebabify}}{{end}}
-  stop: docker-compose stop orchestrator environment{{ range .ListServiceActorServices }} {{.Name|kebabify}}{{end}}
+  start: docker-compose up orchestrator environment metrics dashboard{{ range .ListServiceActorServices }} {{.Name|kebabify}}{{end}}
+  stop: docker-compose stop orchestrator environment metrics dashboard{{ range .ListServiceActorServices }} {{.Name|kebabify}}{{end}}
   client: docker-compose run --rm client
 
 environment:

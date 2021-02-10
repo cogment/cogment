@@ -1,0 +1,42 @@
+global:
+  scrape_interval:     5s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+  evaluation_interval: 5s # Evaluate rules every 15 seconds. The default is every 1 minute.
+  # scrape_timeout is set to the global default (10s).
+
+
+# A scrape configuration containing exactly one endpoint to scrape:
+# Here it's Prometheus itself.
+scrape_configs:
+  # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
+  - job_name: 'environment'
+    dns_sd_configs:
+    - names:
+      - 'environment'
+      type: 'A'
+      port: 8000
+      refresh_interval: 5s
+
+  - job_name: cadvisor
+    scrape_interval: 5s
+    static_configs:
+      - targets:
+          - cadvisor:8080
+
+
+  - job_name: 'dumb'
+    dns_sd_configs:
+    - names:
+      - 'dumb'
+      type: 'A'
+      port: 8000
+      refresh_interval: 5s
+
+  - job_name: 'smart'
+    dns_sd_configs:
+    - names:
+      - 'smart'
+      type: 'A'
+      port: 8000
+      refresh_interval: 5s
+
+
