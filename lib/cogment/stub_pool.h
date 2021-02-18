@@ -37,6 +37,8 @@ namespace cogment {
 // A thread-safe pool of easy-grpc Communication channel
 class Channel_pool {
   public:
+  Channel_pool(std::shared_ptr<easy_grpc::client::Credentials> creds) : creds_(creds) {}
+
   // Gets an easy-grpc channel to the target url, recycling an existing one if
   // present.
   std::shared_ptr<::easy_grpc::client::Channel> get_channel(const std::string& url) {
@@ -46,17 +48,26 @@ class Channel_pool {
     auto result = found.lock();
 
     if (!result) {
-      result = std::make_shared<::easy_grpc::client::Unsecure_channel>(url, nullptr);
-      spdlog::info("Opening channel to {}", url);
+      if (creds_.get() != nullptr) {
+        result = std::make_shared<::easy_grpc::client::Secure_channel>(url, nullptr, creds_.get());
+        spdlog::info("Opening secured channel to {}", url);
+      }
+      else {
+        result = std::make_shared<::easy_grpc::client::Unsecure_channel>(url, nullptr);
+        spdlog::info("Opening unsecured channel to {}", url);
+      }
+
       found = result;
     }
 
     return result;
   }
 
-  public:
   std::mutex mtx_;
   std::unordered_map<std::string, std::weak_ptr<::easy_grpc::client::Channel>> channels_;
+
+  private:
+  std::shared_ptr<easy_grpc::client::Credentials> creds_;
 };
 
 // A thread-safe pool of easy-grpc connection stubs

@@ -29,9 +29,11 @@ slt::Setting garbage_collection_frequency = slt::Setting_builder<std::uint32_t>(
 }  // namespace settings
 
 namespace cogment {
-Orchestrator::Orchestrator(Trial_spec trial_spec, cogment::TrialParams default_trial_params)
+Orchestrator::Orchestrator(Trial_spec trial_spec, cogment::TrialParams default_trial_params,
+                           std::shared_ptr<easy_grpc::client::Credentials> creds)
     : trial_spec_(std::move(trial_spec)),
       default_trial_params_(std::move(default_trial_params)),
+      channel_pool_(creds),
       env_stubs_(&channel_pool_, &client_queue_),
       agent_stubs_(&channel_pool_, &client_queue_),
       actor_service_(this),

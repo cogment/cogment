@@ -31,7 +31,8 @@
 namespace cogment {
 class Orchestrator {
   public:
-  Orchestrator(Trial_spec trial_spec, cogment::TrialParams default_trial_params);
+  Orchestrator(Trial_spec trial_spec, cogment::TrialParams default_trial_params,
+               std::shared_ptr<easy_grpc::client::Credentials> creds);
   ~Orchestrator();
 
   // Initialization

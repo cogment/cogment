@@ -31,6 +31,7 @@ namespace cfg_file = cogment::cfg_file;
 #include "spdlog/spdlog.h"
 
 #include <csignal>
+#include <filesystem>
 #include <fstream>
 #include <thread>
 
@@ -67,6 +68,21 @@ slt::Setting status_file = slt::Setting_builder<std::string>()
                                .with_default("")
                                .with_description("File to store orchestrator status to.")
                                .with_arg("status_file");
+
+slt::Setting private_key = slt::Setting_builder<std::string>()
+                               .with_default("")
+                               .with_description("File containing PEM encoded private key.")
+                               .with_arg("private_key");
+
+slt::Setting root_cert = slt::Setting_builder<std::string>()
+                             .with_default("")
+                             .with_description("File containing a PEM encoded trusted root certificate.")
+                             .with_arg("root_cert");
+
+slt::Setting trust_chain = slt::Setting_builder<std::string>()
+                               .with_default("")
+                               .with_description("File containing a PEM encoded trust chain.")
+                               .with_arg("trust_chain");
 }  // namespace settings
 
 namespace {
@@ -76,8 +92,19 @@ const std::string term_status_string = "T";
 }  // namespace
 
 int main(int argc, const char* argv[]) {
-  slt::Settings_context ctx("orchestrator", argc, argv);
   spdlog::set_level(spdlog::level::debug);  // Set global log level to debug
+
+  slt::Settings_context ctx("orchestrator", argc, argv);
+  spdlog::debug("Orchestrator starting with arguments:");
+  spdlog::debug("\t--{}={}", settings::lifecycle_port.arg().value_or(""), settings::lifecycle_port.get());
+  spdlog::debug("\t--{}={}", settings::actor_port.arg().value_or(""), settings::actor_port.get());
+  spdlog::debug("\t--{}={}", settings::config_file.arg().value_or(""), settings::config_file.get());
+  spdlog::debug("\t--{}={}", settings::prometheus_port.arg().value_or(""), settings::prometheus_port.get());
+  spdlog::debug("\t--{}={}", settings::display_version.arg().value_or(""), settings::display_version.get());
+  spdlog::debug("\t--{}={}", settings::status_file.arg().value_or(""), settings::status_file.get());
+  spdlog::debug("\t--{}={}", settings::private_key.arg().value_or(""), settings::private_key.get());
+  spdlog::debug("\t--{}={}", settings::root_cert.arg().value_or(""), settings::root_cert.get());
+  spdlog::debug("\t--{}={}", settings::trust_chain.arg().value_or(""), settings::trust_chain.get());
 
   if (ctx.help_requested()) {
     return 0;
@@ -97,6 +124,44 @@ int main(int argc, const char* argv[]) {
   if (settings::status_file.get() != "") {
     status_file = std::ofstream(settings::status_file.get());
     *status_file << init_status_string << std::flush;
+  }
+
+  std::shared_ptr<rpc::server::Credentials> server_creds;
+  std::shared_ptr<rpc::client::Credentials> client_creds;
+  const bool using_ssl = !(settings::private_key.get().empty() && settings::root_cert.get().empty() &&
+                           settings::trust_chain.get().empty());
+  if (using_ssl) {
+    auto private_key_file = std::ifstream(settings::private_key.get());
+    if (!private_key_file.is_open() || !private_key_file.good()) {
+      auto cwd = std::filesystem::current_path().string();
+      spdlog::error("Could not open private key file: {}/{}", cwd, settings::private_key.get());
+      return 1;
+    }
+    std::stringstream private_key;
+    private_key << private_key_file.rdbuf();
+
+    auto root_cert_file = std::ifstream(settings::root_cert.get());
+    if (!root_cert_file.is_open() || !root_cert_file.good()) {
+      auto cwd = std::filesystem::current_path().string();
+      spdlog::error("Could not open root certificate file: {}/{}", cwd, settings::root_cert.get());
+      return 1;
+    }
+    std::stringstream root_cert;
+    root_cert << root_cert_file.rdbuf();
+
+    auto trust_chain_file = std::ifstream(settings::trust_chain.get());
+    if (!trust_chain_file.is_open() || !trust_chain_file.good()) {
+      auto cwd = std::filesystem::current_path().string();
+      spdlog::error("Could not open certificate trust chain file: {}/{}", cwd, settings::trust_chain.get());
+      return 1;
+    }
+    std::stringstream trust_chain;
+    trust_chain << trust_chain_file.rdbuf();
+
+    server_creds = std::make_shared<rpc::server::Credentials>(root_cert.str().c_str(), private_key.str().c_str(),
+                                                              trust_chain.str().c_str());
+    client_creds = std::make_shared<rpc::client::Credentials>(root_cert.str().c_str(), private_key.str().c_str(),
+                                                              trust_chain.str().c_str());
   }
 
   {  // Create a scope so that all local variables created from this
@@ -129,7 +194,7 @@ int main(int argc, const char* argv[]) {
     cogment::Trial_spec trial_spec(cogment_yaml);
     auto params = cogment::load_params(cogment_yaml, trial_spec);
 
-    cogment::Orchestrator orchestrator(std::move(trial_spec), std::move(params));
+    cogment::Orchestrator orchestrator(std::move(trial_spec), std::move(params), client_creds);
 
     // ******************* Networking *******************
     cogment::Stub_pool<cogment::TrialHooks> hook_stubs(orchestrator.channel_pool(), orchestrator.client_queue());
@@ -154,7 +219,7 @@ int main(int argc, const char* argv[]) {
     cfg.add_default_listening_queues({server_queues.begin(), server_queues.end()})
         .add_feature(rpc::Reflection_feature())
         .add_service(orchestrator.trial_lifecycle_service())
-        .add_listening_port(lifecycle_endpoint);
+        .add_listening_port(lifecycle_endpoint, server_creds);
 
     // If the lifecycle endpoint is the same as the ClientActor, then run them
     // off the same server, otherwise, start a second server.
@@ -166,7 +231,7 @@ int main(int argc, const char* argv[]) {
       actor_cfg.add_default_listening_queues({server_queues.begin(), server_queues.end()})
           .add_feature(rpc::Reflection_feature())
           .add_service(orchestrator.actor_service())
-          .add_listening_port(actor_endpoint);
+          .add_listening_port(actor_endpoint, server_creds);
 
       servers.emplace_back(std::move(actor_cfg));
     }

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Added
+
+- Addition for tls communication
+
 ## v1.0.0-alpha4 - 2021-02-17
 
 ## v1.0.0-alpha3 - 2021-01-28
