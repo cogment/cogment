@@ -27,7 +27,6 @@ import (
 
 func TestGeneratePythonSettings(t *testing.T) {
 	dir, err := ioutil.TempDir("", "testgeneratepythonsettings")
-
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -37,15 +36,7 @@ func TestGeneratePythonSettings(t *testing.T) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	for _, proto := range config.Import.Proto {
-		err = registerProtoFile("../testdata/", proto)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-
-	err = generatePythonSettings(config, "../testdata", dir)
-
+	err = generate(config, []string{dir})
 	assert.Nil(t, err)
 
 	assert.FileExists(t, path.Join(dir, "somedata_pb2.py"))

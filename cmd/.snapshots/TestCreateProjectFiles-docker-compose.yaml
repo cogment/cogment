@@ -7,6 +7,7 @@ services:
     build:
       context: dumb
       dockerfile: ../py_service.dockerfile
+    restart: on-failure
     environment:
       - COGMENT_GRPC_REFLECTION=1
       - PYTHONUNBUFFERED=1
@@ -15,6 +16,7 @@ services:
     build:
       context: smart
       dockerfile: ../py_service.dockerfile
+    restart: on-failure
     environment:
       - COGMENT_GRPC_REFLECTION=1
       - PYTHONUNBUFFERED=1
@@ -24,6 +26,7 @@ services:
     build:
       context: environment
       dockerfile: ../py_service.dockerfile
+    restart: on-failure
     environment:
       - COGMENT_GRPC_REFLECTION=1
       - PYTHONUNBUFFERED=1
@@ -32,8 +35,13 @@ services:
     build:
       context: .
       dockerfile: orchestrator.dockerfile
+    restart: on-failure
     ports:
       - "9000:9000"
+    depends_on:
+      - environment
+      - dumb
+      - smart
 
   client:
     build:
@@ -43,6 +51,32 @@ services:
       - PYTHONUNBUFFERED=1
     stdin_open: true
     tty: true
+    depends_on:
+      - orchestrator
+
+  web-client:
+    build:
+      context: web-client
+      dockerfile: ../js_service.dockerfile
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
+      - REACT_APP_APP_VERSION=dev
+    restart: on-failure
+    ports:
+      - "3000:3000"
+    depends_on:
+      - grpcwebproxy
+
+  grpcwebproxy:
+    build:
+      context: ./grpcwebproxy
+      dockerfile: ../grpcwebproxy.dockerfile
+    restart: on-failure
+    ports:
+      - "8080:8080"
+    depends_on:
+      - orchestrator
 
   dashboard:
     image: cogment/dashboard:latest
@@ -59,6 +93,8 @@ services:
       - ./metrics/data:/prometheus
     ports:
       - 9090:9090/tcp
+    depends_on:
+      - cadvisor
 
   cadvisor:
     privileged: true
@@ -73,5 +109,4 @@ services:
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
       - /dev/disk:/dev/disk:ro
-
 

@@ -16,6 +16,7 @@ package helper
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"regexp"
 	"strings"
@@ -44,13 +45,31 @@ func Kebabify(data string) string {
 }
 
 func Pascalify(data string) string {
-	space := regexp.MustCompile(`\s+`)
+	data = regexp.MustCompile(`[_\W]+`).ReplaceAllString(data, " ")
 	data = strings.Title(data)
-	data = space.ReplaceAllString(data, "")
+	data = regexp.MustCompile(`\s+`).ReplaceAllString(data, "")
 	return data
 }
 
 func Tocaps(data string) string {
 	data = strings.ToUpper(data)
 	return data
+}
+
+func ProtoPathToPyPath(protoPath string) string {
+	return strings.ReplaceAll(
+		fmt.Sprintf(
+			"%s_pb2",
+			strings.TrimSuffix(
+				protoPath,
+				".proto",
+			),
+		),
+		"/",
+		".",
+	)
+}
+
+func ProtoPathToJsPath(protoPath string) string {
+	return strings.ReplaceAll(fmt.Sprintf("%s_pb", strings.TrimSuffix(protoPath, ".proto")), "/", ".")
 }

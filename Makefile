@@ -42,7 +42,7 @@ clean:
 	rm -f $(BINARY_NAME) $(BINARY_LINUX) $(BINARY_MAC)
 
 run: build
-	./$(BINARY_NAME)
+	build/$(BINARY_NAME)
 
 fmt:
 	$(GOFMT) -l -w ./..
@@ -51,7 +51,7 @@ lint: check-fmt
 
 check-fmt:
 	$(GOFMT) -l ./..
-	@test -z "$(shell $(GOFMT) -l ./..)"
+	@test -z "$(shell $(GOFMT) -l ./..)" || echo "[WARN] Fix formatting issues with 'make fmt'"
 
 check-codingstyle:
 	$(GOCMD) run golang.org/x/lint/golint  ./...

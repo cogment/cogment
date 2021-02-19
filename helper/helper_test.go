@@ -62,6 +62,7 @@ func TestPascalify(t *testing.T) {
 		expected string
 	}{
 		{"the     agent", "TheAgent"},
+		{"the_agent", "TheAgent"},
 	}
 
 	for _, tt := range tests {

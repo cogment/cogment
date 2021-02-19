@@ -5,15 +5,19 @@ import:
 
 commands:
   generate: >
-    cogment generate --python_dir=./environment &&
-    {{ range .ListServiceActorServices -}}
-    cogment generate --python_dir=./{{.Name|snakeify}} &&
-    {{ end -}}
-    cogment generate --python_dir=./client
-  build: docker-compose build
-  # Start and stop services
-  start: docker-compose up orchestrator environment metrics dashboard{{ range .ListServiceActorServices }} {{.Name|kebabify}}{{end}}
-  stop: docker-compose stop orchestrator environment metrics dashboard{{ range .ListServiceActorServices }} {{.Name|kebabify}}{{end}}
+    cogment generate
+    {{ if $config.WebClient }}--web-client{{ end }}
+    {{ if $config.Typescript }}--typescript{{ end }}
+    --python-out environment
+    --python-out client
+    {{- range .ListServiceActorServices }}
+    --python-out {{.Name|snakeify}}
+    {{- end }}
+  build: docker-compose build web-client dashboard
+  dashboard: docker-compose up --build dashboard
+  start: docker-compose up dashboard {{ if $config.WebClient }}web-client{{else}}orchestrator{{ end }}
+  stop: docker-compose stop dashboard {{ if $config.WebClient }}web-client{{else}}orchestrator{{ end }}
+  down: docker-compose down
   client: docker-compose run --rm client
 
 environment:
@@ -38,11 +42,11 @@ trial_params:
     endpoint: grpc://environment:9000
     #config: {}
   actors:
-  {{- range .TrialParams.Actors}}
+  {{- range .TrialParams.Actors }}
     - name: {{.Name|snakeify}}
       actor_class: {{.ActorClass|snakeify}}
-      {{ if computeTrialActorServiceName . | ne "client" -}}
+      {{- if computeTrialActorServiceName . | ne "client" }}
       implementation: {{.Implementation}}
-      {{ end -}}
+      {{- end }}
       endpoint: {{.Endpoint}}
   {{- end }}

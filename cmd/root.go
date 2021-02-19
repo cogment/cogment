@@ -24,13 +24,18 @@ import (
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
+
 	"gitlab.com/cogment/cogment/cmd/configure"
 	"gitlab.com/cogment/cogment/cmd/registry"
 	"gitlab.com/cogment/cogment/helper"
 )
 
-//var cfgFile string
-var Verbose, BetaFeatureEnabled bool
+var logger *zap.SugaredLogger
+var (
+	BetaFeatureEnabled bool
+	Verbose            bool
+)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -48,9 +53,10 @@ func Execute() {
 }
 
 func init() {
-	cobra.OnInitialize(initConfig, enableBetaFeatures)
+	initLogger()
+	cobra.OnInitialize(initConfig, initLogger, enableBetaFeatures)
 
-	rootCmd.PersistentFlags().StringVar(&helper.CfgFile, "config", "", "config file (default is $HOME/.cogment.toml)")
+	// rootCmd.PersistentFlags().StringVar(&helper.CfgFile, "config", "", "config file (default is $HOME/.cogment.toml)")
 
 	rootCmd.PersistentFlags().BoolVarP(&Verbose, "verbose", "v", false, "verbose output")
 
@@ -75,10 +81,7 @@ func initConfig() {
 	} else {
 		// Find home directory.
 		home, err := homedir.Dir()
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
+		helper.CheckError(err)
 
 		// Search config in home directory with name ".cogment" (without extension).
 		viper.AddConfigPath(home)
@@ -98,7 +101,6 @@ func initConfig() {
 	if Verbose {
 		log.Println("Using config file:", viper.ConfigFileUsed())
 	}
-
 }
 
 func enableBetaFeatures() {
@@ -113,5 +115,8 @@ func enableBetaFeatures() {
 			cmd.Hidden = false
 		}
 	}
+}
 
+func initLogger() {
+	logger = helper.GetSugarLogger([]string{"cmd"})
 }

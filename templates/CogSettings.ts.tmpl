@@ -1,0 +1,81 @@
+/*
+ *  Copyright 2021 Artificial Intelligence Redefined <dev+cogment@ai-r.com>
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ *
+ */
+
+import {Message} from 'google-protobuf';
+
+{{- range $i, $proto := .Import.Proto }}
+import * as {{index $.Import.ProtoAlias $i}} from './{{$proto | protoPathToJsPath}}';
+{{- end }}
+{{- range .Import.Javascript -}}
+import * as {{.}} from './{{.}}';
+{{- end}}
+
+export interface ActorClass {
+  id: string;
+  config?: typeof Message;
+  actionSpace: typeof Message;
+  observationSpace: typeof Message;
+  observationDelta?: typeof Message;
+  observationDeltaApply?: (x: Message) => Message;
+  feedbackSpace?: typeof Message;
+}
+
+{{- range .ActorClasses}}
+export class {{.Id | pascalify}}ActorClass implements ActorClass {
+  id = '{{.Id}}';
+{{- if .ConfigType }},
+  config = {{.ConfigType}};
+{{- end}}
+  actionSpace = {{.Action.Space}};
+{{- with .Observation }}
+  observationSpace = {{.Space}};
+  observationDelta = {{if .Delta}}{{.Delta}}{{else}}{{.Space}}{{end}};
+  observationDeltaApply(observationDelta: Message) {
+    return observationDelta;
+  }
+{{- end}}
+}
+{{- end}}
+
+export const cogSettings = {
+  actorClasses: {
+{{- range .ActorClasses}}
+    {{.Id}}: {{.Id | pascalify}}ActorClass,
+{{- end}}
+  },
+{{- with .Trial }}
+  trial: {
+{{- if .ConfigType }}
+    config: {{ .ConfigType }},
+{{- end}}
+  },
+{{- end}}
+{{- with .Environment }}
+  environment: {
+{{- if .ConfigType }}
+    config: {{ .ConfigType }},
+{{- end}}
+    class: {
+      id: 'env',
+      config: null,
+      messageSpace: null,
+    }
+  },
+{{- end}}
+};
+
+export type CogSettings = typeof cogSettings;

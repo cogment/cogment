@@ -13,13 +13,9 @@ async def environment(environment_session):
     # Start the trial and send that observation to all actors
     environment_session.start([("*", observation)])
 
-    async for event in environment_session.event_loop():
+    async for event in environment_session.event_loop():    
         if "actions" in event:
-            actions = event["actions"]
-            print(f"environment received actions")
-            for actor, action in zip(environment_session.get_active_actors(), actions):
-                print(f" actor '{actor.actor_name}' did action '{action}'")
-
+            print("environment updating")
             observation = Observation()
             environment_session.produce_observations([("*", observation)])
         if "message" in event:

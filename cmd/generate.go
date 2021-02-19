@@ -17,27 +17,22 @@ package cmd
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"path"
-	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/spf13/cobra"
-	"gitlab.com/cogment/cogment/api"
-	"gitlab.com/cogment/cogment/templates"
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/descriptorpb"
-)
 
-const settingsFilename = "cog_settings"
-const (
-	python = iota
-	javascript
+	"gitlab.com/cogment/cogment/api"
+	"gitlab.com/cogment/cogment/helper"
+	"gitlab.com/cogment/cogment/templates"
 )
 
 // generateCmd represents the generate command
@@ -45,79 +40,83 @@ var generateCmd = &cobra.Command{
 	Use:   "generate",
 	Short: "Generate settings and compile your proto files",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		if !cmd.Flags().Changed("python_dir") && !cmd.Flags().Changed("js_dir") {
-			log.Fatalln("no destination specified")
+		pythonOutPaths, err := cmd.Flags().GetStringArray("python-out")
+		helper.CheckError(err)
+		projectConfigPath, err := cmd.Flags().GetString("file")
+		helper.CheckError(err)
+
+		if projectConfigPath == "" {
+			cwd, err := os.Getwd()
+			helper.CheckError(err)
+			projectConfigPath, err = api.GetProjectConfigPathFromProjectPath(cwd)
+			helper.CheckError(err)
+			err = cmd.Flags().Set("file", projectConfigPath)
+			helper.CheckError(err)
 		}
 
-		file, err := cmd.Flags().GetString("file")
-		if err != nil {
-			log.Fatalln(err)
+		for _, pythonOutPath := range pythonOutPaths {
+			if _, err := os.Stat(pythonOutPath); os.IsNotExist(err) {
+				logger.Fatalf("Python output path %s does not exist: %v", pythonOutPath, err)
+			}
+		}
+		if _, err := os.Stat(projectConfigPath); os.IsNotExist(err) {
+			logger.Fatalf("%s doesn't exist: %v", projectConfigPath, err)
 		}
 
-		if _, err := os.Stat(file); os.IsNotExist(err) {
-			log.Fatalf("%s doesn't exist", file)
-		}
-
+		// TODO: check for existence of npx, npm if web-client enabled
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := runGenerateCmd(cmd); err != nil {
-			log.Fatalln(err)
-		}
-
-		fmt.Println("Files have been generated")
+		err := runGenerateCmd(cmd)
+		helper.CheckError(err)
+		logger.Info("Files have been generated")
 	},
 }
 
-func registerProtoFile(src string, filename string) error {
-	log.Printf("registering %s", filename)
-
-	// First, convert the .proto file to a file descriptor in a temp directory
+func registerProtos(config *api.ProjectConfig) error {
+	logger.Debugf("Registering protos for %s", config.ProjectConfigPath)
+	projectRootPath := path.Dir(config.ProjectConfigPath)
 	tmpDir, err := ioutil.TempDir("", "registerprotofile")
-	if err != nil {
-		return err
+	helper.CheckError(err)
+	defer func() {
+		err := os.RemoveAll(tmpDir)
+		helper.CheckError(err)
+	}()
+
+	for _, protoPath := range config.Import.Proto {
+		params := append([]string{
+			"--descriptor_set_out",
+			path.Join(tmpDir, "data.pb"),
+			"-I",
+			path.Dir(protoPath),
+		}, protoPath)
+
+		logger.Debugf("protoc %s", strings.Join(params, " "))
+
+		subProcess := exec.Command("protoc", params...)
+		subProcess.Dir = projectRootPath
+		subProcess.Stdout = os.Stdout
+		subProcess.Stderr = os.Stderr
+
+		err = subProcess.Run()
+		helper.CheckErrorf(err, "%s has failed", subProcess.String())
+
+		protoFile, err := ioutil.ReadFile(path.Join(tmpDir, "data.pb"))
+		helper.CheckError(err)
+
+		pbSet := new(descriptorpb.FileDescriptorSet)
+		err = proto.Unmarshal(protoFile, pbSet)
+		helper.CheckError(err)
+
+		pb := pbSet.GetFile()[0]
+
+		// And initialized the descriptor with it
+		fd, err := protodesc.NewFile(pb, protoregistry.GlobalFiles)
+		helper.CheckError(err)
+		// and finally register it.
+		err = protoregistry.GlobalFiles.RegisterFile(fd)
+		helper.CheckError(err)
 	}
-	defer os.RemoveAll(tmpDir)
-	tmpFile := path.Join(tmpDir, filename+".pb")
-
-	os.MkdirAll(path.Dir(tmpFile), 0755)
-
-	cmd := exec.Command("protoc",
-		"--descriptor_set_out="+tmpFile,
-		"-I"+src,
-		path.Join(src, filename))
-
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err = cmd.Run()
-	if err != nil {
-		if Verbose {
-			log.Println(cmd.String())
-		}
-		log.Printf("cmd.Run() failed with %s\n", err)
-		return err
-	}
-
-	// Now load that temporary file as a descriptor protobuf
-	protoFile, err := ioutil.ReadFile(tmpFile)
-	if err != nil {
-		return err
-	}
-
-	pbSet := new(descriptorpb.FileDescriptorSet)
-	if err := proto.Unmarshal(protoFile, pbSet); err != nil {
-		return err
-	}
-
-	pb := pbSet.GetFile()[0]
-
-	// And initialized the descriptor with it
-	fd, err := protodesc.NewFile(pb, protoregistry.GlobalFiles)
-	if err != nil {
-		return err
-	}
-
-	// and finally register it.
-	return protoregistry.GlobalFiles.RegisterFile(fd)
+	return nil
 }
 
 func clearProtoRegistry() {
@@ -125,127 +124,212 @@ func clearProtoRegistry() {
 }
 
 func runGenerateCmd(cmd *cobra.Command) error {
+	projectConfigPath, err := cmd.Flags().GetString("file")
+	helper.CheckError(err)
+	webClient, err := cmd.Flags().GetBool("web-client")
+	helper.CheckError(err)
+	typescript, err := cmd.Flags().GetBool("typescript")
+	helper.CheckError(err)
+	pythonOutPaths, err := cmd.Flags().GetStringArray("python-out")
+	helper.CheckError(err)
 
-	file, err := cmd.Flags().GetString("file")
-	if err != nil {
-		log.Fatalln(err)
-	}
+	config, err := api.CreateProjectConfigFromYaml(projectConfigPath)
+	helper.CheckError(err)
 
-	pythonGenerationDir := ""
-	if cmd.Flags().Changed("python_dir") {
-		pythonGenerationDir, err = cmd.Flags().GetString("python_dir")
-		if err != nil {
-			return err
-		}
-	}
+	config.WebClient = webClient
+	config.Typescript = typescript
 
-	javascriptGenerationDir := ""
-	if cmd.Flags().Changed("js_dir") {
-		javascriptGenerationDir, err = cmd.Flags().GetString("js_dir")
-		if err != nil {
-			return err
-		}
-	}
-
-	return generate(file, pythonGenerationDir, javascriptGenerationDir)
+	return generate(config, pythonOutPaths)
 }
 
-func generate(projectFile string, pythonGenerationDir string, javascriptGenerationDir string) error {
-	projectDir := filepath.Dir(projectFile)
+func generate(config *api.ProjectConfig, pythonOutPaths []string) error {
+	logger.Infof("Generating project configuration for %s", config.ProjectConfigPath)
+	webClient := config.WebClient
+	typescript := config.Typescript
 
-	config, err := api.CreateProjectConfigFromYaml(projectFile)
-	if err != nil {
+	config, err := api.CreateProjectConfigFromYaml(config.ProjectConfigPath)
+	helper.CheckError(err)
+
+	config.WebClient = webClient
+	config.Typescript = typescript
+
+	if err := registerProtos(config); err != nil {
 		return err
 	}
 	defer clearProtoRegistry()
-	for _, proto := range config.Import.Proto {
-		if err = registerProtoFile(projectDir, proto); err != nil {
-			return err
-		}
-	}
 
-	if pythonGenerationDir != "" {
-		// We need to reload the config because it is being manipulated
-		config, err := api.CreateProjectConfigFromYaml(projectFile)
-		if err != nil {
-			return err
-		}
-		if err := generatePythonSettings(config, projectDir, pythonGenerationDir); err != nil {
-			return err
-		}
-	}
+	config = updateConfigWithMessage(config)
 
-	if javascriptGenerationDir != "" {
-		// We need to reload the config because it is being manipulated
-		config, err = api.CreateProjectConfigFromYaml(projectFile)
-		if err != nil {
+	err = generatePython(config, pythonOutPaths)
+	helper.CheckError(err)
+
+	if config.WebClient {
+		err := generateWebClient(config)
+		helper.CheckError(err)
+	}
+	return nil
+}
+
+func generatePython(config *api.ProjectConfig, outputPaths []string) error {
+	logger.Infof("Generating python configuration for %s", config.ProjectConfigPath)
+
+	err := compileProtosPy(config, outputPaths)
+	helper.CheckErrorf(err, "Failed compiling protobufs")
+
+	for _, outputPath := range outputPaths {
+		settingsFilenameTmpl := fmt.Sprintf("/templates/%s.tmpl", api.SettingsFilenamePy)
+		pythonSettingsPath := path.Join(outputPath, api.SettingsFilenamePy)
+		logger.Infof("Generating %s/cog_settings.py", pythonSettingsPath)
+		if err := os.MkdirAll(outputPath, 0755); err != nil {
 			return err
 		}
-		if err := generateJavascriptSettings(config, projectDir, javascriptGenerationDir); err != nil {
-			return err
+
+		if err := templates.GenerateFromTemplate(
+			settingsFilenameTmpl,
+			config,
+			pythonSettingsPath,
+		); err != nil {
+			return fmt.Errorf("error generating python: %v", err)
 		}
 	}
 
 	return nil
 }
 
-func generatePythonSettings(config *api.ProjectConfig, src, dir string) error {
-	dest := path.Join(dir, settingsFilename+".py")
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
+func compileProtosPy(config *api.ProjectConfig, outputPyPaths []string) error {
+	projectRootPath := path.Dir(config.ProjectConfigPath)
+
+	var params []string
+
+	for _, protoPathProjectRelative := range config.Import.Proto {
+		protoDirProjectRelative := path.Dir(protoPathProjectRelative)
+		params = append(params, "-I", protoDirProjectRelative)
 	}
 
-	var err error
-	for k, proto := range config.Import.Proto {
-		config.Import.Proto[k] = strings.TrimSuffix(proto, ".proto") + "_pb2"
-		config.Import.Proto[k] = strings.ReplaceAll(config.Import.Proto[k], "/", ".")
-		if Verbose {
-			log.Println("Compiling " + proto)
-		}
-
-		if err = compileProto(src, dir, proto, python); err != nil {
-			break
-		}
+	for _, outputPyPath := range outputPyPaths {
+		params = append(params, "--python_out", outputPyPath)
 	}
 
-	if err != nil {
-		return err
+	for _, protoPathProjectRelative := range config.Import.Proto {
+		params = append(params, protoPathProjectRelative)
 	}
 
-	config = updateConfigWithMessage(config)
+	logger.Debugf("protoc %s", strings.Join(params, " "))
 
-	err = templates.GenerateFromTemplate("/templates/cog_settings.py.tmpl", config, dest)
+	subProcess := exec.Command("protoc", params...)
+	subProcess.Dir = projectRootPath
+	subProcess.Stdout = os.Stderr
+	subProcess.Stderr = os.Stderr
 
-	return err
+	if err := subProcess.Run(); err != nil {
+		return fmt.Errorf("failed compiling protobuf %v", err)
+	}
+
+	return nil
 }
 
-func generateJavascriptSettings(config *api.ProjectConfig, src, dir string) error {
-	dest := path.Join(dir, settingsFilename+".js")
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
+func generateWebClient(config *api.ProjectConfig) error {
+	projectRootPath := path.Dir(config.ProjectConfigPath)
+	logger.Infof("Generating %s/web-client", projectRootPath)
+
+	if err := compileProtosJs(config); err != nil {
+		return fmt.Errorf("error generating web-client: %v", err)
 	}
 
-	var err error
-	for k, proto := range config.Import.Proto {
-		config.Import.Proto[k] = strings.TrimSuffix(proto, ".proto") + "_pb"
-		if Verbose {
-			log.Println("Compiling " + proto)
-		}
+	if err := generateCogSettings(config); err != nil {
+		return fmt.Errorf("error generating web client: %v", err)
+	}
+	return nil
+}
 
-		if err = compileProto(src, dir, proto, javascript); err != nil {
-			break
-		}
+func compileProtosJs(config *api.ProjectConfig) error {
+	projectRootPath := path.Dir(config.ProjectConfigPath)
+	params := append([]string{
+		"-I",
+		".",
+		"--js_out=import_style=commonjs,binary:./web-client/src",
+	}, config.Import.Proto...)
+
+	if config.Typescript {
+		params = append(
+			params,
+			"--plugin=protoc-gen-ts=./web-client/node_modules/.bin/protoc-gen-ts",
+			"--ts_out=service=grpc-web:./web-client/src",
+		)
 	}
 
+	subProcess := exec.Command("protoc", params...)
+	subProcess.Dir = projectRootPath
+	subProcess.Stdout = os.Stderr
+	subProcess.Stderr = os.Stderr
+
+	if err := subProcess.Run(); err != nil {
+		return fmt.Errorf("failed compiling protobufs %v", err)
+	}
+
+	return nil
+}
+
+func generateCogSettings(config *api.ProjectConfig) error {
+	projectRootPath := path.Dir(config.ProjectConfigPath)
+	settingsFilenameTmpl := fmt.Sprintf("%s.tmpl", api.SettingsFilenameJs)
+	tsSettingsTemplatePath := path.Join("/templates", settingsFilenameTmpl)
+	webClientPath := path.Join(projectRootPath, "web-client")
+	webClientSrcPath := path.Join(webClientPath, "src")
+	cogSettingsPath := path.Join(webClientSrcPath, api.SettingsFilenameJs)
+	shellCommand := "/bin/sh"
+
+	if runtime.GOOS == "windows" {
+		shellCommand = "cmd"
+	}
+
+	err := templates.GenerateFromTemplate(tsSettingsTemplatePath, config, cogSettingsPath)
+	helper.CheckErrorf(err, "error generating %s", api.SettingsFilenameJs)
+
+	tscCompileCmd := fmt.Sprintf(
+		`
+		set -xe
+		npx tsc --declaration --declarationMap --outDir src src/%s
+		exit
+	`,
+		api.SettingsFilenameJs,
+	)
+
+	subProcess := exec.Command(shellCommand)
+	subProcess.Dir = webClientPath
+	subProcess.Stdout = os.Stdout
+	subProcess.Stderr = os.Stderr
+
+	stdin, err := subProcess.StdinPipe()
 	if err != nil {
+		logger.Fatalf("Unable to open pipe to subprocess stdin: %v", err)
+	}
+	defer func() {
+		if err := stdin.Close(); err != nil {
+			logger.Fatalf("Error when creating react app: %v", err)
+		}
+	}()
+
+	if err := subProcess.Start(); err != nil {
+		logger.Fatalf("Error in init while creating react app %v", err)
+	}
+
+	if _, err = fmt.Fprintln(stdin, tscCompileCmd); err != nil {
 		return err
 	}
 
-	config = updateConfigWithMessage(config)
+	if err := subProcess.Wait(); err != nil {
+		return err
+	}
 
-	err = templates.GenerateFromTemplate("/templates/cog_settings.js.tmpl", config, dest)
+	//Clean up typescript cogsettings file
+	typescriptFileToRemove := fmt.Sprintf("web-client/src/%s", api.SettingsFilenameJs)
+	err = os.Remove(typescriptFileToRemove)
+	if err != nil {
+		helper.CheckErrorf(err, "Could not clean up %s", api.SettingsFilenameJs)
+	}
 
-	return err
+	return nil
 }
 
 func updateConfigWithMessage(config *api.ProjectConfig) *api.ProjectConfig {
@@ -281,55 +365,19 @@ func lookupMessageType(name string) string {
 
 func findFileContainingSymbol(name string) string {
 	tmp := protoreflect.FullName(name)
-	desc, err := protoregistry.GlobalFiles.FindDescriptorByName(tmp)
+	logger.Debugf("Finding proto file containing %s", tmp)
 
-	if err != nil {
-		log.Printf("Failed to lookup %s", name)
-		log.Fatalf("%v", err)
-	}
+	desc, err := protoregistry.GlobalFiles.FindDescriptorByName(tmp)
+	helper.CheckErrorf(err, "Failed to lookup %s", name)
 
 	return desc.ParentFile().Path()
-}
-
-func compileProto(src, dest, proto string, language int8) error {
-
-	var params []string
-	switch language {
-	case python:
-		_, err := exec.LookPath("protoc-gen-mypy")
-		if err != nil {
-			log.Printf("Warning: protoc-gen-mypy not found, IDE autocomplete support will be limited.")
-		} else {
-			params = append(params, "--mypy_out="+dest)
-		}
-
-		params = append(params, "-I"+src, "--python_out="+dest, path.Join(src, proto))
-	case javascript:
-		params = append(params, "-I"+src, "--js_out=import_style=commonjs,binary:"+dest, path.Join(src, proto))
-	default:
-		return fmt.Errorf("language %d is not supported", language)
-	}
-
-	cmd := exec.Command("protoc", params...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err := cmd.Run()
-	if err != nil {
-		if Verbose {
-			log.Println(cmd.String())
-		}
-		log.Printf("cmd.Run() failed with %s\n", err)
-		return err
-	}
-
-	return nil
 }
 
 func init() {
 	rootCmd.AddCommand(generateCmd)
 
-	generateCmd.Flags().StringP("file", "f", "cogment.yaml", "project configuration file")
-	generateCmd.Flags().String("python_dir", "", "destination of python generated files")
-	generateCmd.Flags().String("js_dir", "", "destination of javascript generated files")
-
+	generateCmd.Flags().StringP("file", "f", "", "path to project config cogment.yaml")
+	generateCmd.Flags().BoolP("web-client", "w", false, "generate files for web-client (requires a node.js distribution on $PATH)")
+	generateCmd.Flags().BoolP("typescript", "t", false, "project uses typescript")
+	generateCmd.Flags().StringArrayP("python-out", "p", []string{}, "python output directories")
 }

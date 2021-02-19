@@ -3,14 +3,14 @@ from types import SimpleNamespace
 from typing import List
 
 {{range $i, $proto := .Import.Proto -}}
-import {{$proto}} as {{index $.Import.ProtoAlias $i}}
+import {{$proto | protoPathToPyPath}} as {{index $.Import.ProtoAlias $i}}
 {{end -}}
 {{- range .Import.Python -}}
 import {{.}}
 {{end}}
 
 {{range .Import.Proto -}}
-protolib = "{{.}}"
+protolib = "{{. | protoPathToPyPath}}"
 {{end}}
 
 

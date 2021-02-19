@@ -54,6 +54,8 @@ func GenerateFromTemplate(tmplPath string, config interface{}, outputPath string
 		"pascalify":                    helper.Pascalify,
 		"tocaps":                       helper.Tocaps,
 		"computeTrialActorServiceName": api.ComputeTrialActorServiceName,
+		"protoPathToPyPath":            helper.ProtoPathToPyPath,
+		"protoPathToJsPath":            helper.ProtoPathToJsPath,
 	})
 
 	t = template.Must(t.Parse(string(tmplFileContent)))

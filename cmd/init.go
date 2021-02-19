@@ -19,18 +19,37 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
+	"os/exec"
 	"path"
+	"runtime"
 	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
+
 	"gitlab.com/cogment/cogment/api"
 	"gitlab.com/cogment/cogment/helper"
 	"gitlab.com/cogment/cogment/templates"
 	"gitlab.com/cogment/cogment/version"
 )
+
+var JavascriptDependencies = []string{
+	"@cogment/cogment-js-sdk",
+	"google-protobuf",
+}
+
+var JavascriptDevDependencies = []string{
+	"eslint",
+	"nps",
+}
+
+var TypescriptDependencies = []string{}
+
+var TypescriptDevDependencies = []string{
+	"@types/google-protobuf",
+	"ts-protoc-gen",
+}
 
 // initCmd represents the init command
 var initCmd = &cobra.Command{
@@ -58,30 +77,54 @@ var initCmd = &cobra.Command{
 
 		config, err := createProjectConfigFromReader(os.Stdin)
 		if err != nil {
-			log.Fatalln(err)
+			logger.Fatal(err)
 		}
+
+		// TODO: check for existence of npx, npm
 
 		projectname := strings.Split(dst, "/")
 		config.ProjectName = projectname[len(projectname)-1]
 		config.CliVersion = version.CliVersion
+		config.ProjectConfigPath = path.Join(dst, "cogment.yaml")
 
-		err = createProjectFiles(dst, config)
-		if err != nil {
-			log.Fatalln(err)
-		}
+		err = createProjectFiles(config)
+		helper.CheckError(err)
 	},
 }
 
-func createProjectFiles(dst string, config *api.ProjectConfig) error {
+func createProjectFiles(config *api.ProjectConfig) error {
+	logger.Info("Creating project")
 
+	err := createApp(config)
+	helper.CheckError(err)
+
+	if config.WebClient {
+		logger.Info("Creating web-client")
+		err := createWebClient(config)
+		helper.CheckErrorf(err, "Failure when creating web-client")
+	}
+	pythonOutPaths := []string{api.EnvironmentServiceName, api.ClientServiceName}
+	for _, service := range config.ListServiceActorServices() {
+		pythonOutPaths = append(pythonOutPaths, helper.Snakeify(service.Name))
+	}
+	return nil
+}
+
+func createApp(config *api.ProjectConfig) error {
+	logger.Info("Scaffolding application")
+	projectRootPath := path.Dir(config.ProjectConfigPath)
+	logger.Infof("Creating project structure at %s", projectRootPath)
 	err := templates.RecursivelyGenerateFromTemplates(
 		"/templates",
 		[]string{
 			"ACTOR_SERVICE_NAME",
 			"cog_settings*",
+			"CogSettings*",
+			"web-client",
 		},
 		config,
-		dst)
+		projectRootPath,
+	)
 	if err != nil {
 		return err
 	}
@@ -92,27 +135,103 @@ func createProjectFiles(dst string, config *api.ProjectConfig) error {
 			"Service": service,
 		}
 
-		err := templates.RecursivelyGenerateFromTemplates("/templates/ACTOR_SERVICE_NAME", []string{}, actorServiceTemplateConfig, path.Join(dst, helper.Snakeify(service.Name)))
-		if err != nil {
+		if err := templates.RecursivelyGenerateFromTemplates(
+			"/templates/ACTOR_SERVICE_NAME",
+			[]string{},
+			actorServiceTemplateConfig,
+			path.Join(projectRootPath, helper.Snakeify(service.Name)),
+		); err != nil {
 			return err
 		}
+	}
+	logger.Info("Scaffolding application complete")
+	return nil
+}
+
+func createWebClient(config *api.ProjectConfig) error {
+	logger.Info("Creating web-client from npm")
+	projectRootPath := path.Dir(config.ProjectConfigPath)
+
+	shellCommand := "/bin/sh"
+
+	if runtime.GOOS == "windows" {
+		shellCommand = "cmd"
 	}
 
-	generatedProjectFile := path.Join(dst, "cogment.yaml")
-	pythonGenerationDirectories := []string{api.EnvironmentServiceName, api.ClientServiceName}
-	for _, service := range config.ListServiceActorServices() {
-		pythonGenerationDirectories = append(pythonGenerationDirectories, helper.Snakeify(service.Name))
+	createReactAppCmd := "npm init react-app web-client"
+	npmDependencies := JavascriptDependencies[:]
+	npmDevDependencies := JavascriptDevDependencies[:]
+
+	if config.Typescript {
+		createReactAppCmd = fmt.Sprintf("%s --template typescript", createReactAppCmd)
+		npmDependencies = append(npmDependencies, TypescriptDependencies...)
+		npmDevDependencies = append(npmDevDependencies, TypescriptDevDependencies...)
 	}
-	for _, pythonGenerationDirectory := range pythonGenerationDirectories {
-		if err = generate(generatedProjectFile, path.Join(dst, pythonGenerationDirectory), ""); err != nil {
-			return err
+
+	logger.Debug(createReactAppCmd)
+
+	installJavascriptCmd := fmt.Sprintf(
+		`
+		set -xe
+		%s
+		cd web-client
+		npm install --save %s
+		npm install --save-dev %s
+		npx nps init
+		exit
+		`,
+		createReactAppCmd,
+		strings.Join(npmDependencies, " "),
+		strings.Join(npmDevDependencies, " "),
+	)
+
+	subProcess := exec.Command(shellCommand)
+	subProcess.Dir = projectRootPath
+	subProcess.Stdout = os.Stdout
+	subProcess.Stderr = os.Stderr
+
+	stdin, err := subProcess.StdinPipe()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := stdin.Close(); err != nil {
+			logger.Fatalf("Error when creating react app: %v", err)
 		}
+	}()
+
+	if err := subProcess.Start(); err != nil {
+		logger.Fatalf("Error in init while creating react app %v", err)
+	}
+
+	if _, err = fmt.Fprint(stdin, installJavascriptCmd); err != nil {
+		return err
+	}
+
+	if err := subProcess.Wait(); err != nil {
+		return err
+	}
+
+	webClientRootPath := path.Join(projectRootPath, "web-client")
+
+	logger.Info("Create web-client structure")
+
+	if err := templates.RecursivelyGenerateFromTemplates(
+		"/templates/web-client",
+		[]string{},
+		config,
+		webClientRootPath,
+	); err != nil {
+		logger.Fatalf("Error generating web-client: %v", err)
 	}
 
 	return nil
 }
 
-func integerFromReader(reader *bufio.Reader, prompt string, defaultValue *int, validate func(int) (int, error), retryCount int) (int, error) {
+func integerFromReader(reader *bufio.Reader, prompt string, defaultValue *int, validate func(int) (
+	int,
+	error,
+), retryCount int) (int, error) {
 	for i := 0; i < retryCount; i++ {
 		fmt.Printf(prompt)
 		inputStr, _ := reader.ReadString('\n')
@@ -129,10 +248,13 @@ func integerFromReader(reader *bufio.Reader, prompt string, defaultValue *int, v
 			return validatedInputInt, nil
 		}
 	}
-	return 0, fmt.Errorf("Invalid user input")
+	return 0, fmt.Errorf("invalid user input")
 }
 
-func stringFromReader(reader *bufio.Reader, prompt string, defaultValue *string, validate func(string) (string, error), retryCount int) (string, error) {
+func stringFromReader(reader *bufio.Reader, prompt string, defaultValue *string, validate func(string) (
+	string,
+	error,
+), retryCount int) (string, error) {
 	for i := 0; i < retryCount; i++ {
 		fmt.Printf(prompt)
 		inputStr, _ := reader.ReadString('\n')
@@ -146,7 +268,7 @@ func stringFromReader(reader *bufio.Reader, prompt string, defaultValue *string,
 			return validatedInputStr, nil
 		}
 	}
-	return "", fmt.Errorf("Invalid user input")
+	return "", fmt.Errorf("invalid user input")
 }
 
 func validatePositiveNumber(input int) (int, error) {
@@ -205,8 +327,8 @@ func createProjectConfigFromReader(stdin io.Reader) (*api.ProjectConfig, error) 
 		return nil, err
 	}
 
-	actorClassNames := []string{}
-	serviceImplNames := []string{}
+	var actorClassNames []string
+	var serviceImplNames []string
 	connectedImplCreated := false
 	for classIdx := 0; classIdx < actorClassesCount; classIdx++ {
 		className, err := stringFromReader(
@@ -327,6 +449,36 @@ func createProjectConfigFromReader(stdin io.Reader) (*api.ProjectConfig, error) 
 				connectedImplCreated = true
 			}
 		}
+	}
+
+	defaultCreateWebClient := "Y"
+	createWebClient, err := stringFromReader(
+		reader,
+		fmt.Sprintf("Should a web-client be created (Y or N, empty for Y): "),
+		&defaultCreateWebClient,
+		validateYesNoAnswer,
+		3,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	config.WebClient = createWebClient == "Y"
+
+	if createWebClient == "Y" {
+		defaultTypescriptWebClient := "Y"
+		typescriptWebClient, err := stringFromReader(
+			reader,
+			fmt.Sprintf("Should the web-client use Typescript (Y or N, empty for Y): "),
+			&defaultTypescriptWebClient,
+			validateYesNoAnswer,
+			3,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		config.Typescript = typescriptWebClient == "Y"
 	}
 
 	return config, nil

@@ -1,6 +1,6 @@
 module gitlab.com/cogment/cogment
 
-go 1.13
+go 1.15
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
@@ -15,7 +15,6 @@ require (
 	github.com/imdario/mergo v0.3.11
 	github.com/jarcoal/httpmock v1.0.4
 	github.com/jinzhu/copier v0.1.0
-	github.com/jstemmer/go-junit-report v0.9.1 // indirect
 	github.com/magiconair/properties v1.8.0
 	github.com/markbates/pkger v0.17.1
 	github.com/mattn/go-colorable v0.1.4 // indirect
@@ -29,6 +28,7 @@ require (
 	github.com/spf13/pflag v1.0.3
 	github.com/spf13/viper v1.3.2
 	github.com/stretchr/testify v1.4.0
+	go.uber.org/zap v1.16.0
 	golang.org/x/net v0.0.0-20190827160401-ba9fcec4b297 // indirect
 	golang.org/x/text v0.3.2 // indirect
 	google.golang.org/protobuf v1.20.1

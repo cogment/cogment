@@ -15,7 +15,10 @@
 package api
 
 import (
+	"fmt"
 	"io/ioutil"
+	"os"
+	"path"
 	"regexp"
 	"sort"
 	"strings"
@@ -23,8 +26,21 @@ import (
 	"github.com/imdario/mergo"
 	"github.com/jinzhu/copier"
 	"github.com/markbates/pkger"
+	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
+
+	"gitlab.com/cogment/cogment/helper"
 )
+
+var logger *zap.SugaredLogger
+
+const SettingsFilenamePy = "cog_settings.py"
+const SettingsFilenameJs = "CogSettings.ts"
+
+var ValidProjectFilenames = []string{
+	"cogment.yaml",
+	"cogment.yml",
+}
 
 // ProtoAliasFromProtoPath convert the path to a .proto file to an unique alias like
 // path/to/data.proto => path_to_data_pb
@@ -33,6 +49,7 @@ func ProtoAliasFromProtoPath(path string) string {
 	return strings.ReplaceAll(fileName, "/", "_") + "_pb"
 }
 
+// TODO: have this look up the existance of web-client and web-client/tsconfig.json
 func createProjectConfigFromYamlContent(yamlContent []byte) (*ProjectConfig, error) {
 	config := ProjectConfig{}
 	err := yaml.Unmarshal(yamlContent, &config)
@@ -52,20 +69,24 @@ func CreateDefaultProjectConfig() *ProjectConfig {
 	yamlFile, err := pkger.Open("/api/default_cogment.yaml")
 	if err != nil {
 		// The default cogment.yaml file should be part of the package if it is not there, it's a huge problem
-		panic(err)
+		logger.Panic(err)
 	}
-	defer yamlFile.Close()
+	defer func() {
+		err := yamlFile.Close()
+		helper.CheckError(err)
+	}()
 
 	yamlFileStats, err := yamlFile.Stat()
 	if err != nil {
-		panic(err)
+		logger.Panic(err)
 	}
 
 	yamlContent := make([]byte, yamlFileStats.Size())
-	yamlFile.Read(yamlContent)
+	_, err = yamlFile.Read(yamlContent)
+	helper.CheckError(err)
 	defaultConfig, err := createProjectConfigFromYamlContent(yamlContent)
 	if err != nil {
-		panic(err)
+		logger.Panic(err)
 	}
 
 	return defaultConfig
@@ -77,9 +98,37 @@ func CreateDefaultProjectConfig() *ProjectConfig {
 func ExtendDefaultProjectConfig(config *ProjectConfig) *ProjectConfig {
 	defaultConfig := CreateDefaultProjectConfig()
 	extendedConfig := ProjectConfig{}
-	copier.Copy(&extendedConfig, &config)
-	mergo.Merge(&extendedConfig, defaultConfig)
+	err := copier.Copy(&extendedConfig, &config)
+	helper.CheckError(err)
+	err = mergo.Merge(&extendedConfig, defaultConfig)
+	helper.CheckError(err)
 	return &extendedConfig
+}
+
+// GetProjectConfigPathFromProjectPath returns the path to an existing project configuration file in a given directory
+func GetProjectConfigPathFromProjectPath(projectPath string) (string, error) {
+	for _, projectConfigName := range ValidProjectFilenames {
+		projectConfigPath := path.Join(projectPath, projectConfigName)
+		if _, err := os.Stat(projectConfigPath); os.IsNotExist(err) {
+			logger.Debugf("No configuration file found at %s", projectConfigPath)
+			continue
+		}
+		logger.Debugf("Configuration file found at %s", projectConfigPath)
+		return projectConfigPath, nil
+	}
+
+	return "", fmt.Errorf("unable to find any valid cogment project files at %s", projectPath)
+}
+
+// CreateProjectConfigFromProjectPath creates a new instance of ProjectConfig from a given directory.
+// It will lookup `cogment.yaml`, `cogment.yml`
+func CreateProjectConfigFromProjectPath(projectPath string) (*ProjectConfig, error) {
+	projectConfigPath, err := GetProjectConfigPathFromProjectPath(projectPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return CreateProjectConfigFromYaml(projectConfigPath)
 }
 
 // CreateProjectConfigFromYaml creates a new instance of ProjectConfig from a given `cogment.yaml` file
@@ -88,24 +137,28 @@ func CreateProjectConfigFromYaml(filename string) (*ProjectConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	loadedCondfig, err := createProjectConfigFromYamlContent(yamlContent)
+	loadedConfig, err := createProjectConfigFromYamlContent(yamlContent)
 	if err != nil {
 		return nil, err
 	}
-	return ExtendDefaultProjectConfig(loadedCondfig), nil
+	loadedConfig.ProjectConfigPath = filename
+	return ExtendDefaultProjectConfig(loadedConfig), nil
 }
 
 // ProjectConfig describes the root configuration of a cogment app, as loaded from a `cogment.yaml` file.
 type ProjectConfig struct {
-	Components   ComponentsConfigurations
-	Import       Import
-	Commands     map[string]string
-	Trial        *Trial
-	Environment  *Environment
-	ActorClasses []*ActorClass `yaml:"actor_classes"`
-	TrialParams  *TrialParams  `yaml:"trial_params"`
-	ProjectName  string
-	CliVersion   string
+	ActorClasses      []*ActorClass `yaml:"actor_classes"`
+	CliVersion        string
+	Commands          map[string]string
+	Components        ComponentsConfigurations
+	Environment       *Environment
+	Import            Import
+	ProjectConfigPath string
+	ProjectName       string
+	Trial             *Trial
+	TrialParams       *TrialParams `yaml:"trial_params"`
+	Typescript        bool
+	WebClient         bool
 }
 
 // ComponentsConfigurations describes the configuration of the cogment components
@@ -321,4 +374,8 @@ func (p *ProjectConfig) ListClientActorImplementations() []ActorImplementation {
 		Implementations: []ActorImplementation{},
 	}
 	return p.listImplementations(&service)
+}
+
+func init() {
+	logger = helper.GetSugarLogger([]string{"api"})
 }

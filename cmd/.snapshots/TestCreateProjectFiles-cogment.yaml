@@ -4,14 +4,18 @@ import:
 
 commands:
   generate: >
-    cogment generate --python_dir=./environment &&
-    cogment generate --python_dir=./dumb &&
-    cogment generate --python_dir=./smart &&
-    cogment generate --python_dir=./client
-  build: docker-compose build
-  # Start and stop services
-  start: docker-compose up orchestrator environment metrics dashboard dumb smart
-  stop: docker-compose stop orchestrator environment metrics dashboard dumb smart
+    cogment generate
+    
+    
+    --python-out environment
+    --python-out client
+    --python-out dumb
+    --python-out smart
+  build: docker-compose build web-client dashboard
+  dashboard: docker-compose up --build dashboard
+  start: docker-compose up dashboard orchestrator
+  stop: docker-compose stop dashboard orchestrator
+  down: docker-compose down
   client: docker-compose run --rm client
 
 environment:

@@ -19,12 +19,14 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/bradleyjkemp/cupaloy"
 	"github.com/stretchr/testify/assert"
+
 	"gitlab.com/cogment/cogment/api"
 )
 
@@ -41,6 +43,8 @@ var expectedConfig = api.ExtendDefaultProjectConfig(&api.ProjectConfig{
 			&api.TrialActor{Name: "dumb_dumb_impl_1", ActorClass: "dumb", Implementation: "dumb_impl", Endpoint: "grpc://dumb-impl:9000"},
 		},
 	},
+	WebClient:  true,
+	Typescript: true,
 })
 
 func TestCreateProjectConfig(t *testing.T) {
@@ -58,6 +62,8 @@ func TestCreateProjectConfig(t *testing.T) {
 		"1",          // 1 service actor implementation of "dumb"
 		"dumb_impl",  // Named "dumb_impl"
 		"1",          // 1 actor using this implementation
+		"Y",          // Create a web client
+		"Y",          // Web client is in typescript
 	}
 
 	var stdin bytes.Buffer
@@ -84,6 +90,8 @@ func TestCreateProjectConfigWindows(t *testing.T) {
 		"1",          // 1 service actor implementation of "dumb"
 		"dumb_impl",  // Named "dumb_impl"
 		"1",          // 1 actor using this implementation
+		"Y",          // Create a web client
+		"Y",          // Web client is in typescript
 	}
 
 	var stdin bytes.Buffer
@@ -102,10 +110,15 @@ func TestCreateProjectFiles(t *testing.T) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer os.RemoveAll(dir)
+	defer func() {
+		if err := os.RemoveAll(dir); err != nil {
+			log.Fatalf("Failed to clean up temporary init files: %v", err)
+		}
+	}()
 
 	config := api.ExtendDefaultProjectConfig(&api.ProjectConfig{
-		ProjectName: "testit",
+		ProjectName:       "testit",
+		ProjectConfigPath: path.Join(dir, "cogment.yaml"),
 		Components: api.ComponentsConfigurations{
 			Orchestrator: api.OrchestratorConfiguration{Version: "v1.0"},
 		},
@@ -123,7 +136,7 @@ func TestCreateProjectFiles(t *testing.T) {
 		},
 	})
 
-	err = createProjectFiles(dir, config)
+	err = createProjectFiles(config)
 	assert.NoError(t, err)
 
 	generatedFiles := []string{}
@@ -157,10 +170,15 @@ func TestCreateProjectFilesDashes(t *testing.T) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer os.RemoveAll(dir)
+	defer func() {
+		if err := os.RemoveAll(dir); err != nil {
+			log.Fatalf("Failed to clean up temporary init files: %v", err)
+		}
+	}()
 
 	config := api.ExtendDefaultProjectConfig(&api.ProjectConfig{
-		ProjectName: "a-test-project-with-dashes",
+		ProjectName:       "a-test-project-with-dashes",
+		ProjectConfigPath: path.Join(dir, "cogment.yaml"),
 		Components: api.ComponentsConfigurations{
 			Orchestrator: api.OrchestratorConfiguration{Version: "v1.0"},
 		},
@@ -176,6 +194,6 @@ func TestCreateProjectFilesDashes(t *testing.T) {
 		},
 	})
 
-	err = createProjectFiles(dir, config)
+	err = createProjectFiles(config)
 	assert.NoError(t, err)
 }
