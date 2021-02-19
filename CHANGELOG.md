@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v1.0.0-alpha5 - 2021-02-19
+
 ### Added
 - Add support for messages and rewrads, they can be sent from the actor client.
 - Addition for tls communication
