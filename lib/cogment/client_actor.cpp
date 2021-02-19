@@ -70,8 +70,20 @@ void Client_actor::dispatch_observation(const cogment::Observation& obs, bool en
   outgoing_observations_.push(std::move(req));
 }
 
-void Client_actor::dispatch_reward(const ::cogment::Reward& /*reward*/) {}
+void Client_actor::dispatch_reward(const ::cogment::Reward& reward) {
+  ::cogment::TrialActionReply req;
+  auto new_reward = req.mutable_data()->add_rewards();
+  *new_reward = reward;
 
-void Client_actor::dispatch_message(int /*tick_id*/, const ::cogment::Message& /*message*/) {}
+  outgoing_observations_.push(std::move(req));
+}
+
+void Client_actor::dispatch_message(int /*tick_id*/, const ::cogment::Message& message) {
+  ::cogment::TrialActionReply req;
+  auto new_mess = req.mutable_data()->add_messages();
+  *new_mess = message;
+
+  outgoing_observations_.push(std::move(req));
+}
 
 }  // namespace cogment
