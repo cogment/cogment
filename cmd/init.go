@@ -28,10 +28,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"gitlab.com/cogment/cogment/api"
-	"gitlab.com/cogment/cogment/helper"
-	"gitlab.com/cogment/cogment/templates"
-	"gitlab.com/cogment/cogment/version"
+	"github.com/cogment/cogment-cli/api"
+	"github.com/cogment/cogment-cli/helper"
+	"github.com/cogment/cogment-cli/templates"
+	"github.com/cogment/cogment-cli/version"
 )
 
 var JavascriptDependencies = []string{

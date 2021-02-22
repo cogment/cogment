@@ -16,13 +16,13 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/cogment/cogment-cli/api"
+	"github.com/cogment/cogment-cli/deployment"
+	"github.com/cogment/cogment-cli/helper"
 	"github.com/dustin/go-humanize"
 	"github.com/go-resty/resty/v2"
 	"github.com/ryanuber/columnize"
 	"github.com/spf13/cobra"
-	"gitlab.com/cogment/cogment/api"
-	"gitlab.com/cogment/cogment/deployment"
-	"gitlab.com/cogment/cogment/helper"
 	"log"
 	"net/http"
 	"strings"

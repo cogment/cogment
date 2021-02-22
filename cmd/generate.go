@@ -30,9 +30,9 @@ import (
 	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/descriptorpb"
 
-	"gitlab.com/cogment/cogment/api"
-	"gitlab.com/cogment/cogment/helper"
-	"gitlab.com/cogment/cogment/templates"
+	"github.com/cogment/cogment-cli/api"
+	"github.com/cogment/cogment-cli/helper"
+	"github.com/cogment/cogment-cli/templates"
 )
 
 // generateCmd represents the generate command

@@ -15,7 +15,7 @@
 package main
 
 import (
-	"gitlab.com/cogment/cogment/cmd"
+	"github.com/cogment/cogment-cli/cmd"
 )
 
 func main() {

@@ -29,7 +29,7 @@ import (
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
-	"gitlab.com/cogment/cogment/helper"
+	"github.com/cogment/cogment-cli/helper"
 )
 
 var logger *zap.SugaredLogger

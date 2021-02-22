@@ -1,4 +1,4 @@
-module gitlab.com/cogment/cogment
+module github.com/cogment/cogment-cli
 
 go 1.15
 

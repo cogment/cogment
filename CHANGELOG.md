@@ -7,11 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Changed
+
+- Update to use github.com as import target
+
 ## v1.0.0-alpha5 - 2021-02-22
-
-## v1.0.0-alpha4 - 2021-02-19
-
-## v1.0.0-alpha4 - 2021-02-19
 
 ### Features
 
@@ -49,8 +49,6 @@ This implements both the creation and generation of a web-client through
   names repeated in `cogment run` commands. `docker-compose up
   web-client` will bring up the entire stack, `docker-compose up
   dashboard` will bring up all the necessary containers.
-
-
 
 ## v1.0.0-alpha3 - 2021-02-19
 

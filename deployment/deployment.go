@@ -16,7 +16,7 @@ package deployment
 
 import (
 	"fmt"
-	"gitlab.com/cogment/cogment/compose"
+	"github.com/cogment/cogment-cli/compose"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"

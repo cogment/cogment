@@ -16,10 +16,10 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/cogment/cogment-cli/api"
 	"github.com/go-resty/resty/v2"
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
-	"gitlab.com/cogment/cogment/api"
 	"net/http"
 	"testing"
 )

@@ -17,13 +17,13 @@ package cmd
 import (
 	"bytes"
 	"fmt"
+	"github.com/cogment/cogment-cli/api"
 	"github.com/go-resty/resty/v2"
 	"github.com/jarcoal/httpmock"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
-	"gitlab.com/cogment/cogment/api"
 	"net/http"
 	"testing"
 )

@@ -16,10 +16,10 @@ package configure
 
 import (
 	"bytes"
+	"github.com/cogment/cogment-cli/helper"
 	"github.com/spf13/afero"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
-	"gitlab.com/cogment/cogment/helper"
 	"testing"
 )
 

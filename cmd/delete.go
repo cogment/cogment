@@ -17,10 +17,10 @@ package cmd
 import (
 	"bufio"
 	"fmt"
+	"github.com/cogment/cogment-cli/deployment"
+	"github.com/cogment/cogment-cli/helper"
 	"github.com/go-resty/resty/v2"
 	"github.com/spf13/cobra"
-	"gitlab.com/cogment/cogment/deployment"
-	"gitlab.com/cogment/cogment/helper"
 	"io"
 	"log"
 	"net/http"

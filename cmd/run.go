@@ -23,8 +23,8 @@ import (
 	"path"
 	"runtime"
 
+	"github.com/cogment/cogment-cli/api"
 	"github.com/spf13/cobra"
-	"gitlab.com/cogment/cogment/api"
 )
 
 // runCmd represents the run command

@@ -17,8 +17,8 @@ package deployment
 import (
 	"encoding/json"
 	"errors"
+	"github.com/cogment/cogment-cli/helper"
 	"github.com/go-resty/resty/v2"
-	"gitlab.com/cogment/cogment/helper"
 )
 
 func PlatformClient(verbose bool) (*resty.Client, error) {

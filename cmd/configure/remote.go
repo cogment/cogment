@@ -17,8 +17,8 @@ package configure
 import (
 	"bufio"
 	"fmt"
+	"github.com/cogment/cogment-cli/helper"
 	"github.com/spf13/viper"
-	"gitlab.com/cogment/cogment/helper"
 	"io"
 	"log"
 	"os"

@@ -26,9 +26,9 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
-	"gitlab.com/cogment/cogment/cmd/configure"
-	"gitlab.com/cogment/cogment/cmd/registry"
-	"gitlab.com/cogment/cogment/helper"
+	"github.com/cogment/cogment-cli/cmd/configure"
+	"github.com/cogment/cogment-cli/cmd/registry"
+	"github.com/cogment/cogment-cli/helper"
 )
 
 var logger *zap.SugaredLogger

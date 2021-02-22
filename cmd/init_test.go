@@ -27,7 +27,7 @@ import (
 	"github.com/bradleyjkemp/cupaloy"
 	"github.com/stretchr/testify/assert"
 
-	"gitlab.com/cogment/cogment/api"
+	"github.com/cogment/cogment-cli/api"
 )
 
 var expectedConfig = api.ExtendDefaultProjectConfig(&api.ProjectConfig{

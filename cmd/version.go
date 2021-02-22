@@ -16,8 +16,8 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/cogment/cogment-cli/version"
 	"github.com/spf13/cobra"
-	"gitlab.com/cogment/cogment/version"
 )
 
 var versionCmd = &cobra.Command{

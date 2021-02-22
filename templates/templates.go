@@ -22,9 +22,9 @@ import (
 
 	ignore "github.com/codeskyblue/dockerignore"
 
+	"github.com/cogment/cogment-cli/api"
+	"github.com/cogment/cogment-cli/helper"
 	"github.com/markbates/pkger"
-	"gitlab.com/cogment/cogment/api"
-	"gitlab.com/cogment/cogment/helper"
 )
 
 // This function is only there to let pkger static analysis knows we want to embed the templates file in the binary.
