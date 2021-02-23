@@ -40,9 +40,9 @@ var generateCmd = &cobra.Command{
 	Use:   "generate",
 	Short: "Generate settings and compile your proto files",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		pythonOutPaths, err := cmd.Flags().GetStringArray("python-out")
+		pythonOutPaths, err := cmd.Flags().GetStringArray("python_dir")
 		helper.CheckError(err)
-		jsOutPaths, err := cmd.Flags().GetStringArray("js-out")
+		jsOutPaths, err := cmd.Flags().GetStringArray("js_dir")
 		helper.CheckError(err)
 		projectConfigPath, err := cmd.Flags().GetString("file")
 		helper.CheckError(err)
@@ -135,9 +135,9 @@ func runGenerateCmd(cmd *cobra.Command) error {
 	helper.CheckError(err)
 	typescript, err := cmd.Flags().GetBool("typescript")
 	helper.CheckError(err)
-	pythonOutPaths, err := cmd.Flags().GetStringArray("python-out")
+	pythonOutPaths, err := cmd.Flags().GetStringArray("python_dir")
 	helper.CheckError(err)
-	jsOutPaths, err := cmd.Flags().GetStringArray("js-out")
+	jsOutPaths, err := cmd.Flags().GetStringArray("js_dir")
 	helper.CheckError(err)
 
 	config, err := api.CreateProjectConfigFromYaml(projectConfigPath)
@@ -382,7 +382,7 @@ func init() {
 	rootCmd.AddCommand(generateCmd)
 
 	generateCmd.Flags().StringP("file", "f", "", "path to project config cogment.yaml")
-	generateCmd.Flags().StringArrayP("js-out", "j", []string{}, "python output directories (all directories must be valid npm projects, requires a node.js distribution on $PATH)")
+	generateCmd.Flags().StringArrayP("js_dir", "j", []string{}, "python output directories (all directories must be valid npm projects, requires a node.js distribution on $PATH)")
 	generateCmd.Flags().BoolP("typescript", "t", false, "project uses typescript")
-	generateCmd.Flags().StringArrayP("python-out", "p", []string{}, "python output directories")
+	generateCmd.Flags().StringArrayP("python_dir", "p", []string{}, "python output directories")
 }

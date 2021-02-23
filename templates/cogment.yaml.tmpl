@@ -6,12 +6,12 @@ import:
 commands:
   generate: >
     cogment generate
-    {{ if $config.WebClient }}--js-out web-client{{ end }}
+    {{ if $config.WebClient }}--js_dir web-client{{ end }}
     {{ if $config.Typescript }}--typescript{{ end }}
-    --python-out environment
-    --python-out client
+    --python_dir environment
+    --python_dir client
     {{- range .ListServiceActorServices }}
-    --python-out {{.Name|snakeify}}
+    --python_dir {{.Name|snakeify}}
     {{- end }}
   build: docker-compose build web-client dashboard
   dashboard: docker-compose up --build dashboard

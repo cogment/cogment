@@ -7,10 +7,10 @@ commands:
     cogment generate
     
     
-    --python-out environment
-    --python-out client
-    --python-out dumb
-    --python-out smart
+    --python_dir environment
+    --python_dir client
+    --python_dir dumb
+    --python_dir smart
   build: docker-compose build web-client dashboard
   dashboard: docker-compose up --build dashboard
   start: docker-compose up dashboard orchestrator
