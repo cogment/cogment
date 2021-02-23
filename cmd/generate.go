@@ -42,6 +42,8 @@ var generateCmd = &cobra.Command{
 	PreRun: func(cmd *cobra.Command, args []string) {
 		pythonOutPaths, err := cmd.Flags().GetStringArray("python-out")
 		helper.CheckError(err)
+		jsOutPaths, err := cmd.Flags().GetStringArray("js-out")
+		helper.CheckError(err)
 		projectConfigPath, err := cmd.Flags().GetString("file")
 		helper.CheckError(err)
 
@@ -57,6 +59,11 @@ var generateCmd = &cobra.Command{
 		for _, pythonOutPath := range pythonOutPaths {
 			if _, err := os.Stat(pythonOutPath); os.IsNotExist(err) {
 				logger.Fatalf("Python output path %s does not exist: %v", pythonOutPath, err)
+			}
+		}
+		for _, jsOutPath := range jsOutPaths {
+			if _, err := os.Stat(jsOutPath); os.IsNotExist(err) {
+				logger.Fatalf("Python output path %s does not exist: %v", jsOutPath, err)
 			}
 		}
 		if _, err := os.Stat(projectConfigPath); os.IsNotExist(err) {
@@ -126,31 +133,28 @@ func clearProtoRegistry() {
 func runGenerateCmd(cmd *cobra.Command) error {
 	projectConfigPath, err := cmd.Flags().GetString("file")
 	helper.CheckError(err)
-	webClient, err := cmd.Flags().GetBool("web-client")
-	helper.CheckError(err)
 	typescript, err := cmd.Flags().GetBool("typescript")
 	helper.CheckError(err)
 	pythonOutPaths, err := cmd.Flags().GetStringArray("python-out")
+	helper.CheckError(err)
+	jsOutPaths, err := cmd.Flags().GetStringArray("js-out")
 	helper.CheckError(err)
 
 	config, err := api.CreateProjectConfigFromYaml(projectConfigPath)
 	helper.CheckError(err)
 
-	config.WebClient = webClient
 	config.Typescript = typescript
 
-	return generate(config, pythonOutPaths)
+	return generate(config, pythonOutPaths, jsOutPaths)
 }
 
-func generate(config *api.ProjectConfig, pythonOutPaths []string) error {
+func generate(config *api.ProjectConfig, pythonOutPaths []string, jsOutPaths []string) error {
 	logger.Infof("Generating project configuration for %s", config.ProjectConfigPath)
-	webClient := config.WebClient
 	typescript := config.Typescript
 
 	config, err := api.CreateProjectConfigFromYaml(config.ProjectConfigPath)
 	helper.CheckError(err)
 
-	config.WebClient = webClient
 	config.Typescript = typescript
 
 	if err := registerProtos(config); err != nil {
@@ -163,8 +167,8 @@ func generate(config *api.ProjectConfig, pythonOutPaths []string) error {
 	err = generatePython(config, pythonOutPaths)
 	helper.CheckError(err)
 
-	if config.WebClient {
-		err := generateWebClient(config)
+	if len(jsOutPaths) > 0 {
+		err := generateWebClient(config, jsOutPaths)
 		helper.CheckError(err)
 	}
 	return nil
@@ -228,33 +232,36 @@ func compileProtosPy(config *api.ProjectConfig, outputPyPaths []string) error {
 	return nil
 }
 
-func generateWebClient(config *api.ProjectConfig) error {
+func generateWebClient(config *api.ProjectConfig, jsOutPaths []string) error {
 	projectRootPath := path.Dir(config.ProjectConfigPath)
-	logger.Infof("Generating %s/web-client", projectRootPath)
+	for _, jsOutPath := range jsOutPaths {
+		logger.Infof("Generating %s/%s", projectRootPath, jsOutPath)
 
-	if err := compileProtosJs(config); err != nil {
-		return fmt.Errorf("error generating web-client: %v", err)
+		if err := compileProtosJs(config, jsOutPath); err != nil {
+			return fmt.Errorf("error generating web-client: %v", err)
+		}
+
+		if err := generateCogSettings(config, jsOutPath); err != nil {
+			return fmt.Errorf("error generating web client: %v", err)
+		}
 	}
 
-	if err := generateCogSettings(config); err != nil {
-		return fmt.Errorf("error generating web client: %v", err)
-	}
 	return nil
 }
 
-func compileProtosJs(config *api.ProjectConfig) error {
+func compileProtosJs(config *api.ProjectConfig, jsOutPath string) error {
 	projectRootPath := path.Dir(config.ProjectConfigPath)
 	params := append([]string{
 		"-I",
 		".",
-		"--js_out=import_style=commonjs,binary:./web-client/src",
+		fmt.Sprintf("--js_out=import_style=commonjs,binary:%s/src", jsOutPath),
 	}, config.Import.Proto...)
 
 	if config.Typescript {
 		params = append(
 			params,
-			"--plugin=protoc-gen-ts=./web-client/node_modules/.bin/protoc-gen-ts",
-			"--ts_out=service=grpc-web:./web-client/src",
+			fmt.Sprintf("--plugin=protoc-gen-ts=%s/node_modules/.bin/protoc-gen-ts", jsOutPath),
+			fmt.Sprintf("--ts_out=service=grpc-web:%s/src", jsOutPath),
 		)
 	}
 
@@ -270,12 +277,10 @@ func compileProtosJs(config *api.ProjectConfig) error {
 	return nil
 }
 
-func generateCogSettings(config *api.ProjectConfig) error {
-	projectRootPath := path.Dir(config.ProjectConfigPath)
+func generateCogSettings(config *api.ProjectConfig, jsOutPath string) error {
 	settingsFilenameTmpl := fmt.Sprintf("%s.tmpl", api.SettingsFilenameJs)
 	tsSettingsTemplatePath := path.Join("/templates", settingsFilenameTmpl)
-	webClientPath := path.Join(projectRootPath, "web-client")
-	webClientSrcPath := path.Join(webClientPath, "src")
+	webClientSrcPath := path.Join(jsOutPath, "src")
 	cogSettingsPath := path.Join(webClientSrcPath, api.SettingsFilenameJs)
 	shellCommand := "/bin/sh"
 
@@ -296,7 +301,7 @@ func generateCogSettings(config *api.ProjectConfig) error {
 	)
 
 	subProcess := exec.Command(shellCommand)
-	subProcess.Dir = webClientPath
+	subProcess.Dir = jsOutPath
 	subProcess.Stdout = os.Stdout
 	subProcess.Stderr = os.Stderr
 
@@ -323,10 +328,10 @@ func generateCogSettings(config *api.ProjectConfig) error {
 	}
 
 	//Clean up typescript cogsettings file
-	typescriptFileToRemove := fmt.Sprintf("web-client/src/%s", api.SettingsFilenameJs)
+	typescriptFileToRemove := fmt.Sprintf("%s/src/%s", jsOutPath, api.SettingsFilenameJs)
 	err = os.Remove(typescriptFileToRemove)
 	if err != nil {
-		helper.CheckErrorf(err, "Could not clean up %s", api.SettingsFilenameJs)
+		helper.CheckErrorf(err, "Could not clean up %s/src/%s", jsOutPath, api.SettingsFilenameJs)
 	}
 
 	return nil
@@ -377,7 +382,7 @@ func init() {
 	rootCmd.AddCommand(generateCmd)
 
 	generateCmd.Flags().StringP("file", "f", "", "path to project config cogment.yaml")
-	generateCmd.Flags().BoolP("web-client", "w", false, "generate files for web-client (requires a node.js distribution on $PATH)")
+	generateCmd.Flags().StringArrayP("js-out", "j", []string{}, "python output directories (all directories must be valid npm projects, requires a node.js distribution on $PATH)")
 	generateCmd.Flags().BoolP("typescript", "t", false, "project uses typescript")
 	generateCmd.Flags().StringArrayP("python-out", "p", []string{}, "python output directories")
 }

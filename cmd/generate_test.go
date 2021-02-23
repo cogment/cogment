@@ -36,7 +36,7 @@ func TestGeneratePythonSettings(t *testing.T) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = generate(config, []string{dir})
+	err = generate(config, []string{dir}, []string{})
 	assert.Nil(t, err)
 
 	assert.FileExists(t, path.Join(dir, "somedata_pb2.py"))

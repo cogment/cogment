@@ -6,7 +6,7 @@ import:
 commands:
   generate: >
     cogment generate
-    {{ if $config.WebClient }}--web-client{{ end }}
+    {{ if $config.WebClient }}--js-out web-client{{ end }}
     {{ if $config.Typescript }}--typescript{{ end }}
     --python-out environment
     --python-out client

@@ -38,17 +38,20 @@ This implements both the creation and generation of a web-client through
   typescript compiler to generate `CogSettings.js`, `CogSettings.d.ts`,
   `CogSettings.d.ts.map`.
 - `cogment init` now asks if a web-client should be generated.
-- `cogment generate` now accepts the `--web-client` flag, which enables
+- `cogment generate` now accepts the `--js-out` flag, which enables
   generation of protobuf definitions and `CogSettings.ts` from a
   `cogment.yaml`
 - `cogment generate` now accepts a `--typescript` flag that depends on
-  the `--web-client` flag, will enable typing definition generation for
-  user protobufs.
+  the `--js-out` flag, will enable typing definition generation for
+  user protobufs. This can be repeated multiple times to
+  target multiple output directories, just like python-out
 - `cogment init` templates uses dependencies between services
   (`depends_on` clause) for bringing up the stack vs. having service
   names repeated in `cogment run` commands. `docker-compose up
   web-client` will bring up the entire stack, `docker-compose up
   dashboard` will bring up all the necessary containers.
+
+## v1.0.0-alpha4 - 2021-02-19
 
 ## v1.0.0-alpha3 - 2021-02-19
 
