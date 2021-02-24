@@ -54,7 +54,7 @@ export class {{.Id | pascalify}}ActorClass implements ActorClass {
 export const cogSettings = {
   actorClasses: {
 {{- range .ActorClasses}}
-    {{.Id}}: {{.Id | pascalify}}ActorClass,
+    {{.Id}}: new {{.Id | pascalify}}ActorClass(),
 {{- end}}
   },
 {{- with .Trial }}
@@ -71,8 +71,9 @@ export const cogSettings = {
 {{- end}}
     class: {
       id: 'env',
-      config: null,
-      messageSpace: null,
+{{- if .ConfigType }}
+  config: {{ .ConfigType }},
+{{- end}}
     }
   },
 {{- end}}
