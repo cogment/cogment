@@ -327,13 +327,6 @@ func generateCogSettings(config *api.ProjectConfig, jsOutPath string) error {
 		return err
 	}
 
-	//Clean up typescript cogsettings file
-	typescriptFileToRemove := fmt.Sprintf("%s/src/%s", jsOutPath, api.SettingsFilenameJs)
-	err = os.Remove(typescriptFileToRemove)
-	if err != nil {
-		helper.CheckErrorf(err, "Could not clean up %s/src/%s", jsOutPath, api.SettingsFilenameJs)
-	}
-
 	return nil
 }
 
