@@ -37,7 +37,7 @@ export interface ActorClass {
 {{- range .ActorClasses}}
 export class {{.Id | pascalify}}ActorClass implements ActorClass {
   id = '{{.Id}}';
-{{- if .ConfigType }},
+{{- if .ConfigType }}
   config = {{.ConfigType}};
 {{- end}}
   actionSpace = {{.Action.Space}};
