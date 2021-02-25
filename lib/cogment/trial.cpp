@@ -98,12 +98,10 @@ void Trial::configure(cogment::TrialParams params) {
   env_stub_ = orchestrator_->env_pool()->get_stub(params_.environment().endpoint());
 
   ::cogment::EnvStartRequest env_start_req;
+  env_start_req.set_impl_name(params_.environment().implementation());
   if (params_.environment().has_config()) {
     *env_start_req.mutable_config() = params_.environment().config();
   }
-
-  // TODO: Figure out where the impl_name should come from and use that instead of hardcoded "default"
-  env_start_req.set_impl_name("default");
 
   for (const auto& actor_info : params_.actors()) {
     auto url = actor_info.endpoint();
