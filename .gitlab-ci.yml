@@ -116,6 +116,11 @@ publish_tagged_binaries:
     - apt update -y
     - apt install gh -y
     # gh release authenticates to github using the GH_TOKEN environment variable
-    - gh release create $CI_COMMIT_TAG ./build/cogment-* -t $CI_COMMIT_TAG -R cogment/cogment-cli --draft -F ./CHANGELOG.md
-  only:
-    - /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+(?:-[[:alnum:]]+)?$/
+    - gh release create $CI_COMMIT_TAG ./build/cogment-* -t $CI_COMMIT_TAG -R cogment/cogment-cli $GH_PRERELEASE -F ./CHANGELOG.md
+  rules:
+    - if: '$CI_COMMIT_BRANCH =~ /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+(-[[:alnum:]]+)$/'
+      variables:
+        GH_PRERELEASE: --prerelease
+    - if: '$CI_COMMIT_BRANCH =~ /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$/'
+      variables:
+        GH_PRERELEASE: ""
