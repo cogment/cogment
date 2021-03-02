@@ -13,22 +13,21 @@ async def environment(environment_session):
     # Start the trial and send that observation to all actors
     environment_session.start([("*", observation)])
 
-    async for event in environment_session.event_loop():    
-        if "actions" in event:
-            print("environment updating")
-            observation = Observation()
-            environment_session.produce_observations([("*", observation)])
-        if "message" in event:
-            (sender, message) = event["message"]
-            print(f"environment received a message from '{sender}': - '{message}'")
-        if "final_actions" in event:
-            actions = event["final_actions"]
-            print(f"environment received final actions")
+    async for event in environment_session.event_loop():
+        if event.actions:
+            actions = event.actions
+            print(f"environment received the actions")
             for actor, action in zip(environment_session.get_active_actors(), actions):
                 print(f" actor '{actor.actor_name}' did action '{action}'")
-
             observation = Observation()
-            environment_session.end([("*", observation)])
+            if event.type == cogment.EventType.ACTIVE:
+                # The trial is active
+                environment_session.produce_observations([("*", observation)])
+            else:
+                # The trial termination has been requested
+                environment_session.end([("*", observation)])
+        for message in event.messages:
+            print(f"environment received a message from '{message.sender_name}': - '{message.payload}'")
 
     print("environment end")
 

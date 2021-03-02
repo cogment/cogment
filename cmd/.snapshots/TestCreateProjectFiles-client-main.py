@@ -10,26 +10,16 @@ async def human(actor_session):
     actor_session.start()
 
     async for event in actor_session.event_loop():
-        if "observation" in event:
-            observation = event["observation"]
+        if event.observation:
+            observation = event.observation
             print(f"'{actor_session.name}' received an observation: '{observation}'")
-            action = MasterAction()
-            actor_session.do_action(action)
-        if "reward" in event:
-            reward = event["reward"]
+            if event.type == cogment.EventType.ACTIVE:
+                action = MasterAction()
+                actor_session.do_action(action)
+        for reward in event.rewards:
             print(f"'{actor_session.name}' received a reward for tick #{reward.tick_id}: {reward.value}/{reward.confidence}")
-        if "message" in event:
-            (sender, message) = event["message"]
-            print(f"'{actor_session.name}' received a message from '{sender}': - '{message}'")
-        if "final_data" in event:
-            final_data = event["final_data"]
-            for observation in final_data.observations:
-                print(f"'{actor_session.name}' received a final observation: '{observation}'")
-            for reward in final_data.rewards:
-                print(f"'{actor_session.name}' received a final reward for tick #{reward.tick_id}: {reward.value}/{reward.confidence}")
-            for message in final_data.messages:
-                (sender, message) = message
-                print(f"'{actor_session.name}' received a final message from '{sender}': - '{message}'")
+        for message in event.messages:
+            print(f"'{actor_session.name}' received a message from '{message.sender_name}': - '{message.payload}'")
 async def main():
     print("Client starting...")
 

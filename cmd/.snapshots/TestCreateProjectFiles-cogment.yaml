@@ -5,13 +5,11 @@ import:
 commands:
   generate: >
     cogment generate
-    
-    
     --python_dir environment
     --python_dir client
     --python_dir dumb
     --python_dir smart
-  build: docker-compose build web-client dashboard
+  build: docker-compose build dashboard
   dashboard: docker-compose up --build dashboard
   start: docker-compose up dashboard orchestrator
   stop: docker-compose stop dashboard orchestrator

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Changed
+
+- `cogment init` now supports the simplified event data structure in actor and environment event loops.
+
 ## v1.0.0-alpha9 - 2021-03-01
 
 ## v1.0.0-alpha8 - 2021-02-25

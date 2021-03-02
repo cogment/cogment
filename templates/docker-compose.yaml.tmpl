@@ -48,6 +48,7 @@ services:
     tty: true
     depends_on:
       - orchestrator
+{{ if $config.WebClient -}}
 
   web-client:
     build:
@@ -73,6 +74,7 @@ services:
     depends_on:
       - orchestrator
 
+{{- end }}
   dashboard:
     image: cogment/dashboard:latest
     ports:

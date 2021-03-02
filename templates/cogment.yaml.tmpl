@@ -6,17 +6,18 @@ import:
 commands:
   generate: >
     cogment generate
-    {{ if $config.WebClient }}--js_dir web-client{{ end }}
-    {{ if $config.Typescript }}--typescript{{ end }}
+    {{- if $config.WebClient }}
+    --js_dir web-client {{ if $config.Typescript }}--typescript{{ end }}
+    {{- end }}
     --python_dir environment
     --python_dir client
     {{- range .ListServiceActorServices }}
     --python_dir {{.Name|snakeify}}
     {{- end }}
-  build: docker-compose build web-client dashboard
+  build: docker-compose build {{ if $config.WebClient }}web-client {{ end }}dashboard
   dashboard: docker-compose up --build dashboard
-  start: docker-compose up dashboard {{ if $config.WebClient }}web-client{{else}}orchestrator{{ end }}
-  stop: docker-compose stop dashboard {{ if $config.WebClient }}web-client{{else}}orchestrator{{ end }}
+  start: docker-compose up dashboard {{ if $config.WebClient }}web-client {{ end }}orchestrator
+  stop: docker-compose stop dashboard {{ if $config.WebClient }}web-client {{ end }}orchestrator
   down: docker-compose down
   client: docker-compose run --rm client
 

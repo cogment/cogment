@@ -54,30 +54,6 @@ services:
     depends_on:
       - orchestrator
 
-  web-client:
-    build:
-      context: web-client
-      dockerfile: ../js_service.dockerfile
-    environment:
-      - NODE_ENV=development
-      - CHOKIDAR_USEPOLLING=true
-      - REACT_APP_APP_VERSION=dev
-    restart: on-failure
-    ports:
-      - "3000:3000"
-    depends_on:
-      - grpcwebproxy
-
-  grpcwebproxy:
-    build:
-      context: ./grpcwebproxy
-      dockerfile: ../grpcwebproxy.dockerfile
-    restart: on-failure
-    ports:
-      - "8080:8080"
-    depends_on:
-      - orchestrator
-
   dashboard:
     image: cogment/dashboard:latest
     ports:
