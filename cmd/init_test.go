@@ -121,6 +121,7 @@ func TestCreateProjectFiles(t *testing.T) {
 		ProjectConfigPath: path.Join(dir, "cogment.yaml"),
 		Components: api.ComponentsConfigurations{
 			Orchestrator: api.OrchestratorConfiguration{Version: "v1.0"},
+			Python:       api.PythonConfiguration{Version: "1.0"},
 		},
 		ActorClasses: []*api.ActorClass{
 			&api.ActorClass{Id: "master"},
