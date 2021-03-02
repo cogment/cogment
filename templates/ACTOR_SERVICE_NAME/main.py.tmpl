@@ -37,7 +37,7 @@ async def main():
         actor_classes=[{{range .ActorClasses}}"{{.|snakeify}}",{{end}}])
 {{- end}}
 
-    await context.serve_all_registered(port=9000)
+    await context.serve_all_registered(cogment.ServedEndpoint(port=9000))
 
 if __name__ == '__main__':
     asyncio.run(main())

@@ -28,7 +28,7 @@ async def main():
         impl_name="dumb_impl",
         actor_classes=["dumb",])
 
-    await context.serve_all_registered(port=9000)
+    await context.serve_all_registered(cogment.ServedEndpoint(port=9000))
 
 if __name__ == '__main__':
     asyncio.run(main())

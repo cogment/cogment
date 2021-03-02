@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - `cogment init` now supports the simplified event data structure in actor and environment event loops.
+- `cogment init` now uses `cogment.Endpoint` and `cogment.ServedEndpoint` instead of raw TCP ports.
 
 ## v1.0.0-alpha9 - 2021-03-01
 
