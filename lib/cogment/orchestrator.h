@@ -69,6 +69,13 @@ class Orchestrator {
 
   const Trial_spec& get_trial_spec() const { return trial_spec_; }
 
+  template <typename T>
+  void watch_trials(T&& func) {
+    trial_watchers_.emplace_back(func);
+  }
+
+  void notify_watchers(const Trial& trial);
+
   private:
   // Configuration
   Trial_spec trial_spec_;
@@ -93,6 +100,8 @@ class Orchestrator {
 
   ActorService actor_service_;
   TrialLifecycleService trial_lifecycle_service_;
+
+  std::vector<std::function<void(const Trial& trial)>> trial_watchers_;
 
   std::atomic<int> garbage_collection_countdown_;
   void check_garbage_collection_();

@@ -47,7 +47,7 @@ const char* get_trial_state_string(Trial_state s) {
   throw std::out_of_range("unknown trial state");
 }
 
-cogment::TrialState get_trial_state_proto(Trial_state s) {
+cogment::TrialState get_trial_api_state(Trial_state s) {
   switch (s) {
   case Trial_state::initializing:
     return cogment::INITIALIZING;
@@ -67,7 +67,8 @@ cogment::TrialState get_trial_state_proto(Trial_state s) {
 uuids::uuid_system_generator Trial::id_generator_;
 
 Trial::Trial(Orchestrator* orch, std::string user_id)
-    : orchestrator_(orch), id_(id_generator_()), user_id_(std::move(user_id)), state_(Trial_state::initializing) {
+    : orchestrator_(orch), id_(id_generator_()), user_id_(std::move(user_id)) {
+  set_state(Trial_state::initializing);
   refresh_activity();
 }
 
@@ -135,7 +136,7 @@ void Trial::configure(cogment::TrialParams params) {
 
   actions_.resize(actors_.size());
 
-  state_ = Trial_state::pending;
+  set_state(Trial_state::pending);
 
   std::vector<aom::Future<void>> actors_ready;
   for (const auto& actor : actors_) {
@@ -158,7 +159,7 @@ void Trial::configure(cogment::TrialParams params) {
   join(env_ready, concat(actors_ready.begin(), actors_ready.end()))
       .then([this](auto env_rep) {
         latest_observations_ = std::move(*env_rep.mutable_observation_set());
-        state_ = Trial_state::running;
+        set_state(Trial_state::running);
 
         run_environment();
         // Send the initial state
@@ -241,7 +242,7 @@ void Trial::dispatch_observations(bool end_of_trial) {
     actors_.clear();
     actor_indexes_.clear();
     outgoing_actions_ = std::nullopt;
-    state_ = Trial_state::ended;
+    set_state(Trial_state::ended);
   }
 }
 
@@ -280,7 +281,7 @@ void Trial::run_environment() {
         }
 
         if (update.final_update() && state_ != Trial_state::ended) {
-          state_ = Trial_state::terminating;
+          set_state(Trial_state::terminating);
         }
         dispatch_observations(update.final_update());
       })
@@ -295,7 +296,7 @@ void Trial::terminate() {
   auto self = shared_from_this();
 
   if (state_ != Trial_state::ended) {
-    state_ = Trial_state::terminating;
+    set_state(Trial_state::terminating);
   }
 
   cogment::EnvActionRequest req;
@@ -403,6 +404,12 @@ Client_actor* Trial::get_join_candidate(const TrialJoinRequest& req) {
 }
 
 Trial_state Trial::state() const { return state_; }
+
+void Trial::set_state(Trial_state state) {
+  const std::lock_guard<std::mutex> lock(state_lock_);
+  state_ = state;
+  orchestrator_->notify_watchers(*this);
+}
 
 void Trial::refresh_activity() { last_activity_ = std::chrono::steady_clock::now(); }
 

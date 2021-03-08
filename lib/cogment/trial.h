@@ -39,7 +39,7 @@ class Client_actor;
 enum class Trial_state { initializing, pending, running, terminating, ended };
 
 const char* get_trial_state_string(Trial_state s);
-cogment::TrialState get_trial_state_proto(Trial_state s);
+cogment::TrialState get_trial_api_state(Trial_state s);
 
 class Trial : public std::enable_shared_from_this<Trial> {
   static uuids::uuid_system_generator id_generator_;
@@ -92,6 +92,7 @@ class Trial : public std::enable_shared_from_this<Trial> {
   Orchestrator* orchestrator_;
 
   std::mutex lock_;
+  std::mutex state_lock_;
 
   // Identity
   uuids::uuid id_;
@@ -105,6 +106,8 @@ class Trial : public std::enable_shared_from_this<Trial> {
 
   // State
   Trial_state state_;
+  void set_state(Trial_state state);
+
   std::vector<std::unique_ptr<Actor>> actors_;
   std::unordered_map<std::string, uint32_t> actor_indexes_;
   std::chrono::time_point<std::chrono::steady_clock> last_activity_;

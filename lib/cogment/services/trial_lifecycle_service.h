@@ -23,6 +23,9 @@ class Orchestrator;
 class TrialLifecycleService {
   Orchestrator* orchestrator_;
 
+  using Trial_promise = ::easy_grpc::Stream_promise<::cogment::TrialListEntry>;
+  using Trial_future = ::easy_grpc::Stream_future<::cogment::TrialListEntry>;
+
   public:
   using service_type = cogment::TrialLifecycle;
 

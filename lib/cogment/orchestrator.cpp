@@ -203,4 +203,10 @@ std::vector<std::shared_ptr<Trial>> Orchestrator::all_trials() const {
   return result;
 }
 
+void Orchestrator::notify_watchers(const Trial& trial) {
+  for (auto& handler : trial_watchers_) {
+    handler(trial);
+  }
+}
+
 }  // namespace cogment
