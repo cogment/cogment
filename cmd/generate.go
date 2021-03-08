@@ -293,13 +293,20 @@ func generateCogSettings(config *api.ProjectConfig, jsOutPath string) error {
 	err := templates.GenerateFromTemplate(tsSettingsTemplatePath, config, cogSettingsPath)
 	helper.CheckErrorf(err, "error generating %s", api.SettingsFilenameJs)
 
+	deleteCommand := fmt.Sprintf("rm src/%s", api.SettingsFilenameJs)
+	if config.Typescript {
+		deleteCommand = ""
+	}
+
 	tscCompileCmd := fmt.Sprintf(
 		`
 		set -xe
 		npx tsc --declaration --declarationMap --outDir src src/%s
+		%s
 		exit
 	`,
 		api.SettingsFilenameJs,
+		deleteCommand,
 	)
 
 	subProcess := exec.Command(shellCommand)
