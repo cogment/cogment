@@ -164,8 +164,10 @@ func generate(config *api.ProjectConfig, pythonOutPaths []string, jsOutPaths []s
 
 	config = updateConfigWithMessage(config)
 
-	err = generatePython(config, pythonOutPaths)
-	helper.CheckError(err)
+	if len(pythonOutPaths) > 0 {
+		err = generatePython(config, pythonOutPaths)
+		helper.CheckError(err)
+	}
 
 	if len(jsOutPaths) > 0 {
 		err := generateWebClient(config, jsOutPaths)
@@ -375,7 +377,7 @@ func init() {
 	rootCmd.AddCommand(generateCmd)
 
 	generateCmd.Flags().StringP("file", "f", "", "path to project config cogment.yaml")
-	generateCmd.Flags().StringArrayP("js_dir", "j", []string{}, "python output directories (all directories must be valid npm projects, requires a node.js distribution on $PATH)")
+	generateCmd.Flags().StringArrayP("js_dir", "j", []string{}, "javascript output directories (all directories must be valid npm projects, requires a node.js distribution on $PATH)")
 	generateCmd.Flags().BoolP("typescript", "t", false, "project uses typescript")
 	generateCmd.Flags().StringArrayP("python_dir", "p", []string{}, "python output directories")
 }
