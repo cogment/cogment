@@ -37,7 +37,8 @@ Orchestrator::Orchestrator(Trial_spec trial_spec, cogment::TrialParams default_t
       env_stubs_(&channel_pool_, &client_queue_),
       agent_stubs_(&channel_pool_, &client_queue_),
       actor_service_(this),
-      trial_lifecycle_service_(this) {}
+      trial_lifecycle_service_(this),
+      garbage_collection_countdown_(0) {}
 
 Orchestrator::~Orchestrator() {}
 
@@ -170,13 +171,15 @@ Future<cogment::PreTrialContext> Orchestrator::perform_pre_hooks_(cogment::PreTr
 void Orchestrator::set_log_exporter(std::unique_ptr<Datalog_storage_interface> le) { log_exporter_ = std::move(le); }
 
 void Orchestrator::check_garbage_collection_() {
-  if (--garbage_collection_countdown_ <= 0) {
+  garbage_collection_countdown_--;
+  if (garbage_collection_countdown_ <= 0) {
     garbage_collection_countdown_.store(settings::garbage_collection_frequency.get());
     perform_garbage_collection_();
   }
 }
 
 void Orchestrator::perform_garbage_collection_() {
+  spdlog::debug("Performing garbage collection of ended trials");
   auto trials = all_trials();
   for (auto& trial : trials) {
     if (trial->is_stale()) {
