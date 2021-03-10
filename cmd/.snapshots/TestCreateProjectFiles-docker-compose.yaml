@@ -63,7 +63,7 @@ services:
 
   metrics:
     image: cogment/metrics:latest
-    command: --config.file=/etc/prometheus/prometheus.yml
+    command: --config.file=/etc/prometheus/prometheus.yml --log.level=error
     volumes:
       - ./metrics/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./metrics/data:/prometheus
