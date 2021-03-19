@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - The default `cogment run start` properly attach to the actors and environment services.
+- The default `cogment run build` properly build all the services.
 
 ## v1.0.0-alpha9 - 2021-03-01
 
