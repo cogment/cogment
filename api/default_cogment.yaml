@@ -2,7 +2,7 @@
 components:
   orchestrator:
     image: cogment/orchestrator
-    version: v1.0.0-alpha5
+    version: v1.0.0-alpha6
   python:
     package: cogment
-    version: 1.0.0-alpha8
+    version: 1.0.0-alpha9
