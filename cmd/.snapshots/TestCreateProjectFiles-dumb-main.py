@@ -16,7 +16,7 @@ async def dumb_impl(actor_session):
                 action = DumbAction()
                 actor_session.do_action(action)
         for reward in event.rewards:
-            print(f"'{actor_session.name}' received a reward for tick #{reward.tick_id}: {reward.value}/{reward.confidence}")
+            print(f"'{actor_session.name}' received a reward for tick #{reward.tick_id}: {reward.value}")
         for message in event.messages:
             print(f"'{actor_session.name}' received a message from '{message.sender_name}': - '{message.payload}'")
 async def main():
