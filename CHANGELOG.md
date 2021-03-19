@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `cogment init` now supports the simplified event data structure in actor and environment event loops.
 - `cogment init` now uses `cogment.Endpoint` and `cogment.ServedEndpoint` instead of raw TCP ports.
 - `cogment init` now supports the new controller API.
+- `cogment init` now supports the new `RecvAction` class.
 - Upgrade the version of cogment-orchestrator to `v1.0.0-alpha6`
 - Upgrade the version of cogment-py-sdk to `v1.0.0-alpha9`
 

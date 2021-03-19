@@ -17,8 +17,8 @@ async def environment(environment_session):
         if event.actions:
             actions = event.actions
             print(f"environment received the actions")
-            for actor, action in zip(environment_session.get_active_actors(), actions):
-                print(f" actor '{actor.actor_name}' did action '{action}'")
+            for actor, recv_action in zip(environment_session.get_active_actors(), actions):
+                print(f" actor '{actor.actor_name}' did action '{recv_action.action}'")
             observation = Observation()
             if event.type == cogment.EventType.ACTIVE:
                 # The trial is active
