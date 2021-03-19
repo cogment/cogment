@@ -40,18 +40,19 @@ async def main():
         actor_classes=[{{range .ActorClasses}}"{{.|snakeify}}",{{end}}])
 {{- end }}
 
-    # Create and join a new trial
-    trial_id = None
-    async def trial_controler(control_session):
-        nonlocal trial_id
-        print(f"Trial '{control_session.get_trial_id()}' starts")
-        trial_id = control_session.get_trial_id()
-        # Let the trial play for a while
-        await asyncio.sleep(10)
-        print(f"Trial '{control_session.get_trial_id()}' terminating")
-        await control_session.terminate_trial()
+    # Create a controller
+    controller = context.get_controller(endpoint=cogment.Endpoint("orchestrator:9000"))
 
-    await context.start_trial(endpoint=cogment.Endpoint("orchestrator:9000"), impl=trial_controler, trial_config=TrialConfig())
+    # Start a new trial
+    trial_id = await controller.start_trial(trial_config=TrialConfig())
+    print(f"Trial '{trial_id}' started")
+
+    # Let the trial play for a while
+    await asyncio.sleep(10)
+
+    # Terminate the trial
+    await controller.terminate_trial(trial_id)
+    print(f"Trial '{trial_id}' terminated")
 
 if __name__ == '__main__':
     asyncio.run(main())

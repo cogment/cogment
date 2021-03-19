@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `cogment init` now supports the simplified event data structure in actor and environment event loops.
 - `cogment init` now uses `cogment.Endpoint` and `cogment.ServedEndpoint` instead of raw TCP ports.
+- `cogment init` now supports the new controller API.
 
 ### Fixed
 
@@ -50,8 +51,7 @@ This implements both the creation and generation of a web-client through
   stdin or flags.
 - `cogment generate` now accepts `--python-out` instead of
   `--python_out`. `--python-out` can be repeated multiple times to
-  target multiple output directories, eg: `cogment generate --python-out
-  environment --python-out client --python-out actor`.
+  target multiple output directories, eg: `cogment generate --python-out environment --python-out client --python-out actor`.
 - `cogment generate` now templates `CogSettings.ts`, then uses the
   typescript compiler to generate `CogSettings.js`, `CogSettings.d.ts`,
   `CogSettings.d.ts.map`.
@@ -65,9 +65,7 @@ This implements both the creation and generation of a web-client through
   target multiple output directories, just like python-out
 - `cogment init` templates uses dependencies between services
   (`depends_on` clause) for bringing up the stack vs. having service
-  names repeated in `cogment run` commands. `docker-compose up
-  web-client` will bring up the entire stack, `docker-compose up
-  dashboard` will bring up all the necessary containers.
+  names repeated in `cogment run` commands. `docker-compose up web-client` will bring up the entire stack, `docker-compose up dashboard` will bring up all the necessary containers.
 
 ## v1.0.0-alpha4 - 2021-02-19
 
