@@ -61,7 +61,7 @@ Client_actor::Observation_future Client_actor::bind(Client_actor::Action_future 
   return std::move(outgoing_observations_future_);
 }
 
-void Client_actor::dispatch_observation(const cogment::Observation& obs, bool end_of_trial) {
+void Client_actor::dispatch_observation(cogment::Observation&& obs, bool end_of_trial) {
   ::cogment::TrialActionReply req;
   req.set_final_data(end_of_trial);
   auto new_obs = req.mutable_data()->add_observations();
@@ -70,7 +70,7 @@ void Client_actor::dispatch_observation(const cogment::Observation& obs, bool en
   outgoing_observations_.push(std::move(req));
 }
 
-void Client_actor::dispatch_reward(const ::cogment::Reward& reward) {
+void Client_actor::dispatch_reward(cogment::Reward&& reward) {
   ::cogment::TrialActionReply req;
   auto new_reward = req.mutable_data()->add_rewards();
   *new_reward = reward;
@@ -78,7 +78,7 @@ void Client_actor::dispatch_reward(const ::cogment::Reward& reward) {
   outgoing_observations_.push(std::move(req));
 }
 
-void Client_actor::dispatch_message(int /*tick_id*/, const ::cogment::Message& message) {
+void Client_actor::dispatch_message(cogment::Message&& message) {
   ::cogment::TrialActionReply req;
   auto new_mess = req.mutable_data()->add_messages();
   *new_mess = message;

@@ -77,7 +77,7 @@ Future<void> Agent::init() {
   });
 }
 
-void Agent::dispatch_observation(const cogment::Observation& obs, bool end_of_trial) {
+void Agent::dispatch_observation(cogment::Observation&& obs, bool end_of_trial) {
   if (!end_of_trial) {
     lazy_start_decision_stream();
 
@@ -127,17 +127,17 @@ bool Agent::is_active() const {
   return true;
 }
 
-void Agent::dispatch_reward(const ::cogment::Reward& reward) {
+void Agent::dispatch_reward(cogment::Reward&& reward) {
   cogment::AgentRewardRequest req;
-  req.mutable_reward()->CopyFrom(reward);
+  *req.mutable_reward() = reward;
 
   stub_->stub.OnReward(req, options_).finally([](auto) {});
 }
 
-void Agent::dispatch_message(int /*tick_id*/, const ::cogment::Message& message) {
+void Agent::dispatch_message(cogment::Message&& message) {
   cogment::AgentMessageRequest req;
-  auto* mess = req.add_messages();
-  mess->CopyFrom(message);
+  auto msg = req.add_messages();
+  *msg = message;
 
   stub_->stub.OnMessage(req, options_).finally([](auto) {});
 }

@@ -51,7 +51,10 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_
   return {};
 }
 
-::cogment::TrialInfoReply TrialLifecycleService::GetTrialInfo(::cogment::TrialInfoRequest, easy_grpc::Context ctx) {
+// TODO: Implement this function
+#define GET_TRIAL_INFO_IMPLEMENTED_FOR_NEW_API 0
+#if GET_TRIAL_INFO_IMPLEMENTED_FOR_NEW_API
+::cogment::TrialInfoReply TrialLifecycleService::GetTrialInfo(::cogment::TrialInfoRequest req, easy_grpc::Context ctx) {
   ::cogment::TrialInfoReply result;
   auto add_trial = [&](Trial* trial) {
     auto trial_info = result.add_trial();
@@ -77,6 +80,12 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_
 
   return result;
 }
+#else
+::cogment::TrialInfoReply TrialLifecycleService::GetTrialInfo(::cogment::TrialInfoRequest, easy_grpc::Context) {
+  throw std::runtime_error("GetTrialInfo is not implemented");
+  return {};
+}
+#endif
 
 ::easy_grpc::Stream_future<::cogment::TrialListEntry> TrialLifecycleService::WatchTrials(
     ::cogment::TrialListRequest req, easy_grpc::Context) {

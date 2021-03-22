@@ -44,9 +44,9 @@ class Actor {
 
   virtual void send_final_observation(cogment::Observation&& /*obs*/) {}
 
-  virtual void dispatch_observation(const cogment::Observation& obs, bool end_of_trial) = 0;
-  virtual void dispatch_reward(const ::cogment::Reward& reward) = 0;
-  virtual void dispatch_message(int tick_id, const ::cogment::Message& message) = 0;
+  virtual void dispatch_observation(cogment::Observation&& obs, bool end_of_trial) = 0;
+  virtual void dispatch_reward(cogment::Reward&& reward) = 0;
+  virtual void dispatch_message(cogment::Message&& message) = 0;
 
   virtual bool is_active() const = 0;
 

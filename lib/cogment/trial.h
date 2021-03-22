@@ -53,21 +53,22 @@ class Trial : public std::enable_shared_from_this<Trial> {
   Trial(const Trial&) = delete;
   Trial& operator=(const Trial&) = delete;
 
-  std::lock_guard<std::mutex> lock();
+  std::lock_guard<std::mutex> lock() { return std::lock_guard(lock_); }
 
-  Trial_state state() const;
+  Trial_state state() const { return state_; }
+  uint64_t tick_id() const { return tick_id_; }
 
   // Trial identification
-  const uuids::uuid& id() const;
-  const std::string& user_id() const;
+  const uuids::uuid& id() const { return id_; }
+  const std::string& user_id() const { return user_id_; }
 
   // Actors present in the trial
-  const std::vector<std::unique_ptr<Actor>>& actors() const;
+  const std::vector<std::unique_ptr<Actor>>& actors() const { return actors_; }
   const std::unique_ptr<Actor>& actor(const std::string& name) const;
 
   // Initializes the trial
-  void configure(cogment::TrialParams params);
-  const cogment::TrialParams& params() const;
+  void start(cogment::TrialParams params);
+  const cogment::TrialParams& params() const { return params_; }
 
   // returns either a valid actor for the given request, or nullptr if none can be found
   Client_actor* get_join_candidate(const TrialJoinRequest& req);
@@ -95,7 +96,7 @@ class Trial : public std::enable_shared_from_this<Trial> {
   std::mutex state_lock_;
 
   // Identity
-  uuids::uuid id_;
+  uuids::uuid id_;  // TODO: Store as string (since we convert everywhere back and forth)
   std::string user_id_;
 
   // Configuration
@@ -106,7 +107,10 @@ class Trial : public std::enable_shared_from_this<Trial> {
 
   // State
   Trial_state state_;
+  uint64_t tick_id_;
+  ObservationSet observations_;
   void set_state(Trial_state state);
+  void new_tick(ObservationSet&& new_obs);
 
   std::vector<std::unique_ptr<Actor>> actors_;
   std::unordered_map<std::string, uint32_t> actor_indexes_;
@@ -117,11 +121,10 @@ class Trial : public std::enable_shared_from_this<Trial> {
 
   void dispatch_observations(bool end_of_trial);
   void run_environment();
-  void gather_actions();
+  cogment::EnvActionRequest make_action_request();
 
   std::optional<::easy_grpc::Stream_promise<::cogment::EnvActionRequest>> outgoing_actions_;
 
-  ObservationSet latest_observations_;
   std::vector<std::optional<cogment::Action>> actions_;
   std::uint32_t gathered_actions_count_ = 0;
 

@@ -61,7 +61,7 @@ Future<std::shared_ptr<Trial>> Orchestrator::start_trial(cogment::TrialParams pa
   auto final_ctx_fut = perform_pre_hooks_(std::move(init_ctx), trial_id);
 
   return final_ctx_fut.then([new_trial, trial_id](auto final_ctx) {
-    new_trial->configure(std::move(*final_ctx.mutable_params()));
+    new_trial->start(std::move(*final_ctx.mutable_params()));
     spdlog::info("Trial {} successfully initialized", trial_id);
     return new_trial;
   });

@@ -21,6 +21,8 @@
 
 #include "spdlog/spdlog.h"
 
+#include <limits>
+
 #if COGMENT_DEBUG
   #define TRIAL_DEBUG_LOG(...) spdlog::debug(__VA_ARGS__)
 #else
@@ -28,6 +30,8 @@
 #endif
 namespace cogment {
 
+constexpr int64_t AUTO_TICK_ID = -1;
+constexpr uint64_t MAX_TICK_ID = static_cast<uint64_t>(std::numeric_limits<int64_t>::max());
 const std::string ENVIRONMENT_ACTOR_NAME("env");
 
 const char* get_trial_state_string(Trial_state s) {
@@ -67,28 +71,55 @@ cogment::TrialState get_trial_api_state(Trial_state s) {
 uuids::uuid_system_generator Trial::id_generator_;
 
 Trial::Trial(Orchestrator* orch, std::string user_id)
-    : orchestrator_(orch), id_(id_generator_()), user_id_(std::move(user_id)) {
+    : orchestrator_(orch), id_(id_generator_()), user_id_(std::move(user_id)), tick_id_(0) {
   set_state(Trial_state::initializing);
   refresh_activity();
 }
 
 Trial::~Trial() { spdlog::debug("Tearing down trial {}", to_string(id_)); }
 
-std::lock_guard<std::mutex> Trial::lock() { return std::lock_guard(lock_); }
-
-const uuids::uuid& Trial::id() const { return id_; }
-
-const std::string& Trial::user_id() const { return user_id_; }
-
-const std::vector<std::unique_ptr<Actor>>& Trial::actors() const { return actors_; }
-
 const std::unique_ptr<Actor>& Trial::actor(const std::string& name) const {
   auto actor_index = actor_indexes_.at(name);
   return actors_[actor_index];
 }
 
-void Trial::configure(cogment::TrialParams params) {
+void Trial::new_tick(ObservationSet&& new_obs) {
+  if (new_obs.tick_id() == AUTO_TICK_ID) {
+    tick_id_++;
+    if (tick_id_ > MAX_TICK_ID) {
+      throw std::runtime_error("Tick id has reached the limit");
+    }
+  }
+  else if (new_obs.tick_id() < 0) {
+    throw std::runtime_error("Invalid negative tick id from environment");
+  }
+  else {
+    const uint64_t new_tick_id = static_cast<uint64_t>(new_obs.tick_id());
+
+    if (new_tick_id <= tick_id_ && tick_id_ > 0) {
+      throw std::runtime_error("Environment repeated a tick id");
+    }
+
+    // This condition could be revisited
+    if (new_tick_id > tick_id_ + 1) {
+      throw std::runtime_error("Environment skipped tick id");
+    }
+
+    if (new_tick_id > MAX_TICK_ID) {
+      throw std::runtime_error("Tick id from environment is too large");
+    }
+
+    tick_id_ = new_tick_id;
+  }
+
+  observations_ = std::move(new_obs);
+}
+
+// TODO: Add protection so we don't "start" more than once.  We could also add protection in other
+//       functions (performance permitting) to prevent them being called before the "start".
+void Trial::start(cogment::TrialParams params) {
   params_ = std::move(params);
+  TRIAL_DEBUG_LOG("Configuring trial {} with parameters: {}", to_string(id_), params_.DebugString());
 
   grpc_metadata trial_header;
   trial_header.key = grpc_slice_from_static_string("trial-id");
@@ -99,6 +130,7 @@ void Trial::configure(cogment::TrialParams params) {
   env_stub_ = orchestrator_->env_pool()->get_stub(params_.environment().endpoint());
 
   ::cogment::EnvStartRequest env_start_req;
+  env_start_req.set_tick_id(tick_id_);
   env_start_req.set_impl_name(params_.environment().implementation());
   if (params_.environment().has_config()) {
     *env_start_req.mutable_config() = params_.environment().config();
@@ -158,7 +190,12 @@ void Trial::configure(cogment::TrialParams params) {
 
   join(env_ready, concat(actors_ready.begin(), actors_ready.end()))
       .then([this](auto env_rep) {
-        latest_observations_ = std::move(*env_rep.mutable_observation_set());
+        auto obs_set = env_rep.mutable_observation_set();
+        if (obs_set->tick_id() == AUTO_TICK_ID) {
+          obs_set->set_tick_id(0);  // First observation is not for new/next tick but for first tick
+        }
+        new_tick(std::move(*obs_set));
+
         set_state(Trial_state::running);
 
         run_environment();
@@ -171,33 +208,43 @@ void Trial::configure(cogment::TrialParams params) {
 }
 
 void Trial::reward_received(const cogment::Reward& reward, const std::string& sender) {
-  // TODO: deferred reward (i.e. with a specific tick_id != -1)
+  // TODO: timed rewards (i.e. with a specific tick_id != AUTO_TICK_ID and != current tick_id_)
+
+  if (reward.tick_id() != AUTO_TICK_ID && reward.tick_id() != static_cast<int64_t>(tick_id_)) {
+    spdlog::error("Invalid reward tick from [{}]: [{}] (current tick id: [{}])", sender, reward.tick_id(), tick_id_);
+    return;
+  }
 
   // Rewards are not dispatched as we receive them. They are accumulated, and sent once
   // per update.
   auto actor_index_itor = actor_indexes_.find(reward.receiver_name());
   if (actor_index_itor != actor_indexes_.end()) {
-    // This is immediate feedback, accumulate it.
-    if (reward.tick_id() == -1) {
-      // Normally we should have only one source when receiving
-      for (const auto& src : reward.sources()) {
-        actors_[actor_index_itor->second]->add_immediate_reward_src(src, sender);
-      }
+    // Normally we should have only one source when receiving
+    for (const auto& src : reward.sources()) {
+      actors_[actor_index_itor->second]->add_immediate_reward_src(src, sender);
     }
+  }
+  else {
+    spdlog::error("Unknown actor name as reward destination [{}]", reward.receiver_name());
   }
 }
 
 void Trial::message_received(const cogment::Message& message, const std::string& sender) {
-  // TODO: deferred message.
+  // TODO: timed messages (i.e. with a specific tick_id != AUTO_TICK_ID and != current tick_id_)
+
+  if (message.tick_id() != AUTO_TICK_ID && message.tick_id() != static_cast<int64_t>(tick_id_)) {
+    spdlog::error("Invalid message tick from [{}]: [{}] (current tick id: [{}])", sender, message.tick_id(), tick_id_);
+    return;
+  }
 
   // Message is not dispatched as we receive it. It is accumulated, and sent once
   // per update.
   auto actor_index_itor = actor_indexes_.find(message.receiver_name());
   if (actor_index_itor != actor_indexes_.end()) {
-    // This is immediate message, accumulate it.
-    if (message.tick_id() == -1) {
-      actors_[actor_index_itor->second]->add_immediate_message(message, sender);
-    }
+    actors_[actor_index_itor->second]->add_immediate_message(message, sender);
+  }
+  else {
+    spdlog::error("Unknown actor name as message destination [{}]", message.receiver_name());
   }
 }
 
@@ -208,27 +255,27 @@ void Trial::dispatch_observations(bool end_of_trial) {
 
   std::uint32_t actor_index = 0;
   for (const auto& actor : actors_) {
-    auto obs_index = latest_observations_.actors_map(actor_index);
-    const auto tick_id = latest_observations_.tick_id();
+    auto obs_index = observations_.actors_map(actor_index);
 
     cogment::Observation obs;
-    obs.set_tick_id(tick_id);
-    obs.set_timestamp(latest_observations_.timestamp());
-    *obs.mutable_data() = latest_observations_.observations(obs_index);
-    actor->dispatch_observation(obs, end_of_trial);
+    obs.set_tick_id(tick_id_);
+    obs.set_timestamp(observations_.timestamp());
+    *obs.mutable_data() = observations_.observations(obs_index);
+    actor->dispatch_observation(std::move(obs), end_of_trial);
 
     auto sources = actor->get_and_flush_immediate_reward_src();
     if (!sources.empty()) {
       auto reward = build_reward(sources);
-      reward.set_tick_id(tick_id);
+      reward.set_tick_id(tick_id_);
       reward.set_receiver_name(actor->actor_name());
-      actor->dispatch_reward(reward);
+      actor->dispatch_reward(std::move(reward));
     }
 
     auto messages = actor->get_and_flush_immediate_message();
     if (!messages.empty()) {
-      for (const auto& message : messages) {
-        actor->dispatch_message(tick_id, message);
+      for (auto& message : messages) {
+        message.set_tick_id(tick_id_);
+        actor->dispatch_message(std::move(message));
       }
     }
 
@@ -253,7 +300,7 @@ void Trial::run_environment() {
   step_data_.emplace_back();
 
   auto& sample = step_data_.back();
-  sample.mutable_observations()->CopyFrom(latest_observations_);
+  sample.mutable_observations()->CopyFrom(observations_);
 
   // Launch the main update stream
   auto streams = (*env_stub_)->OnAction(call_options_);
@@ -266,11 +313,11 @@ void Trial::run_environment() {
       .for_each([this](auto update) {
         TRIAL_DEBUG_LOG("update: {}", update.DebugString());
 
-        latest_observations_ = std::move(*update.mutable_observation_set());
+        new_tick(std::move(*update.mutable_observation_set()));
 
         step_data_.emplace_back();
         auto& sample = step_data_.back();
-        sample.mutable_observations()->CopyFrom(latest_observations_);
+        sample.mutable_observations()->CopyFrom(observations_);
 
         for (const auto& rew : update.rewards()) {
           reward_received(rew, ENVIRONMENT_ACTOR_NAME);
@@ -292,6 +339,27 @@ void Trial::run_environment() {
       });
 }
 
+cogment::EnvActionRequest Trial::make_action_request() {
+  cogment::EnvActionRequest req;
+  auto action_set = req.mutable_action_set();
+  action_set->set_tick_id(tick_id_);
+
+  for (auto& act : actions_) {
+    // TODO: Synchronize properly with actor_acted()
+    if (act) {
+      action_set->add_actions(act->content());
+    }
+    else {
+      action_set->add_actions("");
+    }
+
+    act = std::nullopt;
+    gathered_actions_count_--;
+  }
+
+  return req;
+}
+
 void Trial::terminate() {
   auto self = shared_from_this();
 
@@ -299,38 +367,25 @@ void Trial::terminate() {
     set_state(Trial_state::terminating);
   }
 
-  cogment::EnvActionRequest req;
-
   // Send the actions we have so far (partial set)
   // TODO: Should we instead send all empty actions?
-  for (auto& act : actions_) {
-    // TODO: Synchronize properly with actor_acted()
-    if (act) {
-      req.mutable_action_set()->add_actions(act->content());
-    }
-    else {
-      req.mutable_action_set()->add_actions("");
-    }
-
-    act = std::nullopt;
-    gathered_actions_count_--;
-  }
+  auto req = make_action_request();
 
   // TODO: Add fail safe in case communication is broken or environment is down
   (*env_stub_)
       ->OnEnd(req, call_options_)
       .then([this](auto rep) {
-        latest_observations_ = std::move(*rep.mutable_observation_set());
+        new_tick(std::move(*rep.mutable_observation_set()));
 
         step_data_.emplace_back();
         auto& sample = step_data_.back();
-        sample.mutable_observations()->CopyFrom(latest_observations_);
+        sample.mutable_observations()->CopyFrom(observations_);
 
         dispatch_observations(true);
       })
       .finally([self](auto) {
         // We are holding on to self until the rpc is over.
-        // This is important because we we still need to finish
+        // This is important because we still need to finish
         // this call while the trial is "deleted".
       });
 }
@@ -340,35 +395,26 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
     return;
   }
 
+  if (action.tick_id() != AUTO_TICK_ID && action.tick_id() != static_cast<int64_t>(tick_id_)) {
+    spdlog::error("Invalid action tick from [{}]: [{}] (current tick id: [{}])", actor_name, action.tick_id(),
+                  tick_id_);
+    return;
+  }
+
   // TODO: Do we want to manage the exception if the name is not found?
   auto actor_index = actor_indexes_.at(actor_name);
 
   if (actions_[actor_index] == std::nullopt) {
     ++gathered_actions_count_;
   }
-
   actions_[actor_index] = action;
+  actions_[actor_index]->set_tick_id(static_cast<int64_t>(tick_id_));
 
   if (gathered_actions_count_ == actions_.size()) {
-    gathered_actions_count_ = 0;
-
-    ::cogment::EnvActionRequest req;
-    for (auto& act : actions_) {
-      if (act) {
-        req.mutable_action_set()->add_actions(act->content());
-      }
-      else {
-        req.mutable_action_set()->add_actions("");
-      }
-
-      act = std::nullopt;
-    }
-
+    auto req = make_action_request();
     outgoing_actions_->push(std::move(req));
   }
 }
-
-const cogment::TrialParams& Trial::params() const { return params_; }
 
 Client_actor* Trial::get_join_candidate(const TrialJoinRequest& req) {
   Actor* result = nullptr;
@@ -402,8 +448,6 @@ Client_actor* Trial::get_join_candidate(const TrialJoinRequest& req) {
 
   return static_cast<Client_actor*>(result);
 }
-
-Trial_state Trial::state() const { return state_; }
 
 void Trial::set_state(Trial_state state) {
   const std::lock_guard<std::mutex> lock(state_lock_);

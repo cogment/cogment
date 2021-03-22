@@ -37,9 +37,9 @@ class Agent : public Actor {
 
   bool is_active() const override;
 
-  void dispatch_observation(const cogment::Observation& obs, bool end_of_trial) override;
-  void dispatch_reward(const ::cogment::Reward& reward) override;
-  void dispatch_message(int tick_id, const ::cogment::Message& message) override;
+  void dispatch_observation(cogment::Observation&& obs, bool end_of_trial) override;
+  void dispatch_reward(cogment::Reward&& reward) override;
+  void dispatch_message(cogment::Message&& message) override;
 
   private:
   void lazy_start_decision_stream();
