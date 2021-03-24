@@ -65,9 +65,11 @@ class Orchestrator {
   Stub_pool<cogment::EnvironmentEndpoint>* env_pool() { return &env_stubs_; }
   Stub_pool<cogment::AgentEndpoint>* agent_pool() { return &agent_stubs_; }
 
-  const cogment::TrialParams& default_trial_params() const { return default_trial_params_; };
+  const cogment::TrialParams& default_trial_params() const { return default_trial_params_; }
 
   const Trial_spec& get_trial_spec() const { return trial_spec_; }
+
+  std::unique_ptr<TrialLogInterface> start_log(const Trial* trial) { return log_exporter_->start_log(trial); }
 
   template <typename T>
   void watch_trials(T&& func) {

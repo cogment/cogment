@@ -19,6 +19,8 @@
 #include "cogment/client_actor.h"
 #include "cogment/reward.h"
 
+#include "cogment/datalog/storage_interface.h"
+
 #include "spdlog/spdlog.h"
 
 #include <limits>
@@ -75,6 +77,8 @@ Trial::Trial(Orchestrator* orch, std::string user_id)
     : orchestrator_(orch), id_(id_generator_()), user_id_(std::move(user_id)), tick_id_(0) {
   set_state(Trial_state::initializing);
   refresh_activity();
+
+  log_interface_ = orch->start_log(this);
 }
 
 Trial::~Trial() { spdlog::debug("Tearing down trial {}", to_string(id_)); }
@@ -310,6 +314,28 @@ void Trial::dispatch_observations(bool end_of_trial) {
     actor_indexes_.clear();
     outgoing_actions_ = std::nullopt;
     set_state(Trial_state::ended);
+    for (auto& sample : step_data_) {
+      log_interface_->add_sample(std::move(sample));
+    }
+    step_data_.clear();
+    orchestrator_->end_trial(id());
+  }
+}
+
+void Trial::cycle_buffer() {
+  static constexpr uint64_t MIN_NB_BUFFERED_SAMPLES = 2;  // Because of the way we use the buffer
+  static constexpr uint64_t NB_BUFFERED_SAMPLES = 5;      // Could be an external setting
+  static constexpr uint64_t LOG_BATCH_SIZE = 1;           // Could be an external setting
+  static constexpr uint64_t LOG_TRIGGER_SIZE = NB_BUFFERED_SAMPLES + LOG_BATCH_SIZE - 1;
+  static_assert(NB_BUFFERED_SAMPLES >= MIN_NB_BUFFERED_SAMPLES);
+  static_assert(LOG_BATCH_SIZE > 0);
+
+  // Send overflow to log
+  if (step_data_.size() >= LOG_TRIGGER_SIZE) {
+    while (step_data_.size() >= NB_BUFFERED_SAMPLES) {
+      log_interface_->add_sample(std::move(step_data_.front()));
+      step_data_.pop_front();
+    }
   }
 }
 
@@ -337,6 +363,7 @@ void Trial::run_environment() {
           set_state(Trial_state::terminating);
         }
         dispatch_observations(update.final_update());
+        cycle_buffer();
       })
       .finally([self](auto) {
         // We are holding on to self until the rpc is over.

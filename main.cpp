@@ -207,11 +207,12 @@ int main(int argc, const char* argv[]) {
       }
     }
 
+    std::string datalog_type = "none";
     if (cogment_yaml[cfg_file::datalog_key] && cogment_yaml[cfg_file::datalog_key][cfg_file::d_type_key]) {
-      auto datalog_type = cogment_yaml[cfg_file::datalog_key][cfg_file::d_type_key].as<std::string>();
-      auto datalog = cogment::Datalog_storage_interface::create(datalog_type, cogment_yaml);
-      orchestrator.set_log_exporter(std::move(datalog));
+      datalog_type = cogment_yaml[cfg_file::datalog_key][cfg_file::d_type_key].as<std::string>();
     }
+    auto datalog = cogment::Datalog_storage_interface::create(datalog_type, cogment_yaml);
+    orchestrator.set_log_exporter(std::move(datalog));
 
     std::vector<rpc::server::Server> servers;
 

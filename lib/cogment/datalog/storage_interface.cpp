@@ -40,13 +40,13 @@ slt::Setting datalog_flush_frequency =
 }  // namespace settings
 
 namespace {
-class Noop_trial_log_interface : public cogment::Trial_log_interface {
+class Noop_trial_log_interface : public cogment::TrialLogInterface {
   public:
   void add_sample(cogment::DatalogSample) override {}
 };
 
 class Noop_datalog_storage : public cogment::Datalog_storage_interface {
-  std::unique_ptr<cogment::Trial_log_interface> begin_trial(cogment::Trial*) override {
+  std::unique_ptr<cogment::TrialLogInterface> start_log(const cogment::Trial*) override {
     return std::make_unique<Noop_trial_log_interface>();
   }
 };

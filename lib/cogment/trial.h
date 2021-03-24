@@ -35,6 +35,7 @@
 namespace cogment {
 class Orchestrator;
 class Client_actor;
+class TrialLogInterface;
 
 enum class Trial_state { initializing, pending, running, terminating, ended };
 
@@ -121,6 +122,7 @@ class Trial : public std::enable_shared_from_this<Trial> {
   easy_grpc::client::Call_options call_options_;
 
   void dispatch_observations(bool end_of_trial);
+  void cycle_buffer();
   void run_environment();
   cogment::EnvActionRequest make_action_request();
 
@@ -129,6 +131,7 @@ class Trial : public std::enable_shared_from_this<Trial> {
   std::vector<std::optional<cogment::Action>> actions_;
   std::uint32_t gathered_actions_count_ = 0;
 
+  std::unique_ptr<TrialLogInterface> log_interface_;
   std::deque<cogment::DatalogSample> step_data_;
 };
 

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+
+### Added
+- Log exporter is now avaialble: trials param, observations, rewards, messages of every trials are sent to the log exporter service.
+
 ### Changed
 
 - Tick ID management centralized in orchestrator

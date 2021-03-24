@@ -28,22 +28,25 @@ namespace cogment {
 
 class Grpc_datalog_exporter_base : public Datalog_storage_interface {
   public:
-  class Trial_log : public Trial_log_interface {
+  class Trial_log : public TrialLogInterface {
     public:
-    Trial_log(Grpc_datalog_exporter_base* owner, Trial* trial);
+    Trial_log(Grpc_datalog_exporter_base* owner, const Trial* trial);
     ~Trial_log();
 
     void add_sample(cogment::DatalogSample data) override;
 
     private:
     Grpc_datalog_exporter_base* owner_ = nullptr;
-    Trial* trial_ = nullptr;
+    const Trial* trial_ = nullptr;
+    ::easy_grpc::Stream_future<::cogment::LogExporterSampleReply> reply_;
+    std::vector<grpc_metadata> headers_;
+    easy_grpc::client::Call_options options_;
 
     void lazy_start_stream_();
     std::optional<::easy_grpc::Stream_promise<::cogment::LogExporterSampleRequest>> output_promise_;
   };
 
-  std::unique_ptr<Trial_log_interface> begin_trial(Trial* trial) final override;
+  std::unique_ptr<TrialLogInterface> start_log(const Trial* trial) final override;
 
   void set_stub(cogment::LogExporter::Stub_interface* stub) { stub_ = stub; }
 
