@@ -110,7 +110,8 @@ class Trial : public std::enable_shared_from_this<Trial> {
   uint64_t tick_id_;
   ObservationSet observations_;
   void set_state(Trial_state state);
-  void new_tick(ObservationSet&& new_obs);
+  void new_tick(ObservationSet&& new_obs, bool first_set = false);
+  void next_step(EnvActionReply&& reply);
 
   std::vector<std::unique_ptr<Actor>> actors_;
   std::unordered_map<std::string, uint32_t> actor_indexes_;

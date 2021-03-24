@@ -23,11 +23,12 @@
 
 #include <limits>
 
-#if COGMENT_DEBUG
+#ifndef NDEBUG
   #define TRIAL_DEBUG_LOG(...) spdlog::debug(__VA_ARGS__)
 #else
   #define TRIAL_DEBUG_LOG(...)
 #endif
+
 namespace cogment {
 
 constexpr int64_t AUTO_TICK_ID = -1;
@@ -83,9 +84,15 @@ const std::unique_ptr<Actor>& Trial::actor(const std::string& name) const {
   return actors_[actor_index];
 }
 
-void Trial::new_tick(ObservationSet&& new_obs) {
-  if (new_obs.tick_id() == AUTO_TICK_ID) {
+void Trial::new_tick(ObservationSet&& new_obs, bool first_set) {
+  if (!first_set) {
     tick_id_++;
+  }
+  else if (tick_id_ > 0) {
+    throw std::runtime_error("Internal error: Cannot be the first set if tick id > 0");
+  }
+
+  if (new_obs.tick_id() == AUTO_TICK_ID) {
     if (tick_id_ > MAX_TICK_ID) {
       throw std::runtime_error("Tick id has reached the limit");
     }
@@ -96,19 +103,20 @@ void Trial::new_tick(ObservationSet&& new_obs) {
   else {
     const uint64_t new_tick_id = static_cast<uint64_t>(new_obs.tick_id());
 
-    if (new_tick_id <= tick_id_ && tick_id_ > 0) {
+    if (new_tick_id < tick_id_) {
       throw std::runtime_error("Environment repeated a tick id");
-    }
-
-    // This condition could be revisited
-    if (new_tick_id > tick_id_ + 1) {
-      throw std::runtime_error("Environment skipped tick id");
     }
 
     if (new_tick_id > MAX_TICK_ID) {
       throw std::runtime_error("Tick id from environment is too large");
     }
 
+    // This condition could be revisited
+    if (new_tick_id > tick_id_) {
+      throw std::runtime_error("Environment skipped tick id");
+    }
+
+    // Here effectively: new_tick_id == tick_id_
     tick_id_ = new_tick_id;
   }
 
@@ -190,11 +198,7 @@ void Trial::start(cogment::TrialParams params) {
 
   join(env_ready, concat(actors_ready.begin(), actors_ready.end()))
       .then([this](auto env_rep) {
-        auto obs_set = env_rep.mutable_observation_set();
-        if (obs_set->tick_id() == AUTO_TICK_ID) {
-          obs_set->set_tick_id(0);  // First observation is not for new/next tick but for first tick
-        }
-        new_tick(std::move(*obs_set));
+        new_tick(std::move(*env_rep.mutable_observation_set()), true);
 
         set_state(Trial_state::running);
 
@@ -245,6 +249,22 @@ void Trial::message_received(const cogment::Message& message, const std::string&
   }
   else {
     spdlog::error("Unknown actor name as message destination [{}]", message.receiver_name());
+  }
+}
+
+void Trial::next_step(EnvActionReply&& reply) {
+  new_tick(std::move(*reply.mutable_observation_set()));
+
+  step_data_.emplace_back();
+  auto& sample = step_data_.back();
+  sample.mutable_observations()->CopyFrom(observations_);
+
+  for (auto&& rew : reply.rewards()) {
+    reward_received(rew, ENVIRONMENT_ACTOR_NAME);
+  }
+
+  for (auto&& msg : reply.messages()) {
+    message_received(msg, ENVIRONMENT_ACTOR_NAME);
   }
 }
 
@@ -311,21 +331,7 @@ void Trial::run_environment() {
   // Whenever we get an update, advance the datalog table.
   incoming_updates
       .for_each([this](auto update) {
-        TRIAL_DEBUG_LOG("update: {}", update.DebugString());
-
-        new_tick(std::move(*update.mutable_observation_set()));
-
-        step_data_.emplace_back();
-        auto& sample = step_data_.back();
-        sample.mutable_observations()->CopyFrom(observations_);
-
-        for (const auto& rew : update.rewards()) {
-          reward_received(rew, ENVIRONMENT_ACTOR_NAME);
-        }
-
-        for (const auto& message : update.messages()) {
-          message_received(message, ENVIRONMENT_ACTOR_NAME);
-        }
+        next_step(std::move(update));
 
         if (update.final_update() && state_ != Trial_state::ended) {
           set_state(Trial_state::terminating);
@@ -375,12 +381,7 @@ void Trial::terminate() {
   (*env_stub_)
       ->OnEnd(req, call_options_)
       .then([this](auto rep) {
-        new_tick(std::move(*rep.mutable_observation_set()));
-
-        step_data_.emplace_back();
-        auto& sample = step_data_.back();
-        sample.mutable_observations()->CopyFrom(observations_);
-
+        next_step(std::move(rep));
         dispatch_observations(true);
       })
       .finally([self](auto) {
