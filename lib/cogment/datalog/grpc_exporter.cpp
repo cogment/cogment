@@ -42,6 +42,10 @@ void Grpc_datalog_exporter_base::Trial_log::lazy_start_stream_() {
     auto stream = std::move(std::get<0>(stream_reply));
     reply_ = std::move(std::get<1>(stream_reply));
 
+    // We'll just ignore whatever comes back from the log exporter service.
+    // TODO: It is required to bypass a probable bug in easy_grpc that expects a stream to be "used".
+    reply_.for_each([](auto) {}).finally([](auto) {});
+
     cogment::LogExporterSampleRequest msg;
     *msg.mutable_trial_params() = trial_->params();
     stream.push(std::move(msg));
