@@ -8,7 +8,6 @@ const _plane_class = {
     observation_space: data_pb2.Observation,
     observation_delta: data_pb2.ObservationDelta,
     observation_delta_apply_fn: delta.apply_delta,
-    feedback_space: null
 };
 
 const _ai_drone_class = {
@@ -17,7 +16,6 @@ const _ai_drone_class = {
     observation_space: data_pb2.Observation,
     observation_delta: data_pb2.ObservationDelta,
     observation_delta_apply_fn: delta.apply_delta,
-    feedback_space: null
 };
 
 

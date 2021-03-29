@@ -31,7 +31,6 @@ export interface ActorClass {
   observationSpace: typeof Message;
   observationDelta?: typeof Message;
   observationDeltaApply?: (x: Message) => Message;
-  feedbackSpace?: typeof Message;
 }
 
 {{- range .ActorClasses}}

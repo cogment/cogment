@@ -24,7 +24,6 @@ _{{.Id}}_class = _cog.actor.ActorClass(
     observation_delta={{if .Delta}}{{.Delta}}{{else}}{{.Space}}{{end}},
     observation_delta_apply_fn={{if .DeltaApplyFn}}{{.DeltaApplyFn.Python}}{{else}}_cog.delta_encoding._apply_delta_replace{{end}},
     {{end -}}
-    feedback_space=None
 )
 {{end}}
 

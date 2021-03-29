@@ -28,7 +28,6 @@ _plane_class = _cog.ActorClass(
     observation_space=data_pb2.Observation,
     observation_delta=data_pb2.ObservationDelta,
     observation_delta_apply_fn=delta.apply_delta,
-    feedback_space=None
 )
 
 _ai_drone_class = _cog.ActorClass(
@@ -38,7 +37,6 @@ _ai_drone_class = _cog.ActorClass(
     observation_space=data_pb2.Observation,
     observation_delta=data_pb2.ObservationDelta,
     observation_delta_apply_fn=delta.apply_delta,
-    feedback_space=None
 )
 
 
