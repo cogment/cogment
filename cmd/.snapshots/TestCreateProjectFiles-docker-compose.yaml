@@ -62,6 +62,7 @@ services:
       - metrics
 
   metrics:
+    user: 0:0
     image: cogment/metrics:latest
     command: --config.file=/etc/prometheus/prometheus.yml --log.level=error
     volumes:
@@ -69,20 +70,4 @@ services:
       - ./metrics/data:/prometheus
     ports:
       - 9090:9090/tcp
-    depends_on:
-      - cadvisor
-
-  cadvisor:
-    privileged: true
-    devices:
-      - /dev/kmsg
-    image: gcr.io/cadvisor/cadvisor:latest
-    ports:
-      - 9088:8080
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-      - /var/lib/docker/:/var/lib/docker:ro
-      - /dev/disk:/dev/disk:ro
 
