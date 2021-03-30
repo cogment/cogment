@@ -127,9 +127,13 @@ void Trial::new_tick(ObservationSet&& new_obs, bool first_set) {
   observations_ = std::move(new_obs);
 }
 
-// TODO: Add protection so we don't "start" more than once.  We could also add protection in other
-//       functions (performance permitting) to prevent them being called before the "start".
+// TODO: We could add protection in other functions (performance permitting) to prevent
+//       them from being called before the "start", or after the "end".
 void Trial::start(cogment::TrialParams params) {
+  if (state_ != Trial_state::initializing) {
+    throw std::runtime_error("Trial not in proper state to start");  // TODO: add trial id to output
+  }
+
   params_ = std::move(params);
   TRIAL_DEBUG_LOG("Configuring trial {} with parameters: {}", to_string(id_), params_.DebugString());
 
@@ -207,8 +211,9 @@ void Trial::start(cogment::TrialParams params) {
         set_state(Trial_state::running);
 
         run_environment();
+
         // Send the initial state
-        dispatch_observations(false);
+        dispatch_observations();
       })
       .finally([](auto) {});
 
@@ -272,10 +277,11 @@ void Trial::next_step(EnvActionReply&& reply) {
   }
 }
 
-void Trial::dispatch_observations(bool end_of_trial) {
+void Trial::dispatch_observations() {
   if (state_ == Trial_state::ended) {
     return;
   }
+  const bool ending = (state_ == Trial_state::terminating);
 
   std::uint32_t actor_index = 0;
   for (const auto& actor : actors_) {
@@ -285,8 +291,10 @@ void Trial::dispatch_observations(bool end_of_trial) {
     obs.set_tick_id(tick_id_);
     obs.set_timestamp(observations_.timestamp());
     *obs.mutable_data() = observations_.observations(obs_index);
-    actor->dispatch_observation(std::move(obs), end_of_trial);
+    actor->dispatch_observation(std::move(obs), ending);
 
+    // TODO: The messages and rewards should be sent with previous tick since they came with
+    //       the actions in the previous tick (in reponse to obs in that tick).
     auto sources = actor->get_and_flush_immediate_reward_src();
     if (!sources.empty()) {
       auto reward = build_reward(sources);
@@ -306,19 +314,13 @@ void Trial::dispatch_observations(bool end_of_trial) {
     ++actor_index;
   }
 
-  // This is not ideal and should get cleaned up as we (finally) revise the end-of-trial flow.
-  if (end_of_trial && state_ != Trial_state::ended) {
-    // Stop sending actions to the environment
-    outgoing_actions_->complete();
-    actors_.clear();
-    actor_indexes_.clear();
-    outgoing_actions_ = std::nullopt;
+  if (ending) {
     set_state(Trial_state::ended);
+
     for (auto& sample : step_data_) {
       log_interface_->add_sample(std::move(sample));
     }
     step_data_.clear();
-    orchestrator_->end_trial(id());
   }
 }
 
@@ -357,12 +359,16 @@ void Trial::run_environment() {
   // Whenever we get an update, advance the datalog table.
   incoming_updates
       .for_each([this](auto update) {
-        next_step(std::move(update));
-
-        if (update.final_update() && state_ != Trial_state::ended) {
+        if (state_ == Trial_state::ended) {
+          return;
+        }
+        if (update.final_update()) {
+          // TODO: Investigate timing issues with the terminate() function
           set_state(Trial_state::terminating);
         }
-        dispatch_observations(update.final_update());
+
+        next_step(std::move(update));
+        dispatch_observations();
         cycle_buffer();
       })
       .finally([self](auto) {
@@ -394,32 +400,36 @@ cogment::EnvActionRequest Trial::make_action_request() {
 }
 
 void Trial::terminate() {
-  auto self = shared_from_this();
-
-  if (state_ != Trial_state::ended) {
-    set_state(Trial_state::terminating);
+  if (state_ == Trial_state::ended) {
+    return;
   }
+  set_state(Trial_state::terminating);
+  auto self = shared_from_this();
 
   // Send the actions we have so far (partial set)
   // TODO: Should we instead send all empty actions?
   auto req = make_action_request();
 
-  // TODO: Add fail safe in case communication is broken or environment is down
+  // TODO: Add fail safe (time based?) in case communication is broken or environment is down,
+  //       because this function is also called to end abnormal/stale trials.
   (*env_stub_)
       ->OnEnd(req, call_options_)
       .then([this](auto rep) {
         next_step(std::move(rep));
-        dispatch_observations(true);
+        dispatch_observations();
       })
       .finally([self](auto) {
-        // We are holding on to self until the rpc is over.
-        // This is important because we still need to finish
-        // this call while the trial is "deleted".
+        // We are holding on to self to be safe.
+
+        if (self->state_ != Trial_state::ended) {
+          spdlog::error("Trail [{}] did not end normally.", to_string(self->id_));
+          self->set_state(Trial_state::ended);
+        }
       });
 }
 
 void Trial::actor_acted(const std::string& actor_name, const cogment::Action& action) {
-  if (!outgoing_actions_) {
+  if (state_ == Trial_state::ended) {
     return;
   }
 
@@ -438,7 +448,7 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
   actions_[actor_index] = action;
   actions_[actor_index]->set_tick_id(static_cast<int64_t>(tick_id_));
 
-  if (gathered_actions_count_ == actions_.size()) {
+  if (gathered_actions_count_ == actions_.size() && outgoing_actions_) {
     auto req = make_action_request();
     outgoing_actions_->push(std::move(req));
   }
@@ -478,15 +488,24 @@ Client_actor* Trial::get_join_candidate(const TrialJoinRequest& req) {
 }
 
 void Trial::set_state(Trial_state state) {
-  const std::lock_guard<std::mutex> lock(state_lock_);
-  state_ = state;
-  orchestrator_->notify_watchers(*this);
+  if (state_ != Trial_state::ended) {
+    const std::lock_guard<std::mutex> lock(state_lock_);
+    state_ = state;
+    orchestrator_->notify_watchers(*this);
+  }
+  else {
+    spdlog::debug("Trial [{}] already ended: cannot change state to {}", to_string(id_), static_cast<int>(state));
+  }
 }
 
 void Trial::refresh_activity() { last_activity_ = std::chrono::steady_clock::now(); }
 
 bool Trial::is_stale() const {
-  bool stale = std::chrono::steady_clock::now() - last_activity_ > std::chrono::seconds(params_.max_inactivity());
-  return params_.max_inactivity() > 0 && stale;
+  const auto inactivity_period = std::chrono::steady_clock::now() - last_activity_;
+  const auto& max_inactivity = params_.max_inactivity();
+
+  const bool stale = (inactivity_period > std::chrono::seconds(max_inactivity));
+  return (max_inactivity > 0 && stale);
 }
+
 }  // namespace cogment

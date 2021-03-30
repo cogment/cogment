@@ -42,6 +42,7 @@ enum class Trial_state { initializing, pending, running, terminating, ended };
 const char* get_trial_state_string(Trial_state s);
 cogment::TrialState get_trial_api_state(Trial_state s);
 
+// TODO: Make Trial independent of orchestrator (to remove any chance of circular reference)
 class Trial : public std::enable_shared_from_this<Trial> {
   static uuids::uuid_system_generator id_generator_;
 
@@ -121,7 +122,7 @@ class Trial : public std::enable_shared_from_this<Trial> {
   std::vector<grpc_metadata> headers_;
   easy_grpc::client::Call_options call_options_;
 
-  void dispatch_observations(bool end_of_trial);
+  void dispatch_observations();
   void cycle_buffer();
   void run_environment();
   cogment::EnvActionRequest make_action_request();

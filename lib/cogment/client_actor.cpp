@@ -61,9 +61,9 @@ Client_actor::Observation_future Client_actor::bind(Client_actor::Action_future 
   return std::move(outgoing_observations_future_);
 }
 
-void Client_actor::dispatch_observation(cogment::Observation&& obs, bool end_of_trial) {
+void Client_actor::dispatch_observation(cogment::Observation&& obs, bool final_obs) {
   ::cogment::TrialActionReply req;
-  req.set_final_data(end_of_trial);
+  req.set_final_data(final_obs);
   auto new_obs = req.mutable_data()->add_observations();
   *new_obs = obs;
 

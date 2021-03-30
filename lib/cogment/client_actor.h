@@ -38,7 +38,7 @@ class Client_actor : public Actor {
 
   Future<void> init() override;
 
-  void dispatch_observation(cogment::Observation&& obs, bool end_of_trial) override;
+  void dispatch_observation(cogment::Observation&& obs, bool final_obs) override;
   void dispatch_reward(cogment::Reward&& reward) override;
   void dispatch_message(cogment::Message&& message) override;
 

@@ -37,13 +37,18 @@ Orchestrator::Orchestrator(Trial_spec trial_spec, cogment::TrialParams default_t
       env_stubs_(&channel_pool_, &client_queue_),
       agent_stubs_(&channel_pool_, &client_queue_),
       actor_service_(this),
-      trial_lifecycle_service_(this),
-      garbage_collection_countdown_(0) {}
+      trial_lifecycle_service_(this) {
+  garbage_collection_countdown_.store(settings::garbage_collection_frequency.get());
+}
 
 Orchestrator::~Orchestrator() {}
 
 Future<std::shared_ptr<Trial>> Orchestrator::start_trial(cogment::TrialParams params, std::string user_id) {
-  check_garbage_collection_();
+  garbage_collection_countdown_--;
+  if (garbage_collection_countdown_ <= 0) {
+    garbage_collection_countdown_.store(settings::garbage_collection_frequency.get());
+    perform_garbage_collection_();
+  }
 
   auto new_trial = std::make_shared<Trial>(this, user_id);
 
@@ -65,19 +70,6 @@ Future<std::shared_ptr<Trial>> Orchestrator::start_trial(cogment::TrialParams pa
     spdlog::info("Trial {} successfully initialized", trial_id);
     return new_trial;
   });
-}
-
-void Orchestrator::end_trial(const uuids::uuid& trial_id) {
-  std::lock_guard l(trials_mutex_);
-
-  auto trial_itor = trials_.find(trial_id);
-  if (trial_itor == trials_.end()) {
-    throw std::out_of_range("unknown trial id");  // TODO: Add trial_id received in error string
-  }
-
-  auto trial = trial_itor->second;
-  trial->terminate();
-  trials_.erase(trial_itor);
 }
 
 TrialJoinReply Orchestrator::client_joined(TrialJoinRequest req) {
@@ -170,21 +162,33 @@ Future<cogment::PreTrialContext> Orchestrator::perform_pre_hooks_(cogment::PreTr
 
 void Orchestrator::set_log_exporter(std::unique_ptr<DatalogStorageInterface> le) { log_exporter_ = std::move(le); }
 
-void Orchestrator::check_garbage_collection_() {
-  garbage_collection_countdown_--;
-  if (garbage_collection_countdown_ <= 0) {
-    garbage_collection_countdown_.store(settings::garbage_collection_frequency.get());
-    perform_garbage_collection_();
-  }
-}
-
+// TODO: Add a timer to do garbage collection after 60 seconds (or whatever) since the last call
+//       in order to prevent old, ended or stale trials from lingering if no new trials are started.
 void Orchestrator::perform_garbage_collection_() {
-  spdlog::debug("Performing garbage collection of ended trials");
-  auto trials = all_trials();
-  for (auto& trial : trials) {
-    if (trial->is_stale()) {
-      end_trial(trial->id());
+  spdlog::debug("Performing garbage collection of ended and stale trials");
+
+  std::vector<Trial*> stale_trials;
+  {
+    std::lock_guard l(trials_mutex_);
+
+    auto itor = trials_.begin();
+    while (itor != trials_.end()) {
+      auto& trial = itor->second;
+
+      if (trial->state() == Trial_state::ended) {
+        itor = trials_.erase(itor);
+      }
+      else if (trial->is_stale()) {
+        stale_trials.emplace_back(trial.get());
+        ++itor;
+      }
     }
+  }
+
+  // terminate may be long, so we don't want to lock the list during that time
+  for (auto trial : stale_trials) {
+    spdlog::warn("Terminating trial [{}] because inactive for too long", to_string(trial->id()));
+    trial->terminate();
   }
 }
 

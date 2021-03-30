@@ -77,8 +77,8 @@ Future<void> Agent::init() {
   });
 }
 
-void Agent::dispatch_observation(cogment::Observation&& obs, bool end_of_trial) {
-  if (!end_of_trial) {
+void Agent::dispatch_observation(cogment::Observation&& obs, bool final_obs) {
+  if (!final_obs) {
     lazy_start_decision_stream();
 
     ::cogment::AgentObservationRequest req;

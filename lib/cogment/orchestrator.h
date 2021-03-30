@@ -41,7 +41,6 @@ class Orchestrator {
 
   // Lifecycle
   Future<std::shared_ptr<Trial>> start_trial(cogment::TrialParams params, std::string user_id);
-  void end_trial(const uuids::uuid& trial_id);
 
   // Client API
   TrialJoinReply client_joined(TrialJoinRequest);
@@ -106,7 +105,6 @@ class Orchestrator {
   std::vector<std::function<void(const Trial& trial)>> trial_watchers_;
 
   std::atomic<int> garbage_collection_countdown_;
-  void check_garbage_collection_();
   void perform_garbage_collection_();
 
   Future<cogment::PreTrialContext> perform_pre_hooks_(cogment::PreTrialContext ctx, const std::string& trial_id);

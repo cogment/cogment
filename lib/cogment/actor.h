@@ -42,9 +42,7 @@ class Actor {
 
   virtual aom::Future<void> init() = 0;
 
-  virtual void send_final_observation(cogment::Observation&& /*obs*/) {}
-
-  virtual void dispatch_observation(cogment::Observation&& obs, bool end_of_trial) = 0;
+  virtual void dispatch_observation(cogment::Observation&& obs, bool final_obs) = 0;
   virtual void dispatch_reward(cogment::Reward&& reward) = 0;
   virtual void dispatch_message(cogment::Message&& message) = 0;
 
