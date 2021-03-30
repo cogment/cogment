@@ -7,11 +7,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+- Technical release, updating dependencies to fixed versions.
+
 ## v1.0.0-alpha7 - 2021-03-30
 
-
 ### Added
-- Log exporter is now avaialble: trials param, observations, rewards, messages of every trials are sent to the log exporter service.
+
+- Log exporter is now available: trials param, observations, rewards, messages of every trials are sent to the log exporter service.
 
 ### Changed
 
@@ -20,17 +22,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## v1.0.0-alpha6 - 2021-03-10
 
 ### Added
+
 - Watch trials is now supported
 
 ## v1.0.0-alpha5 - 2021-02-19
 
 ### Added
+
 - Add support for messages and rewrads, they can be sent from the actor client.
 - Addition for tls communication
 
 ## v1.0.0-alpha4 - 2021-02-17
 
 ### Added
+
 - Add support for messages and rewrads, they can be sent from the actor client.
 
 ## v1.0.0-alpha3 - 2021-01-28
