@@ -17,26 +17,24 @@
 
 #include "cogment/api/datalog.egrpc.pb.h"
 #include "cogment/datalog/storage_interface.h"
-#include "slt/concur/work_pool.h"
 
 #include "easy_grpc/easy_grpc.h"
 
-#include <fstream>
-#include <memory>
+#include <vector>
 
 namespace cogment {
 
-class Grpc_datalog_exporter_base : public Datalog_storage_interface {
+class GrpcDatalogExporterBase : public DatalogStorageInterface {
   public:
   class Trial_log : public TrialLogInterface {
     public:
-    Trial_log(Grpc_datalog_exporter_base* owner, const Trial* trial);
+    Trial_log(GrpcDatalogExporterBase* owner, const Trial* trial);
     ~Trial_log();
 
     void add_sample(cogment::DatalogSample data) override;
 
     private:
-    Grpc_datalog_exporter_base* owner_ = nullptr;
+    GrpcDatalogExporterBase* owner_ = nullptr;
     const Trial* trial_ = nullptr;
     ::easy_grpc::Stream_future<::cogment::LogExporterSampleReply> reply_;
     std::vector<grpc_metadata> headers_;
@@ -55,14 +53,14 @@ class Grpc_datalog_exporter_base : public Datalog_storage_interface {
 };
 
 // Stores Data samples to a local CVS file.
-class Grpc_datalog_exporter : public Grpc_datalog_exporter_base {
+class GrpcDatalogExporter : public GrpcDatalogExporterBase {
   public:
-  Grpc_datalog_exporter(const std::string& url);
+  GrpcDatalogExporter(const std::string& url);
 
   private:
-  easy_grpc::Completion_queue work_thread;
-  easy_grpc::client::Unsecure_channel channel;
-  cogment::LogExporter::Stub stub_impl;
+  easy_grpc::Completion_queue work_thread_;
+  easy_grpc::client::Unsecure_channel channel_;
+  cogment::LogExporter::Stub stub_impl_;
 };
 }  // namespace cogment
 #endif

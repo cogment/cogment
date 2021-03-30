@@ -16,10 +16,7 @@
 #define AOM_DATALOG_STORAGE_INTERFACE_H
 
 #include "cogment/api/datalog.pb.h"
-#include "uuid.h"
 
-#include <fstream>
-#include <memory>
 #include "yaml-cpp/yaml.h"
 
 namespace cogment {
@@ -40,13 +37,13 @@ class TrialLogInterface {
 };
 
 // Orchestrator-wide datalog interface.
-class Datalog_storage_interface {
+class DatalogStorageInterface {
   public:
-  virtual ~Datalog_storage_interface() {}
+  virtual ~DatalogStorageInterface() {}
 
   virtual std::unique_ptr<TrialLogInterface> start_log(const Trial* trial) = 0;
 
-  static std::unique_ptr<Datalog_storage_interface> create(const std::string& spec, const YAML::Node& cfg);
+  static std::unique_ptr<DatalogStorageInterface> create(const std::string& spec, const YAML::Node& cfg);
 };
 }  // namespace cogment
 #endif

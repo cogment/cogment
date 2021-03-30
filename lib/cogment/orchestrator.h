@@ -37,7 +37,7 @@ class Orchestrator {
 
   // Initialization
   void add_prehook(cogment::TrialHooks::Stub_interface* prehook);
-  void set_log_exporter(std::unique_ptr<Datalog_storage_interface> le);
+  void set_log_exporter(std::unique_ptr<DatalogStorageInterface> le);
 
   // Lifecycle
   Future<std::shared_ptr<Trial>> start_trial(cogment::TrialParams params, std::string user_id);
@@ -91,7 +91,7 @@ class Orchestrator {
   std::vector<cogment::TrialHooks::Stub_interface*> prehooks_;
 
   // Send trial data to this destination.
-  std::unique_ptr<Datalog_storage_interface> log_exporter_;
+  std::unique_ptr<DatalogStorageInterface> log_exporter_;
 
   // Completion queue for handling requests returning from env/agent/hooks
   easy_grpc::Completion_queue client_queue_;

@@ -45,7 +45,7 @@ class Noop_trial_log_interface : public cogment::TrialLogInterface {
   void add_sample(cogment::DatalogSample) override {}
 };
 
-class Noop_datalog_storage : public cogment::Datalog_storage_interface {
+class Noop_datalog_storage : public cogment::DatalogStorageInterface {
   std::unique_ptr<cogment::TrialLogInterface> start_log(const cogment::Trial*) override {
     return std::make_unique<Noop_trial_log_interface>();
   }
@@ -53,8 +53,8 @@ class Noop_datalog_storage : public cogment::Datalog_storage_interface {
 }  // namespace
 
 namespace cogment {
-std::unique_ptr<Datalog_storage_interface> Datalog_storage_interface::create(const std::string& spec,
-                                                                             const YAML::Node& cfg) {
+std::unique_ptr<DatalogStorageInterface> DatalogStorageInterface::create(const std::string& spec,
+                                                                         const YAML::Node& cfg) {
   std::string spec_l = spec;
   std::transform(spec_l.begin(), spec_l.end(), spec_l.begin(), ::tolower);
 
@@ -63,7 +63,7 @@ std::unique_ptr<Datalog_storage_interface> Datalog_storage_interface::create(con
   }
 
   if (spec_l == "grpc") {
-    return std::make_unique<Grpc_datalog_exporter>(cfg[cfg_file::datalog_key][cfg_file::d_url_key].as<std::string>());
+    return std::make_unique<GrpcDatalogExporter>(cfg[cfg_file::datalog_key][cfg_file::d_url_key].as<std::string>());
   }
 
   throw std::runtime_error("invalid datalog specification.");

@@ -168,7 +168,7 @@ Future<cogment::PreTrialContext> Orchestrator::perform_pre_hooks_(cogment::PreTr
   return result.then([headers](auto v) { return v; });
 }
 
-void Orchestrator::set_log_exporter(std::unique_ptr<Datalog_storage_interface> le) { log_exporter_ = std::move(le); }
+void Orchestrator::set_log_exporter(std::unique_ptr<DatalogStorageInterface> le) { log_exporter_ = std::move(le); }
 
 void Orchestrator::check_garbage_collection_() {
   garbage_collection_countdown_--;

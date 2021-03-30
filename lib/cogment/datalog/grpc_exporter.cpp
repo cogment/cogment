@@ -21,16 +21,16 @@
 
 namespace cogment {
 
-Grpc_datalog_exporter_base::Trial_log::Trial_log(Grpc_datalog_exporter_base* owner, const Trial* trial)
+GrpcDatalogExporterBase::Trial_log::Trial_log(GrpcDatalogExporterBase* owner, const Trial* trial)
     : owner_(owner), trial_(trial) {}
 
-Grpc_datalog_exporter_base::Trial_log::~Trial_log() {
+GrpcDatalogExporterBase::Trial_log::~Trial_log() {
   if (output_promise_) {
     output_promise_->complete();
   }
 }
 
-void Grpc_datalog_exporter_base::Trial_log::lazy_start_stream_() {
+void GrpcDatalogExporterBase::Trial_log::lazy_start_stream_() {
   if (!output_promise_) {
     grpc_metadata trial_header;
     trial_header.key = grpc_slice_from_static_string("trial-id");
@@ -54,7 +54,7 @@ void Grpc_datalog_exporter_base::Trial_log::lazy_start_stream_() {
   }
 }
 
-void Grpc_datalog_exporter_base::Trial_log::add_sample(cogment::DatalogSample data) {
+void GrpcDatalogExporterBase::Trial_log::add_sample(cogment::DatalogSample data) {
   lazy_start_stream_();
 
   cogment::LogExporterSampleRequest msg;
@@ -62,12 +62,12 @@ void Grpc_datalog_exporter_base::Trial_log::add_sample(cogment::DatalogSample da
   output_promise_->push(std::move(msg));
 }
 
-std::unique_ptr<TrialLogInterface> Grpc_datalog_exporter_base::start_log(const Trial* trial) {
-  return std::make_unique<Grpc_datalog_exporter::Trial_log>(this, trial);
+std::unique_ptr<TrialLogInterface> GrpcDatalogExporterBase::start_log(const Trial* trial) {
+  return std::make_unique<GrpcDatalogExporter::Trial_log>(this, trial);
 }
 
-Grpc_datalog_exporter::Grpc_datalog_exporter(const std::string& url) : channel(url, &work_thread), stub_impl(&channel) {
-  set_stub(&stub_impl);
+GrpcDatalogExporter::GrpcDatalogExporter(const std::string& url) : channel_(url, &work_thread_), stub_impl_(&channel_) {
+  set_stub(&stub_impl_);
   spdlog::info("Sending datalog to service running at: {}", url);
 }
 
