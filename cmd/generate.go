@@ -187,8 +187,13 @@ func generate(config *api.ProjectConfig, pythonOutPaths []string, jsOutPaths []s
 func generatePython(config *api.ProjectConfig, outputPaths []string) error {
 	logger.Infof("Generating python configuration for %s", config.ProjectConfigPath)
 
-	err := compileProtosPy(config, outputPaths)
-	helper.CheckErrorf(err, "Failed compiling protobufs")
+	params := []string{}
+	for _, outputPath := range outputPaths {
+		params = append(params, "--python_out", outputPath)
+	}
+
+	err := runProtoc(path.Dir(config.ProjectConfigPath), config.Import.Proto, params)
+	helper.CheckError(err)
 
 	for _, outputPath := range outputPaths {
 		settingsFilenameTmpl := fmt.Sprintf("/templates/%s.tmpl", api.SettingsFilenamePy)
@@ -205,38 +210,6 @@ func generatePython(config *api.ProjectConfig, outputPaths []string) error {
 		); err != nil {
 			return fmt.Errorf("error generating python: %v", err)
 		}
-	}
-
-	return nil
-}
-
-func compileProtosPy(config *api.ProjectConfig, outputPyPaths []string) error {
-	projectRootPath := path.Dir(config.ProjectConfigPath)
-
-	var params []string
-
-	for _, protoPathProjectRelative := range config.Import.Proto {
-		protoDirProjectRelative := path.Dir(protoPathProjectRelative)
-		params = append(params, "-I", protoDirProjectRelative)
-	}
-
-	for _, outputPyPath := range outputPyPaths {
-		params = append(params, "--python_out", outputPyPath)
-	}
-
-	for _, protoPathProjectRelative := range config.Import.Proto {
-		params = append(params, protoPathProjectRelative)
-	}
-
-	logger.Debugf("protoc %s", strings.Join(params, " "))
-
-	subProcess := exec.Command("protoc", params...)
-	subProcess.Dir = projectRootPath
-	subProcess.Stdout = os.Stderr
-	subProcess.Stderr = os.Stderr
-
-	if err := subProcess.Run(); err != nil {
-		return fmt.Errorf("failed compiling protobuf %v", err)
 	}
 
 	return nil
@@ -260,12 +233,7 @@ func generateWebClient(config *api.ProjectConfig, jsOutPaths []string) error {
 }
 
 func compileProtosJs(config *api.ProjectConfig, jsOutPath string) error {
-	projectRootPath := path.Dir(config.ProjectConfigPath)
-	params := append([]string{
-		"-I",
-		".",
-		fmt.Sprintf("--js_out=import_style=commonjs,binary:%s/src", jsOutPath),
-	}, config.Import.Proto...)
+	params := []string{fmt.Sprintf("--js_out=import_style=commonjs,binary:%s/src", jsOutPath)}
 
 	if config.Typescript {
 		params = append(
@@ -275,14 +243,8 @@ func compileProtosJs(config *api.ProjectConfig, jsOutPath string) error {
 		)
 	}
 
-	subProcess := exec.Command("protoc", params...)
-	subProcess.Dir = projectRootPath
-	subProcess.Stdout = os.Stderr
-	subProcess.Stderr = os.Stderr
-
-	if err := subProcess.Run(); err != nil {
-		return fmt.Errorf("failed compiling protobufs %v", err)
-	}
+	err := runProtoc(path.Dir(config.ProjectConfigPath), config.Import.Proto, params)
+	helper.CheckError(err)
 
 	return nil
 }
