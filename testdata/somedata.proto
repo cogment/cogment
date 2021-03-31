@@ -14,6 +14,8 @@
 
 syntax = "proto3";
 
+import "subdir/otherdata.proto";
+
 package flames;
 
 message Config {
@@ -24,14 +26,9 @@ message TrialConfig {
   string foo = 1;
 }
 
-message Vec2 {
-  float x = 1;
-  float y = 2;
-}
-
 message ObjectInfo {
-  Vec2 position = 1;
-  Vec2 destination = 2;
+  foo.Vec2 position = 1;
+  foo.Vec2 destination = 2;
   float target_orientation = 3; // in radians, 0/2PI is up
 }
 
@@ -79,11 +76,11 @@ message ObservationDelta {
 }
 
 message Ai_DroneAction {
-  repeated Vec2 path = 1;
+  repeated foo.Vec2 path = 1;
 }
 
 message Human_PlaneAction {
-  repeated Vec2 path = 1;
+  repeated foo.Vec2 path = 1;
 
   Ai_DroneAction ai_override = 2;
 

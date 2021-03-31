@@ -19,3 +19,8 @@ package foo;
 message Data {
   string member = 1;
 }
+
+message Vec2 {
+  float x = 1;
+  float y = 2;
+}

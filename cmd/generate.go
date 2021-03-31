@@ -79,47 +79,55 @@ var generateCmd = &cobra.Command{
 	},
 }
 
+func runProtoc(projectRootPath string, protoFiles []string, otherParams []string) error {
+	params := append(otherParams, "--proto_path", projectRootPath)
+	params = append(params, protoFiles...)
+
+	logger.Debugf("Running `protoc %s`", strings.Join(params, " "))
+
+	subProcess := exec.Command("protoc", params...)
+	subProcess.Dir = projectRootPath
+	subProcess.Stdout = os.Stdout
+	subProcess.Stderr = os.Stderr
+
+	err := subProcess.Run()
+	helper.CheckErrorf(err, "Error while running `%s`", subProcess.String())
+
+	return nil
+}
+
 func registerProtos(config *api.ProjectConfig) error {
 	logger.Debugf("Registering protos for %s", config.ProjectConfigPath)
 	projectRootPath := path.Dir(config.ProjectConfigPath)
+
 	tmpDir, err := ioutil.TempDir("", "registerprotofile")
 	helper.CheckError(err)
 	defer func() {
 		err := os.RemoveAll(tmpDir)
 		helper.CheckError(err)
 	}()
+	descriptorPath := path.Join(tmpDir, "data.pb")
 
-	for _, protoPath := range config.Import.Proto {
-		params := append([]string{
-			"--descriptor_set_out",
-			path.Join(tmpDir, "data.pb"),
-			"-I",
-			path.Dir(protoPath),
-		}, protoPath)
+	// Generating a descriptor file from all the proto files in the project
+	err = runProtoc(projectRootPath, config.Import.Proto, []string{"--descriptor_set_out", descriptorPath})
+	helper.CheckError(err)
 
-		logger.Debugf("protoc %s", strings.Join(params, " "))
+	// Loading the descriptor file
+	descriptorFile, err := ioutil.ReadFile(descriptorPath)
+	helper.CheckError(err)
 
-		subProcess := exec.Command("protoc", params...)
-		subProcess.Dir = projectRootPath
-		subProcess.Stdout = os.Stdout
-		subProcess.Stderr = os.Stderr
+	pbSet := new(descriptorpb.FileDescriptorSet)
+	err = proto.Unmarshal(descriptorFile, pbSet)
+	helper.CheckError(err)
 
-		err = subProcess.Run()
-		helper.CheckErrorf(err, "%s has failed", subProcess.String())
-
-		protoFile, err := ioutil.ReadFile(path.Join(tmpDir, "data.pb"))
-		helper.CheckError(err)
-
-		pbSet := new(descriptorpb.FileDescriptorSet)
-		err = proto.Unmarshal(protoFile, pbSet)
-		helper.CheckError(err)
-
-		pb := pbSet.GetFile()[0]
-
-		// And initialized the descriptor with it
+	// For each of the described file
+	for _, pb := range pbSet.GetFile() {
+		// Initialized a descriptor of thie file
 		fd, err := protodesc.NewFile(pb, protoregistry.GlobalFiles)
 		helper.CheckError(err)
-		// and finally register it.
+
+		// And register it.
+		logger.Debugf("Registering definitions from proto file at '%s'", fd.Path())
 		err = protoregistry.GlobalFiles.RegisterFile(fd)
 		helper.CheckError(err)
 	}

@@ -20,7 +20,7 @@ environment:
   config_type: foo.Data
 
 commands:
-  check_otherdata_proto: test -f ./otherdata.proto
+  check_otherdata_proto: test -f ./subdir/otherdata.proto
   check_non_existing_file: test -f ./non_existing_file
 
 actor_classes:
