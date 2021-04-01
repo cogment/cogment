@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v1.0.0-alpha10 - 2021-04-01
+
 ### Changed
 
 - `ActorClass`'s `id` field is now named `name` everywhere.
