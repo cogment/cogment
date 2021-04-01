@@ -341,7 +341,7 @@ func createProjectConfigFromReader(stdin io.Reader) (*api.ProjectConfig, error) 
 		if err != nil {
 			return nil, err
 		}
-		class := api.ActorClass{Id: className}
+		class := api.ActorClass{Name: className}
 		config.ActorClasses = append(config.ActorClasses, &class)
 		actorClassNames = append(actorClassNames, className)
 

@@ -12,5 +12,5 @@ message TrialConfig {
 message Observation {}
 
 {{- range .ActorClasses}}
-message {{.Id|pascalify}}Action {}
+message {{.Name|pascalify}}Action {}
 {{end}}

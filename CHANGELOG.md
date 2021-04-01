@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- `ActorClass`'s `id` field is now named `name` everywhere.
 - `cogment init` supports the simplified event data structure in actor and environment event loops.
 - `cogment init` uses `cogment.Endpoint` and `cogment.ServedEndpoint` instead of raw TCP ports.
 - `cogment init` supports the new controller API.

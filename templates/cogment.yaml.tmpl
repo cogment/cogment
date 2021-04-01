@@ -30,9 +30,9 @@ trial:
 # Static configuration
 actor_classes:
 {{- range .ActorClasses }}
-  - id: {{.Id|snakeify}}
+  - name: {{.Name|snakeify}}
     action:
-      space: {{$config.ProjectName|snakeify}}.{{.Id|pascalify}}Action
+      space: {{$config.ProjectName|snakeify}}.{{.Name|pascalify}}Action
     observation:
       space: {{$config.ProjectName|snakeify}}.Observation
 {{- end}}

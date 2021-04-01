@@ -23,8 +23,8 @@ import (
 func TestListServiceActorServices(t *testing.T) {
 	config := &ProjectConfig{
 		ActorClasses: []*ActorClass{
-			&ActorClass{Id: "dumb"},
-			&ActorClass{Id: "dumber"},
+			&ActorClass{Name: "dumb"},
+			&ActorClass{Name: "dumber"},
 		},
 		TrialParams: &TrialParams{
 			Actors: []*TrialActor{

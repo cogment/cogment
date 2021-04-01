@@ -25,7 +25,7 @@ import * as {{.}} from './{{.}}';
 {{- end}}
 
 export interface ActorClass {
-  id: string;
+  name: string;
   config?: typeof Message;
   actionSpace: typeof Message;
   observationSpace: typeof Message;
@@ -34,8 +34,8 @@ export interface ActorClass {
 }
 
 {{- range .ActorClasses}}
-export class {{.Id | pascalify}}ActorClass implements ActorClass {
-  id = '{{.Id}}';
+export class {{.Name | pascalify}}ActorClass implements ActorClass {
+  name = '{{.Name}}';
 {{- if .ConfigType }}
   config = {{.ConfigType}};
 {{- end}}
@@ -53,7 +53,7 @@ export class {{.Id | pascalify}}ActorClass implements ActorClass {
 export const cogSettings = {
   actorClasses: {
 {{- range .ActorClasses}}
-    {{.Id}}: new {{.Id | pascalify}}ActorClass(),
+    {{.Name}}: new {{.Name | pascalify}}ActorClass(),
 {{- end}}
   },
 {{- with .Trial }}

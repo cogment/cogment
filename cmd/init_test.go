@@ -32,9 +32,9 @@ import (
 
 var expectedConfig = api.ExtendDefaultProjectConfig(&api.ProjectConfig{
 	ActorClasses: []*api.ActorClass{
-		&api.ActorClass{Id: "master"},
-		&api.ActorClass{Id: "smart"},
-		&api.ActorClass{Id: "dumb"},
+		&api.ActorClass{Name: "master"},
+		&api.ActorClass{Name: "smart"},
+		&api.ActorClass{Name: "dumb"},
 	},
 	TrialParams: &api.TrialParams{
 		Actors: []*api.TrialActor{
@@ -124,9 +124,9 @@ func TestCreateProjectFiles(t *testing.T) {
 			Python:       api.PythonConfiguration{Version: "1.0"},
 		},
 		ActorClasses: []*api.ActorClass{
-			&api.ActorClass{Id: "master"},
-			&api.ActorClass{Id: "smart"},
-			&api.ActorClass{Id: "dumb"},
+			&api.ActorClass{Name: "master"},
+			&api.ActorClass{Name: "smart"},
+			&api.ActorClass{Name: "dumb"},
 		},
 		TrialParams: &api.TrialParams{
 			Actors: []*api.TrialActor{
@@ -184,8 +184,8 @@ func TestCreateProjectFilesDashes(t *testing.T) {
 			Orchestrator: api.OrchestratorConfiguration{Version: "v1.0"},
 		},
 		ActorClasses: []*api.ActorClass{
-			&api.ActorClass{Id: "smart"},
-			&api.ActorClass{Id: "dumb"},
+			&api.ActorClass{Name: "smart"},
+			&api.ActorClass{Name: "dumb"},
 		},
 		TrialParams: &api.TrialParams{
 			Actors: []*api.TrialActor{

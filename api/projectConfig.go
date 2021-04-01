@@ -211,7 +211,7 @@ type DeltaApplyFn struct {
 }
 
 type ActorClass struct {
-	Id     string
+	Name   string
 	Action struct {
 		Space string
 	}
@@ -235,12 +235,12 @@ type TrialActor struct {
 	Config         map[string]interface{}
 }
 
-func (p *ProjectConfig) CountActorsByActorClass(id string) (countAi, countHuman int) {
+func (p *ProjectConfig) CountActorsByActorClass(name string) (countAi, countHuman int) {
 	countAi = 0
 	countHuman = 0
 
 	for _, actor := range p.TrialParams.Actors {
-		if actor.ActorClass != id {
+		if actor.ActorClass != name {
 			continue
 		}
 

@@ -24,17 +24,17 @@ trial:
 
 # Static configuration
 actor_classes:
-  - id: master
+  - name: master
     action:
       space: testit.MasterAction
     observation:
       space: testit.Observation
-  - id: smart
+  - name: smart
     action:
       space: testit.SmartAction
     observation:
       space: testit.Observation
-  - id: dumb
+  - name: dumb
     action:
       space: testit.DumbAction
     observation:

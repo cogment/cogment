@@ -15,8 +15,8 @@ protolib = "{{. | protoPathToPyPath}}"
 
 
 {{- range .ActorClasses}}
-_{{.Id}}_class = _cog.actor.ActorClass(
-    id="{{.Id}}",
+_{{.Name}}_class = _cog.actor.ActorClass(
+    name="{{.Name}}",
     config_type={{if .ConfigType}}{{.ConfigType}}{{else}}None{{end}},
     action_space={{.Action.Space}},
 	{{- with .Observation}}
@@ -29,7 +29,7 @@ _{{.Id}}_class = _cog.actor.ActorClass(
 
 actor_classes = _cog.actor.ActorClassList(
 {{- range .ActorClasses}}
-    _{{.Id}}_class,
+    _{{.Name}}_class,
 {{- end}}
 )
 
@@ -40,14 +40,13 @@ environment = SimpleNamespace(config_type={{if .Environment}}{{if .Environment.C
 
 
 class ActionsTable:
-{{- range .ActorClasses}}
-    {{.Id}}: List[{{.Action.Space}}]
+{{- range $i, $ac := .ActorClasses}}
+    {{$ac.Name}}: List[{{$ac.Action.Space}}]
 {{- end}}
-
     def __init__(self, trial):
 {{- range $i, $ac := .ActorClasses}}
-        self.{{$ac.Id}} = [{{$ac.Action.Space}}() for _ in range(trial.actor_counts[{{$i}}])]
+        self.{{$ac.Name}} = [{{$ac.Action.Space}}() for _ in range(trial.actor_counts[{{$i}}])]
 {{- end}}
 
     def all_actions(self):
-        return {{range $i, $ac := .ActorClasses}}{{if $i}} + {{end}}self.{{.Id}}{{end}}
+        return {{range $i, $ac := .ActorClasses}}{{if $i}} + {{end}}self.{{.Name}}{{end}}
