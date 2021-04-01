@@ -40,8 +40,8 @@ environment = SimpleNamespace(config_type={{if .Environment}}{{if .Environment.C
 
 
 class ActionsTable:
-{{- range $i, $ac := .ActorClasses}}
-    {{$ac.Name}}: List[{{$ac.Action.Space}}]
+{{- range .ActorClasses}}
+    {{.Name}}: List[{{.Action.Space}}]
 {{- end}}
     def __init__(self, trial):
 {{- range $i, $ac := .ActorClasses}}
