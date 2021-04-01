@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## v1.0.0-alpha9 - 2021-04-01
 
+### Changed
+
+- Rename ActorClass `id` to `name`
+
 ## v1.0.0-alpha8 - 2021-03-30
 
 - Technical release, updating dependencies to fixed versions.
@@ -20,7 +24,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Log exporter is now available: trials param, observations, rewards, messages of every trials are sent to the log exporter service.
 
 ### Changed
-- Rename ActorClass `id` to `name`
+
 - Tick ID management centralized in orchestrator
 
 ## v1.0.0-alpha6 - 2021-03-10
