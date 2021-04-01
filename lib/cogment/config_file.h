@@ -42,7 +42,7 @@ constexpr const char* t_pre_hooks_key = "pre_hooks";
 constexpr const char* e_config_type_key = "config_type";
 
 // actor classes
-constexpr const char* ac_name_key = "id";
+constexpr const char* ac_name_key = "name";
 constexpr const char* ac_action_key = "action";
 constexpr const char* ac_act_space_key = "space";
 constexpr const char* ac_observation_key = "observation";

@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Log exporter is now available: trials param, observations, rewards, messages of every trials are sent to the log exporter service.
 
 ### Changed
-
+- Rename ActorClass `id` to `name`
 - Tick ID management centralized in orchestrator
 
 ## v1.0.0-alpha6 - 2021-03-10
