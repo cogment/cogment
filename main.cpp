@@ -92,7 +92,7 @@ const std::string term_status_string = "T";
 }  // namespace
 
 int main(int argc, const char* argv[]) {
-  spdlog::set_level(spdlog::level::debug);  // Set global log level to debug
+  spdlog::set_level(spdlog::level::debug);  // TODO: To remove when release stable version
 
   slt::Settings_context ctx("orchestrator", argc, argv);
   spdlog::debug("Orchestrator starting with arguments:");

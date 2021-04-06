@@ -19,6 +19,7 @@
 #include <typeinfo>
 #include "easy_grpc/easy_grpc.h"
 #include "spdlog/spdlog.h"
+#include "cogment/utils.h"
 
 namespace cogment {
 
@@ -92,8 +93,7 @@ class Stub_pool {
   // recycling an existing one if present.
   std::shared_ptr<Entry> get_stub(const std::string& url) {
     if (url.find("grpc://") != 0) {
-      spdlog::error("bad grpc url: \"{}\", should start with \"grpc://\"", url);
-      throw std::runtime_error("bad grpc url");
+      throw MakeException("Bad grpc url: [%s]", url.c_str());
     }
     std::lock_guard l(mtx_);
 

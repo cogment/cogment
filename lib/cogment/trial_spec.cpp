@@ -15,6 +15,7 @@
 #include "cogment/trial_spec.h"
 #include "cogment/config_file.h"
 #include "spdlog/spdlog.h"
+#include "cogment/utils.h"
 
 namespace {
 class ProtoErrorCollector : public google::protobuf::compiler::MultiFileErrorCollector {
@@ -52,8 +53,7 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
     auto fd = importer_->Import(i.as<std::string>());
 
     if (!fd) {
-      spdlog::error("Failed to load proto file: {}", i.as<std::string>());
-      throw std::runtime_error("init failure");
+      throw MakeException("Init failure: Failed to load proto file [%s]", i.as<std::string>().c_str());
     }
   }
 
@@ -64,8 +64,7 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
     auto type = root[cfg_file::environment_key][cfg_file::e_config_type_key].as<std::string>();
     const auto* config_type = importer_->pool()->FindMessageTypeByName(type);
     if (config_type == nullptr) {
-      spdlog::error("Failed to lookup message type: {}", type);
-      throw std::runtime_error("init failure");
+      throw MakeException("Init failure (1): Failed to lookup message type [%s]", type.c_str());
     }
 
     env_config_prototype = message_factory_->GetPrototype(config_type);
@@ -75,8 +74,7 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
     auto type = root[cfg_file::trial_key][cfg_file::t_config_type_key].as<std::string>();
     const auto* config_type = importer_->pool()->FindMessageTypeByName(type);
     if (config_type == nullptr) {
-      spdlog::error("Failed to lookup message type: {}", type);
-      throw std::runtime_error("init failure");
+      throw MakeException("Init failure (2): Failed to lookup message type [%s]", type.c_str());
     }
 
     trial_config_prototype = message_factory_->GetPrototype(config_type);
@@ -93,8 +91,7 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
       auto type = a_class[cfg_file::ac_config_type_key].as<std::string>();
       const auto* config_type = importer_->pool()->FindMessageTypeByName(type);
       if (config_type == nullptr) {
-        spdlog::error("Failed to lookup message type: {}", type);
-        throw std::runtime_error("init failure");
+        throw MakeException("Init failure (3): Failed to lookup message type [%s]", type.c_str());
       }
 
       actor_class.config_prototype = message_factory_->GetPrototype(config_type);
@@ -103,8 +100,7 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
     auto obs_space = a_class[cfg_file::ac_observation_key][cfg_file::ac_obs_space_key].as<std::string>();
     const auto* observation_space = importer_->pool()->FindMessageTypeByName(obs_space);
     if (observation_space == nullptr) {
-      spdlog::error("Failed to lookup message type: \"{}\"", obs_space);
-      throw std::runtime_error("init failure");
+      throw MakeException("Init failure (4): Failed to lookup message type [%s]", obs_space.c_str());
     }
 
     actor_class.observation_space_prototype = message_factory_->GetPrototype(observation_space);
@@ -130,8 +126,7 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
       auto delta = a_class[cfg_file::ac_observation_key][cfg_file::ac_obs_delta_key].as<std::string>();
       const auto* observation_delta = importer_->pool()->FindMessageTypeByName(delta);
       if (observation_delta == nullptr) {
-        spdlog::error("Failed to lookup message type: {}", delta);
-        throw std::runtime_error("init failure");
+        throw MakeException("Init failure (5): Failed to lookup message type [%s]", delta.c_str());
       }
 
       actor_class.observation_delta_prototype = message_factory_->GetPrototype(observation_delta);
@@ -165,8 +160,7 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
     auto act_space = a_class[cfg_file::ac_action_key][cfg_file::ac_act_space_key].as<std::string>();
     const auto* action_space = importer_->pool()->FindMessageTypeByName(act_space);
     if (action_space == nullptr) {
-      spdlog::error("Failed to lookup message type: \"{}\"", act_space);
-      throw std::runtime_error("init failure");
+      throw MakeException("Init failure (6): Failed to lookup message type [%s]", act_space.c_str());
     }
     actor_class.action_space_prototype = message_factory_->GetPrototype(action_space);
   }
@@ -179,7 +173,6 @@ const ActorClass& Trial_spec::get_actor_class(const std::string& class_name) con
     }
   }
 
-  spdlog::error("trying to use unregistered actor class: {}", class_name);
-  throw std::runtime_error("unknown actor class");
+  throw MakeException("Trying to use unregistered actor class [{}]", class_name.c_str());
 }
 }  // namespace cogment

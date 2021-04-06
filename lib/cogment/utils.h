@@ -16,6 +16,8 @@
 #define COGMENT_UTILS_H_INCLUDED
 
 #include "easy_grpc/easy_grpc.h"
+#include <cstdio>
+#include <cstdarg>
 
 namespace cogment {
 template <typename T>
@@ -27,4 +29,19 @@ using Future = aom::Future<T>;
 template <typename T>
 using Promise = aom::Promise<T>;
 }  // namespace cogment
+
+template <class EXC = std::runtime_error>
+EXC MakeException(const char* format, ...) {
+    static constexpr std::size_t BUF_SIZE = 256;
+    char buf[BUF_SIZE];
+
+    va_list args;
+    va_start(args, format);
+    std::vsnprintf(buf, BUF_SIZE, format, args);
+    va_end(args);
+
+    return EXC(buf);
+} 
+
 #endif
+

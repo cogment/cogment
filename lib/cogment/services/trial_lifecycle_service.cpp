@@ -23,6 +23,8 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_
 
 ::easy_grpc::Future<::cogment::TrialStartReply> TrialLifecycleService::StartTrial(::cogment::TrialStartRequest req,
                                                                                   easy_grpc::Context) {
+  spdlog::debug("StartTrial called");
+
   auto params = orchestrator_->default_trial_params();
 
   // Apply config override if provided
@@ -30,7 +32,9 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_
     params.mutable_trial_config()->set_content(req.config().content());
   }
 
-  return orchestrator_->start_trial(std::move(params), req.user_id()).then([](std::shared_ptr<Trial> trial) {
+  auto trial_fut = orchestrator_->start_trial(std::move(params), req.user_id());
+  
+  return trial_fut.then([](std::shared_ptr<Trial> trial) {
     ::cogment::TrialStartReply reply;
 
     reply.set_trial_id(to_string(trial->id()));
@@ -47,6 +51,8 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_
 
 ::cogment::TerminateTrialReply TrialLifecycleService::TerminateTrial(::cogment::TerminateTrialRequest,
                                                                      easy_grpc::Context ctx) {
+  spdlog::debug("TerminateTrial called");
+
   auto trial = orchestrator_->get_trial(uuids::uuid::from_string(ctx.get_client_header("trial-id")));
   trial->terminate();
   return {};
@@ -56,6 +62,8 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_
 #define GET_TRIAL_INFO_IMPLEMENTED_FOR_NEW_API 0
 #if GET_TRIAL_INFO_IMPLEMENTED_FOR_NEW_API
 ::cogment::TrialInfoReply TrialLifecycleService::GetTrialInfo(::cogment::TrialInfoRequest req, easy_grpc::Context ctx) {
+  spdlog::debug("GetTrialInfo called");
+
   ::cogment::TrialInfoReply result;
   auto add_trial = [&](Trial* trial) {
     auto trial_info = result.add_trial();
@@ -90,6 +98,8 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_
 
 ::easy_grpc::Stream_future<::cogment::TrialListEntry> TrialLifecycleService::WatchTrials(
     ::cogment::TrialListRequest req, easy_grpc::Context) {
+  spdlog::debug("WatchTrials called");
+
   // Shared and not a unique ptr because we want the lambda copy constructible
   auto promise = std::make_shared<Trial_promise>();
   Trial_future future(promise->get_future());
@@ -134,15 +144,14 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_
 
 ::cogment::VersionInfo TrialLifecycleService::Version(::cogment::VersionRequest, easy_grpc::Context) {
   ::cogment::VersionInfo result;
-  auto v = result.add_versions();
 
-  v->set_name("orchestrator");
-  v->set_version(COGMENT_ORCHESTRATOR_VERSION);
+  auto ver = result.add_versions();
+  ver->set_name("orchestrator");
+  ver->set_version(COGMENT_ORCHESTRATOR_VERSION);
 
-  v = result.add_versions();
-
-  v->set_name("cogment-api");
-  v->set_version(COGMENT_API_VERSION);
+  ver = result.add_versions();
+  ver->set_name("cogment-api");
+  ver->set_version(COGMENT_API_VERSION);
 
   return result;
 }

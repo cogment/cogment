@@ -18,6 +18,7 @@
 #include "cogment/agent_actor.h"
 #include "cogment/client_actor.h"
 #include "cogment/reward.h"
+#include "cogment/utils.h"
 
 #include "cogment/datalog/storage_interface.h"
 
@@ -68,7 +69,7 @@ cogment::TrialState get_trial_api_state(Trial_state s) {
     return cogment::ENDED;
   }
 
-  throw std::out_of_range("unknown trial state");
+  throw MakeException<std::out_of_range>("Unknown trial state: [%d]", static_cast<int>(s));
 }
 
 uuids::uuid_system_generator Trial::id_generator_;
@@ -93,31 +94,31 @@ void Trial::new_tick(ObservationSet&& new_obs, bool first_set) {
     tick_id_++;
   }
   else if (tick_id_ > 0) {
-    throw std::runtime_error("Internal error: Cannot be the first set if tick id > 0");
+    throw MakeException("Internal error: Cannot be the first set if tick id is [%llu]", tick_id_);
   }
 
   if (new_obs.tick_id() == AUTO_TICK_ID) {
     if (tick_id_ > MAX_TICK_ID) {
-      throw std::runtime_error("Tick id has reached the limit");
+      throw MakeException("Tick id has reached the limit");
     }
   }
   else if (new_obs.tick_id() < 0) {
-    throw std::runtime_error("Invalid negative tick id from environment");
+    throw MakeException("Invalid negative tick id from environment");
   }
   else {
     const uint64_t new_tick_id = static_cast<uint64_t>(new_obs.tick_id());
 
     if (new_tick_id < tick_id_) {
-      throw std::runtime_error("Environment repeated a tick id");
+      throw MakeException("Environment repeated a tick id: [%llu]", new_tick_id);
     }
 
     if (new_tick_id > MAX_TICK_ID) {
-      throw std::runtime_error("Tick id from environment is too large");
+      throw MakeException("Tick id from environment is too large");
     }
 
     // This condition could be revisited
     if (new_tick_id > tick_id_) {
-      throw std::runtime_error("Environment skipped tick id");
+      throw MakeException("Environment skipped tick id: [%llu] vs [%llu]", new_tick_id, tick_id_);
     }
 
     // Here effectively: new_tick_id == tick_id_
@@ -130,8 +131,10 @@ void Trial::new_tick(ObservationSet&& new_obs, bool first_set) {
 // TODO: We could add protection in other functions (performance permitting) to prevent
 //       them from being called before the "start", or after the "end".
 void Trial::start(cogment::TrialParams params) {
+
   if (state_ != Trial_state::initializing) {
-    throw std::runtime_error("Trial not in proper state to start");  // TODO: add trial id to output
+    throw MakeException("Trial [%s] is not in proper state to start: [%s]", to_string(id_).c_str(), 
+                        get_trial_state_string(state_));
   }
 
   params_ = std::move(params);
@@ -433,12 +436,6 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
     return;
   }
 
-  if (action.tick_id() != AUTO_TICK_ID && action.tick_id() != static_cast<int64_t>(tick_id_)) {
-    spdlog::error("Invalid action tick from [{}]: [{}] (current tick id: [{}])", actor_name, action.tick_id(),
-                  tick_id_);
-    return;
-  }
-
   // TODO: Do we want to manage the exception if the name is not found?
   auto actor_index = actor_indexes_.at(actor_name);
 
@@ -446,6 +443,13 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
     ++gathered_actions_count_;
   }
   actions_[actor_index] = action;
+
+  // TODO: Determine what we want to do in case of actions in the past or future
+  if (action.tick_id() != AUTO_TICK_ID && action.tick_id() != static_cast<int64_t>(tick_id_)) {
+    spdlog::warn("Invalid action tick from [{}]: [{}].  Using current tick id: [{}]", actor_name, action.tick_id(),
+                 tick_id_);
+    // We can't return here, otherwise the step will be stuck waiting for this action!
+  }
   actions_[actor_index]->set_tick_id(static_cast<int64_t>(tick_id_));
 
   if (gathered_actions_count_ == actions_.size() && outgoing_actions_) {
@@ -477,11 +481,11 @@ Client_actor* Trial::get_join_candidate(const TrialJoinRequest& req) {
 
   case TrialJoinRequest::SLOT_SELECTION_NOT_SET:
   default:
-    throw std::invalid_argument("Must specify either actor_name or actor_class");
+    throw MakeException<std::invalid_argument>("Must specify either actor_name or actor_class");
   }
 
   if (result != nullptr && dynamic_cast<Client_actor*>(result) == nullptr) {
-    throw std::invalid_argument("Actor name or class is not a client actor");
+    throw MakeException<std::invalid_argument>("Actor name or class is not a client actor");
   }
 
   return static_cast<Client_actor*>(result);

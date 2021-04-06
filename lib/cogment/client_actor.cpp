@@ -50,10 +50,10 @@ Client_actor::Observation_future Client_actor::bind(Client_actor::Action_future 
   auto name = actor_name();
 
   actions
-      .for_each([trial_weak, name](auto act) {
+      .for_each([trial_weak, name](auto rep) {
         auto trial = trial_weak.lock();
         if (trial) {
-          trial->actor_acted(name, act.action());
+          trial->actor_acted(name, rep.action());
         }
       })
       .finally([](auto) {});

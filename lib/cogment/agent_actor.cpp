@@ -105,14 +105,14 @@ void Agent::lazy_start_decision_stream() {
     auto name = actor_name();
 
     incoming_actions
-        .for_each([trial_weak, name](auto act) {
+        .for_each([trial_weak, name](auto rep) {
           auto trial = trial_weak.lock();
           if (trial && trial->state() != Trial_state::ended) {
-            trial->actor_acted(name, act.action());
-            for (auto& rew : act.rewards()) {
+            trial->actor_acted(name, rep.action());
+            for (auto& rew : rep.rewards()) {
               trial->reward_received(rew, name);
             }
-            for (auto& message : act.messages()) {
+            for (auto& message : rep.messages()) {
               trial->message_received(message, name);
             }
           }

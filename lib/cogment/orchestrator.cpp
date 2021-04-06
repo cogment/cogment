@@ -14,6 +14,7 @@
 
 #include "cogment/orchestrator.h"
 #include "cogment/client_actor.h"
+#include "cogment/utils.h"
 
 #include "slt/settings.h"
 #include "spdlog/spdlog.h"
@@ -67,7 +68,7 @@ Future<std::shared_ptr<Trial>> Orchestrator::start_trial(cogment::TrialParams pa
 
   return final_ctx_fut.then([new_trial, trial_id](auto final_ctx) {
     new_trial->start(std::move(*final_ctx.mutable_params()));
-    spdlog::info("Trial {} successfully initialized", trial_id);
+    spdlog::info("Trial [{}] successfully initialized", trial_id);
     return new_trial;
   });
 }
@@ -100,7 +101,7 @@ TrialJoinReply Orchestrator::client_joined(TrialJoinRequest req) {
   }
 
   if (joined_as_actor == nullptr) {
-    throw std::runtime_error("Could not join trial");
+    throw MakeException("Could not join trial");
   }
   auto config_data = joined_as_actor->join();
   if (config_data) {
@@ -126,7 +127,7 @@ TrialJoinReply Orchestrator::client_joined(TrialJoinRequest req) {
   auto actor = dynamic_cast<Client_actor*>(trial->actor(actor_name).get());
 
   if (actor == nullptr) {
-    throw std::runtime_error("attempting to bind a service-driven actor");
+    throw MakeException("attempting to bind a service-driven actor");
   }
 
   return actor->bind(std::move(actions));
