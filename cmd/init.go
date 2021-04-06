@@ -178,6 +178,7 @@ func createWebClient(config *api.ProjectConfig) error {
 		npm install --save %s
 		npm install --save-dev %s
 		npx nps init
+		rm -rf .git
 		exit
 		`,
 		createReactAppCmd,
@@ -211,6 +212,8 @@ func createWebClient(config *api.ProjectConfig) error {
 	if err := subProcess.Wait(); err != nil {
 		return err
 	}
+
+	path.Join(projectRootPath, "web-client", ".git")
 
 	webClientRootPath := path.Join(projectRootPath, "web-client")
 
