@@ -26,8 +26,6 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
-	"github.com/cogment/cogment-cli/cmd/configure"
-	"github.com/cogment/cogment-cli/cmd/registry"
 	"github.com/cogment/cogment-cli/helper"
 )
 
@@ -65,9 +63,6 @@ func init() {
 
 	rootCmd.PersistentFlags().BoolVar(&BetaFeatureEnabled, "enable_beta", false, "Enable beta features")
 	viper.BindPFlag("enable_beta", rootCmd.PersistentFlags().Lookup("enable_beta"))
-
-	rootCmd.AddCommand(registry.NewRegistryCommand(Verbose))
-	rootCmd.AddCommand(configure.NewConfigureCmd())
 
 }
 
