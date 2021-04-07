@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Fixed
+
+- Fixed the problem where the last rewards from the environment would get to the actors too late
+- Fixed the filling of DatalogSample (actions, rewards and messages were missing)
+
 ## v1.0.0-beta1 - 2021-04-07
 
 - Initial beta release, no more breaking changes should be introduced.

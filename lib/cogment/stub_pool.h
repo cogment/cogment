@@ -17,9 +17,9 @@
 
 #include <set>
 #include <typeinfo>
+#include "cogment/utils.h"
 #include "easy_grpc/easy_grpc.h"
 #include "spdlog/spdlog.h"
-#include "cogment/utils.h"
 
 namespace cogment {
 

@@ -17,7 +17,6 @@
 
 #include "cogment/agent_actor.h"
 #include "cogment/client_actor.h"
-#include "cogment/reward.h"
 #include "cogment/utils.h"
 
 #include "cogment/datalog/storage_interface.h"
@@ -52,7 +51,7 @@ const char* get_trial_state_string(Trial_state s) {
     return "ended";
   }
 
-  throw std::out_of_range("unknown trial state");
+  throw MakeException<std::out_of_range>("Unknown trial state for string [%d]", static_cast<int>(s));
 }
 
 cogment::TrialState get_trial_api_state(Trial_state s) {
@@ -69,7 +68,7 @@ cogment::TrialState get_trial_api_state(Trial_state s) {
     return cogment::ENDED;
   }
 
-  throw MakeException<std::out_of_range>("Unknown trial state: [%d]", static_cast<int>(s));
+  throw MakeException<std::out_of_range>("Unknown trial state for api: [%d]", static_cast<int>(s));
 }
 
 uuids::uuid_system_generator Trial::id_generator_;
@@ -131,9 +130,8 @@ void Trial::new_tick(ObservationSet&& new_obs, bool first_set) {
 // TODO: We could add protection in other functions (performance permitting) to prevent
 //       them from being called before the "start", or after the "end".
 void Trial::start(cogment::TrialParams params) {
-
   if (state_ != Trial_state::initializing) {
-    throw MakeException("Trial [%s] is not in proper state to start: [%s]", to_string(id_).c_str(), 
+    throw MakeException("Trial [%s] is not in proper state to start: [%s]", to_string(id_).c_str(),
                         get_trial_state_string(state_));
   }
 
@@ -289,30 +287,11 @@ void Trial::dispatch_observations() {
   std::uint32_t actor_index = 0;
   for (const auto& actor : actors_) {
     auto obs_index = observations_.actors_map(actor_index);
-
     cogment::Observation obs;
     obs.set_tick_id(tick_id_);
     obs.set_timestamp(observations_.timestamp());
     *obs.mutable_data() = observations_.observations(obs_index);
-    actor->dispatch_observation(std::move(obs), ending);
-
-    // TODO: The messages and rewards should be sent with previous tick since they came with
-    //       the actions in the previous tick (in reponse to obs in that tick).
-    auto sources = actor->get_and_flush_immediate_reward_src();
-    if (!sources.empty()) {
-      auto reward = build_reward(sources);
-      reward.set_tick_id(tick_id_);
-      reward.set_receiver_name(actor->actor_name());
-      actor->dispatch_reward(std::move(reward));
-    }
-
-    auto messages = actor->get_and_flush_immediate_message();
-    if (!messages.empty()) {
-      for (auto& message : messages) {
-        message.set_tick_id(tick_id_);
-        actor->dispatch_message(std::move(message));
-      }
-    }
+    actor->dispatch_tick(std::move(obs), ending);
 
     ++actor_index;
   }
@@ -359,7 +338,6 @@ void Trial::run_environment() {
   outgoing_actions_ = std::move(std::get<0>(streams));
   auto incoming_updates = std::move(std::get<1>(streams));
 
-  // Whenever we get an update, advance the datalog table.
   incoming_updates
       .for_each([this](auto update) {
         if (state_ == Trial_state::ended) {

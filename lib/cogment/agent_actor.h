@@ -37,7 +37,9 @@ class Agent : public Actor {
 
   bool is_active() const override;
 
-  void dispatch_observation(cogment::Observation&& obs, bool final_obs) override;
+  protected:
+  void dispatch_observation(cogment::Observation&& obs) override;
+  void dispatch_final_data(cogment::ActorPeriodData&& data) override;
   void dispatch_reward(cogment::Reward&& reward) override;
   void dispatch_message(cogment::Message&& message) override;
 

@@ -16,6 +16,7 @@
 #include "cogment/base64.h"
 #include "cogment/config_file.h"
 #include "cogment/trial_spec.h"
+#include "cogment/utils.h"
 
 #include <google/protobuf/util/json_util.h>
 #include "spdlog/spdlog.h"
@@ -39,7 +40,7 @@ void encode_user_config(YAML::Node config_node, const google::protobuf::Message*
   // This will happen if the cogment.yaml does not specify that config type,
   // but still provides a value for it.
   if (proto == nullptr) {
-    throw std::runtime_error("Unexpected user config");
+    throw MakeException("Unexpected user config");
   }
 
   auto config_as_json = yaml_to_json(config_node);
@@ -49,8 +50,7 @@ void encode_user_config(YAML::Node config_node, const google::protobuf::Message*
   auto status = google::protobuf::util::JsonStringToMessage(config_as_json, user_msg.get());
 
   if (!status.ok()) {
-    spdlog::error("Could not convert to protobuf: {}", status.error_message().as_string());
-    throw std::runtime_error("Problem interpreting user config");
+    throw MakeException("Could not convert user config to protobuf: %s", status.error_message().as_string().c_str());
   }
 
   // Build the replacement node
@@ -92,10 +92,9 @@ cogment::TrialParams load_params(const YAML::Node& yaml, const Trial_spec& spec)
     auto status = google::protobuf::util::JsonStringToMessage(json_params, &result);
 
     if (!status.ok()) {
-      spdlog::error("Could not create message: {}", status.error_message().as_string());
       spdlog::error("Problematic parameters: {}", json_params);
       spdlog::debug("Problematic message type: {}", result.descriptor()->DebugString());
-      throw std::runtime_error("Problem rebuilding trial params");
+      throw MakeException("Problem rebuilding trial params: %s", status.error_message().as_string().c_str());
     }
   }
 

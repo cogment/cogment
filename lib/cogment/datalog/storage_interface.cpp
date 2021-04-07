@@ -16,6 +16,7 @@
 #include "cogment/config_file.h"
 #include "cogment/datalog/grpc_exporter.h"
 
+#include "cogment/utils.h"
 #include "slt/settings.h"
 
 #include <algorithm>
@@ -66,7 +67,7 @@ std::unique_ptr<DatalogStorageInterface> DatalogStorageInterface::create(const s
     return std::make_unique<GrpcDatalogExporter>(cfg[cfg_file::datalog_key][cfg_file::d_url_key].as<std::string>());
   }
 
-  throw std::runtime_error("invalid datalog specification.");
+  throw MakeException("Invalid datalog specification: %s", spec.c_str());
 }
 
 }  // namespace cogment

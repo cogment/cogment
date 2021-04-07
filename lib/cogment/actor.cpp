@@ -15,6 +15,7 @@
 #include "cogment/actor.h"
 
 #include "cogment/config_file.h"
+#include "cogment/reward.h"
 #include "cogment/trial.h"
 #include "spdlog/spdlog.h"
 
@@ -36,14 +37,60 @@ void Actor::add_immediate_reward_src(const cogment::RewardSource& source, const 
   reward_src_accumulator_.back().set_sender_name(sender);
 }
 
-std::vector<cogment::RewardSource> Actor::get_and_flush_immediate_reward_src() {
-  return std::move(reward_src_accumulator_);
-}
-
 void Actor::add_immediate_message(const cogment::Message& message, const std::string& sender) {
   message_accumulator_.emplace_back(message);
   message_accumulator_.back().set_sender_name(sender);
 }
 
-std::vector<cogment::Message> Actor::get_and_flush_immediate_message() { return std::move(message_accumulator_); }
+void Actor::dispatch_tick(cogment::Observation&& obs, bool final_tick) {
+  // TODO: Some of the messages and rewards should be sent with previous tick since they came with
+  //       the actions in the previous tick (in reponse to obs in that tick).
+  const auto tick_id = obs.tick_id();
+
+  auto sources = std::move(reward_src_accumulator_);
+  auto messages = std::move(message_accumulator_);
+
+  if (!final_tick) {
+    if (!sources.empty()) {
+      auto reward = build_reward(sources);
+      reward.set_tick_id(tick_id);
+      reward.set_receiver_name(actor_name_);
+      dispatch_reward(std::move(reward));
+    }
+
+    if (!messages.empty()) {
+      for (auto& message : messages) {
+        message.set_tick_id(tick_id);
+        dispatch_message(std::move(message));
+      }
+    }
+
+    dispatch_observation(std::move(obs));
+  }
+  else {
+    cogment::ActorPeriodData data;
+
+    if (!sources.empty()) {
+      auto reward = build_reward(sources);
+      reward.set_tick_id(tick_id);
+      reward.set_receiver_name(actor_name_);
+      auto new_reward = data.add_rewards();
+      *new_reward = std::move(reward);
+    }
+
+    if (!messages.empty()) {
+      for (auto& message : messages) {
+        message.set_tick_id(tick_id);
+        auto new_msg = data.add_messages();
+        *new_msg = std::move(message);
+      }
+    }
+
+    auto new_obs = data.add_observations();
+    *new_obs = std::move(obs);
+
+    dispatch_final_data(std::move(data));
+  }
+}
+
 }  // namespace cogment

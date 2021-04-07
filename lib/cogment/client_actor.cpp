@@ -61,11 +61,19 @@ Client_actor::Observation_future Client_actor::bind(Client_actor::Action_future 
   return std::move(outgoing_observations_future_);
 }
 
-void Client_actor::dispatch_observation(cogment::Observation&& obs, bool final_obs) {
+void Client_actor::dispatch_observation(cogment::Observation&& obs) {
   ::cogment::TrialActionReply req;
-  req.set_final_data(final_obs);
+  req.set_final_data(false);
   auto new_obs = req.mutable_data()->add_observations();
   *new_obs = obs;
+
+  outgoing_observations_.push(std::move(req));
+}
+
+void Client_actor::dispatch_final_data(cogment::ActorPeriodData&& data) {
+  ::cogment::TrialActionReply req;
+  req.set_final_data(true);
+  *(req.mutable_data()) = std::move(data);
 
   outgoing_observations_.push(std::move(req));
 }

@@ -14,8 +14,8 @@
 
 #include "cogment/trial_spec.h"
 #include "cogment/config_file.h"
-#include "spdlog/spdlog.h"
 #include "cogment/utils.h"
+#include "spdlog/spdlog.h"
 
 namespace {
 class ProtoErrorCollector : public google::protobuf::compiler::MultiFileErrorCollector {

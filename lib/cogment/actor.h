@@ -42,10 +42,6 @@ class Actor {
 
   virtual aom::Future<void> init() = 0;
 
-  virtual void dispatch_observation(cogment::Observation&& obs, bool final_obs) = 0;
-  virtual void dispatch_reward(cogment::Reward&& reward) = 0;
-  virtual void dispatch_message(cogment::Message&& message) = 0;
-
   virtual bool is_active() const = 0;
 
   Trial* trial() const;
@@ -53,10 +49,15 @@ class Actor {
   const ActorClass* actor_class() const;
 
   void add_immediate_reward_src(const cogment::RewardSource& source, const std::string& sender);
-  std::vector<cogment::RewardSource> get_and_flush_immediate_reward_src();
-
   void add_immediate_message(const cogment::Message& message, const std::string& source);
-  std::vector<cogment::Message> get_and_flush_immediate_message();
+
+  void dispatch_tick(cogment::Observation&& obs, bool final_tick);
+
+  protected:
+  virtual void dispatch_observation(cogment::Observation&& obs) = 0;
+  virtual void dispatch_final_data(cogment::ActorPeriodData&& data) = 0;
+  virtual void dispatch_reward(cogment::Reward&& reward) = 0;
+  virtual void dispatch_message(cogment::Message&& message) = 0;
 
   private:
   Trial* trial_;

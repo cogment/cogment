@@ -38,15 +38,17 @@ class Client_actor : public Actor {
 
   Future<void> init() override;
 
-  void dispatch_observation(cogment::Observation&& obs, bool final_obs) override;
-  void dispatch_reward(cogment::Reward&& reward) override;
-  void dispatch_message(cogment::Message&& message) override;
-
   bool is_active() const override;
 
   // Indicate that a client has claimed this actor
   std::optional<std::string> join();
   Observation_future bind(Action_future actions);
+
+  protected:
+  void dispatch_observation(cogment::Observation&& obs) override;
+  void dispatch_final_data(cogment::ActorPeriodData&& data) override;
+  void dispatch_reward(cogment::Reward&& reward) override;
+  void dispatch_message(cogment::Message&& message) override;
 
   private:
   bool joined_;

@@ -77,21 +77,19 @@ Future<void> Agent::init() {
   });
 }
 
-void Agent::dispatch_observation(cogment::Observation&& obs, bool final_obs) {
-  if (!final_obs) {
-    lazy_start_decision_stream();
+void Agent::dispatch_observation(cogment::Observation&& obs) {
+  lazy_start_decision_stream();
 
-    ::cogment::AgentObservationRequest req;
-    *req.mutable_observation() = obs;
-    outgoing_observations_->push(std::move(req));
-  }
-  else {
-    ::cogment::AgentEndRequest req;
-    auto new_obs = req.mutable_final_data()->add_observations();
-    *new_obs = obs;
+  ::cogment::AgentObservationRequest req;
+  *req.mutable_observation() = obs;
+  outgoing_observations_->push(std::move(req));
+}
 
-    stub_->stub.OnEnd(req, options_);
-  }
+void Agent::dispatch_final_data(cogment::ActorPeriodData&& data) {
+  ::cogment::AgentEndRequest req;
+  *(req.mutable_final_data()) = std::move(data);
+
+  stub_->stub.OnEnd(req, options_);
 }
 
 void Agent::lazy_start_decision_stream() {

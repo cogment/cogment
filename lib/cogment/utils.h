@@ -15,9 +15,10 @@
 #ifndef COGMENT_UTILS_H_INCLUDED
 #define COGMENT_UTILS_H_INCLUDED
 
-#include "easy_grpc/easy_grpc.h"
-#include <cstdio>
 #include <cstdarg>
+#include <cstdio>
+#include "easy_grpc/easy_grpc.h"
+#include "spdlog/spdlog.h"
 
 namespace cogment {
 template <typename T>
@@ -32,16 +33,17 @@ using Promise = aom::Promise<T>;
 
 template <class EXC = std::runtime_error>
 EXC MakeException(const char* format, ...) {
-    static constexpr std::size_t BUF_SIZE = 256;
-    char buf[BUF_SIZE];
+  static constexpr std::size_t BUF_SIZE = 256;
+  char buf[BUF_SIZE];
 
-    va_list args;
-    va_start(args, format);
-    std::vsnprintf(buf, BUF_SIZE, format, args);
-    va_end(args);
+  va_list args;
+  va_start(args, format);
+  std::vsnprintf(buf, BUF_SIZE, format, args);
+  va_end(args);
 
-    return EXC(buf);
-} 
+  const char* const const_buf = buf;
+  spdlog::error("**Exception generated**: {}", const_buf);
+  return EXC(const_buf);
+}
 
 #endif
-

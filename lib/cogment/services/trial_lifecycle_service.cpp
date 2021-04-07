@@ -15,6 +15,7 @@
 #include "cogment/services/trial_lifecycle_service.h"
 
 #include "cogment/orchestrator.h"
+#include "cogment/utils.h"
 #include "cogment/versions.h"
 
 namespace cogment {
@@ -33,7 +34,7 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_
   }
 
   auto trial_fut = orchestrator_->start_trial(std::move(params), req.user_id());
-  
+
   return trial_fut.then([](std::shared_ptr<Trial> trial) {
     ::cogment::TrialStartReply reply;
 
@@ -91,7 +92,7 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_
 }
 #else
 ::cogment::TrialInfoReply TrialLifecycleService::GetTrialInfo(::cogment::TrialInfoRequest, easy_grpc::Context) {
-  throw std::runtime_error("GetTrialInfo is not implemented");
+  throw MakeException("GetTrialInfo is not implemented");
   return {};
 }
 #endif
