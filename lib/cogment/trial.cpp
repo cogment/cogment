@@ -127,6 +127,20 @@ void Trial::new_tick(ObservationSet&& new_obs, bool first_set) {
   observations_ = std::move(new_obs);
 }
 
+cogment::DatalogSample& Trial::make_new_sample() {
+  step_data_.emplace_back();
+  auto& sample = step_data_.back();
+
+  auto sample_actions = sample.mutable_actions();
+  sample_actions->Reserve(actors_.size());
+  for (size_t index = 0; index < actors_.size(); index++) {
+    auto empty_action = sample_actions->Add();
+    empty_action->set_tick_id(-1);
+  }
+
+  return sample;
+}
+
 // TODO: We could add protection in other functions (performance permitting) to prevent
 //       them from being called before the "start", or after the "end".
 void Trial::start(cogment::TrialParams params) {
@@ -187,6 +201,9 @@ void Trial::start(cogment::TrialParams params) {
 
   set_state(Trial_state::pending);
 
+  // Bootstrap the log data
+  make_new_sample();
+
   std::vector<aom::Future<void>> actors_ready;
   for (const auto& actor : actors_) {
     actors_ready.push_back(actor->init());
@@ -224,6 +241,10 @@ void Trial::start(cogment::TrialParams params) {
 void Trial::reward_received(const cogment::Reward& reward, const std::string& sender) {
   // TODO: timed rewards (i.e. with a specific tick_id != AUTO_TICK_ID and != current tick_id_)
 
+  auto& sample = step_data_.back();
+  auto new_rew = sample.add_rewards();
+  *new_rew = reward;
+
   if (reward.tick_id() != AUTO_TICK_ID && reward.tick_id() != static_cast<int64_t>(tick_id_)) {
     spdlog::error("Invalid reward tick from [{}]: [{}] (current tick id: [{}])", sender, reward.tick_id(), tick_id_);
     return;
@@ -246,6 +267,10 @@ void Trial::reward_received(const cogment::Reward& reward, const std::string& se
 void Trial::message_received(const cogment::Message& message, const std::string& sender) {
   // TODO: timed messages (i.e. with a specific tick_id != AUTO_TICK_ID and != current tick_id_)
 
+  auto& sample = step_data_.back();
+  auto new_msg = sample.add_messages();
+  *new_msg = message;
+
   if (message.tick_id() != AUTO_TICK_ID && message.tick_id() != static_cast<int64_t>(tick_id_)) {
     spdlog::error("Invalid message tick from [{}]: [{}] (current tick id: [{}])", sender, message.tick_id(), tick_id_);
     return;
@@ -265,8 +290,7 @@ void Trial::message_received(const cogment::Message& message, const std::string&
 void Trial::next_step(EnvActionReply&& reply) {
   new_tick(std::move(*reply.mutable_observation_set()));
 
-  step_data_.emplace_back();
-  auto& sample = step_data_.back();
+  auto& sample = make_new_sample();
   sample.mutable_observations()->CopyFrom(observations_);
 
   for (auto&& rew : reply.rewards()) {
@@ -326,9 +350,7 @@ void Trial::cycle_buffer() {
 void Trial::run_environment() {
   auto self = shared_from_this();
 
-  // Bootstrap the log with the initial observation
-  step_data_.emplace_back();
-
+  // Set the first observation in the log
   auto& sample = step_data_.back();
   sample.mutable_observations()->CopyFrom(observations_);
 
@@ -422,15 +444,19 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
   }
   actions_[actor_index] = action;
 
+  auto& sample = step_data_.back();
+  auto sample_action = sample.mutable_actions(actor_index);
+  *sample_action = action;
+
   // TODO: Determine what we want to do in case of actions in the past or future
   if (action.tick_id() != AUTO_TICK_ID && action.tick_id() != static_cast<int64_t>(tick_id_)) {
     spdlog::warn("Invalid action tick from [{}]: [{}].  Using current tick id: [{}]", actor_name, action.tick_id(),
                  tick_id_);
-    // We can't return here, otherwise the step will be stuck waiting for this action!
+    // We can't return here, otherwise the step may get stuck waiting for this action!
   }
   actions_[actor_index]->set_tick_id(static_cast<int64_t>(tick_id_));
 
-  if (gathered_actions_count_ == actions_.size() && outgoing_actions_) {
+  if (gathered_actions_count_ == actors_.size() && outgoing_actions_) {
     auto req = make_action_request();
     outgoing_actions_->push(std::move(req));
   }

@@ -92,6 +92,8 @@ class Trial : public std::enable_shared_from_this<Trial> {
   std::shared_ptr<Trial> get_shared() { return shared_from_this(); }
 
   private:
+  cogment::DatalogSample& make_new_sample();
+
   Orchestrator* orchestrator_;
 
   std::mutex lock_;
