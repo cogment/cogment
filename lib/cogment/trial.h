@@ -92,6 +92,8 @@ class Trial : public std::enable_shared_from_this<Trial> {
   std::shared_ptr<Trial> get_shared() { return shared_from_this(); }
 
   private:
+  void prepare_actors();
+  cogment::EnvStartRequest prepare_environment();
   cogment::DatalogSample& make_new_sample();
 
   Orchestrator* orchestrator_;
@@ -131,7 +133,6 @@ class Trial : public std::enable_shared_from_this<Trial> {
 
   std::optional<::easy_grpc::Stream_promise<::cogment::EnvActionRequest>> outgoing_actions_;
 
-  std::vector<std::optional<cogment::Action>> actions_;
   std::uint32_t gathered_actions_count_ = 0;
 
   std::unique_ptr<TrialLogInterface> log_interface_;

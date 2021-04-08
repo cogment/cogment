@@ -33,7 +33,8 @@
 
 namespace cogment {
 
-constexpr int64_t AUTO_TICK_ID = -1;
+constexpr int64_t AUTO_TICK_ID = -1;     // The actual tick ID will be determined by the Orchestrator
+constexpr int64_t NO_DATA_TICK_ID = -2;  // When we have received no data (different from default/empty data)
 constexpr uint64_t MAX_TICK_ID = static_cast<uint64_t>(std::numeric_limits<int64_t>::max());
 const std::string ENVIRONMENT_ACTOR_NAME("env");
 
@@ -134,46 +135,17 @@ cogment::DatalogSample& Trial::make_new_sample() {
   auto sample_actions = sample.mutable_actions();
   sample_actions->Reserve(actors_.size());
   for (size_t index = 0; index < actors_.size(); index++) {
-    auto empty_action = sample_actions->Add();
-    empty_action->set_tick_id(-1);
+    auto no_action = sample_actions->Add();
+    no_action->set_tick_id(NO_DATA_TICK_ID);
   }
 
   return sample;
 }
 
-// TODO: We could add protection in other functions (performance permitting) to prevent
-//       them from being called before the "start", or after the "end".
-void Trial::start(cogment::TrialParams params) {
-  if (state_ != Trial_state::initializing) {
-    throw MakeException("Trial [%s] is not in proper state to start: [%s]", to_string(id_).c_str(),
-                        get_trial_state_string(state_));
-  }
-
-  params_ = std::move(params);
-  TRIAL_DEBUG_LOG("Configuring trial {} with parameters: {}", to_string(id_), params_.DebugString());
-
-  grpc_metadata trial_header;
-  trial_header.key = grpc_slice_from_static_string("trial-id");
-  trial_header.value = grpc_slice_from_copied_string(to_string(id_).c_str());
-  headers_.push_back(trial_header);
-  call_options_.headers = &headers_;
-
-  env_stub_ = orchestrator_->env_pool()->get_stub(params_.environment().endpoint());
-
-  ::cogment::EnvStartRequest env_start_req;
-  env_start_req.set_tick_id(tick_id_);
-  env_start_req.set_impl_name(params_.environment().implementation());
-  if (params_.environment().has_config()) {
-    *env_start_req.mutable_config() = params_.environment().config();
-  }
-
+void Trial::prepare_actors() {
   for (const auto& actor_info : params_.actors()) {
     auto url = actor_info.endpoint();
     const auto& actor_class = orchestrator_->get_trial_spec().get_actor_class(actor_info.actor_class());
-
-    auto actor_in_trial = env_start_req.add_actors_in_trial();
-    actor_in_trial->set_actor_class(actor_class.name);
-    actor_in_trial->set_name(actor_info.name());
 
     if (url == "client") {
       std::optional<std::string> config;
@@ -196,13 +168,53 @@ void Trial::start(cogment::TrialParams params) {
 
     actor_indexes_.emplace(actor_info.name(), actors_.size() - 1);
   }
+}
 
-  actions_.resize(actors_.size());
+cogment::EnvStartRequest Trial::prepare_environment() {
+  env_stub_ = orchestrator_->env_pool()->get_stub(params_.environment().endpoint());
 
-  set_state(Trial_state::pending);
+  cogment::EnvStartRequest env_start_req;
+  env_start_req.set_tick_id(tick_id_);
+  env_start_req.set_impl_name(params_.environment().implementation());
+  if (params_.environment().has_config()) {
+    *env_start_req.mutable_config() = params_.environment().config();
+  }
+
+  for (const auto& actor_info : params_.actors()) {
+    const auto& actor_class = orchestrator_->get_trial_spec().get_actor_class(actor_info.actor_class());
+    auto actor_in_trial = env_start_req.add_actors_in_trial();
+    actor_in_trial->set_actor_class(actor_class.name);
+    actor_in_trial->set_name(actor_info.name());
+  }
+
+  return env_start_req;
+}
+
+// TODO: We could add protection in other functions (performance permitting) to prevent
+//       them from being called before the "start", or after the "end".
+void Trial::start(cogment::TrialParams params) {
+  if (state_ != Trial_state::initializing) {
+    throw MakeException("Trial [%s] is not in proper state to start: [%s]", to_string(id_).c_str(),
+                        get_trial_state_string(state_));
+  }
+
+  params_ = std::move(params);
+  TRIAL_DEBUG_LOG("Configuring trial {} with parameters: {}", to_string(id_), params_.DebugString());
+
+  grpc_metadata trial_header;
+  trial_header.key = grpc_slice_from_static_string("trial-id");
+  trial_header.value = grpc_slice_from_copied_string(to_string(id_).c_str());
+  headers_.push_back(trial_header);
+  call_options_.headers = &headers_;
+
+  auto env_start_req = prepare_environment();
+
+  prepare_actors();
 
   // Bootstrap the log data
   make_new_sample();
+
+  set_state(Trial_state::pending);
 
   std::vector<aom::Future<void>> actors_ready;
   for (const auto& actor : actors_) {
@@ -382,20 +394,17 @@ void Trial::run_environment() {
 }
 
 cogment::EnvActionRequest Trial::make_action_request() {
+  // TODO: Look into merging data formats so we don't have to copy all actions every time
   cogment::EnvActionRequest req;
   auto action_set = req.mutable_action_set();
+
+  // TODO: What to do if not all action tick ids match for current tick?
   action_set->set_tick_id(tick_id_);
 
-  for (auto& act : actions_) {
+  auto& sample = step_data_.back();
+  for (const auto& act : *sample.mutable_actions()) {
     // TODO: Synchronize properly with actor_acted()
-    if (act) {
-      action_set->add_actions(act->content());
-    }
-    else {
-      action_set->add_actions("");
-    }
-
-    act = std::nullopt;
+    action_set->add_actions(act.content());
     gathered_actions_count_--;
   }
 
@@ -439,22 +448,20 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
   // TODO: Do we want to manage the exception if the name is not found?
   auto actor_index = actor_indexes_.at(actor_name);
 
-  if (actions_[actor_index] == std::nullopt) {
-    ++gathered_actions_count_;
-  }
-  actions_[actor_index] = action;
-
   auto& sample = step_data_.back();
   auto sample_action = sample.mutable_actions(actor_index);
+  if (sample_action->tick_id() == NO_DATA_TICK_ID) {
+    ++gathered_actions_count_;
+  }
   *sample_action = action;
 
   // TODO: Determine what we want to do in case of actions in the past or future
   if (action.tick_id() != AUTO_TICK_ID && action.tick_id() != static_cast<int64_t>(tick_id_)) {
-    spdlog::warn("Invalid action tick from [{}]: [{}].  Using current tick id: [{}]", actor_name, action.tick_id(),
+    spdlog::warn("Invalid action tick from [{}]: [{}] vs [{}].  Using auto tick id.", actor_name, action.tick_id(),
                  tick_id_);
-    // We can't return here, otherwise the step may get stuck waiting for this action!
+
+    sample_action->set_tick_id(AUTO_TICK_ID);
   }
-  actions_[actor_index]->set_tick_id(static_cast<int64_t>(tick_id_));
 
   if (gathered_actions_count_ == actors_.size() && outgoing_actions_) {
     auto req = make_action_request();
