@@ -7,9 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+- Initial beta release, no more breaking changes should be introduced.
+
 ### Fixed
 
-- generated web-client no longer has git nature
+- Generated web-client no longer include a `.git`
 
 ## v1.0.0-alpha10 - 2021-04-01
 
