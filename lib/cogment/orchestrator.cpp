@@ -183,6 +183,9 @@ void Orchestrator::perform_garbage_collection_() {
         stale_trials.emplace_back(trial.get());
         ++itor;
       }
+      else {
+        ++itor;
+      }
     }
   }
 
