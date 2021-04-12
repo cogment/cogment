@@ -403,7 +403,7 @@ cogment::EnvActionRequest Trial::make_action_request() {
 
   auto& sample = step_data_.back();
   for (const auto& act : *sample.mutable_actions()) {
-    // TODO: Synchronize properly with actor_acted()
+    // TODO: Synchronize properly with terminmate() (vs actor_acted())
     action_set->add_actions(act.content());
     gathered_actions_count_--;
   }
@@ -441,6 +441,8 @@ void Trial::terminate() {
 }
 
 void Trial::actor_acted(const std::string& actor_name, const cogment::Action& action) {
+  const std::lock_guard<std::mutex> lg(actor_lock_);
+
   if (state_ == Trial_state::ended) {
     return;
   }
@@ -504,7 +506,7 @@ Client_actor* Trial::get_join_candidate(const TrialJoinRequest& req) {
 
 void Trial::set_state(Trial_state state) {
   if (state_ != Trial_state::ended) {
-    const std::lock_guard<std::mutex> lock(state_lock_);
+    const std::lock_guard<std::mutex> lg(state_lock_);
     state_ = state;
     orchestrator_->notify_watchers(*this);
   }

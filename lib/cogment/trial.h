@@ -55,8 +55,6 @@ class Trial : public std::enable_shared_from_this<Trial> {
   Trial(const Trial&) = delete;
   Trial& operator=(const Trial&) = delete;
 
-  std::lock_guard<std::mutex> lock() { return std::lock_guard(lock_); }
-
   Trial_state state() const { return state_; }
   uint64_t tick_id() const { return tick_id_; }
 
@@ -98,8 +96,8 @@ class Trial : public std::enable_shared_from_this<Trial> {
 
   Orchestrator* orchestrator_;
 
-  std::mutex lock_;
   std::mutex state_lock_;
+  std::mutex actor_lock_;
 
   // Identity
   uuids::uuid id_;  // TODO: Store as string (since we convert everywhere back and forth)
