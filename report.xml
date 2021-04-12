@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+	<testsuite tests="1" failures="0" time="0.000" name="github.com/cogment/cogment-cli/api">
+		<properties>
+			<property name="go.version" value="go1.13.8"></property>
+		</properties>
+		<testcase classname="api" name="TestListServiceActorServices" time="0.000"></testcase>
+	</testsuite>
+	<testsuite tests="45" failures="0" time="0.000" name="github.com/cogment/cogment-cli/cmd">
+		<properties>
+			<property name="go.version" value="go1.13.8"></property>
+		</properties>
+		<testcase classname="cmd" name="TestDeleteCommandWith" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestDeleteCommandWith/204" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestDeployCommandWithStatusCode" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestDeployCommandWithStatusCode/201" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestDeployCommandWithStatusCode/400" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestDeployCommandWithStatusCode/401" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestDeployCommandWithStatusCode/404" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestGeneratePythonSettings" time="0.010"></testcase>
+		<testcase classname="cmd" name="TestCreateProjectConfig" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestCreateProjectConfigWindows" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestCreateProjectFiles" time="0.010"></testcase>
+		<testcase classname="cmd" name="TestCreateProjectFiles/.gitignore" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestCreateProjectFiles/README.md" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestCreateProjectFiles/client-main.py" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestCreateProjectFiles/client-requirements.txt" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestCreateProjectFiles/cogment.yaml" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestCreateProjectFiles/data.proto" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestCreateProjectFiles/docker-compose.yaml" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestCreateProjectFiles/dumb-main.py" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestCreateProjectFiles/dumb-requirements.txt" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestCreateProjectFiles/environment-main.py" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestCreateProjectFiles/environment-requirements.txt" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestCreateProjectFiles/grpcwebproxy-README.md" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestCreateProjectFiles/grpcwebproxy-certs-README.md" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestCreateProjectFiles/grpcwebproxy.dockerfile" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestCreateProjectFiles/js_service.dockerfile" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestCreateProjectFiles/metrics-prometheus.yml" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestCreateProjectFiles/orchestrator.dockerfile" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestCreateProjectFiles/py_service.dockerfile" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestCreateProjectFiles/smart-main.py" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestCreateProjectFiles/smart-requirements.txt" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestCreateProjectFilesDashes" time="0.010"></testcase>
+		<testcase classname="cmd" name="TestInspectCommandWithStatusCode" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestInspectCommandWithStatusCode/200" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestInspectCommandWithStatusCode/400" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestInspectCommandWithStatusCode/401" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestInspectCommandWithStatusCode/404" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestNewCommandInteractiveWithStatusCode" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestNewCommandInteractiveWithStatusCode/201" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestPsCommandWithStatusCode" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestPsCommandWithStatusCode/200" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestPsCommandWithStatusCode/400" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestPsCommandWithStatusCode/401" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestWorkingDirectoryWorkingCommand" time="0.000"></testcase>
+		<testcase classname="cmd" name="TestWorkingDirectoryNonWorkingCommand" time="0.000"></testcase>
+	</testsuite>
+	<testsuite tests="1" failures="0" time="0.000" name="github.com/cogment/cogment-cli/cmd/configure">
+		<properties>
+			<property name="go.version" value="go1.13.8"></property>
+		</properties>
+		<testcase classname="configure" name="TestConfigureRemoteCommand" time="0.000"></testcase>
+	</testsuite>
+	<testsuite tests="11" failures="0" time="0.000" name="github.com/cogment/cogment-cli/cmd/registry">
+		<properties>
+			<property name="go.version" value="go1.13.8"></property>
+		</properties>
+		<testcase classname="registry" name="TestRegistryConfigureWithStatusCode" time="0.000"></testcase>
+		<testcase classname="registry" name="TestRegistryConfigureWithStatusCode/200" time="0.000"></testcase>
+		<testcase classname="registry" name="TestRegistryConfigureWithStatusCode/201" time="0.000"></testcase>
+		<testcase classname="registry" name="TestRegistryConfigureWithStatusCode/400" time="0.000"></testcase>
+		<testcase classname="registry" name="TestRegistryDeleteCommandWithStatus" time="0.000"></testcase>
+		<testcase classname="registry" name="TestRegistryDeleteCommandWithStatus/200" time="0.000"></testcase>
+		<testcase classname="registry" name="TestRegistryDeleteCommandWithStatus/404" time="0.000"></testcase>
+		<testcase classname="registry" name="TestRegistryListCommandWithStatusCode" time="0.000"></testcase>
+		<testcase classname="registry" name="TestRegistryListCommandWithStatusCode/200" time="0.000"></testcase>
+		<testcase classname="registry" name="TestRegistryListCommandWithStatusCode/400" time="0.000"></testcase>
+		<testcase classname="registry" name="TestRegistryListCommandWithStatusCode/401" time="0.000"></testcase>
+	</testsuite>
+	<testsuite tests="8" failures="0" time="0.000" name="github.com/cogment/cogment-cli/deployment">
+		<properties>
+			<property name="go.version" value="go1.13.8"></property>
+		</properties>
+		<testcase classname="deployment" name="TestCreateManifestFromCompose" time="0.000"></testcase>
+		<testcase classname="deployment" name="TestCreateManifestFromCompose/#00" time="0.000"></testcase>
+		<testcase classname="deployment" name="TestCreateManifestFromCompose/#01" time="0.000"></testcase>
+		<testcase classname="deployment" name="TestCreateManifestFromCompose/dont-exist" time="0.000"></testcase>
+		<testcase classname="deployment" name="TestCreateManifestFromCompose/the-driver" time="0.000"></testcase>
+		<testcase classname="deployment" name="TestCreateManifestFromCompose/dont-exist,the-driver" time="0.000"></testcase>
+		<testcase classname="deployment" name="TestCreateManifestFromCompose/the-driver,env,orchestrator" time="0.000"></testcase>
+		<testcase classname="deployment" name="TestLoadCompose" time="0.000"></testcase>
+	</testsuite>
+	<testsuite tests="9" failures="0" time="0.000" name="github.com/cogment/cogment-cli/helper">
+		<properties>
+			<property name="go.version" value="go1.13.8"></property>
+		</properties>
+		<testcase classname="helper" name="TestSnakeify" time="0.000"></testcase>
+		<testcase classname="helper" name="TestSnakeify/The_____Agent" time="0.000"></testcase>
+		<testcase classname="helper" name="TestSnakeify/a-dashing-name" time="0.000"></testcase>
+		<testcase classname="helper" name="TestKebabify" time="0.000"></testcase>
+		<testcase classname="helper" name="TestKebabify/The_____Agent" time="0.000"></testcase>
+		<testcase classname="helper" name="TestKebabify/not_an____url" time="0.000"></testcase>
+		<testcase classname="helper" name="TestPascalify" time="0.000"></testcase>
+		<testcase classname="helper" name="TestPascalify/the_____agent" time="0.000"></testcase>
+		<testcase classname="helper" name="TestPascalify/the_agent" time="0.000"></testcase>
+	</testsuite>
+</testsuites>

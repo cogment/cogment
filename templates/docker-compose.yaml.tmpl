@@ -48,8 +48,8 @@ services:
     tty: true
     depends_on:
       - orchestrator
-{{ if $config.WebClient }}
 
+{{ if $config.WebClient -}}
   web-client:
     build:
       context: web-client
@@ -63,6 +63,8 @@ services:
       - "3000:3000"
     depends_on:
       - grpcwebproxy
+    volumes:
+      - ./grpcwebproxy/certs:/go/certs
 
   grpcwebproxy:
     build:
@@ -70,7 +72,14 @@ services:
       dockerfile: ../grpcwebproxy.dockerfile
     restart: on-failure
     ports:
-      - "8080:8080"
+      - "9080:8080"
+      - "9443:8443"
+    environment:
+      - SSL=false
+      - HTTP=true
+      - ORCHESTRATOR_SSL=false
+      # - KEY=certs/key.key
+      # - CRT=certs/cert.cert
     depends_on:
       - orchestrator
 

@@ -54,6 +54,7 @@ services:
     depends_on:
       - orchestrator
 
+
   #user: 0:0 is required so the generated files aren't created under root, and therefor unacessible by the dashboard/metrics
   dashboard:
     user: 0:0

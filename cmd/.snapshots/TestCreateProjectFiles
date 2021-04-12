@@ -1,4 +1,4 @@
-([]string) (len=19) {
+([]string) (len=20) {
   (string) (len=10) ".gitignore",
   (string) (len=9) "README.md",
   (string) (len=14) "client/main.py",
@@ -11,6 +11,7 @@
   (string) (len=19) "environment/main.py",
   (string) (len=28) "environment/requirements.txt",
   (string) (len=22) "grpcwebproxy/README.md",
+  (string) (len=28) "grpcwebproxy/certs/README.md",
   (string) (len=23) "grpcwebproxy.dockerfile",
   (string) (len=21) "js_service.dockerfile",
   (string) (len=22) "metrics/prometheus.yml",

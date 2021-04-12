@@ -21,8 +21,9 @@ import (
 	"path"
 	"testing"
 
-	"github.com/cogment/cogment-cli/api"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/cogment/cogment-cli/api"
 )
 
 func TestGeneratePythonSettings(t *testing.T) {

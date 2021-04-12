@@ -1,0 +1,478 @@
+?   	github.com/cogment/cogment-cli	[no test files]
+=== RUN   TestListServiceActorServices
+--- PASS: TestListServiceActorServices (0.00s)
+PASS
+ok  	github.com/cogment/cogment-cli/api	(cached)
+=== RUN   TestDeleteCommandWith
+=== RUN   TestDeleteCommandWith/204
+Do you want to delete my-app-731841 and all its services (y/N): === RUN   TestDeleteCommandWith/204#01
+Do you want to delete svc1 from my-app-731841 (y/N): === RUN   TestDeleteCommandWith/204#02
+Do you want to delete svc1,svc2 from my-app-731841 (y/N): === RUN   TestDeleteCommandWith/400
+Do you want to delete my-app-731841 and all its services (y/N): --- PASS: TestDeleteCommandWith (0.00s)
+    --- PASS: TestDeleteCommandWith/204 (0.00s)
+    --- PASS: TestDeleteCommandWith/204#01 (0.00s)
+    --- PASS: TestDeleteCommandWith/204#02 (0.00s)
+    --- PASS: TestDeleteCommandWith/400 (0.00s)
+=== RUN   TestDeployCommandWithStatusCode
+=== RUN   TestDeployCommandWithStatusCode/201
+{
+	"force": false,
+	"services": {
+		"env": {
+			"image": "registry.gitlab.com/change_me/env",
+			"ports": [
+				{
+					"port": 9000,
+					"public": false
+				},
+				{
+					"port": 9001,
+					"public": true
+				}
+			]
+		},
+		"orchestrator": {
+			"image": "registry.gitlab.com/change_me/orchestrator:2.1",
+			"ports": [
+				{
+					"port": 9000,
+					"public": false
+				}
+			]
+		},
+		"redis": {
+			"image": "redis:5-alpine",
+			"ports": [
+				{
+					"port": 6379,
+					"public": false
+				}
+			]
+		},
+		"the-driver": {
+			"image": "registry.gitlab.com/change_me/the_driver",
+			"environment": {
+				"AGENT": "DRIVER",
+				"COGMENT_GRPC_REFLECTION": "1"
+			},
+			"ports": [
+				{
+					"port": 9000,
+					"public": false
+				}
+			],
+			"entrypoint": "python",
+			"command": "-u agent.py"
+		},
+		"the-shooter": {
+			"image": "registry.gitlab.com/change_me/the_shooter",
+			"environment": {
+				"AGENT": "  shooter  ",
+				"COGMENT_GRPC_REFLECTION": "1",
+				"DEBUG": "On"
+			},
+			"ports": [
+				{
+					"port": 9000,
+					"public": false
+				}
+			]
+		}
+	}
+}
+Do you want to deploy this manifest into application my-app-731841 (y/N): 2021/04/05 09:47:25 Deploying your images
+2021/04/05 09:47:25 Pushing your project
+=== RUN   TestDeployCommandWithStatusCode/400
+{
+	"force": false,
+	"services": {
+		"env": {
+			"image": "registry.gitlab.com/change_me/env",
+			"ports": [
+				{
+					"port": 9000,
+					"public": false
+				},
+				{
+					"port": 9001,
+					"public": true
+				}
+			]
+		},
+		"orchestrator": {
+			"image": "registry.gitlab.com/change_me/orchestrator:2.1",
+			"ports": [
+				{
+					"port": 9000,
+					"public": false
+				}
+			]
+		},
+		"redis": {
+			"image": "redis:5-alpine",
+			"ports": [
+				{
+					"port": 6379,
+					"public": false
+				}
+			]
+		},
+		"the-driver": {
+			"image": "registry.gitlab.com/change_me/the_driver",
+			"environment": {
+				"AGENT": "DRIVER",
+				"COGMENT_GRPC_REFLECTION": "1"
+			},
+			"ports": [
+				{
+					"port": 9000,
+					"public": false
+				}
+			],
+			"entrypoint": "python",
+			"command": "-u agent.py"
+		},
+		"the-shooter": {
+			"image": "registry.gitlab.com/change_me/the_shooter",
+			"environment": {
+				"AGENT": "  shooter  ",
+				"COGMENT_GRPC_REFLECTION": "1",
+				"DEBUG": "On"
+			},
+			"ports": [
+				{
+					"port": 9000,
+					"public": false
+				}
+			]
+		}
+	}
+}
+Do you want to deploy this manifest into application my-app-731841 (y/N): 2021/04/05 09:47:25 Deploying your images
+2021/04/05 09:47:25 Pushing your project
+=== RUN   TestDeployCommandWithStatusCode/401
+{
+	"force": false,
+	"services": {
+		"env": {
+			"image": "registry.gitlab.com/change_me/env",
+			"ports": [
+				{
+					"port": 9000,
+					"public": false
+				},
+				{
+					"port": 9001,
+					"public": true
+				}
+			]
+		},
+		"orchestrator": {
+			"image": "registry.gitlab.com/change_me/orchestrator:2.1",
+			"ports": [
+				{
+					"port": 9000,
+					"public": false
+				}
+			]
+		},
+		"redis": {
+			"image": "redis:5-alpine",
+			"ports": [
+				{
+					"port": 6379,
+					"public": false
+				}
+			]
+		},
+		"the-driver": {
+			"image": "registry.gitlab.com/change_me/the_driver",
+			"environment": {
+				"AGENT": "DRIVER",
+				"COGMENT_GRPC_REFLECTION": "1"
+			},
+			"ports": [
+				{
+					"port": 9000,
+					"public": false
+				}
+			],
+			"entrypoint": "python",
+			"command": "-u agent.py"
+		},
+		"the-shooter": {
+			"image": "registry.gitlab.com/change_me/the_shooter",
+			"environment": {
+				"AGENT": "  shooter  ",
+				"COGMENT_GRPC_REFLECTION": "1",
+				"DEBUG": "On"
+			},
+			"ports": [
+				{
+					"port": 9000,
+					"public": false
+				}
+			]
+		}
+	}
+}
+Do you want to deploy this manifest into application my-app-731841 (y/N): 2021/04/05 09:47:25 Deploying your images
+2021/04/05 09:47:25 Pushing your project
+=== RUN   TestDeployCommandWithStatusCode/404
+{
+	"force": false,
+	"services": {
+		"env": {
+			"image": "registry.gitlab.com/change_me/env",
+			"ports": [
+				{
+					"port": 9000,
+					"public": false
+				},
+				{
+					"port": 9001,
+					"public": true
+				}
+			]
+		},
+		"orchestrator": {
+			"image": "registry.gitlab.com/change_me/orchestrator:2.1",
+			"ports": [
+				{
+					"port": 9000,
+					"public": false
+				}
+			]
+		},
+		"redis": {
+			"image": "redis:5-alpine",
+			"ports": [
+				{
+					"port": 6379,
+					"public": false
+				}
+			]
+		},
+		"the-driver": {
+			"image": "registry.gitlab.com/change_me/the_driver",
+			"environment": {
+				"AGENT": "DRIVER",
+				"COGMENT_GRPC_REFLECTION": "1"
+			},
+			"ports": [
+				{
+					"port": 9000,
+					"public": false
+				}
+			],
+			"entrypoint": "python",
+			"command": "-u agent.py"
+		},
+		"the-shooter": {
+			"image": "registry.gitlab.com/change_me/the_shooter",
+			"environment": {
+				"AGENT": "  shooter  ",
+				"COGMENT_GRPC_REFLECTION": "1",
+				"DEBUG": "On"
+			},
+			"ports": [
+				{
+					"port": 9000,
+					"public": false
+				}
+			]
+		}
+	}
+}
+Do you want to deploy this manifest into application my-app-731841 (y/N): 2021/04/05 09:47:25 Deploying your images
+2021/04/05 09:47:25 Pushing your project
+--- PASS: TestDeployCommandWithStatusCode (0.00s)
+    --- PASS: TestDeployCommandWithStatusCode/201 (0.00s)
+        deploy_test.go:95: PASS:	PushImages(*deployment.DeploymentManifest)
+    --- PASS: TestDeployCommandWithStatusCode/400 (0.00s)
+        deploy_test.go:95: PASS:	PushImages(*deployment.DeploymentManifest)
+    --- PASS: TestDeployCommandWithStatusCode/401 (0.00s)
+        deploy_test.go:95: PASS:	PushImages(*deployment.DeploymentManifest)
+    --- PASS: TestDeployCommandWithStatusCode/404 (0.00s)
+        deploy_test.go:95: PASS:	PushImages(*deployment.DeploymentManifest)
+=== RUN   TestGeneratePythonSettings
+2021-04-05T09:47:25.423-0400	INFO	cogment-cli.cmd	cmd/generate_test.go:40	Generating project configuration for ../testdata/cogment.yaml
+2021-04-05T09:47:25.423-0400	DEBUG	cogment-cli.cmd	cmd/generate.go:168	Registering protos for ../testdata/cogment.yaml
+2021-04-05T09:47:25.423-0400	DEBUG	cogment-cli.cmd	cmd/generate.go:112	Running `protoc --descriptor_set_out /tmp/registerprotofile342513357/data.pb --proto_path ../testdata somedata.proto subdir/otherdata.proto`
+2021-04-05T09:47:25.428-0400	DEBUG	cogment-cli.cmd	cmd/generate.go:168	Registering definitions from proto file at 'subdir/otherdata.proto'
+2021-04-05T09:47:25.429-0400	DEBUG	cogment-cli.cmd	cmd/generate.go:168	Registering definitions from proto file at 'somedata.proto'
+2021-04-05T09:47:25.429-0400	DEBUG	cogment-cli.cmd	cmd/generate.go:338	Finding proto file containing flames.Human_PlaneAction
+2021-04-05T09:47:25.429-0400	DEBUG	cogment-cli.cmd	cmd/generate.go:338	Finding proto file containing flames.Observation
+2021-04-05T09:47:25.429-0400	DEBUG	cogment-cli.cmd	cmd/generate.go:338	Finding proto file containing flames.ObservationDelta
+2021-04-05T09:47:25.429-0400	DEBUG	cogment-cli.cmd	cmd/generate.go:338	Finding proto file containing flames.Ai_DroneAction
+2021-04-05T09:47:25.429-0400	DEBUG	cogment-cli.cmd	cmd/generate.go:338	Finding proto file containing flames.Observation
+2021-04-05T09:47:25.429-0400	DEBUG	cogment-cli.cmd	cmd/generate.go:338	Finding proto file containing flames.ObservationDelta
+2021-04-05T09:47:25.429-0400	DEBUG	cogment-cli.cmd	cmd/generate.go:338	Finding proto file containing foo.Data
+2021-04-05T09:47:25.429-0400	DEBUG	cogment-cli.cmd	cmd/generate.go:338	Finding proto file containing flames.TrialConfig
+2021-04-05T09:47:25.429-0400	INFO	cogment-cli.cmd	cmd/generate.go:176	Generating python configuration for ../testdata/cogment.yaml
+2021-04-05T09:47:25.429-0400	DEBUG	cogment-cli.cmd	cmd/generate.go:195	Running `protoc --python_out /tmp/testgeneratepythonsettings778136998 --proto_path ../testdata somedata.proto subdir/otherdata.proto`
+2021-04-05T09:47:25.433-0400	INFO	cogment-cli.cmd	cmd/generate.go:176	Generating /tmp/testgeneratepythonsettings778136998/cog_settings.py/cog_settings.py
+--- PASS: TestGeneratePythonSettings (0.01s)
+=== RUN   TestCreateProjectConfig
+Enter how many actor classes should be created: [class 1] Enter the name of the class: [class #1 'master'] Enter the number of service implementations that should be created (empty for 1): [class #1 'master'] Should a client implementation be created (Y or N, empty for Y): [class 2] Enter the name of the class: [class #2 'smart'] Enter the number of service implementations that should be created (empty for 1): [class #2 'smart' > service impl. #1] Enter the name of the implementation: [class #2 'smart' > service impl. #1 'smart_impl'] Enter the number of actor instances using this implementation (empty for 1): [class 3] Enter the name of the class: [class #3 'dumb'] Enter the number of service implementations that should be created (empty for 1): [class #3 'dumb' > service impl. #1] Enter the name of the implementation: [class #3 'dumb' > service impl. #1 'dumb_impl'] Enter the number of actor instances using this implementation (empty for 1): Should a web-client be created (Y or N, empty for Y): Should the web-client use Typescript (Y or N, empty for Y): --- PASS: TestCreateProjectConfig (0.00s)
+=== RUN   TestCreateProjectConfigWindows
+Enter how many actor classes should be created: [class 1] Enter the name of the class: [class #1 'master'] Enter the number of service implementations that should be created (empty for 1): [class #1 'master'] Should a client implementation be created (Y or N, empty for Y): [class 2] Enter the name of the class: [class #2 'smart'] Enter the number of service implementations that should be created (empty for 1): [class #2 'smart' > service impl. #1] Enter the name of the implementation: [class #2 'smart' > service impl. #1 'smart_impl'] Enter the number of actor instances using this implementation (empty for 1): [class 3] Enter the name of the class: [class #3 'dumb'] Enter the number of service implementations that should be created (empty for 1): [class #3 'dumb' > service impl. #1] Enter the name of the implementation: [class #3 'dumb' > service impl. #1 'dumb_impl'] Enter the number of actor instances using this implementation (empty for 1): Should a web-client be created (Y or N, empty for Y): Should the web-client use Typescript (Y or N, empty for Y): --- PASS: TestCreateProjectConfigWindows (0.00s)
+=== RUN   TestCreateProjectFiles
+2021-04-05T09:47:25.434-0400	INFO	cogment-cli.cmd	cmd/init_test.go:140	Creating project
+2021-04-05T09:47:25.434-0400	INFO	cogment-cli.cmd	cmd/init.go:98	Scaffolding application
+2021-04-05T09:47:25.434-0400	INFO	cogment-cli.cmd	cmd/init.go:98	Creating project structure at /tmp/TestCreateProjectFiles179660232
+2021-04-05T09:47:25.438-0400	INFO	cogment-cli.cmd	cmd/init.go:98	Scaffolding application complete
+=== RUN   TestCreateProjectFiles/.gitignore
+=== RUN   TestCreateProjectFiles/README.md
+=== RUN   TestCreateProjectFiles/client-main.py
+=== RUN   TestCreateProjectFiles/client-requirements.txt
+=== RUN   TestCreateProjectFiles/cogment.yaml
+=== RUN   TestCreateProjectFiles/data.proto
+=== RUN   TestCreateProjectFiles/docker-compose.yaml
+=== RUN   TestCreateProjectFiles/dumb-main.py
+=== RUN   TestCreateProjectFiles/dumb-requirements.txt
+=== RUN   TestCreateProjectFiles/environment-main.py
+=== RUN   TestCreateProjectFiles/environment-requirements.txt
+=== RUN   TestCreateProjectFiles/grpcwebproxy-README.md
+=== RUN   TestCreateProjectFiles/grpcwebproxy-certs-README.md
+=== RUN   TestCreateProjectFiles/grpcwebproxy.dockerfile
+=== RUN   TestCreateProjectFiles/js_service.dockerfile
+=== RUN   TestCreateProjectFiles/metrics-prometheus.yml
+=== RUN   TestCreateProjectFiles/orchestrator.dockerfile
+=== RUN   TestCreateProjectFiles/py_service.dockerfile
+=== RUN   TestCreateProjectFiles/smart-main.py
+=== RUN   TestCreateProjectFiles/smart-requirements.txt
+--- PASS: TestCreateProjectFiles (0.01s)
+    --- PASS: TestCreateProjectFiles/.gitignore (0.00s)
+    --- PASS: TestCreateProjectFiles/README.md (0.00s)
+    --- PASS: TestCreateProjectFiles/client-main.py (0.00s)
+    --- PASS: TestCreateProjectFiles/client-requirements.txt (0.00s)
+    --- PASS: TestCreateProjectFiles/cogment.yaml (0.00s)
+    --- PASS: TestCreateProjectFiles/data.proto (0.00s)
+    --- PASS: TestCreateProjectFiles/docker-compose.yaml (0.00s)
+    --- PASS: TestCreateProjectFiles/dumb-main.py (0.00s)
+    --- PASS: TestCreateProjectFiles/dumb-requirements.txt (0.00s)
+    --- PASS: TestCreateProjectFiles/environment-main.py (0.00s)
+    --- PASS: TestCreateProjectFiles/environment-requirements.txt (0.00s)
+    --- PASS: TestCreateProjectFiles/grpcwebproxy-README.md (0.00s)
+    --- PASS: TestCreateProjectFiles/grpcwebproxy-certs-README.md (0.00s)
+    --- PASS: TestCreateProjectFiles/grpcwebproxy.dockerfile (0.00s)
+    --- PASS: TestCreateProjectFiles/js_service.dockerfile (0.00s)
+    --- PASS: TestCreateProjectFiles/metrics-prometheus.yml (0.00s)
+    --- PASS: TestCreateProjectFiles/orchestrator.dockerfile (0.00s)
+    --- PASS: TestCreateProjectFiles/py_service.dockerfile (0.00s)
+    --- PASS: TestCreateProjectFiles/smart-main.py (0.00s)
+    --- PASS: TestCreateProjectFiles/smart-requirements.txt (0.00s)
+=== RUN   TestCreateProjectFilesDashes
+2021-04-05T09:47:25.439-0400	INFO	cogment-cli.cmd	cmd/init_test.go:198	Creating project
+2021-04-05T09:47:25.439-0400	INFO	cogment-cli.cmd	cmd/init.go:98	Scaffolding application
+2021-04-05T09:47:25.439-0400	INFO	cogment-cli.cmd	cmd/init.go:98	Creating project structure at /tmp/TestCreateProjectFilesDashes021723271
+2021-04-05T09:47:25.445-0400	INFO	cogment-cli.cmd	cmd/init.go:98	Scaffolding application complete
+--- PASS: TestCreateProjectFilesDashes (0.01s)
+=== RUN   TestInspectCommandWithStatusCode
+=== RUN   TestInspectCommandWithStatusCode/200
+=== RUN   TestInspectCommandWithStatusCode/400
+=== RUN   TestInspectCommandWithStatusCode/401
+=== RUN   TestInspectCommandWithStatusCode/404
+--- PASS: TestInspectCommandWithStatusCode (0.00s)
+    --- PASS: TestInspectCommandWithStatusCode/200 (0.00s)
+    --- PASS: TestInspectCommandWithStatusCode/400 (0.00s)
+    --- PASS: TestInspectCommandWithStatusCode/401 (0.00s)
+    --- PASS: TestInspectCommandWithStatusCode/404 (0.00s)
+=== RUN   TestNewCommandInteractiveWithStatusCode
+=== RUN   TestNewCommandInteractiveWithStatusCode/201
+Name: === RUN   TestNewCommandInteractiveWithStatusCode/400
+Name: === RUN   TestNewCommandInteractiveWithStatusCode/401
+Name: --- PASS: TestNewCommandInteractiveWithStatusCode (0.00s)
+    --- PASS: TestNewCommandInteractiveWithStatusCode/201 (0.00s)
+    --- PASS: TestNewCommandInteractiveWithStatusCode/400 (0.00s)
+    --- PASS: TestNewCommandInteractiveWithStatusCode/401 (0.00s)
+=== RUN   TestPsCommandWithStatusCode
+=== RUN   TestPsCommandWithStatusCode/200
+=== RUN   TestPsCommandWithStatusCode/400
+=== RUN   TestPsCommandWithStatusCode/401
+--- PASS: TestPsCommandWithStatusCode (0.00s)
+    --- PASS: TestPsCommandWithStatusCode/200 (0.00s)
+    --- PASS: TestPsCommandWithStatusCode/400 (0.00s)
+    --- PASS: TestPsCommandWithStatusCode/401 (0.00s)
+=== RUN   TestWorkingDirectoryWorkingCommand
+2021/04/05 09:47:25  is not a valid COG_ENABLE_BETA value, can t be converted to bool
+2021/04/05 09:47:25 Executing test -f ./subdir/otherdata.proto in ../testdata
+--- PASS: TestWorkingDirectoryWorkingCommand (0.00s)
+=== RUN   TestWorkingDirectoryNonWorkingCommand
+2021/04/05 09:47:25  is not a valid COG_ENABLE_BETA value, can t be converted to bool
+2021/04/05 09:47:25 Executing test -f ./non_existing_file in ../testdata
+Error: Error while running command 'check_non_existing_file': 'test -f ./non_existing_file' failed (exit status 1)
+--- PASS: TestWorkingDirectoryNonWorkingCommand (0.00s)
+PASS
+ok  	github.com/cogment/cogment-cli/cmd	(cached)
+=== RUN   TestConfigureRemoteCommand
+URL (https://platform-gateway.cogsaas.com): API token: --- PASS: TestConfigureRemoteCommand (0.00s)
+PASS
+ok  	github.com/cogment/cogment-cli/cmd/configure	(cached)
+=== RUN   TestRegistryConfigureWithStatusCode
+=== RUN   TestRegistryConfigureWithStatusCode/200
+=== RUN   TestRegistryConfigureWithStatusCode/201
+=== RUN   TestRegistryConfigureWithStatusCode/400
+{"error":"message"}
+--- PASS: TestRegistryConfigureWithStatusCode (0.00s)
+    --- PASS: TestRegistryConfigureWithStatusCode/200 (0.00s)
+    --- PASS: TestRegistryConfigureWithStatusCode/201 (0.00s)
+    --- PASS: TestRegistryConfigureWithStatusCode/400 (0.00s)
+=== RUN   TestRegistryDeleteCommandWithStatus
+=== RUN   TestRegistryDeleteCommandWithStatus/200
+=== RUN   TestRegistryDeleteCommandWithStatus/404
+--- PASS: TestRegistryDeleteCommandWithStatus (0.00s)
+    --- PASS: TestRegistryDeleteCommandWithStatus/200 (0.00s)
+    --- PASS: TestRegistryDeleteCommandWithStatus/404 (0.00s)
+=== RUN   TestRegistryListCommandWithStatusCode
+=== RUN   TestRegistryListCommandWithStatusCode/200
+=== RUN   TestRegistryListCommandWithStatusCode/400
+=== RUN   TestRegistryListCommandWithStatusCode/401
+--- PASS: TestRegistryListCommandWithStatusCode (0.00s)
+    --- PASS: TestRegistryListCommandWithStatusCode/200 (0.00s)
+    --- PASS: TestRegistryListCommandWithStatusCode/400 (0.00s)
+    --- PASS: TestRegistryListCommandWithStatusCode/401 (0.00s)
+PASS
+ok  	github.com/cogment/cogment-cli/cmd/registry	(cached)
+?   	github.com/cogment/cogment-cli/compose	[no test files]
+=== RUN   TestCreateManifestFromCompose
+=== RUN   TestCreateManifestFromCompose/#00
+=== RUN   TestCreateManifestFromCompose/#01
+=== RUN   TestCreateManifestFromCompose/dont-exist
+=== RUN   TestCreateManifestFromCompose/the-driver
+=== RUN   TestCreateManifestFromCompose/dont-exist,the-driver
+=== RUN   TestCreateManifestFromCompose/the-driver,env,orchestrator
+--- PASS: TestCreateManifestFromCompose (0.00s)
+    --- PASS: TestCreateManifestFromCompose/#00 (0.00s)
+    --- PASS: TestCreateManifestFromCompose/#01 (0.00s)
+    --- PASS: TestCreateManifestFromCompose/dont-exist (0.00s)
+    --- PASS: TestCreateManifestFromCompose/the-driver (0.00s)
+    --- PASS: TestCreateManifestFromCompose/dont-exist,the-driver (0.00s)
+    --- PASS: TestCreateManifestFromCompose/the-driver,env,orchestrator (0.00s)
+=== RUN   TestLoadCompose
+--- PASS: TestLoadCompose (0.00s)
+PASS
+ok  	github.com/cogment/cogment-cli/deployment	(cached)
+=== RUN   TestSnakeify
+=== RUN   TestSnakeify/The_____Agent
+=== RUN   TestSnakeify/a-dashing-name
+--- PASS: TestSnakeify (0.00s)
+    --- PASS: TestSnakeify/The_____Agent (0.00s)
+    --- PASS: TestSnakeify/a-dashing-name (0.00s)
+=== RUN   TestKebabify
+=== RUN   TestKebabify/The_____Agent
+=== RUN   TestKebabify/not_an____url
+--- PASS: TestKebabify (0.00s)
+    --- PASS: TestKebabify/The_____Agent (0.00s)
+    --- PASS: TestKebabify/not_an____url (0.00s)
+=== RUN   TestPascalify
+=== RUN   TestPascalify/the_____agent
+=== RUN   TestPascalify/the_agent
+--- PASS: TestPascalify (0.00s)
+    --- PASS: TestPascalify/the_____agent (0.00s)
+    --- PASS: TestPascalify/the_agent (0.00s)
+PASS
+ok  	github.com/cogment/cogment-cli/helper	(cached)
+?   	github.com/cogment/cogment-cli/templates	[no test files]
+?   	github.com/cogment/cogment-cli/version	[no test files]
