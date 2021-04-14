@@ -10,6 +10,23 @@ stages:
     - cd build
     - cmake ..
 
+.base_gh_ssh_agent:
+  before_script:
+    ## _Inspired by https://docs.gitlab.com/ee/ci/ssh_keys/_
+    ##
+    ## Install ssh-agent if not already installed.
+    - "command -v ssh-agent >/dev/null || ( apt-get update -y && apt-get install openssh-client -y )"
+    ## Run ssh-agent
+    - eval $(ssh-agent -s)
+    ## Add the private key file to ssh-agent
+    - echo "$GH_REPO_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    ## Create the SSH directory and give it the right permissions
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    ## Using the set $SSH_KNOWN_HOSTS to be able to verify remote servers public keys
+    - echo "$SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
+
 cpp_lint:
   extends: .base_cpp
   stage: lint
@@ -34,9 +51,9 @@ build:
   services:
     - docker:19.03.1-dind
   variables:
-      # Use TLS https://docs.gitlab.com/ee/ci/docker/using_docker_build.html#tls-enabled
-      DOCKER_HOST: tcp://docker:2376
-      DOCKER_TLS_CERTDIR: "/certs"
+    # Use TLS https://docs.gitlab.com/ee/ci/docker/using_docker_build.html#tls-enabled
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
   before_script:
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
     - docker login -u $DOCKER_HUB_USERNAME -p $DOCKER_HUB_TOKEN
@@ -51,7 +68,7 @@ build_docker:
     # This job is not run on `develop` because `publish_latest` run there and "includes" the build
     - develop
 
-publish_latest:
+publish_latest_to_dockerhub:
   extends: .base_docker
   stage: publish
   script:
@@ -61,7 +78,7 @@ publish_latest:
   only:
     - develop
 
-publish_tag:
+publish_tag_to_dockerhub:
   extends: .base_docker
   stage: publish
   variables:
@@ -76,5 +93,12 @@ publish_tag:
   only:
     - /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+(?:-[[:alnum:]]+)?$/
 
-
-
+publish_main_to_github:
+  extends: .base_gh_ssh_agent
+  stage: publish
+  script:
+    - git remote add downstream git@github.com:cogment/cogment-orchestrator.git
+    - git fetch downstream ${CI_COMMIT_BRANCH}
+    - git push --tags downstream ${CI_COMMIT_BRANCH}
+  only:
+    - main
