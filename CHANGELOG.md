@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v1.0.0-beta2 - 2021-04-15
+
 ### Fixed
 
 - Fixed the problem where the last rewards from the environment would get to the actors too late
