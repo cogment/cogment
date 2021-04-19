@@ -26,9 +26,11 @@
 
 #include "uuid.h"
 
+#include <atomic>
 #include <chrono>
 #include <deque>
 #include <mutex>
+#include <shared_mutex>
 #include <string>
 #include <vector>
 
@@ -37,16 +39,13 @@ class Orchestrator;
 class Client_actor;
 class TrialLogInterface;
 
-enum class Trial_state { initializing, pending, running, terminating, ended };
-
-const char* get_trial_state_string(Trial_state s);
-cogment::TrialState get_trial_api_state(Trial_state s);
-
 // TODO: Make Trial independent of orchestrator (to remove any chance of circular reference)
 class Trial : public std::enable_shared_from_this<Trial> {
   static uuids::uuid_system_generator id_generator_;
 
   public:
+  enum class InternalState { unknown, initializing, pending, running, terminating, ended };
+
   Trial(Orchestrator* orch, std::string user_id);
   ~Trial();
 
@@ -55,7 +54,7 @@ class Trial : public std::enable_shared_from_this<Trial> {
   Trial(const Trial&) = delete;
   Trial& operator=(const Trial&) = delete;
 
-  Trial_state state() const { return state_; }
+  InternalState state() const { return state_; }
   uint64_t tick_id() const { return tick_id_; }
 
   // Trial identification
@@ -93,11 +92,17 @@ class Trial : public std::enable_shared_from_this<Trial> {
   void prepare_actors();
   cogment::EnvStartRequest prepare_environment();
   cogment::DatalogSample& make_new_sample();
+  cogment::DatalogSample& get_last_sample();
+  void flush_samples();
 
   Orchestrator* orchestrator_;
 
   std::mutex state_lock_;
   std::mutex actor_lock_;
+  std::mutex sample_lock_;
+  std::mutex reward_lock_;
+  std::mutex message_lock_;
+  std::shared_mutex terminating_lock_;
 
   // Identity
   uuids::uuid id_;  // TODO: Store as string (since we convert everywhere back and forth)
@@ -110,11 +115,12 @@ class Trial : public std::enable_shared_from_this<Trial> {
   std::shared_ptr<cogment::Stub_pool<cogment::EnvironmentEndpoint>::Entry> env_stub_;
 
   // State
-  Trial_state state_;
+  InternalState state_;
   uint64_t tick_id_;
   ObservationSet observations_;
-  void set_state(Trial_state state);
-  void new_tick(ObservationSet&& new_obs, bool first_set = false);
+  void set_state(InternalState state);
+  void advance_tick();
+  void new_obs(ObservationSet&& new_obs);
   void next_step(EnvActionReply&& reply);
 
   std::vector<std::unique_ptr<Actor>> actors_;
@@ -136,6 +142,9 @@ class Trial : public std::enable_shared_from_this<Trial> {
   std::unique_ptr<TrialLogInterface> log_interface_;
   std::deque<cogment::DatalogSample> step_data_;
 };
+
+const char* get_trial_state_string(Trial::InternalState s);
+cogment::TrialState get_trial_api_state(Trial::InternalState s);
 
 }  // namespace cogment
 

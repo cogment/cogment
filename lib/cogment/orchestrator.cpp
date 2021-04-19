@@ -91,7 +91,7 @@ TrialJoinReply Orchestrator::client_joined(TrialJoinRequest req) {
     std::lock_guard l(trials_mutex_);
     // We need to find a valid trial
     for (auto& candidate : trials_) {
-      if (candidate.second->state() == Trial_state::pending) {
+      if (candidate.second->state() == Trial::InternalState::pending) {
         joined_as_actor = candidate.second->get_join_candidate(req);
         if (joined_as_actor) {
           break;
@@ -176,7 +176,7 @@ void Orchestrator::perform_garbage_collection_() {
     while (itor != trials_.end()) {
       auto& trial = itor->second;
 
-      if (trial->state() == Trial_state::ended) {
+      if (trial->state() == Trial::InternalState::ended) {
         itor = trials_.erase(itor);
       }
       else if (trial->is_stale()) {

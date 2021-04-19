@@ -15,9 +15,54 @@
 #include "cogment/actor.h"
 
 #include "cogment/config_file.h"
-#include "cogment/reward.h"
 #include "cogment/trial.h"
 #include "spdlog/spdlog.h"
+
+namespace {
+
+// Collapses a collection of reward sources into a reward.
+cogment::Reward build_reward(cogment::Actor::SrcAccumulator* src_acc) {
+  cogment::Reward reward;
+
+  float value_accum = 0.0f;
+  float confidence_accum = 0.0f;
+
+  for (auto& src : *src_acc) {
+    auto fb_conf = src.confidence();
+
+    if (fb_conf > 0.0f) {
+      value_accum += src.value() * fb_conf;
+      confidence_accum += fb_conf;
+    }
+
+    auto new_src = reward.add_sources();
+    *new_src = std::move(src);
+  }
+
+  if (confidence_accum > 0.0f) {
+    value_accum /= confidence_accum;
+  }
+
+  reward.set_value(value_accum);
+  return reward;
+}
+
+template <class FUNCTION>
+void process_rewards(cogment::Actor::RewAccumulator* rew_acc, const std::string& name, FUNCTION func) {
+  for (auto& tick_sources : *rew_acc) {
+    const uint64_t tick_id = tick_sources.first;
+    auto& sources = tick_sources.second;
+
+    auto reward = build_reward(&sources);
+    reward.set_tick_id(tick_id);
+    reward.set_receiver_name(name);
+    func(std::move(reward));
+  }
+
+  rew_acc->clear();
+}
+
+}  // namespace
 
 namespace cogment {
 
@@ -32,37 +77,34 @@ const std::string& Actor::actor_name() const { return actor_name_; }
 
 const ActorClass* Actor::actor_class() const { return actor_class_; }
 
-void Actor::add_immediate_reward_src(const cogment::RewardSource& source, const std::string& sender) {
-  reward_src_accumulator_.emplace_back(source);
-  reward_src_accumulator_.back().set_sender_name(sender);
+void Actor::add_immediate_reward_src(const cogment::RewardSource& source, const std::string& sender, uint64_t tick_id) {
+  const std::lock_guard<std::mutex> lg(lock_);
+  auto& src_acc = reward_accumulator_[tick_id];
+  src_acc.emplace_back(source);
+  src_acc.back().set_sender_name(sender);
 }
 
-void Actor::add_immediate_message(const cogment::Message& message, const std::string& sender) {
+void Actor::add_immediate_message(const cogment::Message& message, const std::string& sender, uint64_t tick_id) {
+  const std::lock_guard<std::mutex> lg(lock_);
   message_accumulator_.emplace_back(message);
+  message_accumulator_.back().set_tick_id(tick_id);
   message_accumulator_.back().set_sender_name(sender);
 }
 
 void Actor::dispatch_tick(cogment::Observation&& obs, bool final_tick) {
-  // TODO: Some of the messages and rewards should be sent with previous tick since they came with
-  //       the actions in the previous tick (in reponse to obs in that tick).
-  const auto tick_id = obs.tick_id();
-
-  auto sources = std::move(reward_src_accumulator_);
-  auto messages = std::move(message_accumulator_);
+  RewAccumulator reward_acc;
+  std::vector<cogment::Message> msg_acc;
+  {
+    const std::lock_guard<std::mutex> lg(lock_);
+    reward_acc.swap(reward_accumulator_);
+    msg_acc.swap(message_accumulator_);
+  }
 
   if (!final_tick) {
-    if (!sources.empty()) {
-      auto reward = build_reward(sources);
-      reward.set_tick_id(tick_id);
-      reward.set_receiver_name(actor_name_);
-      dispatch_reward(std::move(reward));
-    }
+    process_rewards(&reward_acc, actor_name_, [this](cogment::Reward&& rew) { dispatch_reward(std::move(rew)); });
 
-    if (!messages.empty()) {
-      for (auto& message : messages) {
-        message.set_tick_id(tick_id);
-        dispatch_message(std::move(message));
-      }
+    for (auto& message : msg_acc) {
+      dispatch_message(std::move(message));
     }
 
     dispatch_observation(std::move(obs));
@@ -70,20 +112,14 @@ void Actor::dispatch_tick(cogment::Observation&& obs, bool final_tick) {
   else {
     cogment::ActorPeriodData data;
 
-    if (!sources.empty()) {
-      auto reward = build_reward(sources);
-      reward.set_tick_id(tick_id);
-      reward.set_receiver_name(actor_name_);
+    process_rewards(&reward_acc, actor_name_, [&data](cogment::Reward&& rew) {
       auto new_reward = data.add_rewards();
-      *new_reward = std::move(reward);
-    }
+      *new_reward = std::move(rew);
+    });
 
-    if (!messages.empty()) {
-      for (auto& message : messages) {
-        message.set_tick_id(tick_id);
-        auto new_msg = data.add_messages();
-        *new_msg = std::move(message);
-      }
+    for (auto& message : msg_acc) {
+      auto new_msg = data.add_messages();
+      *new_msg = std::move(message);
     }
 
     auto new_obs = data.add_observations();

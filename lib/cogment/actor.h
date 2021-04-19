@@ -37,6 +37,9 @@ struct ActorClass;
 
 class Actor {
   public:
+  using SrcAccumulator = std::vector<cogment::RewardSource>;
+  using RewAccumulator = std::map<uint64_t, SrcAccumulator>;
+
   Actor(Trial* trial, const std::string& actor_name, const ActorClass* actor_class);
   virtual ~Actor();
 
@@ -48,8 +51,8 @@ class Actor {
   const std::string& actor_name() const;
   const ActorClass* actor_class() const;
 
-  void add_immediate_reward_src(const cogment::RewardSource& source, const std::string& sender);
-  void add_immediate_message(const cogment::Message& message, const std::string& source);
+  void add_immediate_reward_src(const cogment::RewardSource& source, const std::string& sender, uint64_t tick_id);
+  void add_immediate_message(const cogment::Message& message, const std::string& source, uint64_t tick_id);
 
   void dispatch_tick(cogment::Observation&& obs, bool final_tick);
 
@@ -63,10 +66,9 @@ class Actor {
   Trial* trial_;
   std::string actor_name_;
   const ActorClass* actor_class_;
+  std::mutex lock_;
 
-  // This accumulates non-retroactive rewards.
-  std::vector<cogment::RewardSource> reward_src_accumulator_;
-
+  RewAccumulator reward_accumulator_;
   std::vector<cogment::Message> message_accumulator_;
 };
 
