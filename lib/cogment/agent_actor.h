@@ -33,7 +33,7 @@ class Agent : public Actor {
 
   ~Agent();
 
-  Future<void> init() override;
+  aom::Future<void> init() override;
 
   bool is_active() const override;
 

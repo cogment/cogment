@@ -12,28 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef COGMENT_UTILS_H_INCLUDED
-#define COGMENT_UTILS_H_INCLUDED
+#include "cogment/utils.h"
 
-#include <cstdarg>
-#include <cstdio>
-#include "spdlog/spdlog.h"
+#ifdef __linux__
+  #include <string.h>
+  #include <time.h>
 
-uint64_t Timestamp();
+// This is simpler and much more efficient than the C++ "chrono" way
+uint64_t Timestamp() {
+  struct timespec ts;
+  int res = clock_gettime(CLOCK_REALTIME, &ts);
+  if (res == -1) {
+    throw MakeException("Could not get time stamp: %s", strerror(errno));
+  }
 
-template <class EXC = std::runtime_error>
-EXC MakeException(const char* format, ...) {
-  static constexpr std::size_t BUF_SIZE = 256;
-  char buf[BUF_SIZE];
-
-  va_list args;
-  va_start(args, format);
-  std::vsnprintf(buf, BUF_SIZE, format, args);
-  va_end(args);
-
-  const char* const const_buf = buf;
-  spdlog::error("**Exception generated**: {}", const_buf);
-  return EXC(const_buf);
+  static constexpr uint64_t NANOS = 1'000'000'000;
+  return (ts.tv_sec * NANOS + ts.tv_nsec);
 }
 
 #endif

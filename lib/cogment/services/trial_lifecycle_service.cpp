@@ -54,48 +54,48 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_
                                                                      easy_grpc::Context ctx) {
   spdlog::debug("TerminateTrial called");
 
-  auto trial = orchestrator_->get_trial(uuids::uuid::from_string(ctx.get_client_header("trial-id")));
-  trial->terminate();
+  const auto trial_id_strv = ctx.get_client_header("trial-id");
+  auto trial = orchestrator_->get_trial(uuids::uuid::from_string(trial_id_strv));
+  if (trial != nullptr) {
+    trial->terminate();
+  }
+  else {
+    spdlog::error("Trial [{}] doesn't exist for termination", std::string(trial_id_strv));
+  }
+
   return {};
 }
 
-// TODO: Implement this function
-#define GET_TRIAL_INFO_IMPLEMENTED_FOR_NEW_API 0
-#if GET_TRIAL_INFO_IMPLEMENTED_FOR_NEW_API
 ::cogment::TrialInfoReply TrialLifecycleService::GetTrialInfo(::cogment::TrialInfoRequest req, easy_grpc::Context ctx) {
   spdlog::debug("GetTrialInfo called");
 
-  ::cogment::TrialInfoReply result;
-  auto add_trial = [&](Trial* trial) {
-    auto trial_info = result.add_trial();
+  std::string_view trial_id_strv;
+  try {
+    trial_id_strv = ctx.get_client_header("trial-id");
+  } catch (const std::out_of_range&) {
+    // There was no "trial-id" header
+  }
 
-    auto trial_lock = trial->lock();
-    trial_info->set_trial_id(to_string(trial->id()));
-    trial_info->set_state(get_trial_api_state(trial->state()));
-  };
-
-  auto trial_id_str = ctx.get_client_header("trial-id");
-
-  if (trial_id_str == "all_trials") {
-    auto trials = orchestrator_->all_trials();
-    for (auto& trial : trials) {
-      add_trial(trial.get());
+  cogment::TrialInfoReply result;
+  if (!trial_id_strv.empty()) {
+    const auto trial_id = uuids::uuid::from_string(trial_id_strv);
+    auto trial = orchestrator_->get_trial(trial_id);
+    if (trial != nullptr) {
+      auto trial_info = result.add_trial();
+      trial->set_info(trial_info, req.get_latest_observation(), req.get_actor_list());
     }
   }
   else {
-    auto trial_id = uuids::uuid::from_string(trial_id_str);
-    auto trial = orchestrator_->get_trial(trial_id);
-    add_trial(trial.get());
+    // The user is asking for ALL trials
+    auto trials = orchestrator_->all_trials();
+    for (auto& trial : trials) {
+      auto trial_info = result.add_trial();
+      trial->set_info(trial_info, req.get_latest_observation(), req.get_actor_list());
+    }
   }
 
   return result;
 }
-#else
-::cogment::TrialInfoReply TrialLifecycleService::GetTrialInfo(::cogment::TrialInfoRequest, easy_grpc::Context) {
-  throw MakeException("GetTrialInfo is not implemented");
-  return {};
-}
-#endif
 
 ::easy_grpc::Stream_future<::cogment::TrialListEntry> TrialLifecycleService::WatchTrials(
     ::cogment::TrialListRequest req, easy_grpc::Context) {

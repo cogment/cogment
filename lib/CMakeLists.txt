@@ -119,6 +119,7 @@ add_library(orchestrator_lib
   cogment/trial_params.cpp
   cogment/trial_spec.cpp
   cogment/trial.cpp
+  cogment/utils.cpp
 
   cogment/datalog/storage_interface.cpp
   cogment/datalog/grpc_exporter.cpp

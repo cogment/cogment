@@ -46,14 +46,14 @@ ActorService::ActorService(Orchestrator* orch) : orchestrator_(orch) {}
   auto trial_id = uuids::uuid::from_string(ctx.get_client_header("trial-id"));
   std::string actor_name(ctx.get_client_header("actor-name"));
 
-  try {
-    auto trial = orchestrator_->get_trial(trial_id);
-
+  auto trial = orchestrator_->get_trial(trial_id);
+  if (trial != nullptr) {
     for (auto& rew : reward.rewards()) {
       trial->reward_received(rew, actor_name);
     }
-  } catch (const std::out_of_range& oor) {
-    spdlog::error("Trial {} doesn't exit: {}", to_string(trial_id), oor.what());
+  }
+  else {
+    spdlog::error("Trial [{}] doesn't exist to send reward", to_string(trial_id));
   }
 
   ::easy_grpc::Promise<::cogment::TrialRewardReply> prom;
@@ -69,14 +69,14 @@ ActorService::ActorService(Orchestrator* orch) : orchestrator_(orch) {}
   auto trial_id = uuids::uuid::from_string(ctx.get_client_header("trial-id"));
   std::string actor_name(ctx.get_client_header("actor-name"));
 
-  try {
-    auto trial = orchestrator_->get_trial(trial_id);
-
+  auto trial = orchestrator_->get_trial(trial_id);
+  if (trial != nullptr) {
     for (auto& mess : message.messages()) {
       trial->message_received(mess, actor_name);
     }
-  } catch (const std::out_of_range& oor) {
-    spdlog::error("Trial {} doesn't exit: {}", to_string(trial_id), oor.what());
+  }
+  else {
+    spdlog::error("Trial [{}] doesn't exist to send message", to_string(trial_id));
   }
 
   ::easy_grpc::Promise<::cogment::TrialMessageReply> prom;

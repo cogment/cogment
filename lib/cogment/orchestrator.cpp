@@ -44,7 +44,7 @@ Orchestrator::Orchestrator(Trial_spec trial_spec, cogment::TrialParams default_t
 
 Orchestrator::~Orchestrator() {}
 
-Future<std::shared_ptr<Trial>> Orchestrator::start_trial(cogment::TrialParams params, std::string user_id) {
+aom::Future<std::shared_ptr<Trial>> Orchestrator::start_trial(cogment::TrialParams params, std::string user_id) {
   garbage_collection_countdown_--;
   if (garbage_collection_countdown_ <= 0) {
     garbage_collection_countdown_.store(settings::garbage_collection_frequency.get());
@@ -123,11 +123,14 @@ TrialJoinReply Orchestrator::client_joined(TrialJoinRequest req) {
     const uuids::uuid& trial_id, std::string& actor_name,
     ::easy_grpc::Stream_future<::cogment::TrialActionRequest> actions) {
   auto trial = get_trial(trial_id);
+  if (trial == nullptr) {
+    throw MakeException("Unknown trial to bind [%s]", to_string(trial_id).c_str());
+  }
 
   auto actor = dynamic_cast<Client_actor*>(trial->actor(actor_name).get());
 
   if (actor == nullptr) {
-    throw MakeException("attempting to bind a service-driven actor");
+    throw MakeException("Attempting to bind a service-driven actor");
   }
 
   return actor->bind(std::move(actions));
@@ -135,8 +138,8 @@ TrialJoinReply Orchestrator::client_joined(TrialJoinRequest req) {
 
 void Orchestrator::add_prehook(cogment::TrialHooks::Stub_interface* hook) { prehooks_.push_back(hook); }
 
-Future<cogment::PreTrialContext> Orchestrator::perform_pre_hooks_(cogment::PreTrialContext ctx,
-                                                                  const std::string& trial_id) {
+aom::Future<cogment::PreTrialContext> Orchestrator::perform_pre_hooks_(cogment::PreTrialContext ctx,
+                                                                       const std::string& trial_id) {
   grpc_metadata trial_header;
   trial_header.key = grpc_slice_from_static_string("trial-id");
   trial_header.value = grpc_slice_from_copied_string(trial_id.c_str());
@@ -198,7 +201,13 @@ void Orchestrator::perform_garbage_collection_() {
 
 std::shared_ptr<Trial> Orchestrator::get_trial(const uuids::uuid& trial_id) const {
   std::lock_guard l(trials_mutex_);
-  return trials_.at(trial_id);
+  auto itor = trials_.find(trial_id);
+  if (itor != trials_.end()) {
+    return itor->second;
+  }
+  else {
+    return {};
+  }
 }
 
 std::vector<std::shared_ptr<Trial>> Orchestrator::all_trials() const {

@@ -40,7 +40,7 @@ class Orchestrator {
   void set_log_exporter(std::unique_ptr<DatalogStorageInterface> le);
 
   // Lifecycle
-  Future<std::shared_ptr<Trial>> start_trial(cogment::TrialParams params, std::string user_id);
+  aom::Future<std::shared_ptr<Trial>> start_trial(cogment::TrialParams params, std::string user_id);
 
   // Client API
   TrialJoinReply client_joined(TrialJoinRequest);
@@ -107,7 +107,7 @@ class Orchestrator {
   std::atomic<int> garbage_collection_countdown_;
   void perform_garbage_collection_();
 
-  Future<cogment::PreTrialContext> perform_pre_hooks_(cogment::PreTrialContext ctx, const std::string& trial_id);
+  aom::Future<cogment::PreTrialContext> perform_pre_hooks_(cogment::PreTrialContext ctx, const std::string& trial_id);
 };
 }  // namespace cogment
 #endif

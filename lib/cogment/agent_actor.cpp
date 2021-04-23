@@ -53,7 +53,7 @@ Agent::~Agent() {
   }
 }
 
-Future<void> Agent::init() {
+aom::Future<void> Agent::init() {
   AGENT_DEBUG_LOG("Agent::init(): [{}] [{}]", to_string(trial()->id()), actor_name());
 
   cogment::AgentStartRequest req;

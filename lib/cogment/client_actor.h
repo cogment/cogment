@@ -36,7 +36,7 @@ class Client_actor : public Actor {
 
   ~Client_actor();
 
-  Future<void> init() override;
+  aom::Future<void> init() override;
 
   bool is_active() const override;
 
@@ -59,7 +59,7 @@ class Client_actor : public Actor {
   Observation_promise outgoing_observations_;
   Observation_future outgoing_observations_future_;
 
-  Promise<void> ready_promise_;
+  aom::Promise<void> ready_promise_;
 };
 }  // namespace cogment
 #endif

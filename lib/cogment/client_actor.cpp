@@ -31,7 +31,7 @@ Client_actor::~Client_actor() {
   }
 }
 
-Future<void> Client_actor::init() {
+aom::Future<void> Client_actor::init() {
   // Client actors are ready once a client has connected to it.
   return ready_promise_.get_future();
 }

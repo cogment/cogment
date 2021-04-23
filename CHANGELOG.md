@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Fixed
+
+- Fixed GetTrialInfo function
+- Filling in API data in the datalog `DatalogSample.TrialData` protobuf class
+- Timing problems causing various issues
+
 ## v1.0.0-beta2 - 2021-04-15
 
 ### Fixed

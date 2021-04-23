@@ -38,8 +38,8 @@ constexpr int64_t NO_DATA_TICK_ID = -2;  // When we have received no data (diffe
 constexpr uint64_t MAX_TICK_ID = static_cast<uint64_t>(std::numeric_limits<int64_t>::max());
 const std::string ENVIRONMENT_ACTOR_NAME("env");
 
-const char* get_trial_state_string(Trial::InternalState s) {
-  switch (s) {
+const char* get_trial_state_string(Trial::InternalState state) {
+  switch (state) {
   case Trial::InternalState::unknown:
     return "unknown";
   case Trial::InternalState::initializing:
@@ -54,11 +54,11 @@ const char* get_trial_state_string(Trial::InternalState s) {
     return "ended";
   }
 
-  throw MakeException<std::out_of_range>("Unknown trial state for string [%d]", static_cast<int>(s));
+  throw MakeException<std::out_of_range>("Unknown trial state for string [%d]", static_cast<int>(state));
 }
 
-cogment::TrialState get_trial_api_state(Trial::InternalState s) {
-  switch (s) {
+cogment::TrialState get_trial_api_state(Trial::InternalState state) {
+  switch (state) {
   case Trial::InternalState::unknown:
     return cogment::UNKNOWN;
   case Trial::InternalState::initializing:
@@ -73,7 +73,7 @@ cogment::TrialState get_trial_api_state(Trial::InternalState s) {
     return cogment::ENDED;
   }
 
-  throw MakeException<std::out_of_range>("Unknown trial state for api: [%d]", static_cast<int>(s));
+  throw MakeException<std::out_of_range>("Unknown trial state for api: [%d]", static_cast<int>(state));
 }
 
 uuids::uuid_system_generator Trial::id_generator_;
@@ -83,7 +83,9 @@ Trial::Trial(Orchestrator* orch, std::string user_id)
       id_(id_generator_()),
       user_id_(std::move(user_id)),
       state_(InternalState::unknown),
-      tick_id_(0) {
+      tick_id_(0),
+      start_timestamp_(Timestamp()),
+      end_timestamp_(0) {
   set_state(InternalState::initializing);
   refresh_activity();
 
@@ -104,15 +106,15 @@ void Trial::advance_tick() {
   }
 }
 
-void Trial::new_obs(ObservationSet&& new_obs) {
-  if (new_obs.tick_id() == AUTO_TICK_ID) {
+void Trial::new_obs(ObservationSet&& obs) {
+  if (obs.tick_id() == AUTO_TICK_ID) {
     // do nothing
   }
-  else if (new_obs.tick_id() < 0) {
+  else if (obs.tick_id() < 0) {
     throw MakeException("Invalid negative tick id from environment");
   }
   else {
-    const uint64_t new_tick_id = static_cast<uint64_t>(new_obs.tick_id());
+    const uint64_t new_tick_id = static_cast<uint64_t>(obs.tick_id());
 
     if (new_tick_id < tick_id_) {
       throw MakeException("Environment repeated a tick id: [%llu]", new_tick_id);
@@ -127,12 +129,18 @@ void Trial::new_obs(ObservationSet&& new_obs) {
     }
   }
 
-  observations_ = std::move(new_obs);
+  auto sample = get_last_sample();
+  *(sample->mutable_observations()) = std::move(obs);
 }
 
-cogment::DatalogSample& Trial::get_last_sample() {
+cogment::DatalogSample* Trial::get_last_sample() {
   const std::lock_guard<std::mutex> lg(sample_lock_);
-  return step_data_.back();
+  if (!step_data_.empty()) {
+    return &(step_data_.back());
+  }
+  else {
+    return nullptr;
+  }
 }
 
 cogment::DatalogSample& Trial::make_new_sample() {
@@ -146,8 +154,12 @@ cogment::DatalogSample& Trial::make_new_sample() {
     auto no_action = sample_actions->Add();
     no_action->set_tick_id(NO_DATA_TICK_ID);
   }
-
   gathered_actions_count_ = 0;
+
+  auto trial_data = sample.mutable_trial_data();
+  trial_data->set_tick_id(tick_id_);
+  trial_data->set_timestamp(Timestamp());
+  trial_data->set_state(get_trial_api_state(state_));
 
   return sample;
 }
@@ -271,11 +283,14 @@ void Trial::start(cogment::TrialParams params) {
 void Trial::reward_received(const cogment::Reward& reward, const std::string& sender) {
   // TODO: timed rewards (i.e. with a specific tick_id != AUTO_TICK_ID and != current tick_id_)
 
-  auto& sample = get_last_sample();
-  {
+  auto sample = get_last_sample();
+  if (sample != nullptr) {
     const std::lock_guard<std::mutex> lg(reward_lock_);
-    auto new_rew = sample.add_rewards();
+    auto new_rew = sample->add_rewards();
     *new_rew = reward;
+  }
+  else {
+    return;
   }
 
   if (reward.tick_id() != AUTO_TICK_ID && reward.tick_id() != static_cast<int64_t>(tick_id_)) {
@@ -300,11 +315,14 @@ void Trial::reward_received(const cogment::Reward& reward, const std::string& se
 void Trial::message_received(const cogment::Message& message, const std::string& sender) {
   // TODO: timed messages (i.e. with a specific tick_id != AUTO_TICK_ID and != current tick_id_)
 
-  auto& sample = get_last_sample();
-  {
+  auto sample = get_last_sample();
+  if (sample != nullptr) {
     const std::lock_guard<std::mutex> lg(message_lock_);
-    auto new_msg = sample.add_messages();
+    auto new_msg = sample->add_messages();
     *new_msg = message;
+  }
+  else {
+    return;
   }
 
   if (message.tick_id() != AUTO_TICK_ID && message.tick_id() != static_cast<int64_t>(tick_id_)) {
@@ -334,9 +352,8 @@ void Trial::next_step(EnvActionReply&& reply) {
 
   advance_tick();
 
+  make_new_sample();
   new_obs(std::move(*reply.mutable_observation_set()));
-  auto& sample = make_new_sample();
-  sample.mutable_observations()->CopyFrom(observations_);
 }
 
 void Trial::dispatch_observations() {
@@ -345,13 +362,19 @@ void Trial::dispatch_observations() {
   }
   const bool ending = (state_ == InternalState::terminating);
 
+  auto sample = get_last_sample();
+  if (sample == nullptr) {
+    return;
+  }
+  const auto& observations = sample->observations();
+
   std::uint32_t actor_index = 0;
   for (const auto& actor : actors_) {
-    auto obs_index = observations_.actors_map(actor_index);
+    auto obs_index = observations.actors_map(actor_index);
     cogment::Observation obs;
     obs.set_tick_id(tick_id_);
-    obs.set_timestamp(observations_.timestamp());
-    *obs.mutable_data() = observations_.observations(obs_index);
+    obs.set_timestamp(observations.timestamp());
+    *obs.mutable_data() = observations.observations(obs_index);
     actor->dispatch_tick(std::move(obs), ending);
 
     ++actor_index;
@@ -359,7 +382,6 @@ void Trial::dispatch_observations() {
 
   if (ending) {
     set_state(InternalState::ended);
-    flush_samples();
   }
 }
 
@@ -384,10 +406,6 @@ void Trial::cycle_buffer() {
 
 void Trial::run_environment() {
   auto self = shared_from_this();
-
-  // Set the first observation in the log
-  auto& sample = get_last_sample();
-  sample.mutable_observations()->CopyFrom(observations_);
 
   // Launch the main update stream
   auto streams = (*env_stub_)->OnAction(call_options_);
@@ -466,8 +484,8 @@ void Trial::terminate() {
         // We are holding on to self to be safe.
 
         if (self->state_ != InternalState::ended) {
-          spdlog::error("Trail [{}] did not end normally.", to_string(self->id_));
-          self->set_state(InternalState::ended);
+          spdlog::error("Trial [{}] did not end normally.", to_string(self->id_));
+          self->state_ = InternalState::ended;  // To enable garbage collection on this trial
         }
       });
 }
@@ -482,8 +500,11 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
   // TODO: Do we want to manage the exception if the name is not found?
   auto actor_index = actor_indexes_.at(actor_name);
 
-  auto& sample = get_last_sample();
-  auto sample_action = sample.mutable_actions(actor_index);
+  auto sample = get_last_sample();
+  if (sample == nullptr) {
+    return;
+  }
+  auto sample_action = sample->mutable_actions(actor_index);
   if (sample_action->tick_id() != NO_DATA_TICK_ID) {
     spdlog::warn("Multiple actions from [{}] for same step: only the first one will be used.", actor_name);
     return;
@@ -547,17 +568,61 @@ Client_actor* Trial::get_join_candidate(const TrialJoinRequest& req) {
   return static_cast<Client_actor*>(result);
 }
 
-void Trial::set_state(InternalState state) {
-  if (state_ != InternalState::ended) {
-    const std::lock_guard<std::mutex> lg(state_lock_);
-    state_ = state;
+void Trial::set_state(InternalState new_state) {
+  const std::lock_guard<std::mutex> lg(state_lock_);
+
+  bool invalid_transition = false;
+  switch (state_) {
+  case InternalState::unknown:
+    invalid_transition = (new_state != InternalState::initializing);
+    break;
+
+  case InternalState::initializing:
+    invalid_transition = (new_state != InternalState::pending);
+    break;
+
+  case InternalState::pending:
+    invalid_transition = (new_state != InternalState::running);
+    break;
+
+  case InternalState::running:
+    invalid_transition = (new_state != InternalState::terminating);
+    break;
+
+  case InternalState::terminating:
+    invalid_transition = (new_state != InternalState::ended && new_state != InternalState::terminating);
+    break;
+
+  case InternalState::ended:
+    if (new_state != InternalState::ended) {
+      invalid_transition = true;
+    }
+    else {
+      // Shouldn't happen, but acceptable
+      spdlog::debug("Trial [{}] already ended: cannot end again", to_string(id_));
+    }
+    break;
+  }
+
+  if (invalid_transition) {
+    throw MakeException("Cannot switch trial state from [%s] to [%s]", get_trial_state_string(state_),
+                        get_trial_state_string(new_state));
+  }
+
+  if (state_ != new_state) {
+    state_ = new_state;
+
+    if (new_state == InternalState::ended) {
+      end_timestamp_ = Timestamp();
+    }
 
     // TODO: Find a better way so we don't have to be locked when calling out
     //       Right now it is necessary to make sure we don't miss state and they are seen in order
     orchestrator_->notify_watchers(*this);
-  }
-  else {
-    spdlog::debug("Trial [{}] already ended: cannot change state to {}", to_string(id_), static_cast<int>(state));
+
+    if (new_state == InternalState::ended) {
+      flush_samples();
+    }
   }
 }
 
@@ -569,6 +634,48 @@ bool Trial::is_stale() const {
 
   const bool stale = (inactivity_period > std::chrono::seconds(max_inactivity));
   return (max_inactivity > 0 && stale);
+}
+
+void Trial::set_info(cogment::TrialInfo* info, bool with_observations, bool with_actors) {
+  if (info == nullptr) {
+    spdlog::error("Trial [{}] request for info with no storage", to_string(id_));
+    return;
+  }
+
+  uint64_t end;
+  if (end_timestamp_ == 0) {
+    end = Timestamp();
+  }
+  else {
+    end = end_timestamp_;
+  }
+  info->set_trial_duration(end - start_timestamp_);
+  info->set_trial_id(to_string(id_));
+
+  // The state and tick may not be synchronized here, but it is better
+  // to have the latest state (as opposed to the state of the sample).
+  info->set_state(get_trial_api_state(state_));
+
+  auto sample = get_last_sample();
+  if (sample == nullptr) {
+    info->set_tick_id(tick_id_);
+    return;
+  }
+
+  // We want to make sure the tick_id and observation are from the same tick
+  const uint64_t tick = sample->trial_data().tick_id();
+  info->set_tick_id(tick);
+  if (with_observations) {
+    info->mutable_latest_observation()->CopyFrom(sample->observations());
+  }
+
+  if (with_actors) {
+    for (auto& actor : actors_) {
+      auto trial_actor = info->add_actors_in_trial();
+      trial_actor->set_actor_class(actor->actor_class()->name);
+      trial_actor->set_name(actor->actor_name());
+    }
+  }
 }
 
 }  // namespace cogment

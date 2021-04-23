@@ -56,6 +56,7 @@ class Trial : public std::enable_shared_from_this<Trial> {
 
   InternalState state() const { return state_; }
   uint64_t tick_id() const { return tick_id_; }
+  uint64_t start_timestamp() const { return start_timestamp_; }
 
   // Trial identification
   const uuids::uuid& id() const { return id_; }
@@ -88,12 +89,22 @@ class Trial : public std::enable_shared_from_this<Trial> {
   void message_received(const cogment::Message& message, const std::string& source);
   std::shared_ptr<Trial> get_shared() { return shared_from_this(); }
 
+  void set_info(cogment::TrialInfo* info, bool with_observations, bool with_actors);
+
   private:
   void prepare_actors();
   cogment::EnvStartRequest prepare_environment();
   cogment::DatalogSample& make_new_sample();
-  cogment::DatalogSample& get_last_sample();
+  cogment::DatalogSample* get_last_sample();
   void flush_samples();
+  void set_state(InternalState state);
+  void advance_tick();
+  void new_obs(ObservationSet&& new_obs);
+  void next_step(EnvActionReply&& reply);
+  void dispatch_observations();
+  void cycle_buffer();
+  void run_environment();
+  cogment::EnvActionRequest make_action_request();
 
   Orchestrator* orchestrator_;
 
@@ -104,24 +115,17 @@ class Trial : public std::enable_shared_from_this<Trial> {
   std::mutex message_lock_;
   std::shared_mutex terminating_lock_;
 
-  // Identity
   uuids::uuid id_;  // TODO: Store as string (since we convert everywhere back and forth)
   std::string user_id_;
 
-  // Configuration
   cogment::TrialParams params_;
 
-  // Connections
   std::shared_ptr<cogment::Stub_pool<cogment::EnvironmentEndpoint>::Entry> env_stub_;
 
-  // State
   InternalState state_;
   uint64_t tick_id_;
-  ObservationSet observations_;
-  void set_state(InternalState state);
-  void advance_tick();
-  void new_obs(ObservationSet&& new_obs);
-  void next_step(EnvActionReply&& reply);
+  const uint64_t start_timestamp_;
+  uint64_t end_timestamp_;
 
   std::vector<std::unique_ptr<Actor>> actors_;
   std::unordered_map<std::string, uint32_t> actor_indexes_;
@@ -129,11 +133,6 @@ class Trial : public std::enable_shared_from_this<Trial> {
 
   std::vector<grpc_metadata> headers_;
   easy_grpc::client::Call_options call_options_;
-
-  void dispatch_observations();
-  void cycle_buffer();
-  void run_environment();
-  cogment::EnvActionRequest make_action_request();
 
   std::optional<::easy_grpc::Stream_promise<::cogment::EnvActionRequest>> outgoing_actions_;
 
