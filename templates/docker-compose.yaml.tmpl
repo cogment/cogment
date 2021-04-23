@@ -74,12 +74,11 @@ services:
     ports:
       - "9080:8080"
       - "9443:8443"
+    # volumes:
+    #   - ./letsencrypt/config:/etc/letsencrypt:ro
     environment:
-      - SSL=false
-      - HTTP=true
-      - ORCHESTRATOR_SSL=false
-      # - KEY=certs/key.key
-      # - CRT=certs/cert.cert
+      # - SERVER_TLS_KEY=/etc/letsencrypt/live/example.com/privkey.pem
+      # - SERVER_TLS_CRT=/etc/letsencrypt/live/example.com/fullchain.pem
     depends_on:
       - orchestrator
 

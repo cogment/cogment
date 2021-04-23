@@ -1,4 +1,4 @@
 FROM {{ .Components.Orchestrator.Image }}:{{ .Components.Orchestrator.Version }}
 
-ADD cogment.yaml .
-ADD *.proto .
+COPY cogment.yaml .
+COPY *.proto .

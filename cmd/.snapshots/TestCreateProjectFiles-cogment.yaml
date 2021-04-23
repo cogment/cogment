@@ -29,16 +29,19 @@ actor_classes:
       space: testit.MasterAction
     observation:
       space: testit.Observation
+
   - name: smart
     action:
       space: testit.SmartAction
     observation:
       space: testit.Observation
+
   - name: dumb
     action:
       space: testit.DumbAction
     observation:
       space: testit.Observation
+
 
 # Dynamic configuration (could be changed by a pre-hook)
 trial_params:

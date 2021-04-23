@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Refactored
+
+- Prefer `COPY` over `ADD` in dockerfiles
+
 ## v1.0.0-beta1 - 2021-04-08
 
 - Initial beta release, no more breaking changes should be introduced.

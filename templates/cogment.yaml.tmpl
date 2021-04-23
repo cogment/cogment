@@ -35,6 +35,9 @@ actor_classes:
       space: {{$config.ProjectName|snakeify}}.{{.Name|pascalify}}Action
     observation:
       space: {{$config.ProjectName|snakeify}}.Observation
+{{ if .ConfigType -}}
+      config_type={{.ConfigType}},
+{{- end }}
 {{- end}}
 
 # Dynamic configuration (could be changed by a pre-hook)
