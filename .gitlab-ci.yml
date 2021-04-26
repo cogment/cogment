@@ -93,12 +93,13 @@ publish_tag_to_dockerhub:
   only:
     - /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+(?:-[[:alnum:]]+)?$/
 
-publish_main_to_github:
+publish_branch_to_github:
   extends: .base_gh_ssh_agent
   stage: publish
   script:
+    - git checkout ${CI_COMMIT_BRANCH} # Checkout the branch not the sha1
     - git remote add downstream git@github.com:cogment/cogment-orchestrator.git
     - git fetch downstream ${CI_COMMIT_BRANCH}
-    - git push --tags downstream ${CI_COMMIT_BRANCH}
+    - git push --tags downstream ${CI_COMMIT_BRANCH}:${CI_COMMIT_BRANCH}
   only:
     - main
