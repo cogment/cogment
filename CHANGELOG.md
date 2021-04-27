@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v1.0.0-beta3 - 2021-04-27
+
 ### Changed
 
 - Prefer `COPY` over `ADD` in dockerfiles
