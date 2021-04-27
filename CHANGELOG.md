@@ -7,9 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
-### Refactored
+### Changed
 
 - Prefer `COPY` over `ADD` in dockerfiles
+- Upgrade the version of cogment-orchestrator to `v1.0.0-beta3`
+- Upgrade the version of cogment-py-sdk to `v1.0.0-beta3`
 
 ## v1.0.0-beta1 - 2021-04-08
 
@@ -51,40 +53,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## v1.0.0-alpha5 - 2021-02-22
 
-### Features
+### Added
 
-#### implement web-client
+- Add both the creation and generation of a web-client through `cogment init` and `cogment generate`, respectively. A node.js distribution is now required to be available on `$PATH` for certain features. These are disabled by default and must be enabled by stdin or flags.
 
-This implements both the creation and generation of a web-client through
-`cogment init` and `cogment generate`, respectively.
+### Changed
 
-**Changes**:
-
-- Refactor code to use template helpers for transforming `cogment.yaml`
-  `import.protos[]` into language specific import strings.
-
-**Breaking Changes**
-
-- A node.js distribution is now required to be available on `$PATH` for
-  certain features. These are disabled by default and must be enabled by
-  stdin or flags.
-- `cogment generate` now accepts `--python-out` instead of
-  `--python_out`. `--python-out` can be repeated multiple times to
-  target multiple output directories, eg: `cogment generate --python-out environment --python-out client --python-out actor`.
-- `cogment generate` now templates `CogSettings.ts`, then uses the
-  typescript compiler to generate `CogSettings.js`, `CogSettings.d.ts`,
-  `CogSettings.d.ts.map`.
-- `cogment init` now asks if a web-client should be generated.
-- `cogment generate` now accepts the `--js-out` flag, which enables
-  generation of protobuf definitions and `CogSettings.ts` from a
-  `cogment.yaml`
-- `cogment generate` now accepts a `--typescript` flag that depends on
-  the `--js-out` flag, will enable typing definition generation for
-  user protobufs. This can be repeated multiple times to
-  target multiple output directories, just like python-out
-- `cogment init` templates uses dependencies between services
-  (`depends_on` clause) for bringing up the stack vs. having service
-  names repeated in `cogment run` commands. `docker-compose up web-client` will bring up the entire stack, `docker-compose up dashboard` will bring up all the necessary containers.
+- `cogment generate` now accepts `--python-out` instead of `--python_out`. `--python-out` can be repeated multiple times to target multiple output directories, eg: `cogment generate --python-out environment --python-out client --python-out actor`.
+- `cogment generate` now accepts the `--js-out` flag, which enables generation of protobuf definitions and `CogSettings.ts` from a `cogment.yaml`
+- `cogment generate` now accepts a `--typescript` flag that depends on the `--js-out` flag, will enable typing definition generation for user protobufs. This can be repeated multiple times to target multiple output directories, just like python-out
+- `cogment init` templates uses dependencies between services (`depends_on` clause) for bringing up the stack vs. having service names repeated in `cogment run` commands. `docker-compose up web-client` will bring up the entire stack, `docker-compose up dashboard` will bring up all the necessary containers.
 
 ## v1.0.0-alpha4 - 2021-02-19
 
