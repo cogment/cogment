@@ -90,12 +90,10 @@ TrialJoinReply Orchestrator::client_joined(TrialJoinRequest req) {
   else {
     std::lock_guard l(trials_mutex_);
     // We need to find a valid trial
-    for (auto& candidate : trials_) {
-      if (candidate.second->state() == Trial::InternalState::pending) {
-        joined_as_actor = candidate.second->get_join_candidate(req);
-        if (joined_as_actor) {
-          break;
-        }
+    for (auto& candidate_trial : trials_) {
+      joined_as_actor = candidate_trial.second->get_join_candidate(req);
+      if (joined_as_actor) {
+        break;
       }
     }
   }
@@ -223,7 +221,20 @@ std::vector<std::shared_ptr<Trial>> Orchestrator::all_trials() const {
   return result;
 }
 
+void Orchestrator::watch_trials(HandlerFunction func) {
+  std::lock_guard lg(notification_lock_);
+
+  // Report current trial states
+  for (const auto& trial : all_trials()) {
+    func(*trial.get());
+  }
+
+  trial_watchers_.emplace_back(std::move(func));
+}
+
 void Orchestrator::notify_watchers(const Trial& trial) {
+  std::lock_guard lg(notification_lock_);
+
   for (auto& handler : trial_watchers_) {
     handler(trial);
   }

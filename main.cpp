@@ -83,6 +83,12 @@ slt::Setting trust_chain = slt::Setting_builder<std::string>()
                                .with_default("")
                                .with_description("File containing a PEM encoded trust chain.")
                                .with_arg("trust_chain");
+
+slt::Setting log_level = slt::Setting_builder<std::string>()
+                             .with_default("info")
+                             .with_description("Set minimum logging level (off, error, warning, info, debug, trace)")
+                             .with_arg("log_level");
+
 }  // namespace settings
 
 namespace {
@@ -92,9 +98,20 @@ const std::string term_status_string = "T";
 }  // namespace
 
 int main(int argc, const char* argv[]) {
-  spdlog::set_level(spdlog::level::debug);  // TODO: To remove when release stable version
-
   slt::Settings_context ctx("orchestrator", argc, argv);
+  if (ctx.help_requested()) {
+    return 0;
+  }
+  if (settings::display_version.get()) {
+    // This is used by the build process to tag docker images reliably.
+    // It should remaing this terse.
+    std::cout << COGMENT_ORCHESTRATOR_VERSION << "\n";
+    return 0;
+  }
+
+  const auto level_setting = spdlog::level::from_str(settings::log_level.get());
+  spdlog::set_level(level_setting);
+
   spdlog::debug("Orchestrator starting with arguments:");
   spdlog::debug("\t--{}={}", settings::lifecycle_port.arg().value_or(""), settings::lifecycle_port.get());
   spdlog::debug("\t--{}={}", settings::actor_port.arg().value_or(""), settings::actor_port.get());
@@ -105,17 +122,8 @@ int main(int argc, const char* argv[]) {
   spdlog::debug("\t--{}={}", settings::private_key.arg().value_or(""), settings::private_key.get());
   spdlog::debug("\t--{}={}", settings::root_cert.arg().value_or(""), settings::root_cert.get());
   spdlog::debug("\t--{}={}", settings::trust_chain.arg().value_or(""), settings::trust_chain.get());
-
-  if (ctx.help_requested()) {
-    return 0;
-  }
-
-  if (settings::display_version.get()) {
-    // This is used by the build process to tag docker images reliably.
-    // It should remaing this terse.
-    std::cout << COGMENT_ORCHESTRATOR_VERSION << "\n";
-    return 0;
-  }
+  spdlog::debug("\t--{}={}", settings::log_level.arg().value_or(""), settings::log_level.get());
+  spdlog::debug("\t   --> {}", level_setting);
 
   ctx.validate_all();
 

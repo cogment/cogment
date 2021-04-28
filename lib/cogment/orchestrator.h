@@ -31,6 +31,8 @@
 namespace cogment {
 class Orchestrator {
   public:
+  using HandlerFunction = std::function<void(const Trial& trial)>;
+
   Orchestrator(Trial_spec trial_spec, cogment::TrialParams default_trial_params,
                std::shared_ptr<easy_grpc::client::Credentials> creds);
   ~Orchestrator();
@@ -70,10 +72,7 @@ class Orchestrator {
 
   std::unique_ptr<TrialLogInterface> start_log(const Trial* trial) { return log_exporter_->start_log(trial); }
 
-  template <typename T>
-  void watch_trials(T&& func) {
-    trial_watchers_.emplace_back(func);
-  }
+  void watch_trials(HandlerFunction func);
 
   void notify_watchers(const Trial& trial);
 
@@ -102,7 +101,8 @@ class Orchestrator {
   ActorService actor_service_;
   TrialLifecycleService trial_lifecycle_service_;
 
-  std::vector<std::function<void(const Trial& trial)>> trial_watchers_;
+  mutable std::mutex notification_lock_;
+  std::vector<HandlerFunction> trial_watchers_;
 
   std::atomic<int> garbage_collection_countdown_;
   void perform_garbage_collection_();

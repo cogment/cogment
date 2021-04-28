@@ -155,7 +155,7 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
       actor_class.cleared_delta_fields = actor_class.cleared_observation_fields;
     }
 
-    spdlog::info("Clearing {} delta fields", actor_class.cleared_delta_fields.size());
+    spdlog::debug("Clearing {} delta fields", actor_class.cleared_delta_fields.size());
 
     auto act_space = a_class[cfg_file::ac_action_key][cfg_file::ac_act_space_key].as<std::string>();
     const auto* action_space = importer_->pool()->FindMessageTypeByName(act_space);

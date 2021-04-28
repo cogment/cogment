@@ -138,7 +138,7 @@ class Trial : public std::enable_shared_from_this<Trial> {
 
   std::uint32_t gathered_actions_count_ = 0;
 
-  std::unique_ptr<TrialLogInterface> log_interface_;
+  std::unique_ptr<TrialLogInterface> datalog_interface_;
   std::deque<cogment::DatalogSample> step_data_;
 };
 

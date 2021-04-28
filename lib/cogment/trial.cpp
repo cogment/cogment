@@ -89,7 +89,7 @@ Trial::Trial(Orchestrator* orch, std::string user_id)
   set_state(InternalState::initializing);
   refresh_activity();
 
-  log_interface_ = orch->start_log(this);
+  datalog_interface_ = orch->start_log(this);
 }
 
 Trial::~Trial() { spdlog::debug("Tearing down trial {}", to_string(id_)); }
@@ -168,7 +168,7 @@ void Trial::flush_samples() {
   const std::lock_guard<std::mutex> lg(sample_lock_);
 
   for (auto& sample : step_data_) {
-    log_interface_->add_sample(std::move(sample));
+    datalog_interface_->add_sample(std::move(sample));
   }
   step_data_.clear();
 }
@@ -221,8 +221,6 @@ cogment::EnvStartRequest Trial::prepare_environment() {
   return env_start_req;
 }
 
-// TODO: We could add protection in other functions (performance permitting) to prevent
-//       them from being called before the "start", or after the "end".
 void Trial::start(cogment::TrialParams params) {
   if (state_ != InternalState::initializing) {
     throw MakeException("Trial [%s] is not in proper state to start: [%s]", to_string(id_).c_str(),
@@ -281,7 +279,10 @@ void Trial::start(cogment::TrialParams params) {
 }
 
 void Trial::reward_received(const cogment::Reward& reward, const std::string& sender) {
-  // TODO: timed rewards (i.e. with a specific tick_id != AUTO_TICK_ID and != current tick_id_)
+  if (state_ < InternalState::pending) {
+    spdlog::warn("Too early for trial [{}] to receive rewards.", to_string(id_));
+    return;
+  }
 
   auto sample = get_last_sample();
   if (sample != nullptr) {
@@ -293,6 +294,7 @@ void Trial::reward_received(const cogment::Reward& reward, const std::string& se
     return;
   }
 
+  // TODO: Decide what to do with timed rewards (send anything present and past, hold future?)
   if (reward.tick_id() != AUTO_TICK_ID && reward.tick_id() != static_cast<int64_t>(tick_id_)) {
     spdlog::error("Invalid reward tick from [{}]: [{}] (current tick id: [{}])", sender, reward.tick_id(), tick_id_);
     return;
@@ -313,7 +315,10 @@ void Trial::reward_received(const cogment::Reward& reward, const std::string& se
 }
 
 void Trial::message_received(const cogment::Message& message, const std::string& sender) {
-  // TODO: timed messages (i.e. with a specific tick_id != AUTO_TICK_ID and != current tick_id_)
+  if (state_ < InternalState::pending) {
+    spdlog::warn("Too early for trial [{}] to receive messages.", to_string(id_));
+    return;
+  }
 
   auto sample = get_last_sample();
   if (sample != nullptr) {
@@ -325,6 +330,7 @@ void Trial::message_received(const cogment::Message& message, const std::string&
     return;
   }
 
+  // TODO: Decide what to do with timed messages (send anything present and past, hold future?)
   if (message.tick_id() != AUTO_TICK_ID && message.tick_id() != static_cast<int64_t>(tick_id_)) {
     spdlog::error("Invalid message tick from [{}]: [{}] (current tick id: [{}])", sender, message.tick_id(), tick_id_);
     return;
@@ -398,7 +404,7 @@ void Trial::cycle_buffer() {
   // Send overflow to log
   if (step_data_.size() >= LOG_TRIGGER_SIZE) {
     while (step_data_.size() >= NB_BUFFERED_SAMPLES) {
-      log_interface_->add_sample(std::move(step_data_.front()));
+      datalog_interface_->add_sample(std::move(step_data_.front()));
       step_data_.pop_front();
     }
   }
@@ -419,7 +425,8 @@ void Trial::run_environment() {
           return;
         }
         if (update.final_update()) {
-          // TODO: Investigate timing issues with the terminate() function
+          // TODO: There is a timing issue with the terminate() function which can really only
+          //       be properly resolved with the gRPC API 2.0
           set_state(InternalState::terminating);
         }
 
@@ -444,15 +451,22 @@ cogment::EnvActionRequest Trial::make_action_request() {
   const std::lock_guard<std::mutex> lg(sample_lock_);
   auto& sample = step_data_.back();
   for (auto& act : sample.actions()) {
-    // TODO: Synchronize properly with terminmate() (vs actor_acted())
-    action_set->add_actions(act.content());
+    if (act.tick_id() == AUTO_TICK_ID || act.tick_id() == static_cast<int64_t>(tick_id_)) {
+      action_set->add_actions(act.content());
+    }
+    else {
+      // The registered action is not for this tick
+
+      // TODO: Synchronize with `actor_acted` about past/future actions
+      action_set->add_actions();
+    }
   }
 
   return req;
 }
 
 void Trial::terminate() {
-  if (state_ == InternalState::ended || state_ == InternalState::terminating) {
+  if (state_ >= InternalState::terminating) {
     return;
   }
   if (state_ != InternalState::running) {
@@ -463,6 +477,9 @@ void Trial::terminate() {
 
   {
     const std::lock_guard<std::shared_mutex> lg(terminating_lock_);
+    if (state_ >= InternalState::terminating) {
+      return;
+    }
     set_state(InternalState::terminating);
   }
 
@@ -472,10 +489,14 @@ void Trial::terminate() {
   // TODO: Should we instead send all empty actions?
   auto req = make_action_request();
 
-  // TODO: Add fail safe (time based?) in case communication is broken or environment is down,
-  //       because this function is also called to end abnormal/stale trials.
+  // Fail safe timed call because this function is also called to end abnormal/stale trials.
+  auto timed_options = call_options_;
+  timed_options.deadline.tv_sec = 60;
+  timed_options.deadline.tv_nsec = 0;
+  timed_options.deadline.clock_type = GPR_TIMESPAN;
+
   (*env_stub_)
-      ->OnEnd(req, call_options_)
+      ->OnEnd(req, timed_options)
       .then([this](auto rep) {
         next_step(std::move(rep));
         dispatch_observations();
@@ -484,7 +505,11 @@ void Trial::terminate() {
         // We are holding on to self to be safe.
 
         if (self->state_ != InternalState::ended) {
+          // One possible reason is if the environment took longer than the deadline to respond
           spdlog::error("Trial [{}] did not end normally.", to_string(self->id_));
+
+          // TODO: Send "ended trial" to all components?  So they don't get stuck waiting. Or cut comms?
+
           self->state_ = InternalState::ended;  // To enable garbage collection on this trial
         }
       });
@@ -492,13 +517,22 @@ void Trial::terminate() {
 
 void Trial::actor_acted(const std::string& actor_name, const cogment::Action& action) {
   const std::shared_lock<std::shared_mutex> lg(terminating_lock_);
-  if (state_ == InternalState::ended || state_ == InternalState::terminating) {
-    spdlog::info("An action from [{}] arrived after trial termination.  Action will be dropped.", actor_name);
+  if (state_ < InternalState::pending) {
+    spdlog::warn("Too early for trial [{}] to receive actions from [{}].", to_string(id_), actor_name);
+    return;
+  }
+  if (state_ >= InternalState::terminating) {
+    spdlog::info("An action from [{}] arrived after end of trial [{}].  Action will be dropped.", actor_name,
+                 to_string(id_));
     return;
   }
 
-  // TODO: Do we want to manage the exception if the name is not found?
-  auto actor_index = actor_indexes_.at(actor_name);
+  const auto itor = actor_indexes_.find(actor_name);
+  if (itor == actor_indexes_.end()) {
+    spdlog::error("Unknown actor [{}] for action received in trial [{}].", actor_name, to_string(id_));
+    return;
+  }
+  const auto actor_index = itor->second;
 
   auto sample = get_last_sample();
   if (sample == nullptr) {
@@ -512,15 +546,10 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
 
   // TODO: Determine what we want to do in case of actions in the past or future
   if (action.tick_id() != AUTO_TICK_ID && action.tick_id() != static_cast<int64_t>(tick_id_)) {
-    spdlog::warn("Invalid action tick from [{}]: [{}] vs [{}].  Action is ignored.", actor_name, action.tick_id(),
-                 tick_id_);
-
-    // Set a default empty action
-    sample_action->set_tick_id(AUTO_TICK_ID);
+    spdlog::warn("Invalid action tick from [{}]: [{}] vs [{}].  Default action will be used.", actor_name,
+                 action.tick_id(), tick_id_);
   }
-  else {
-    *sample_action = action;
-  }
+  *sample_action = action;
 
   bool all_actions_received = false;
   {
@@ -536,6 +565,10 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
 }
 
 Client_actor* Trial::get_join_candidate(const TrialJoinRequest& req) {
+  if (state_ != InternalState::pending) {
+    return nullptr;
+  }
+
   Actor* result = nullptr;
 
   switch (req.slot_selection_case()) {
@@ -617,7 +650,7 @@ void Trial::set_state(InternalState new_state) {
     }
 
     // TODO: Find a better way so we don't have to be locked when calling out
-    //       Right now it is necessary to make sure we don't miss state and they are seen in order
+    //       Right now it is necessary to make sure we don't miss state and they are seen in-order
     orchestrator_->notify_watchers(*this);
 
     if (new_state == InternalState::ended) {
@@ -665,11 +698,11 @@ void Trial::set_info(cogment::TrialInfo* info, bool with_observations, bool with
   // We want to make sure the tick_id and observation are from the same tick
   const uint64_t tick = sample->trial_data().tick_id();
   info->set_tick_id(tick);
-  if (with_observations) {
+  if (with_observations && sample->has_observations()) {
     info->mutable_latest_observation()->CopyFrom(sample->observations());
   }
 
-  if (with_actors) {
+  if (with_actors && state_ >= InternalState::pending) {
     for (auto& actor : actors_) {
       auto trial_actor = info->add_actors_in_trial();
       trial_actor->set_actor_class(actor->actor_class()->name);

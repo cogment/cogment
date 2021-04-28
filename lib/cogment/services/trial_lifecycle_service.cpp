@@ -129,15 +129,6 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_
     }
   };
 
-  // Report current trials.
-  for (const auto& trial : orchestrator_->all_trials()) {
-    handler(*trial.get());
-  }
-
-  // TODO: Between the initial report just above and the handler registration just bellow some trials could change
-  // state. Those states won't be reported
-
-  // Request that the orchestrator invokes the handler whenever trials change.
   orchestrator_->watch_trials(std::move(handler));
 
   return future;
