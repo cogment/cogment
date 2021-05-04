@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Fixed
+
+- Environment can now receive messages
+
 ## v1.0.0-beta3 - 2021-04-26
 
 ### Added

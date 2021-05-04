@@ -105,6 +105,7 @@ class Trial : public std::enable_shared_from_this<Trial> {
   void cycle_buffer();
   void run_environment();
   cogment::EnvActionRequest make_action_request();
+  void dispatch_env_messages();
 
   Orchestrator* orchestrator_;
 
@@ -112,7 +113,8 @@ class Trial : public std::enable_shared_from_this<Trial> {
   std::mutex actor_lock_;
   std::mutex sample_lock_;
   std::mutex reward_lock_;
-  std::mutex message_lock_;
+  std::mutex sample_message_lock_;
+  std::mutex env_message_lock_;
   std::shared_mutex terminating_lock_;
 
   uuids::uuid id_;  // TODO: Store as string (since we convert everywhere back and forth)
@@ -128,6 +130,7 @@ class Trial : public std::enable_shared_from_this<Trial> {
   uint64_t end_timestamp_;
 
   std::vector<std::unique_ptr<Actor>> actors_;
+  std::vector<Message> env_message_accumulator_;
   std::unordered_map<std::string, uint32_t> actor_indexes_;
   std::chrono::time_point<std::chrono::steady_clock> last_activity_;
 

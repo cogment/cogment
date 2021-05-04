@@ -322,7 +322,7 @@ void Trial::message_received(const cogment::Message& message, const std::string&
 
   auto sample = get_last_sample();
   if (sample != nullptr) {
-    const std::lock_guard<std::mutex> lg(message_lock_);
+    const std::lock_guard<std::mutex> lg(sample_message_lock_);
     auto new_msg = sample->add_messages();
     *new_msg = message;
   }
@@ -342,8 +342,14 @@ void Trial::message_received(const cogment::Message& message, const std::string&
   if (actor_index_itor != actor_indexes_.end()) {
     actors_[actor_index_itor->second]->add_immediate_message(message, sender, tick_id_);
   }
+  else if (message.receiver_name() == ENVIRONMENT_ACTOR_NAME) {
+    const std::lock_guard<std::mutex> lg(env_message_lock_);
+    env_message_accumulator_.emplace_back(message);
+    env_message_accumulator_.back().set_tick_id(tick_id_);
+    env_message_accumulator_.back().set_sender_name(sender);
+  }
   else {
-    spdlog::error("Unknown actor name as message destination [{}]", message.receiver_name());
+    spdlog::error("Unknown receiver name as message destination [{}]", message.receiver_name());
   }
 }
 
@@ -559,8 +565,8 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
   }
 
   if (all_actions_received && outgoing_actions_) {
-    auto req = make_action_request();
-    outgoing_actions_->push(std::move(req));
+    dispatch_env_messages();
+    outgoing_actions_->push(make_action_request());
   }
 }
 
@@ -709,6 +715,19 @@ void Trial::set_info(cogment::TrialInfo* info, bool with_observations, bool with
       trial_actor->set_name(actor->actor_name());
     }
   }
+}
+
+void Trial::dispatch_env_messages() {
+  const std::lock_guard<std::mutex> lg(env_message_lock_);
+
+  cogment::EnvMessageRequest req;
+  for (auto& message : env_message_accumulator_) {
+    auto msg = req.add_messages();
+    *msg = std::move(message);
+  }
+  env_message_accumulator_.clear();
+
+  (*env_stub_)->OnMessage(req, call_options_).finally([](auto) {});
 }
 
 }  // namespace cogment
