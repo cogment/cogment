@@ -208,12 +208,15 @@ int main(int argc, const char* argv[]) {
     cogment::Stub_pool<cogment::TrialHooks> hook_stubs(orchestrator.channel_pool(), orchestrator.client_queue());
     std::vector<std::shared_ptr<cogment::Stub_pool<cogment::TrialHooks>::Entry>> hooks;
 
+    int nb_prehooks = 0;
     if (cogment_yaml[cfg_file::trial_key]) {
       for (auto hook : cogment_yaml[cfg_file::trial_key][cfg_file::t_pre_hooks_key]) {
         hooks.push_back(hook_stubs.get_stub(hook.as<std::string>()));
         orchestrator.add_prehook(&hooks.back()->stub);
+        nb_prehooks++;
       }
     }
+    spdlog::info("[{}] prehooks defined", nb_prehooks);
 
     std::string datalog_type = "none";
     if (cogment_yaml[cfg_file::datalog_key] && cogment_yaml[cfg_file::datalog_key][cfg_file::d_type_key]) {

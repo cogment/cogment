@@ -472,27 +472,26 @@ cogment::EnvActionRequest Trial::make_action_request() {
 }
 
 void Trial::terminate() {
-  if (state_ >= InternalState::terminating) {
-    return;
-  }
-  if (state_ != InternalState::running) {
-    spdlog::error("Trial [{}] cannot terminate in current state: [%s]", to_string(id_).c_str(),
-                  get_trial_state_string(state_));
-    return;
-  }
-
   {
     const std::lock_guard<std::shared_mutex> lg(terminating_lock_);
+
     if (state_ >= InternalState::terminating) {
       return;
     }
+    if (state_ != InternalState::running) {
+      spdlog::error("Trial [{}] cannot terminate in current state: [%s]", to_string(id_).c_str(),
+                    get_trial_state_string(state_));
+      return;
+    }
+
     set_state(InternalState::terminating);
   }
 
+  dispatch_env_messages();
+
   auto self = shared_from_this();
 
-  // Send the actions we have so far (partial set)
-  // TODO: Should we instead send all empty actions?
+  // Send the actions we have so far (may be a partial set)
   auto req = make_action_request();
 
   // Fail safe timed call because this function is also called to end abnormal/stale trials.
@@ -522,7 +521,8 @@ void Trial::terminate() {
 }
 
 void Trial::actor_acted(const std::string& actor_name, const cogment::Action& action) {
-  const std::shared_lock<std::shared_mutex> lg(terminating_lock_);
+  std::shared_lock<std::shared_mutex> terminating_guard(terminating_lock_);
+
   if (state_ < InternalState::pending) {
     spdlog::warn("Too early for trial [{}] to receive actions from [{}].", to_string(id_), actor_name);
     return;
@@ -564,9 +564,22 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
     all_actions_received = (gathered_actions_count_ == actors_.size());
   }
 
-  if (all_actions_received && outgoing_actions_) {
-    dispatch_env_messages();
-    outgoing_actions_->push(make_action_request());
+  if (all_actions_received) {
+    const auto max_steps = params_.max_steps();
+    if (max_steps == 0 || tick_id_ < max_steps) {
+      if (outgoing_actions_) {
+        dispatch_env_messages();
+        outgoing_actions_->push(make_action_request());
+      }
+      else {
+        spdlog::error("Environment for trial [{}] not ready for first action set", to_string(id_));
+      }
+    }
+    else {
+      spdlog::info("Trial [{}] reached its maximum number of steps: [{}]", to_string(id_), max_steps);
+      terminating_guard.unlock();
+      terminate();
+    }
   }
 }
 

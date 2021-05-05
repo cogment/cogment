@@ -153,10 +153,11 @@ aom::Future<cogment::PreTrialContext> Orchestrator::perform_pre_hooks_(cogment::
   auto result = prom.get_future();
   prom.set_value(std::move(ctx));
 
-  // Run prehooks.
   for (auto& hook : prehooks_) {
-    result =
-        result.then([hook, options, headers](auto context) { return hook->OnPreTrial(std::move(context), options); });
+    result = result.then([hook, options, headers](auto context) {
+      spdlog::debug("Calling a pre-hook on trial parameters");
+      return hook->OnPreTrial(std::move(context), options);
+    });
   }
 
   return result.then([headers](auto v) { return v; });

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Environment can now receive messages
+- The parameter `max_steps` now works
 
 ## v1.0.0-beta3 - 2021-04-26
 
