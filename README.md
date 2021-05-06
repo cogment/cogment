@@ -1,18 +1,10 @@
-# Cogment orchestrator
-
-> ⚠️ 🚧 This is part of an upcoming release of cogment and still unstable.
->
-> Current stable version can be found at <https://gitlab.com/cogment/cogment>
+# cogment-orchestrator
 
 [![Retrieve from Docker Hub](https://img.shields.io/docker/v/cogment/orchestrator?sort=semver&style=flat-square)](https://hub.docker.com/repository/docker/cogment/orchestrator) [![Apache 2 License](https://img.shields.io/badge/license-Apache%202-green)](./LICENSE) [![Changelog](https://img.shields.io/badge/-Changelog%20-blueviolet)](./CHANGELOG.md)
 
-## Introduction
+[Cogment](https://cogment.ai) is an innovative open source AI platform designed to leverage the advent of AI to benefit humankind through human-AI collaboration developed by [AI Redefined](https://ai-r.com). Cogment enables AI researchers and engineers to build, train and operate AI agents in simulated or real environments shared with humans. For the full user documentation visit <https://docs.cogment.ai>
 
-The Cogment framework is a high-efficiency, open source framework designed to enable the training of models in environments where humans and agents interact with the environment and each other continuously. It’s capable of distributed, multi-agent, multi-model training.
-
-The Orchestrator is the central entity in the Cogment framework that ties all the services together. From the perspective of a Cogment framework user, it can be considered as the live interpreter of the cogment.yaml configuration file. It is the service that client applications will connect to in order to start and run trials.
-
-For further Cogment information, check out the documentation at <https://docs.cogment.ai>
+This module, `cogment-orchestrator`, is the central entity in the framework that ties all the services together. From the perspective of a Cogment user, it can be considered as the live interpreter of the cogment.yaml configuration file. It is the service that client applications will connect to in order to start and run trials.
 
 ## Developers
 
@@ -20,12 +12,12 @@ For further Cogment information, check out the documentation at <https://docs.co
 
 The orchestrator has a few dependecies:
 
-* googletest
-* grpc
-* easy-grpc
-* var_futures
-* yaml-cpp
-* spdlog
+- googletest
+- grpc
+- easy-grpc
+- var_futures
+- yaml-cpp
+- spdlog
 
 The easiest way to build the orchestrator is to make use of [cogment orchestrator build env](https://hub.docker.com/repository/docker/cogment/orchestrator-build-env) Docker image:
 
