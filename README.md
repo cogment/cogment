@@ -1,38 +1,26 @@
 # cogment-cli
 
-> ⚠️ 🚧 This is part of an upcoming release of cogment and still unstable.
->
-> Current stable version can be found at <https://gitlab.com/cogment/cogment>
-
 [![Latest GitHub release](https://img.shields.io/github/v/release/cogment/cogment-cli?label=binary%20release&sort=semver&style=flat-square)](https://github.com/cogment/cogment-cli/releases) [![Latest Docker release](https://img.shields.io/docker/v/cogment/cli?label=docker%20release&sort=semver&style=flat-square)](https://hub.docker.com/r/cogment/cli) [![Apache 2 License](https://img.shields.io/badge/license-Apache%202-green?style=flat-square)](./LICENSE) [![Changelog](https://img.shields.io/badge/-Changelog%20-blueviolet?style=flat-square)](./CHANGELOG.md)
 
-## Introduction
+[Cogment](https://cogment.ai) is an innovative open source AI platform designed to leverage the advent of AI to benefit humankind through human-AI collaboration developed by [AI Redefined](https://ai-r.com). Cogment enables AI researchers and engineers to build, train and operate AI agents in simulated or real environments shared with humans. For the full user documentation visit <https://docs.cogment.ai>
 
-The Cogment framework is a high-efficiency, open source framework designed to enable the training of models in environments where humans and agents interact with the environment and each other continuously. It’s capable of distributed, multi-agent, multi-model training.
+This module, `cogment-cli`, is a command line tool providing a set of useful command utilities that
+provide the following functions:
 
-The cogment CLI tool provides a set of useful command utilities that
-provide the following functions -
-
-- generate (generate the cog_settings.py and compile your proto files)
-- init (bootstrap a new project locally)
-- run (run a command from the cogment.yaml 'commands' section)
-- version (print the version nummber of the Cogment CLI)
-
-For further Cogment information, check out the documentation at <https://docs.cogment.ai>
+- generate, perform the code generation phase from a project's proto files.
+- init, bootstrap a new project locally.
+- run, run a command from the cogment.yaml 'commands' section.
+- version, print the version nummber of the Cogment CLI.
 
 ## Developers
 
-The cogment cli can be built and used as a docker image or a standalone executable.
-
-### Standalone executable
-
-#### Prerequisites
+### Prerequisites
 
 - Fully working **go** setup, as described in the [official documentation](https://golang.org/doc/install).
 - **`Make`**, most flavor should work fine.
 - **`protoc`**, the protocol buffer compiler, it should be installed as described in the [official documentation](https://github.com/protocolbuffers/protobuf#protocol-compiler-installation).
 
-#### Formatting & coding style
+### Formatting & coding style
 
 To check for the format of the file using [gofmt](https://golang.org/cmd/gofmt/), run the following:
 
@@ -54,7 +42,7 @@ make check-codingstyle
 
 > ⚠️ The full codebase does not yet conforms to the coding style, expect some errors.
 
-#### Tests
+### Tests
 
 Run the tests using the following:
 
@@ -70,7 +58,7 @@ make test-update-snapshots
 
 Before committing updated snapshot, review their content.
 
-#### Build
+### Build
 
 Build the executable for your platform to `./build/congment` using the following:
 
@@ -84,7 +72,7 @@ Cross compile to all the supported platforms to `./build/` using the following:
 make release
 ```
 
-#### Usage
+### Usage
 
 After running `make build` you can simply put `./build/cogment` in your `$PATH` and simply run the following:
 
