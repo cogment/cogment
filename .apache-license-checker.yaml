@@ -1,7 +1,7 @@
 ignore:
-- "lib/cogment/base64.cpp"
-- "_bld"
-- "third_party"
+  - "lib/cogment/base64.cpp"
+  - "_bld"
+  - "third_party"
 license:
-  CopyrightYear: 2020
+  CopyrightYear: 2021
   Author: "Artificial Intelligence Redefined <dev+cogment@ai-r.com>"
