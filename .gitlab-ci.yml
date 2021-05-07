@@ -40,6 +40,22 @@ apache_licenses_check:
   script:
     - apache-license-checker
 
+shellcheck:
+  image: koalaman/shellcheck-alpine:stable
+  stage: lint
+  before_script:
+    - shellcheck --version
+  script:
+    - shellcheck ./scripts/*.sh
+
+shfmt:
+  image: mvdan/shfmt:v3.1.0-alpine
+  stage: lint
+  before_script:
+    - shfmt -version
+  script:
+    - shfmt -i 2 -ci -d ./scripts
+
 build:
   extends: .base_cpp
   stage: build
