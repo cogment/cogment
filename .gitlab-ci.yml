@@ -84,7 +84,7 @@ build_docker:
     # This job is not run on `develop` because `publish_latest` run there and "includes" the build
     - develop
 
-publish_latest_to_dockerhub:
+publish_latest_to_gitlab_docker_registry:
   extends: .base_docker
   stage: publish
   script:
