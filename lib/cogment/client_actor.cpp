@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef NDEBUG
+  #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+#endif
+
 #include "cogment/client_actor.h"
 #include "cogment/trial.h"
 
@@ -23,15 +27,19 @@ Client_actor::Client_actor(Trial* owner, const std::string& actor_name, const Ac
     : Actor(owner, actor_name, actor_class),
       joined_(false),
       config_data_(std::move(config_data)),
-      outgoing_observations_future_(outgoing_observations_.get_future()) {}
+      outgoing_observations_future_(outgoing_observations_.get_future()) {
+  SPDLOG_TRACE("Client_actor(): [{}] [{}]", to_string(trial()->id()), actor_name);
+}
 
 Client_actor::~Client_actor() {
+  SPDLOG_TRACE("~Client_actor(): [{}] [{}]", to_string(trial()->id()), actor_name());
   if (outgoing_observations_) {
     outgoing_observations_.complete();
   }
 }
 
 aom::Future<void> Client_actor::init() {
+  SPDLOG_TRACE("Client_actor::init(): [{}] [{}]", to_string(trial()->id()), actor_name());
   // Client actors are ready once a client has connected to it.
   return ready_promise_.get_future();
 }

@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.10)
 project(cogment_orchestrator)
 
 set(Protobuf_USE_STATIC_LIBS ON)
+find_package(protobuf)
+find_package(gRPC)
 find_package(easy_grpc)
 
 find_package(prometheus-cpp REQUIRED)
@@ -17,7 +19,6 @@ find_program(CLANG_TIDY "clang-tidy")
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-
 
 add_subdirectory(lib)
 
@@ -36,6 +37,7 @@ target_link_libraries(orchestrator
     debug -rdynamic
     orchestrator_lib
     prometheus-cpp::pull
+    gRPC::grpc
 )
 
 set_target_properties(orchestrator PROPERTIES DEBUG_POSTFIX _dbg)
@@ -74,3 +76,4 @@ add_custom_target(format
     ${ALL_SOURCE_FILES}
 )
 #############################################################
+

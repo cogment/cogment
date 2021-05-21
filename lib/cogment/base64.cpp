@@ -25,6 +25,10 @@
 
 */
 
+#ifndef NDEBUG
+  #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+#endif
+
 #include "cogment/base64.h"
 #include <memory>
 #include <tuple>

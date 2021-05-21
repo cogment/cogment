@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef NDEBUG
+  #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+#endif
+
 #include "cogment/trial.h"
 #include "cogment/orchestrator.h"
 
@@ -24,12 +28,6 @@
 #include "spdlog/spdlog.h"
 
 #include <limits>
-
-#ifndef NDEBUG
-  #define TRIAL_DEBUG_LOG(...) spdlog::debug(__VA_ARGS__)
-#else
-  #define TRIAL_DEBUG_LOG(...)
-#endif
 
 namespace cogment {
 
@@ -86,13 +84,15 @@ Trial::Trial(Orchestrator* orch, std::string user_id)
       tick_id_(0),
       start_timestamp_(Timestamp()),
       end_timestamp_(0) {
+  SPDLOG_TRACE("New Trial [{}]", to_string(id_));
+
   set_state(InternalState::initializing);
   refresh_activity();
 
   datalog_interface_ = orch->start_log(this);
 }
 
-Trial::~Trial() { spdlog::debug("Tearing down trial {}", to_string(id_)); }
+Trial::~Trial() { SPDLOG_TRACE("Tearing down trial [{}]", to_string(id_)); }
 
 const std::unique_ptr<Actor>& Trial::actor(const std::string& name) const {
   auto actor_index = actor_indexes_.at(name);
@@ -100,6 +100,8 @@ const std::unique_ptr<Actor>& Trial::actor(const std::string& name) const {
 }
 
 void Trial::advance_tick() {
+  SPDLOG_TRACE("Tick [{}] is done for Trial [{}]", tick_id_, to_string(id_));
+
   tick_id_++;
   if (tick_id_ > MAX_TICK_ID) {
     throw MakeException("Tick id has reached the limit");
@@ -222,13 +224,15 @@ cogment::EnvStartRequest Trial::prepare_environment() {
 }
 
 void Trial::start(cogment::TrialParams params) {
+  SPDLOG_TRACE("Starting Trial [{}]", to_string(id_));
+
   if (state_ != InternalState::initializing) {
     throw MakeException("Trial [%s] is not in proper state to start: [%s]", to_string(id_).c_str(),
                         get_trial_state_string(state_));
   }
 
   params_ = std::move(params);
-  TRIAL_DEBUG_LOG("Configuring trial {} with parameters: {}", to_string(id_), params_.DebugString());
+  SPDLOG_DEBUG("Configuring trial {} with parameters: {}", to_string(id_), params_.DebugString());
 
   grpc_metadata trial_header;
   trial_header.key = grpc_slice_from_static_string("trial-id");
@@ -262,6 +266,8 @@ void Trial::start(cogment::TrialParams params) {
     return rep;
   });
 
+  auto self = shared_from_this();
+  SPDLOG_TRACE("Trial [{}]: waiting for actors and environment...", to_string(id_));
   join(env_ready, concat(actors_ready.begin(), actors_ready.end()))
       .then([this](auto env_rep) {
         new_obs(std::move(*env_rep.mutable_observation_set()));
@@ -273,7 +279,7 @@ void Trial::start(cogment::TrialParams params) {
         // Send the initial state
         dispatch_observations();
       })
-      .finally([](auto) {});
+      .finally([self](auto) { SPDLOG_TRACE("Trial [{}]: All components started.", to_string(self->id_)); });
 
   spdlog::debug("Trial {} is configured", to_string(id_));
 }
@@ -427,6 +433,8 @@ void Trial::run_environment() {
 
   incoming_updates
       .for_each([this](auto update) {
+        SPDLOG_TRACE("Received new observation set for Trial [{}]", to_string(id_));
+
         if (state_ == InternalState::ended) {
           return;
         }
@@ -443,7 +451,7 @@ void Trial::run_environment() {
       .finally([self](auto) {
         // We are holding on to self until the rpc is over.
         // This is important because we we still need to finish
-        // this call while the trial is "deleted".
+        // this call while the trial may be "deleted".
       });
 }
 
@@ -565,6 +573,8 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
   }
 
   if (all_actions_received) {
+    SPDLOG_TRACE("All actions received for Trial [{}]", to_string(id_));
+
     const auto max_steps = params_.max_steps();
     if (max_steps == 0 || tick_id_ < max_steps) {
       if (outgoing_actions_) {
@@ -738,9 +748,12 @@ void Trial::dispatch_env_messages() {
     auto msg = req.add_messages();
     *msg = std::move(message);
   }
-  env_message_accumulator_.clear();
 
-  (*env_stub_)->OnMessage(req, call_options_).finally([](auto) {});
+  if (!env_message_accumulator_.empty()) {
+    (*env_stub_)->OnMessage(req, call_options_).finally([](auto) {});
+  }
+
+  env_message_accumulator_.clear();
 }
 
 }  // namespace cogment

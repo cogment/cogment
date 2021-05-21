@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef NDEBUG
+  #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+#endif
+
 #include "cogment/trial_params.h"
 #include "cogment/base64.h"
 #include "cogment/config_file.h"

@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef NDEBUG
+  #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+#endif
+
 #include "cogment/services/actor_service.h"
 
 #include "cogment/orchestrator.h"
@@ -25,6 +29,7 @@ namespace cogment {
 ActorService::ActorService(Orchestrator* orch) : orchestrator_(orch) {}
 
 ::cogment::TrialJoinReply ActorService::JoinTrial(::cogment::TrialJoinRequest req, easy_grpc::Context) {
+  SPDLOG_TRACE("JoinTrial [{}]", req.trial_id());
   return orchestrator_->client_joined(std::move(req));
 }
 
@@ -33,6 +38,7 @@ ActorService::ActorService(Orchestrator* orch) : orchestrator_(orch) {}
   auto trial_id = uuids::uuid::from_string(ctx.get_client_header("trial-id"));
   std::string actor_name(ctx.get_client_header("actor-name"));
 
+  SPDLOG_TRACE("ActionStream [{}] [{}]", ctx.get_client_header("trial-id"), actor_name);
   return orchestrator_->bind_client(trial_id, actor_name, std::move(actions));
 }
 
@@ -45,6 +51,7 @@ ActorService::ActorService(Orchestrator* orch) : orchestrator_(orch) {}
                                                                           easy_grpc::Context ctx) {
   auto trial_id = uuids::uuid::from_string(ctx.get_client_header("trial-id"));
   std::string actor_name(ctx.get_client_header("actor-name"));
+  SPDLOG_TRACE("SendReward [{}] [{}]", ctx.get_client_header("trial-id"), actor_name);
 
   auto trial = orchestrator_->get_trial(trial_id);
   if (trial != nullptr) {
@@ -68,6 +75,7 @@ ActorService::ActorService(Orchestrator* orch) : orchestrator_(orch) {}
                                                                             easy_grpc::Context ctx) {
   auto trial_id = uuids::uuid::from_string(ctx.get_client_header("trial-id"));
   std::string actor_name(ctx.get_client_header("actor-name"));
+  SPDLOG_TRACE("SendMessage [{}] [{}]", ctx.get_client_header("trial-id"), actor_name);
 
   auto trial = orchestrator_->get_trial(trial_id);
   if (trial != nullptr) {

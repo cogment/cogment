@@ -12,17 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef NDEBUG
+  #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+#endif
+
 #include "cogment/agent_actor.h"
 #include "cogment/trial.h"
 
 #include "spdlog/spdlog.h"
-
-#define COGMENT_DEBUG
-#ifdef COGMENT_DEBUG
-  #define AGENT_DEBUG_LOG(...) spdlog::debug(__VA_ARGS__)
-#else
-  #define AGENT_DEBUG_LOG(...)
-#endif
 
 namespace cogment {
 Agent::Agent(Trial* owner, const std::string& in_actor_name, const ActorClass* actor_class, const std::string& impl,
@@ -31,6 +28,8 @@ Agent::Agent(Trial* owner, const std::string& in_actor_name, const ActorClass* a
       stub_(std::move(stub)),
       config_data_(std::move(config_data)),
       impl_(impl) {
+  SPDLOG_TRACE("Agent(): [{}] [{}] [{}]", to_string(trial()->id()), actor_name(), impl);
+
   grpc_metadata trial_header;
   trial_header.key = grpc_slice_from_static_string("trial-id");
   trial_header.value = grpc_slice_from_copied_string(to_string(trial()->id()).c_str());
@@ -41,12 +40,10 @@ Agent::Agent(Trial* owner, const std::string& in_actor_name, const ActorClass* a
 
   headers_ = {trial_header, actor_header};
   options_.headers = &headers_;
-
-  AGENT_DEBUG_LOG("Agent(): [{}] [{}] [{}]", to_string(trial()->id()), actor_name(), impl);
 }
 
 Agent::~Agent() {
-  AGENT_DEBUG_LOG("~Agent(): [{}] [{}]", to_string(trial()->id()), actor_name());
+  SPDLOG_TRACE("~Agent(): [{}] [{}]", to_string(trial()->id()), actor_name());
 
   if (outgoing_observations_) {
     outgoing_observations_->complete();
@@ -54,7 +51,7 @@ Agent::~Agent() {
 }
 
 aom::Future<void> Agent::init() {
-  AGENT_DEBUG_LOG("Agent::init(): [{}] [{}]", to_string(trial()->id()), actor_name());
+  SPDLOG_TRACE("Agent::init(): [{}] [{}]", to_string(trial()->id()), actor_name());
 
   cogment::AgentStartRequest req;
 
@@ -73,7 +70,7 @@ aom::Future<void> Agent::init() {
   return stub_->stub.OnStart(req, options_).then([this](auto rep) {
     (void)rep;
     (void)this;
-    AGENT_DEBUG_LOG("Agent init start complete: {} {}", to_string(trial()->id()), actor_name());
+    SPDLOG_DEBUG("Agent init start complete: [{}] [{}]", to_string(trial()->id()), actor_name());
   });
 }
 

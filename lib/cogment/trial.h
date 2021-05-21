@@ -55,6 +55,7 @@ class Trial : public std::enable_shared_from_this<Trial> {
   Trial& operator=(const Trial&) = delete;
 
   InternalState state() const { return state_; }
+  const char* state_char() const;
   uint64_t tick_id() const { return tick_id_; }
   uint64_t start_timestamp() const { return start_timestamp_; }
 
@@ -145,8 +146,8 @@ class Trial : public std::enable_shared_from_this<Trial> {
   std::deque<cogment::DatalogSample> step_data_;
 };
 
-const char* get_trial_state_string(Trial::InternalState s);
-cogment::TrialState get_trial_api_state(Trial::InternalState s);
+const char* get_trial_state_string(Trial::InternalState);
+cogment::TrialState get_trial_api_state(Trial::InternalState);
 
 }  // namespace cogment
 

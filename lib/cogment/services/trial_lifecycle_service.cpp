@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef NDEBUG
+  #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+#endif
+
 #include "cogment/services/trial_lifecycle_service.h"
 
 #include "cogment/orchestrator.h"
@@ -24,7 +28,7 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_
 
 ::easy_grpc::Future<::cogment::TrialStartReply> TrialLifecycleService::StartTrial(::cogment::TrialStartRequest req,
                                                                                   easy_grpc::Context) {
-  spdlog::debug("StartTrial called");
+  SPDLOG_TRACE("StartTrial [{}]", req.user_id());
 
   auto params = orchestrator_->default_trial_params();
 
@@ -52,9 +56,9 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_
 
 ::cogment::TerminateTrialReply TrialLifecycleService::TerminateTrial(::cogment::TerminateTrialRequest,
                                                                      easy_grpc::Context ctx) {
-  spdlog::debug("TerminateTrial called");
-
   const auto trial_id_strv = ctx.get_client_header("trial-id");
+  SPDLOG_TRACE("TerminateTrial [{}]", trial_id_strv);
+
   auto trial = orchestrator_->get_trial(uuids::uuid::from_string(trial_id_strv));
   if (trial != nullptr) {
     trial->terminate();
@@ -67,14 +71,13 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_
 }
 
 ::cogment::TrialInfoReply TrialLifecycleService::GetTrialInfo(::cogment::TrialInfoRequest req, easy_grpc::Context ctx) {
-  spdlog::debug("GetTrialInfo called");
-
   std::string_view trial_id_strv;
   try {
     trial_id_strv = ctx.get_client_header("trial-id");
   } catch (const std::out_of_range&) {
     // There was no "trial-id" header
   }
+  SPDLOG_TRACE("GetTrialInfo [{}]", trial_id_strv);
 
   cogment::TrialInfoReply result;
   if (!trial_id_strv.empty()) {
@@ -99,7 +102,7 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_
 
 ::easy_grpc::Stream_future<::cogment::TrialListEntry> TrialLifecycleService::WatchTrials(
     ::cogment::TrialListRequest req, easy_grpc::Context) {
-  spdlog::debug("WatchTrials called");
+  SPDLOG_TRACE("WatchTrials");
 
   // Shared and not a unique ptr because we want the lambda copy constructible
   auto promise = std::make_shared<Trial_promise>();

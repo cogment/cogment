@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef NDEBUG
+  #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+#endif
+
 #include "cogment/orchestrator.h"
 #include "cogment/client_actor.h"
 #include "cogment/utils.h"
@@ -39,10 +43,11 @@ Orchestrator::Orchestrator(Trial_spec trial_spec, cogment::TrialParams default_t
       agent_stubs_(&channel_pool_, &client_queue_),
       actor_service_(this),
       trial_lifecycle_service_(this) {
+  SPDLOG_TRACE("Orchestrator()");
   garbage_collection_countdown_.store(settings::garbage_collection_frequency.get());
 }
 
-Orchestrator::~Orchestrator() {}
+Orchestrator::~Orchestrator() { SPDLOG_TRACE("~Orchestrator()"); }
 
 aom::Future<std::shared_ptr<Trial>> Orchestrator::start_trial(cogment::TrialParams params, std::string user_id) {
   garbage_collection_countdown_--;
@@ -55,7 +60,7 @@ aom::Future<std::shared_ptr<Trial>> Orchestrator::start_trial(cogment::TrialPara
 
   // Register the trial immediately.
   {
-    std::lock_guard l(trials_mutex_);
+    const std::lock_guard lg(trials_mutex_);
     trials_[new_trial->id()] = new_trial;
   }
 
@@ -79,7 +84,7 @@ TrialJoinReply Orchestrator::client_joined(TrialJoinRequest req) {
   TrialJoinReply result;
 
   if (req.trial_id() != "") {
-    std::lock_guard l(trials_mutex_);
+    const std::lock_guard lg(trials_mutex_);
 
     auto trial_uuid = uuids::uuid::from_string(req.trial_id());
     auto trial_itor = trials_.find(trial_uuid);
@@ -88,7 +93,7 @@ TrialJoinReply Orchestrator::client_joined(TrialJoinRequest req) {
     }
   }
   else {
-    std::lock_guard l(trials_mutex_);
+    const std::lock_guard lg(trials_mutex_);
     // We need to find a valid trial
     for (auto& candidate_trial : trials_) {
       joined_as_actor = candidate_trial.second->get_join_candidate(req);
@@ -172,7 +177,7 @@ void Orchestrator::perform_garbage_collection_() {
 
   std::vector<Trial*> stale_trials;
   {
-    std::lock_guard l(trials_mutex_);
+    const std::lock_guard lg(trials_mutex_);
 
     auto itor = trials_.begin();
     while (itor != trials_.end()) {
@@ -196,10 +201,12 @@ void Orchestrator::perform_garbage_collection_() {
     spdlog::warn("Terminating trial [{}] because inactive for too long", to_string(trial->id()));
     trial->terminate();
   }
+
+  SPDLOG_TRACE("Garbage collection done");
 }
 
 std::shared_ptr<Trial> Orchestrator::get_trial(const uuids::uuid& trial_id) const {
-  std::lock_guard l(trials_mutex_);
+  const std::lock_guard lg(trials_mutex_);
   auto itor = trials_.find(trial_id);
   if (itor != trials_.end()) {
     return itor->second;
@@ -210,7 +217,7 @@ std::shared_ptr<Trial> Orchestrator::get_trial(const uuids::uuid& trial_id) cons
 }
 
 std::vector<std::shared_ptr<Trial>> Orchestrator::all_trials() const {
-  std::lock_guard l(trials_mutex_);
+  const std::lock_guard lg(trials_mutex_);
 
   std::vector<std::shared_ptr<Trial>> result;
   result.reserve(trials_.size());
@@ -223,7 +230,9 @@ std::vector<std::shared_ptr<Trial>> Orchestrator::all_trials() const {
 }
 
 void Orchestrator::watch_trials(HandlerFunction func) {
-  std::lock_guard lg(notification_lock_);
+  SPDLOG_TRACE("Adding new notification function");
+
+  const std::lock_guard lg(notification_lock_);
 
   // Report current trial states
   for (const auto& trial : all_trials()) {
@@ -234,7 +243,10 @@ void Orchestrator::watch_trials(HandlerFunction func) {
 }
 
 void Orchestrator::notify_watchers(const Trial& trial) {
-  std::lock_guard lg(notification_lock_);
+  SPDLOG_TRACE("Trial [{}] changed state to [{}] at tick [{}]", to_string(trial.id()),
+               get_trial_state_string(trial.state()), trial.tick_id());
+
+  const std::lock_guard lg(notification_lock_);
 
   for (auto& handler : trial_watchers_) {
     handler(trial);

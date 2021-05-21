@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Changed
+
+- Cleanup logs and add trace logs
+- Fix environment message sending (to only send when there are messages)
+- Add SIGSEGV trapping and reporting
+- Add log file output option
+
 ## v1.0.0 - 2021-05-10
 
 - Initial public release.

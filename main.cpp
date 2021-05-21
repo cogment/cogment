@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef NDEBUG
+  #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+#endif
+
 #include "easy_grpc/easy_grpc.h"
 #include "easy_grpc_reflection/reflection.h"
 
@@ -28,12 +32,16 @@ namespace cfg_file = cogment::cfg_file;
 #include <prometheus/registry.h>
 
 #include "slt/settings.h"
+#include "spdlog/sinks/daily_file_sink.h"
 #include "spdlog/spdlog.h"
 
 #include <csignal>
 #include <filesystem>
 #include <fstream>
 #include <thread>
+
+#include <execinfo.h>  // For backtrace
+#include <unistd.h>    // STDERR_FINLENO
 
 namespace settings {
 slt::Setting lifecycle_port = slt::Setting_builder<std::uint16_t>()
@@ -89,12 +97,29 @@ slt::Setting log_level = slt::Setting_builder<std::string>()
                              .with_description("Set minimum logging level (off, error, warning, info, debug, trace)")
                              .with_arg("log_level");
 
+slt::Setting log_file = slt::Setting_builder<std::string>()
+                            .with_default("")
+                            .with_description("Set base file for daily log output")
+                            .with_arg("log_file");
 }  // namespace settings
 
 namespace {
 const std::string init_status_string = "I";
 const std::string ready_status_string = "R";
 const std::string term_status_string = "T";
+
+void sigsegv_handler(int signal) {
+  static constexpr size_t BACKTRACE_SIZE = 100;
+
+  void* buffer[BACKTRACE_SIZE];
+  int nptrs = backtrace(buffer, BACKTRACE_SIZE);
+
+  // add2line can be used to get more info from output
+  backtrace_symbols_fd(buffer, nptrs, STDERR_FILENO);
+
+  std::_Exit(signal);
+}
+
 }  // namespace
 
 int main(int argc, const char* argv[]) {
@@ -107,6 +132,13 @@ int main(int argc, const char* argv[]) {
     // It should remaing this terse.
     std::cout << COGMENT_ORCHESTRATOR_VERSION << "\n";
     return 0;
+  }
+
+  std::string log_filename = settings::log_file.get();
+  if (!log_filename.empty()) {
+    std::cout << "Daily log base filename: \"" << log_filename << "\"" << std::endl;
+    auto logger = spdlog::daily_logger_mt("daily_logger", log_filename, 0, 0);
+    spdlog::set_default_logger(logger);
   }
 
   const auto level_setting = spdlog::level::from_str(settings::log_level.get());
@@ -265,6 +297,8 @@ int main(int argc, const char* argv[]) {
 
     // Prevent normal handling of these signals.
     pthread_sigmask(SIG_BLOCK, &sig_set, nullptr);
+
+    signal(SIGSEGV, sigsegv_handler);
 
     int sig = 0;
     sigwait(&sig_set, &sig);
