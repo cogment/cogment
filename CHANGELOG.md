@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - cogment generate with js_dir argument will now install node modules if they're not found
 - better error handling
+- Update copyright notice to use the legal name of AI Redefined Inc.
 
 ## v1.0.0 - 2021-05-11
 
