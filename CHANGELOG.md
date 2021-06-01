@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Changed
+
+- cogment generate with js_dir argument will now install node modules if they're not found
+- better error handling
+
 ## v1.0.0 - 2021-05-11
 
 ## v1.0.0-beta3 - 2021-04-27

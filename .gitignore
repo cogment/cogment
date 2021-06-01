@@ -17,5 +17,5 @@ metrics/data/
 pkged.go
 
 # Test reports
-./raw_report.txt
-./report.xml
+/raw_report.txt
+/report.xml

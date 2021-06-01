@@ -76,7 +76,9 @@ func initConfig() {
 	} else {
 		// Find home directory.
 		home, err := homedir.Dir()
-		helper.CheckError(err)
+		if err != nil {
+			log.Println(err)
+		}
 
 		// Search config in home directory with name ".cogment" (without extension).
 		viper.AddConfigPath(home)

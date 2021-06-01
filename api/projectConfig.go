@@ -65,44 +65,57 @@ func createProjectConfigFromYamlContent(yamlContent []byte) (*ProjectConfig, err
 }
 
 // CreateDefaultProjectConfig creates a project with the defaults defined in "/api/default_cogment.yaml"
-func CreateDefaultProjectConfig() *ProjectConfig {
+func CreateDefaultProjectConfig() (*ProjectConfig, error) {
 	yamlFile, err := pkger.Open("/api/default_cogment.yaml")
 	if err != nil {
 		// The default cogment.yaml file should be part of the package if it is not there, it's a huge problem
-		logger.Panic(err)
+		yamlFile.Close()
+		return nil, err
 	}
-	defer func() {
-		err := yamlFile.Close()
-		helper.CheckError(err)
-	}()
 
 	yamlFileStats, err := yamlFile.Stat()
 	if err != nil {
-		logger.Panic(err)
+		yamlFile.Close()
+		return nil, err
 	}
 
 	yamlContent := make([]byte, yamlFileStats.Size())
 	_, err = yamlFile.Read(yamlContent)
-	helper.CheckError(err)
-	defaultConfig, err := createProjectConfigFromYamlContent(yamlContent)
 	if err != nil {
-		logger.Panic(err)
+		yamlFile.Close()
+		return nil, err
 	}
 
-	return defaultConfig
+	defaultConfig, err := createProjectConfigFromYamlContent(yamlContent)
+	if err != nil {
+		yamlFile.Close()
+		return nil, err
+	}
+
+	return defaultConfig, nil
 }
 
 // ExtendDefaultProjectConfig extends the default project configuration with the given config
 //
 // the given config is left untouched.
-func ExtendDefaultProjectConfig(config *ProjectConfig) *ProjectConfig {
-	defaultConfig := CreateDefaultProjectConfig()
+func ExtendDefaultProjectConfig(config *ProjectConfig) (*ProjectConfig, error) {
+	defaultConfig, err := CreateDefaultProjectConfig()
+	if err != nil {
+		return nil, err
+	}
+
 	extendedConfig := ProjectConfig{}
-	err := copier.Copy(&extendedConfig, &config)
-	helper.CheckError(err)
+	err = copier.Copy(&extendedConfig, &config)
+	if err != nil {
+		return nil, err
+	}
+
 	err = mergo.Merge(&extendedConfig, defaultConfig)
-	helper.CheckError(err)
-	return &extendedConfig
+	if err != nil {
+		return nil, err
+	}
+
+	return &extendedConfig, nil
 }
 
 // GetProjectConfigPathFromProjectPath returns the path to an existing project configuration file in a given directory
@@ -142,7 +155,7 @@ func CreateProjectConfigFromYaml(filename string) (*ProjectConfig, error) {
 		return nil, err
 	}
 	loadedConfig.ProjectConfigPath = filename
-	return ExtendDefaultProjectConfig(loadedConfig), nil
+	return ExtendDefaultProjectConfig(loadedConfig)
 }
 
 // ProjectConfig describes the root configuration of a cogment app, as loaded from a `cogment.yaml` file.

@@ -31,7 +31,6 @@ import (
 	"google.golang.org/protobuf/types/descriptorpb"
 
 	"github.com/cogment/cogment-cli/api"
-	"github.com/cogment/cogment-cli/helper"
 	"github.com/cogment/cogment-cli/templates"
 )
 
@@ -39,21 +38,33 @@ import (
 var generateCmd = &cobra.Command{
 	Use:   "generate",
 	Short: "Generate settings and compile your proto files",
-	PreRun: func(cmd *cobra.Command, args []string) {
+	PreRunE: func(cmd *cobra.Command, args []string) error {
 		pythonOutPaths, err := cmd.Flags().GetStringArray("python_dir")
-		helper.CheckError(err)
+		if err != nil {
+			return err
+		}
 		jsOutPaths, err := cmd.Flags().GetStringArray("js_dir")
-		helper.CheckError(err)
+		if err != nil {
+			return err
+		}
 		projectConfigPath, err := cmd.Flags().GetString("file")
-		helper.CheckError(err)
+		if err != nil {
+			return err
+		}
 
 		if projectConfigPath == "" {
 			cwd, err := os.Getwd()
-			helper.CheckError(err)
+			if err != nil {
+				return err
+			}
 			projectConfigPath, err = api.GetProjectConfigPathFromProjectPath(cwd)
-			helper.CheckError(err)
+			if err != nil {
+				return err
+			}
 			err = cmd.Flags().Set("file", projectConfigPath)
-			helper.CheckError(err)
+			if err != nil {
+				return err
+			}
 		}
 
 		for _, pythonOutPath := range pythonOutPaths {
@@ -70,13 +81,53 @@ var generateCmd = &cobra.Command{
 			logger.Fatalf("%s doesn't exist: %v", projectConfigPath, err)
 		}
 
-		// TODO: check for existence of npx, npm if web-client enabled
+		return err
 	},
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		err := runGenerateCmd(cmd)
-		helper.CheckError(err)
+		if err != nil {
+			return err
+		}
 		logger.Info("Files have been generated")
+		return nil
 	},
+}
+
+func execCommand(command string, directory string, errorString string) error {
+	shellCommand := "/bin/sh"
+
+	if runtime.GOOS == "windows" {
+		shellCommand = "cmd"
+	}
+
+	subProcess := exec.Command(shellCommand)
+	subProcess.Dir = directory
+	subProcess.Stdout = os.Stdout
+	subProcess.Stderr = os.Stderr
+
+	stdin, err := subProcess.StdinPipe()
+	if err != nil {
+		logger.Fatalf("Unable to open pipe to subprocess stdin: %v", err)
+	}
+	defer func() {
+		if err := stdin.Close(); err != nil {
+			logger.Fatalf("%s: %v", errorString, err)
+		}
+	}()
+
+	if err := subProcess.Start(); err != nil {
+		logger.Fatalf("%s: %v", errorString, err)
+	}
+
+	if _, err = fmt.Fprintln(stdin, command); err != nil {
+		return err
+	}
+
+	if err := subProcess.Wait(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func runProtoc(projectRootPath string, protoFiles []string, otherParams []string) error {
@@ -91,9 +142,7 @@ func runProtoc(projectRootPath string, protoFiles []string, otherParams []string
 	subProcess.Stderr = os.Stderr
 
 	err := subProcess.Run()
-	helper.CheckErrorf(err, "Error while running `%s`", subProcess.String())
-
-	return nil
+	return err
 }
 
 func registerProtos(config *api.ProjectConfig) error {
@@ -101,35 +150,46 @@ func registerProtos(config *api.ProjectConfig) error {
 	projectRootPath := path.Dir(config.ProjectConfigPath)
 
 	tmpDir, err := ioutil.TempDir("", "registerprotofile")
-	helper.CheckError(err)
+	if err != nil {
+		return err
+	}
 	defer func() {
-		err := os.RemoveAll(tmpDir)
-		helper.CheckError(err)
+		os.RemoveAll(tmpDir)
 	}()
 	descriptorPath := path.Join(tmpDir, "data.pb")
 
 	// Generating a descriptor file from all the proto files in the project
 	err = runProtoc(projectRootPath, config.Import.Proto, []string{"--descriptor_set_out", descriptorPath})
-	helper.CheckError(err)
+	if err != nil {
+		return err
+	}
 
 	// Loading the descriptor file
 	descriptorFile, err := ioutil.ReadFile(descriptorPath)
-	helper.CheckError(err)
+	if err != nil {
+		return err
+	}
 
 	pbSet := new(descriptorpb.FileDescriptorSet)
 	err = proto.Unmarshal(descriptorFile, pbSet)
-	helper.CheckError(err)
+	if err != nil {
+		return err
+	}
 
 	// For each of the described file
 	for _, pb := range pbSet.GetFile() {
 		// Initialized a descriptor of thie file
 		fd, err := protodesc.NewFile(pb, protoregistry.GlobalFiles)
-		helper.CheckError(err)
+		if err != nil {
+			return err
+		}
 
 		// And register it.
 		logger.Debugf("Registering definitions from proto file at '%s'", fd.Path())
 		err = protoregistry.GlobalFiles.RegisterFile(fd)
-		helper.CheckError(err)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -140,16 +200,26 @@ func clearProtoRegistry() {
 
 func runGenerateCmd(cmd *cobra.Command) error {
 	projectConfigPath, err := cmd.Flags().GetString("file")
-	helper.CheckError(err)
+	if err != nil {
+		return err
+	}
 	typescript, err := cmd.Flags().GetBool("typescript")
-	helper.CheckError(err)
+	if err != nil {
+		return err
+	}
 	pythonOutPaths, err := cmd.Flags().GetStringArray("python_dir")
-	helper.CheckError(err)
+	if err != nil {
+		return err
+	}
 	jsOutPaths, err := cmd.Flags().GetStringArray("js_dir")
-	helper.CheckError(err)
+	if err != nil {
+		return err
+	}
 
 	config, err := api.CreateProjectConfigFromYaml(projectConfigPath)
-	helper.CheckError(err)
+	if err != nil {
+		return err
+	}
 
 	config.Typescript = typescript
 
@@ -161,7 +231,9 @@ func generate(config *api.ProjectConfig, pythonOutPaths []string, jsOutPaths []s
 	typescript := config.Typescript
 
 	config, err := api.CreateProjectConfigFromYaml(config.ProjectConfigPath)
-	helper.CheckError(err)
+	if err != nil {
+		return err
+	}
 
 	config.Typescript = typescript
 
@@ -170,18 +242,22 @@ func generate(config *api.ProjectConfig, pythonOutPaths []string, jsOutPaths []s
 	}
 	defer clearProtoRegistry()
 
-	config = updateConfigWithMessage(config)
+	config, err = updateConfigWithMessage(config)
+	if err != nil {
+		return err
+	}
 
 	if len(pythonOutPaths) > 0 {
 		err = generatePython(config, pythonOutPaths)
-		helper.CheckError(err)
+	}
+	if err != nil {
+		return err
 	}
 
 	if len(jsOutPaths) > 0 {
-		err := generateWebClient(config, jsOutPaths)
-		helper.CheckError(err)
+		err = generateWebClient(config, jsOutPaths)
 	}
-	return nil
+	return err
 }
 
 func generatePython(config *api.ProjectConfig, outputPaths []string) error {
@@ -193,7 +269,9 @@ func generatePython(config *api.ProjectConfig, outputPaths []string) error {
 	}
 
 	err := runProtoc(path.Dir(config.ProjectConfigPath), config.Import.Proto, params)
-	helper.CheckError(err)
+	if err != nil {
+		return err
+	}
 
 	for _, outputPath := range outputPaths {
 		settingsFilenameTmpl := fmt.Sprintf("/templates/%s.tmpl", api.SettingsFilenamePy)
@@ -216,9 +294,23 @@ func generatePython(config *api.ProjectConfig, outputPaths []string) error {
 }
 
 func generateWebClient(config *api.ProjectConfig, jsOutPaths []string) error {
+
 	projectRootPath := path.Dir(config.ProjectConfigPath)
 	for _, jsOutPath := range jsOutPaths {
 		logger.Infof("Generating %s/%s", projectRootPath, jsOutPath)
+
+		if _, err := os.Stat(path.Join(jsOutPath, "node_modules")); os.IsNotExist(err) {
+			if _, err := os.Stat(path.Join(jsOutPath, "package.json")); os.IsNotExist(err) {
+				return fmt.Errorf("ERROR: no package.json in web-client")
+			}
+			if err := execCommand(`
+				set -xe
+				npm i
+				exit
+			`, jsOutPath, "Error when installing node dependencies"); err != nil {
+				return err
+			}
+		}
 
 		if err := compileProtosJs(config, jsOutPath); err != nil {
 			return fmt.Errorf("error generating web-client: %v", err)
@@ -244,7 +336,9 @@ func compileProtosJs(config *api.ProjectConfig, jsOutPath string) error {
 	}
 
 	err := runProtoc(path.Dir(config.ProjectConfigPath), config.Import.Proto, params)
-	helper.CheckError(err)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -254,14 +348,12 @@ func generateCogSettings(config *api.ProjectConfig, jsOutPath string) error {
 	tsSettingsTemplatePath := path.Join("/templates", settingsFilenameTmpl)
 	webClientSrcPath := path.Join(jsOutPath, "src")
 	cogSettingsPath := path.Join(webClientSrcPath, api.SettingsFilenameJs)
-	shellCommand := "/bin/sh"
-
-	if runtime.GOOS == "windows" {
-		shellCommand = "cmd"
-	}
 
 	err := templates.GenerateFromTemplate(tsSettingsTemplatePath, config, cogSettingsPath)
-	helper.CheckErrorf(err, "error generating %s", api.SettingsFilenameJs)
+
+	if err != nil {
+		return err
+	}
 
 	deleteCommand := fmt.Sprintf("rm src/%s", api.SettingsFilenameJs)
 	if config.Typescript {
@@ -279,75 +371,56 @@ func generateCogSettings(config *api.ProjectConfig, jsOutPath string) error {
 		deleteCommand,
 	)
 
-	subProcess := exec.Command(shellCommand)
-	subProcess.Dir = jsOutPath
-	subProcess.Stdout = os.Stdout
-	subProcess.Stderr = os.Stderr
-
-	stdin, err := subProcess.StdinPipe()
-	if err != nil {
-		logger.Fatalf("Unable to open pipe to subprocess stdin: %v", err)
-	}
-	defer func() {
-		if err := stdin.Close(); err != nil {
-			logger.Fatalf("Error when creating react app: %v", err)
-		}
-	}()
-
-	if err := subProcess.Start(); err != nil {
-		logger.Fatalf("Error in init while creating react app %v", err)
-	}
-
-	if _, err = fmt.Fprintln(stdin, tscCompileCmd); err != nil {
-		return err
-	}
-
-	if err := subProcess.Wait(); err != nil {
-		return err
-	}
-
-	return nil
+	return execCommand(tscCompileCmd, jsOutPath, "Error when creating react app")
 }
 
-func updateConfigWithMessage(config *api.ProjectConfig) *api.ProjectConfig {
+func updateConfigWithMessage(config *api.ProjectConfig) (*api.ProjectConfig, error) {
+	var err error = nil
+
 	for k, actorClass := range config.ActorClasses {
 		if actorClass.ConfigType != "" {
-			config.ActorClasses[k].ConfigType = lookupMessageType(actorClass.ConfigType)
+			config.ActorClasses[k].ConfigType, err = lookupMessageType(actorClass.ConfigType)
 		}
 
-		config.ActorClasses[k].Action.Space = lookupMessageType(actorClass.Action.Space)
-		config.ActorClasses[k].Observation.Space = lookupMessageType(actorClass.Observation.Space)
+		config.ActorClasses[k].Action.Space, err = lookupMessageType(actorClass.Action.Space)
+		config.ActorClasses[k].Observation.Space, err = lookupMessageType(actorClass.Observation.Space)
 		if actorClass.Observation.Delta != "" {
-			config.ActorClasses[k].Observation.Delta = lookupMessageType(actorClass.Observation.Delta)
+			config.ActorClasses[k].Observation.Delta, err = lookupMessageType(actorClass.Observation.Delta)
 		}
 	}
 
 	if config.Environment != nil && config.Environment.ConfigType != "" {
-		config.Environment.ConfigType = lookupMessageType(config.Environment.ConfigType)
+		config.Environment.ConfigType, err = lookupMessageType(config.Environment.ConfigType)
 	}
 
 	if config.Trial != nil && config.Trial.ConfigType != "" {
-		config.Trial.ConfigType = lookupMessageType(config.Trial.ConfigType)
+		config.Trial.ConfigType, err = lookupMessageType(config.Trial.ConfigType)
 	}
 
-	return config
+	return config, err
 }
 
-func lookupMessageType(name string) string {
+func lookupMessageType(name string) (string, error) {
 	s := strings.Split(name, ".")
-	protoFile := findFileContainingSymbol(name)
+	protoFile, err := findFileContainingSymbol(name)
+	if err != nil {
+		return "", err
+	}
 
-	return api.ProtoAliasFromProtoPath(protoFile) + "." + s[len(s)-1]
+	return api.ProtoAliasFromProtoPath(protoFile) + "." + s[len(s)-1], nil
 }
 
-func findFileContainingSymbol(name string) string {
+func findFileContainingSymbol(name string) (string, error) {
 	tmp := protoreflect.FullName(name)
 	logger.Debugf("Finding proto file containing %s", tmp)
 
 	desc, err := protoregistry.GlobalFiles.FindDescriptorByName(tmp)
-	helper.CheckErrorf(err, "Failed to lookup %s", name)
 
-	return desc.ParentFile().Path()
+	if err != nil {
+		return "", fmt.Errorf("Failed to lookup %s", name)
+	}
+
+	return desc.ParentFile().Path(), nil
 }
 
 func init() {

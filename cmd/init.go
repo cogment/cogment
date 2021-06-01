@@ -42,13 +42,19 @@ var JavascriptDependencies = []string{
 var JavascriptDevDependencies = []string{
 	"eslint",
 	"nps",
+	"ts-protoc-gen",
+	"typescript",
 }
 
 var TypescriptDependencies = []string{}
 
 var TypescriptDevDependencies = []string{
 	"@types/google-protobuf",
-	"ts-protoc-gen",
+}
+
+func commandExists(cmd string) bool {
+	_, err := exec.LookPath(cmd)
+	return err == nil
 }
 
 // initCmd represents the init command
@@ -68,7 +74,7 @@ var initCmd = &cobra.Command{
 		return nil
 	},
 
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 
 		dst := "."
 		if len(args) > 0 {
@@ -76,10 +82,10 @@ var initCmd = &cobra.Command{
 		}
 
 		config, err := createProjectConfigFromReader(os.Stdin)
-		if err != nil {
-			logger.Fatal(err)
-		}
 
+		if err != nil {
+			return err
+		}
 		// TODO: check for existence of npx, npm
 
 		projectname := strings.Split(dst, "/")
@@ -88,7 +94,8 @@ var initCmd = &cobra.Command{
 		config.ProjectConfigPath = path.Join(dst, "cogment.yaml")
 
 		err = createProjectFiles(config)
-		helper.CheckError(err)
+
+		return err
 	},
 }
 
@@ -96,13 +103,18 @@ func createProjectFiles(config *api.ProjectConfig) error {
 	logger.Info("Creating project")
 
 	err := createApp(config)
-	helper.CheckError(err)
+	if err != nil {
+		return err
+	}
 
 	if config.WebClient {
 		logger.Info("Creating web-client")
-		err := createWebClient(config)
-		helper.CheckErrorf(err, "Failure when creating web-client")
+		err = createWebClient(config)
+		if err != nil {
+			return err
+		}
 	}
+
 	pythonOutPaths := []string{api.EnvironmentServiceName, api.ClientServiceName}
 	for _, service := range config.ListServiceActorServices() {
 		pythonOutPaths = append(pythonOutPaths, helper.Snakeify(service.Name))
@@ -161,6 +173,10 @@ func createWebClient(config *api.ProjectConfig) error {
 	createReactAppCmd := "npm init react-app web-client"
 	npmDependencies := JavascriptDependencies[:]
 	npmDevDependencies := JavascriptDevDependencies[:]
+
+	if !commandExists("npm") {
+		return fmt.Errorf("you must have a working installation of both node and npm in order to create a web client")
+	}
 
 	if config.Typescript {
 		createReactAppCmd = fmt.Sprintf("%s --template typescript", createReactAppCmd)
@@ -317,7 +333,10 @@ func createValidateName(existingNames []string) func(string) (string, error) {
 func createProjectConfigFromReader(stdin io.Reader) (*api.ProjectConfig, error) {
 	reader := bufio.NewReader(stdin)
 
-	config := api.ExtendDefaultProjectConfig(&api.ProjectConfig{TrialParams: &api.TrialParams{}})
+	config, err := api.ExtendDefaultProjectConfig(&api.ProjectConfig{TrialParams: &api.TrialParams{}})
+	if err != nil {
+		return nil, err
+	}
 
 	actorClassesCount, err := integerFromReader(
 		reader,

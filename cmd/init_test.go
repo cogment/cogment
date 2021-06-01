@@ -30,7 +30,7 @@ import (
 	"github.com/cogment/cogment-cli/api"
 )
 
-var expectedConfig = api.ExtendDefaultProjectConfig(&api.ProjectConfig{
+var expectedConfig, err = api.ExtendDefaultProjectConfig(&api.ProjectConfig{
 	ActorClasses: []*api.ActorClass{
 		&api.ActorClass{Name: "master"},
 		&api.ActorClass{Name: "smart"},
@@ -116,7 +116,7 @@ func TestCreateProjectFiles(t *testing.T) {
 		}
 	}()
 
-	config := api.ExtendDefaultProjectConfig(&api.ProjectConfig{
+	config, err := api.ExtendDefaultProjectConfig(&api.ProjectConfig{
 		ProjectName:       "testit",
 		ProjectConfigPath: path.Join(dir, "cogment.yaml"),
 		Components: api.ComponentsConfigurations{
@@ -136,6 +136,7 @@ func TestCreateProjectFiles(t *testing.T) {
 			},
 		},
 	})
+	assert.NoError(t, err)
 
 	err = createProjectFiles(config)
 	assert.NoError(t, err)
@@ -177,7 +178,7 @@ func TestCreateProjectFilesDashes(t *testing.T) {
 		}
 	}()
 
-	config := api.ExtendDefaultProjectConfig(&api.ProjectConfig{
+	config, err := api.ExtendDefaultProjectConfig(&api.ProjectConfig{
 		ProjectName:       "a-test-project-with-dashes",
 		ProjectConfigPath: path.Join(dir, "cogment.yaml"),
 		Components: api.ComponentsConfigurations{
@@ -194,6 +195,7 @@ func TestCreateProjectFilesDashes(t *testing.T) {
 			},
 		},
 	})
+	assert.NoError(t, err)
 
 	err = createProjectFiles(config)
 	assert.NoError(t, err)

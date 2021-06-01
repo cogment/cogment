@@ -22,20 +22,6 @@ import (
 )
 
 var baseLogger *zap.Logger
-var logger *zap.SugaredLogger
-
-func CheckError(err error) {
-	if err != nil {
-		logger.Fatal(err)
-	}
-}
-
-func CheckErrorf(err error, template string, args ...interface{}) {
-	if err != nil {
-		errFormatStr := fmt.Sprintf("%s: %v", template, err)
-		logger.Fatalf(errFormatStr, args...)
-	}
-}
 
 func GetLogger(names []string) *zap.Logger {
 	var newLogger = baseLogger.WithOptions(zap.AddStacktrace(zap.WarnLevel), zap.AddCaller(), zap.AddCallerSkip(1))
@@ -60,6 +46,4 @@ func init() {
 		os.Exit(1)
 	}
 	baseLogger = baseLogger.Named("cogment-cli")
-
-	logger = GetSugarLogger([]string{"helper"})
 }
