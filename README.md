@@ -93,7 +93,9 @@ cogment-cli
 People having maintainers rights of the repository can follow these steps to release a version **MAJOR.MINOR.PATCH**. The versioning scheme follows [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 1. Run `./scripts/create_release_branch.sh` automatically compute and update the version of the package, create the release branch and update the changelog from the commit history,
-2. On the release branch, check and update the changelog if needed, update internal dependencies, and make sure everything's fine on CI,
-3. Run `./scripts/tag_release.sh MAJOR.MINOR.PATCH` to create the specific version section in the changelog, merge the release branch in `main`, create the release tag and update the `develop` branch with those.
+2. On the release branch, check and update the changelog if needed
+3. Update api > default_cogment.yaml
+4. Make sure everything's fine on CI,
+5. Run `./scripts/tag_release.sh MAJOR.MINOR.PATCH` to create the specific version section in the changelog, merge the release branch in `main`, create the release tag and update the `develop` branch with those.
 
 The rest, publishing the packages to github releases and dockerhub and updating the mirror repositories, is handled directly by the CI.
