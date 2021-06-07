@@ -487,7 +487,7 @@ void Trial::terminate() {
       return;
     }
     if (state_ != InternalState::running) {
-      spdlog::error("Trial [{}] cannot terminate in current state: [%s]", to_string(id_).c_str(),
+      spdlog::error("Trial [{}] cannot terminate in current state: [{}]", to_string(id_).c_str(),
                     get_trial_state_string(state_));
       return;
     }
