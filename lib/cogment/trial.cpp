@@ -193,7 +193,7 @@ void Trial::prepare_actors() {
       if (actor_info.has_config()) {
         config = actor_info.config().content();
       }
-      auto stub_entry = orchestrator_->agent_pool()->get_stub(url);
+      auto stub_entry = orchestrator_->agent_pool()->get_stub_entry(url);
       auto agent_actor = std::make_unique<Agent>(this, actor_info.name(), &actor_class, actor_info.implementation(),
                                                  stub_entry, config);
       actors_.push_back(std::move(agent_actor));
@@ -204,7 +204,7 @@ void Trial::prepare_actors() {
 }
 
 cogment::EnvStartRequest Trial::prepare_environment() {
-  env_stub_ = orchestrator_->env_pool()->get_stub(params_.environment().endpoint());
+  env_entry_ = orchestrator_->env_pool()->get_stub_entry(params_.environment().endpoint());
 
   cogment::EnvStartRequest env_start_req;
   env_start_req.set_tick_id(tick_id_);
@@ -253,7 +253,7 @@ void Trial::start(cogment::TrialParams params) {
     actors_ready.push_back(actor->init());
   }
 
-  auto env_ready = (*env_stub_)->OnStart(std::move(env_start_req), call_options_).then_expect([](auto rep) {
+  auto env_ready = env_entry_->get_stub().OnStart(std::move(env_start_req), call_options_).then_expect([](auto rep) {
     if (!rep) {
       spdlog::error("failed to connect to environment");
       try {
@@ -426,7 +426,7 @@ void Trial::run_environment() {
   auto self = shared_from_this();
 
   // Launch the main update stream
-  auto streams = (*env_stub_)->OnAction(call_options_);
+  auto streams = env_entry_->get_stub().OnAction(call_options_);
 
   outgoing_actions_ = std::move(std::get<0>(streams));
   auto incoming_updates = std::move(std::get<1>(streams));
@@ -508,8 +508,8 @@ void Trial::terminate() {
   timed_options.deadline.tv_nsec = 0;
   timed_options.deadline.clock_type = GPR_TIMESPAN;
 
-  (*env_stub_)
-      ->OnEnd(req, timed_options)
+  env_entry_->get_stub()
+      .OnEnd(req, timed_options)
       .then([this](auto rep) {
         next_step(std::move(rep));
         dispatch_observations();
@@ -579,7 +579,10 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
     if (max_steps == 0 || tick_id_ < max_steps) {
       if (outgoing_actions_) {
         dispatch_env_messages();
-        outgoing_actions_->push(make_action_request());
+
+        // We serialize the actions to prevent long lags where
+        // messages arrive much later and cause errors.
+        env_entry_->serialize([this]() { outgoing_actions_->push(make_action_request()); });
       }
       else {
         spdlog::error("Environment for trial [{}] not ready for first action set", to_string(id_));
@@ -750,7 +753,8 @@ void Trial::dispatch_env_messages() {
   }
 
   if (!env_message_accumulator_.empty()) {
-    (*env_stub_)->OnMessage(req, call_options_).finally([](auto) {});
+    env_entry_->serialize(
+        [this, request = std::move(req)]() { env_entry_->get_stub().OnMessage(request, call_options_).get(); });
   }
 
   env_message_accumulator_.clear();

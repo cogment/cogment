@@ -243,8 +243,8 @@ int main(int argc, const char* argv[]) {
     int nb_prehooks = 0;
     if (cogment_yaml[cfg_file::trial_key]) {
       for (auto hook : cogment_yaml[cfg_file::trial_key][cfg_file::t_pre_hooks_key]) {
-        hooks.push_back(hook_stubs.get_stub(hook.as<std::string>()));
-        orchestrator.add_prehook(&hooks.back()->stub);
+        hooks.push_back(hook_stubs.get_stub_entry(hook.as<std::string>()));
+        orchestrator.add_prehook(hooks.back());
         nb_prehooks++;
       }
     }

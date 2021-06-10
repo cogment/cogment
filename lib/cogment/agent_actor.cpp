@@ -22,10 +22,11 @@
 #include "spdlog/spdlog.h"
 
 namespace cogment {
+
 Agent::Agent(Trial* owner, const std::string& in_actor_name, const ActorClass* actor_class, const std::string& impl,
-             stub_type stub, std::optional<std::string> config_data)
+             StubEntryType stub_entry, std::optional<std::string> config_data)
     : Actor(owner, in_actor_name, actor_class),
-      stub_(std::move(stub)),
+      stub_entry_(std::move(stub_entry)),
       config_data_(std::move(config_data)),
       impl_(impl) {
   SPDLOG_TRACE("Agent(): [{}] [{}] [{}]", to_string(trial()->id()), actor_name(), impl);
@@ -67,31 +68,36 @@ aom::Future<void> Agent::init() {
     actor_in_trial->set_name(actor->actor_name());
   }
 
-  return stub_->stub.OnStart(req, options_).then([this](auto rep) {
+  return stub_entry_->get_stub().OnStart(req, options_).then([this](auto rep) {
     (void)rep;
     (void)this;
     SPDLOG_DEBUG("Agent init start complete: [{}] [{}]", to_string(trial()->id()), actor_name());
   });
 }
 
-void Agent::dispatch_observation(cogment::Observation&& obs) {
+void Agent::dispatch_observation(cogment::Observation&& observation) {
   lazy_start_decision_stream();
 
-  ::cogment::AgentObservationRequest req;
-  *req.mutable_observation() = obs;
-  outgoing_observations_->push(std::move(req));
+  // We serialize the observations to prevent long lags where
+  // rewards/messages arrive much later and cause errors.
+  stub_entry_->serialize([this, obs = std::move(observation)]() {
+    cogment::AgentObservationRequest req;
+    *req.mutable_observation() = std::move(obs);
+
+    outgoing_observations_->push(std::move(req));
+  });
 }
 
 void Agent::dispatch_final_data(cogment::ActorPeriodData&& data) {
   ::cogment::AgentEndRequest req;
   *(req.mutable_final_data()) = std::move(data);
 
-  stub_->stub.OnEnd(req, options_);
+  stub_entry_->get_stub().OnEnd(req, options_);
 }
 
 void Agent::lazy_start_decision_stream() {
   if (!outgoing_observations_) {
-    auto stream = stub_->stub.OnObservation(options_);
+    auto stream = stub_entry_->get_stub().OnObservation(options_);
 
     outgoing_observations_ = std::move(std::get<0>(stream));
     auto incoming_actions = std::move(std::get<1>(stream));
@@ -123,18 +129,22 @@ bool Agent::is_active() const {
 }
 
 void Agent::dispatch_reward(cogment::Reward&& reward) {
-  cogment::AgentRewardRequest req;
-  *req.mutable_reward() = reward;
+  stub_entry_->serialize([this, rew = std::move(reward)]() {
+    cogment::AgentRewardRequest req;
+    *req.mutable_reward() = std::move(rew);
 
-  stub_->stub.OnReward(req, options_).finally([](auto) {});
+    stub_entry_->get_stub().OnReward(req, options_).get();
+  });
 }
 
 void Agent::dispatch_message(cogment::Message&& message) {
-  cogment::AgentMessageRequest req;
-  auto msg = req.add_messages();
-  *msg = message;
+  stub_entry_->serialize([this, msg = std::move(message)]() {
+    cogment::AgentMessageRequest req;
+    auto new_msg = req.add_messages();
+    *new_msg = std::move(msg);
 
-  stub_->stub.OnMessage(req, options_).finally([](auto) {});
+    stub_entry_->get_stub().OnMessage(req, options_).get();
+  });
 }
 
 }  // namespace cogment

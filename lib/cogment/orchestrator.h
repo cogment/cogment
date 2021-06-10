@@ -38,7 +38,8 @@ class Orchestrator {
   ~Orchestrator();
 
   // Initialization
-  void add_prehook(cogment::TrialHooks::Stub_interface* prehook);
+  using HookEntryType = std::shared_ptr<Stub_pool<cogment::TrialHooks>::Entry>;
+  void add_prehook(const HookEntryType& prehook);
   void set_log_exporter(std::unique_ptr<DatalogStorageInterface> le);
 
   // Lifecycle
@@ -86,7 +87,7 @@ class Orchestrator {
   std::unordered_map<uuids::uuid, std::shared_ptr<Trial>> trials_;
 
   // List of trial pre-hooks to invoke before actually launching trials
-  std::vector<cogment::TrialHooks::Stub_interface*> prehooks_;
+  std::vector<HookEntryType> prehooks_;
 
   // Send trial data to this destination.
   std::unique_ptr<DatalogStorageInterface> log_exporter_;

@@ -123,7 +123,7 @@ class Trial : public std::enable_shared_from_this<Trial> {
 
   cogment::TrialParams params_;
 
-  std::shared_ptr<cogment::Stub_pool<cogment::EnvironmentEndpoint>::Entry> env_stub_;
+  std::shared_ptr<cogment::Stub_pool<cogment::EnvironmentEndpoint>::Entry> env_entry_;
 
   InternalState state_;
   uint64_t tick_id_;

@@ -27,9 +27,9 @@ class Trial;
 
 class Agent : public Actor {
   public:
-  using stub_type = std::shared_ptr<Stub_pool<cogment::AgentEndpoint>::Entry>;
+  using StubEntryType = std::shared_ptr<Stub_pool<cogment::AgentEndpoint>::Entry>;
   Agent(Trial* owner, const std::string& actor_name, const ActorClass* actor_class, const std::string& impl,
-        stub_type stub, std::optional<std::string> config_data);
+        StubEntryType stub_entry, std::optional<std::string> config_data);
 
   ~Agent();
 
@@ -46,7 +46,7 @@ class Agent : public Actor {
   private:
   void lazy_start_decision_stream();
 
-  stub_type stub_;
+  StubEntryType stub_entry_;
   std::vector<grpc_metadata> headers_;
   easy_grpc::client::Call_options options_;
 

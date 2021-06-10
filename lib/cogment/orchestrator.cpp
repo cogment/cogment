@@ -139,7 +139,7 @@ TrialJoinReply Orchestrator::client_joined(TrialJoinRequest req) {
   return actor->bind(std::move(actions));
 }
 
-void Orchestrator::add_prehook(cogment::TrialHooks::Stub_interface* hook) { prehooks_.push_back(hook); }
+void Orchestrator::add_prehook(const HookEntryType& hook) { prehooks_.push_back(hook); }
 
 aom::Future<cogment::PreTrialContext> Orchestrator::perform_pre_hooks_(cogment::PreTrialContext ctx,
                                                                        const std::string& trial_id) {
@@ -161,7 +161,7 @@ aom::Future<cogment::PreTrialContext> Orchestrator::perform_pre_hooks_(cogment::
   for (auto& hook : prehooks_) {
     result = result.then([hook, options, headers](auto context) {
       spdlog::debug("Calling a pre-hook on trial parameters");
-      return hook->OnPreTrial(std::move(context), options);
+      return hook->get_stub().OnPreTrial(std::move(context), options);
     });
   }
 
