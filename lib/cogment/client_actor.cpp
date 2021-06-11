@@ -25,32 +25,32 @@ namespace cogment {
 Client_actor::Client_actor(Trial* owner, const std::string& actor_name, const ActorClass* actor_class,
                            std::optional<std::string> config_data)
     : Actor(owner, actor_name, actor_class),
-      joined_(false),
-      config_data_(std::move(config_data)),
-      outgoing_observations_future_(outgoing_observations_.get_future()) {
+      m_joined(false),
+      m_config_data(std::move(config_data)),
+      m_outgoing_observations_future(m_outgoing_observations.get_future()) {
   SPDLOG_TRACE("Client_actor(): [{}] [{}]", to_string(trial()->id()), actor_name);
 }
 
 Client_actor::~Client_actor() {
   SPDLOG_TRACE("~Client_actor(): [{}] [{}]", to_string(trial()->id()), actor_name());
-  if (outgoing_observations_) {
-    outgoing_observations_.complete();
+  if (m_outgoing_observations) {
+    m_outgoing_observations.complete();
   }
 }
 
 aom::Future<void> Client_actor::init() {
   SPDLOG_TRACE("Client_actor::init(): [{}] [{}]", to_string(trial()->id()), actor_name());
   // Client actors are ready once a client has connected to it.
-  return ready_promise_.get_future();
+  return m_ready_promise.get_future();
 }
 
-bool Client_actor::is_active() const { return joined_; }
+bool Client_actor::is_active() const { return m_joined; }
 
 std::optional<std::string> Client_actor::join() {
-  joined_ = true;
-  ready_promise_.set_value();
+  m_joined = true;
+  m_ready_promise.set_value();
 
-  return config_data_;
+  return m_config_data;
 }
 
 Client_actor::Observation_future Client_actor::bind(Client_actor::Action_future actions) {
@@ -66,7 +66,7 @@ Client_actor::Observation_future Client_actor::bind(Client_actor::Action_future 
       })
       .finally([](auto) {});
 
-  return std::move(outgoing_observations_future_);
+  return std::move(m_outgoing_observations_future);
 }
 
 void Client_actor::dispatch_observation(cogment::Observation&& obs) {
@@ -75,7 +75,7 @@ void Client_actor::dispatch_observation(cogment::Observation&& obs) {
   auto new_obs = req.mutable_data()->add_observations();
   *new_obs = obs;
 
-  outgoing_observations_.push(std::move(req));
+  m_outgoing_observations.push(std::move(req));
 }
 
 void Client_actor::dispatch_final_data(cogment::ActorPeriodData&& data) {
@@ -83,7 +83,7 @@ void Client_actor::dispatch_final_data(cogment::ActorPeriodData&& data) {
   req.set_final_data(true);
   *(req.mutable_data()) = std::move(data);
 
-  outgoing_observations_.push(std::move(req));
+  m_outgoing_observations.push(std::move(req));
 }
 
 void Client_actor::dispatch_reward(cogment::Reward&& reward) {
@@ -91,7 +91,7 @@ void Client_actor::dispatch_reward(cogment::Reward&& reward) {
   auto new_reward = req.mutable_data()->add_rewards();
   *new_reward = reward;
 
-  outgoing_observations_.push(std::move(req));
+  m_outgoing_observations.push(std::move(req));
 }
 
 void Client_actor::dispatch_message(cogment::Message&& message) {
@@ -99,7 +99,7 @@ void Client_actor::dispatch_message(cogment::Message&& message) {
   auto new_mess = req.mutable_data()->add_messages();
   *new_mess = message;
 
-  outgoing_observations_.push(std::move(req));
+  m_outgoing_observations.push(std::move(req));
 }
 
 }  // namespace cogment

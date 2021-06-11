@@ -34,22 +34,22 @@ class GrpcDatalogExporterBase : public DatalogStorageInterface {
     void add_sample(cogment::DatalogSample&& data) override;
 
     private:
-    GrpcDatalogExporterBase* owner_ = nullptr;
-    const Trial* trial_ = nullptr;
-    ::easy_grpc::Stream_future<::cogment::LogExporterSampleReply> reply_;
-    std::vector<grpc_metadata> headers_;
-    easy_grpc::client::Call_options options_;
+    GrpcDatalogExporterBase* m_owner = nullptr;
+    const Trial* m_trial = nullptr;
+    ::easy_grpc::Stream_future<::cogment::LogExporterSampleReply> m_reply;
+    std::vector<grpc_metadata> m_headers;
+    easy_grpc::client::Call_options m_options;
 
-    void lazy_start_stream_();
-    std::optional<::easy_grpc::Stream_promise<::cogment::LogExporterSampleRequest>> output_promise_;
+    void m_lazy_start_stream();
+    std::optional<::easy_grpc::Stream_promise<::cogment::LogExporterSampleRequest>> m_output_promise;
   };
 
   std::unique_ptr<TrialLogInterface> start_log(const Trial* trial) final override;
 
-  void set_stub(cogment::LogExporter::Stub_interface* stub) { stub_ = stub; }
+  void set_stub(cogment::LogExporter::Stub_interface* stub) { m_stub = stub; }
 
   private:
-  cogment::LogExporter::Stub_interface* stub_ = nullptr;
+  cogment::LogExporter::Stub_interface* m_stub = nullptr;
 };
 
 // Stores Data samples to a local CVS file.
@@ -58,9 +58,9 @@ class GrpcDatalogExporter : public GrpcDatalogExporterBase {
   GrpcDatalogExporter(const std::string& url);
 
   private:
-  easy_grpc::Completion_queue work_thread_;
-  easy_grpc::client::Unsecure_channel channel_;
-  cogment::LogExporter::Stub stub_impl_;
+  easy_grpc::Completion_queue m_work_thread;
+  easy_grpc::client::Unsecure_channel m_channel;
+  cogment::LogExporter::Stub m_stub_impl;
 };
 }  // namespace cogment
 #endif

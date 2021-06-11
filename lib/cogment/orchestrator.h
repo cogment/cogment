@@ -52,8 +52,8 @@ class Orchestrator {
       ::easy_grpc::Stream_future<::cogment::TrialActionRequest> actions);
 
   // Services
-  ActorService& actor_service() { return actor_service_; }
-  TrialLifecycleService& trial_lifecycle_service() { return trial_lifecycle_service_; }
+  ActorService& actor_service() { return m_actor_service; }
+  TrialLifecycleService& trial_lifecycle_service() { return m_trial_lifecycle_service; }
 
   // Lookups
   std::shared_ptr<Trial> get_trial(const uuids::uuid& trial_id) const;
@@ -62,16 +62,16 @@ class Orchestrator {
   std::vector<std::shared_ptr<Trial>> all_trials() const;
 
   // Semi-internal, rpc management related.
-  easy_grpc::Completion_queue* client_queue() { return &client_queue_; }
-  Channel_pool* channel_pool() { return &channel_pool_; }
-  Stub_pool<cogment::EnvironmentEndpoint>* env_pool() { return &env_stubs_; }
-  Stub_pool<cogment::AgentEndpoint>* agent_pool() { return &agent_stubs_; }
+  easy_grpc::Completion_queue* client_queue() { return &m_client_queue; }
+  Channel_pool* channel_pool() { return &m_channel_pool; }
+  Stub_pool<cogment::EnvironmentEndpoint>* env_pool() { return &m_env_stubs; }
+  Stub_pool<cogment::AgentEndpoint>* agent_pool() { return &m_agent_stubs; }
 
-  const cogment::TrialParams& default_trial_params() const { return default_trial_params_; }
+  const cogment::TrialParams& default_trial_params() const { return m_default_trial_params; }
 
-  const Trial_spec& get_trial_spec() const { return trial_spec_; }
+  const Trial_spec& get_trial_spec() const { return m_trial_spec; }
 
-  std::unique_ptr<TrialLogInterface> start_log(const Trial* trial) { return log_exporter_->start_log(trial); }
+  std::unique_ptr<TrialLogInterface> start_log(const Trial* trial) { return m_log_exporter->start_log(trial); }
 
   void watch_trials(HandlerFunction func);
 
@@ -79,36 +79,36 @@ class Orchestrator {
 
   private:
   // Configuration
-  Trial_spec trial_spec_;
-  cogment::TrialParams default_trial_params_;
+  Trial_spec m_trial_spec;
+  cogment::TrialParams m_default_trial_params;
 
   // Currently existing Trials
-  mutable std::mutex trials_mutex_;
-  std::unordered_map<uuids::uuid, std::shared_ptr<Trial>> trials_;
+  mutable std::mutex m_trials_mutex;
+  std::unordered_map<uuids::uuid, std::shared_ptr<Trial>> m_trials;
 
   // List of trial pre-hooks to invoke before actually launching trials
-  std::vector<HookEntryType> prehooks_;
+  std::vector<HookEntryType> m_prehooks;
 
   // Send trial data to this destination.
-  std::unique_ptr<DatalogStorageInterface> log_exporter_;
+  std::unique_ptr<DatalogStorageInterface> m_log_exporter;
 
   // Completion queue for handling requests returning from env/agent/hooks
-  easy_grpc::Completion_queue client_queue_;
-  Channel_pool channel_pool_;
+  easy_grpc::Completion_queue m_client_queue;
+  Channel_pool m_channel_pool;
 
-  Stub_pool<cogment::EnvironmentEndpoint> env_stubs_;
-  Stub_pool<cogment::AgentEndpoint> agent_stubs_;
+  Stub_pool<cogment::EnvironmentEndpoint> m_env_stubs;
+  Stub_pool<cogment::AgentEndpoint> m_agent_stubs;
 
-  ActorService actor_service_;
-  TrialLifecycleService trial_lifecycle_service_;
+  ActorService m_actor_service;
+  TrialLifecycleService m_trial_lifecycle_service;
 
-  mutable std::mutex notification_lock_;
-  std::vector<HandlerFunction> trial_watchers_;
+  mutable std::mutex m_notification_lock;
+  std::vector<HandlerFunction> m_trial_watchers;
 
-  std::atomic<int> garbage_collection_countdown_;
-  void perform_garbage_collection_();
+  std::atomic<int> m_garbage_collection_countdown;
+  void m_perform_garbage_collection();
 
-  aom::Future<cogment::PreTrialContext> perform_pre_hooks_(cogment::PreTrialContext ctx, const std::string& trial_id);
+  aom::Future<cogment::PreTrialContext> m_perform_pre_hooks(cogment::PreTrialContext ctx, const std::string& trial_id);
 };
 }  // namespace cogment
 #endif

@@ -51,15 +51,15 @@ class Client_actor : public Actor {
   void dispatch_message(cogment::Message&& message) override;
 
   private:
-  bool joined_;
+  bool m_joined;
 
-  cogment::Action latest_action_;
-  std::optional<std::string> config_data_;
+  cogment::Action m_latest_action;
+  std::optional<std::string> m_config_data;
 
-  Observation_promise outgoing_observations_;
-  Observation_future outgoing_observations_future_;
+  Observation_promise m_outgoing_observations;
+  Observation_future m_outgoing_observations_future;
 
-  aom::Promise<void> ready_promise_;
+  aom::Promise<void> m_ready_promise;
 };
 }  // namespace cogment
 #endif

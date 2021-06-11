@@ -41,7 +41,7 @@ class TrialLogInterface;
 
 // TODO: Make Trial independent of orchestrator (to remove any chance of circular reference)
 class Trial : public std::enable_shared_from_this<Trial> {
-  static uuids::uuid_system_generator id_generator_;
+  static uuids::uuid_system_generator m_id_generator;
 
   public:
   enum class InternalState { unknown, initializing, pending, running, terminating, ended };
@@ -54,22 +54,22 @@ class Trial : public std::enable_shared_from_this<Trial> {
   Trial(const Trial&) = delete;
   Trial& operator=(const Trial&) = delete;
 
-  InternalState state() const { return state_; }
+  InternalState state() const { return m_state; }
   const char* state_char() const;
-  uint64_t tick_id() const { return tick_id_; }
-  uint64_t start_timestamp() const { return start_timestamp_; }
+  uint64_t tick_id() const { return m_tick_id; }
+  uint64_t start_timestamp() const { return m_start_timestamp; }
 
   // Trial identification
-  const uuids::uuid& id() const { return id_; }
-  const std::string& user_id() const { return user_id_; }
+  const uuids::uuid& id() const { return m_id; }
+  const std::string& user_id() const { return m_user_id; }
 
   // Actors present in the trial
-  const std::vector<std::unique_ptr<Actor>>& actors() const { return actors_; }
+  const std::vector<std::unique_ptr<Actor>>& actors() const { return m_actors; }
   const std::unique_ptr<Actor>& actor(const std::string& name) const;
 
   // Initializes the trial
   void start(cogment::TrialParams params);
-  const cogment::TrialParams& params() const { return params_; }
+  const cogment::TrialParams& params() const { return m_params; }
 
   // returns either a valid actor for the given request, or nullptr if none can be found
   Client_actor* get_join_candidate(const TrialJoinRequest& req);
@@ -108,42 +108,42 @@ class Trial : public std::enable_shared_from_this<Trial> {
   cogment::EnvActionRequest make_action_request();
   void dispatch_env_messages();
 
-  Orchestrator* orchestrator_;
+  Orchestrator* m_orchestrator;
 
-  std::mutex state_lock_;
-  std::mutex actor_lock_;
-  std::mutex sample_lock_;
-  std::mutex reward_lock_;
-  std::mutex sample_message_lock_;
-  std::mutex env_message_lock_;
-  std::shared_mutex terminating_lock_;
+  std::mutex m_state_lock;
+  std::mutex m_actor_lock;
+  std::mutex m_sample_lock;
+  std::mutex m_reward_lock;
+  std::mutex m_sample_message_lock;
+  std::mutex m_env_message_lock;
+  std::shared_mutex m_terminating_lock;
 
-  uuids::uuid id_;  // TODO: Store as string (since we convert everywhere back and forth)
-  std::string user_id_;
+  uuids::uuid m_id;  // TODO: Store as string (since we convert everywhere back and forth)
+  std::string m_user_id;
 
-  cogment::TrialParams params_;
+  cogment::TrialParams m_params;
 
-  std::shared_ptr<cogment::Stub_pool<cogment::EnvironmentEndpoint>::Entry> env_entry_;
+  std::shared_ptr<cogment::Stub_pool<cogment::EnvironmentEndpoint>::Entry> m_env_entry;
 
-  InternalState state_;
-  uint64_t tick_id_;
-  const uint64_t start_timestamp_;
-  uint64_t end_timestamp_;
+  InternalState m_state;
+  uint64_t m_tick_id;
+  const uint64_t m_start_timestamp;
+  uint64_t m_end_timestamp;
 
-  std::vector<std::unique_ptr<Actor>> actors_;
-  std::vector<Message> env_message_accumulator_;
-  std::unordered_map<std::string, uint32_t> actor_indexes_;
-  std::chrono::time_point<std::chrono::steady_clock> last_activity_;
+  std::vector<std::unique_ptr<Actor>> m_actors;
+  std::vector<Message> m_env_message_accumulator;
+  std::unordered_map<std::string, uint32_t> m_actor_indexes;
+  std::chrono::time_point<std::chrono::steady_clock> m_last_activity;
 
-  std::vector<grpc_metadata> headers_;
-  easy_grpc::client::Call_options call_options_;
+  std::vector<grpc_metadata> m_headers;
+  easy_grpc::client::Call_options m_call_options;
 
-  std::optional<::easy_grpc::Stream_promise<::cogment::EnvActionRequest>> outgoing_actions_;
+  std::optional<::easy_grpc::Stream_promise<::cogment::EnvActionRequest>> m_outgoing_actions;
 
-  std::uint32_t gathered_actions_count_ = 0;
+  std::uint32_t m_gathered_actions_count = 0;
 
-  std::unique_ptr<TrialLogInterface> datalog_interface_;
-  std::deque<cogment::DatalogSample> step_data_;
+  std::unique_ptr<TrialLogInterface> m_datalog_interface;
+  std::deque<cogment::DatalogSample> m_step_data;
 };
 
 const char* get_trial_state_string(Trial::InternalState);

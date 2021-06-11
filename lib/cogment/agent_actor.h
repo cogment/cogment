@@ -46,16 +46,16 @@ class Agent : public Actor {
   private:
   void lazy_start_decision_stream();
 
-  StubEntryType stub_entry_;
-  std::vector<grpc_metadata> headers_;
-  easy_grpc::client::Call_options options_;
+  StubEntryType m_stub_entry;
+  std::vector<grpc_metadata> m_headers;
+  easy_grpc::client::Call_options m_options;
 
-  cogment::Action latest_action_;
-  std::optional<std::string> config_data_;
+  cogment::Action m_latest_action;
+  std::optional<std::string> m_config_data;
 
-  std::optional<::easy_grpc::Stream_promise<::cogment::AgentObservationRequest>> outgoing_observations_;
+  std::optional<::easy_grpc::Stream_promise<::cogment::AgentObservationRequest>> m_outgoing_observations;
 
-  std::string impl_;
+  std::string m_impl;
 };
 
 }  // namespace cogment

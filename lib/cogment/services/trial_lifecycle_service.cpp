@@ -24,20 +24,20 @@
 
 namespace cogment {
 
-TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_(orch) {}
+TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : m_orchestrator(orch) {}
 
 ::easy_grpc::Future<::cogment::TrialStartReply> TrialLifecycleService::StartTrial(::cogment::TrialStartRequest req,
                                                                                   easy_grpc::Context) {
   SPDLOG_TRACE("StartTrial [{}]", req.user_id());
 
-  auto params = orchestrator_->default_trial_params();
+  auto params = m_orchestrator->default_trial_params();
 
   // Apply config override if provided
   if (req.has_config()) {
     params.mutable_trial_config()->set_content(req.config().content());
   }
 
-  auto trial_fut = orchestrator_->start_trial(std::move(params), req.user_id());
+  auto trial_fut = m_orchestrator->start_trial(std::move(params), req.user_id());
 
   return trial_fut.then([](std::shared_ptr<Trial> trial) {
     ::cogment::TrialStartReply reply;
@@ -59,7 +59,7 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_
   const auto trial_id_strv = ctx.get_client_header("trial-id");
   SPDLOG_TRACE("TerminateTrial [{}]", trial_id_strv);
 
-  auto trial = orchestrator_->get_trial(uuids::uuid::from_string(trial_id_strv));
+  auto trial = m_orchestrator->get_trial(uuids::uuid::from_string(trial_id_strv));
   if (trial != nullptr) {
     trial->terminate();
   }
@@ -82,7 +82,7 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_
   cogment::TrialInfoReply result;
   if (!trial_id_strv.empty()) {
     const auto trial_id = uuids::uuid::from_string(trial_id_strv);
-    auto trial = orchestrator_->get_trial(trial_id);
+    auto trial = m_orchestrator->get_trial(trial_id);
     if (trial != nullptr) {
       auto trial_info = result.add_trial();
       trial->set_info(trial_info, req.get_latest_observation(), req.get_actor_list());
@@ -90,7 +90,7 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_
   }
   else {
     // The user is asking for ALL trials
-    auto trials = orchestrator_->all_trials();
+    auto trials = m_orchestrator->all_trials();
     for (auto& trial : trials) {
       auto trial_info = result.add_trial();
       trial->set_info(trial_info, req.get_latest_observation(), req.get_actor_list());
@@ -132,7 +132,7 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : orchestrator_
     }
   };
 
-  orchestrator_->watch_trials(std::move(handler));
+  m_orchestrator->watch_trials(std::move(handler));
 
   return future;
 }

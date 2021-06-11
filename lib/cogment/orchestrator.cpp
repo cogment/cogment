@@ -36,32 +36,32 @@ slt::Setting garbage_collection_frequency = slt::Setting_builder<std::uint32_t>(
 namespace cogment {
 Orchestrator::Orchestrator(Trial_spec trial_spec, cogment::TrialParams default_trial_params,
                            std::shared_ptr<easy_grpc::client::Credentials> creds)
-    : trial_spec_(std::move(trial_spec)),
-      default_trial_params_(std::move(default_trial_params)),
-      channel_pool_(creds),
-      env_stubs_(&channel_pool_, &client_queue_),
-      agent_stubs_(&channel_pool_, &client_queue_),
-      actor_service_(this),
-      trial_lifecycle_service_(this) {
+    : m_trial_spec(std::move(trial_spec)),
+      m_default_trial_params(std::move(default_trial_params)),
+      m_channel_pool(creds),
+      m_env_stubs(&m_channel_pool, &m_client_queue),
+      m_agent_stubs(&m_channel_pool, &m_client_queue),
+      m_actor_service(this),
+      m_trial_lifecycle_service(this) {
   SPDLOG_TRACE("Orchestrator()");
-  garbage_collection_countdown_.store(settings::garbage_collection_frequency.get());
+  m_garbage_collection_countdown.store(settings::garbage_collection_frequency.get());
 }
 
 Orchestrator::~Orchestrator() { SPDLOG_TRACE("~Orchestrator()"); }
 
 aom::Future<std::shared_ptr<Trial>> Orchestrator::start_trial(cogment::TrialParams params, std::string user_id) {
-  garbage_collection_countdown_--;
-  if (garbage_collection_countdown_ <= 0) {
-    garbage_collection_countdown_.store(settings::garbage_collection_frequency.get());
-    perform_garbage_collection_();
+  m_garbage_collection_countdown--;
+  if (m_garbage_collection_countdown <= 0) {
+    m_garbage_collection_countdown.store(settings::garbage_collection_frequency.get());
+    m_perform_garbage_collection();
   }
 
   auto new_trial = std::make_shared<Trial>(this, user_id);
 
   // Register the trial immediately.
   {
-    const std::lock_guard lg(trials_mutex_);
-    trials_[new_trial->id()] = new_trial;
+    const std::lock_guard lg(m_trials_mutex);
+    m_trials[new_trial->id()] = new_trial;
   }
 
   cogment::PreTrialContext init_ctx;
@@ -69,7 +69,7 @@ aom::Future<std::shared_ptr<Trial>> Orchestrator::start_trial(cogment::TrialPara
   init_ctx.set_user_id(user_id);
 
   auto trial_id = to_string(new_trial->id());
-  auto final_ctx_fut = perform_pre_hooks_(std::move(init_ctx), trial_id);
+  auto final_ctx_fut = m_perform_pre_hooks(std::move(init_ctx), trial_id);
 
   return final_ctx_fut.then([new_trial, trial_id](auto final_ctx) {
     new_trial->start(std::move(*final_ctx.mutable_params()));
@@ -84,18 +84,18 @@ TrialJoinReply Orchestrator::client_joined(TrialJoinRequest req) {
   TrialJoinReply result;
 
   if (req.trial_id() != "") {
-    const std::lock_guard lg(trials_mutex_);
+    const std::lock_guard lg(m_trials_mutex);
 
     auto trial_uuid = uuids::uuid::from_string(req.trial_id());
-    auto trial_itor = trials_.find(trial_uuid);
-    if (trial_itor != trials_.end()) {
+    auto trial_itor = m_trials.find(trial_uuid);
+    if (trial_itor != m_trials.end()) {
       joined_as_actor = trial_itor->second->get_join_candidate(req);
     }
   }
   else {
-    const std::lock_guard lg(trials_mutex_);
+    const std::lock_guard lg(m_trials_mutex);
     // We need to find a valid trial
-    for (auto& candidate_trial : trials_) {
+    for (auto& candidate_trial : m_trials) {
       joined_as_actor = candidate_trial.second->get_join_candidate(req);
       if (joined_as_actor) {
         break;
@@ -139,10 +139,10 @@ TrialJoinReply Orchestrator::client_joined(TrialJoinRequest req) {
   return actor->bind(std::move(actions));
 }
 
-void Orchestrator::add_prehook(const HookEntryType& hook) { prehooks_.push_back(hook); }
+void Orchestrator::add_prehook(const HookEntryType& hook) { m_prehooks.push_back(hook); }
 
-aom::Future<cogment::PreTrialContext> Orchestrator::perform_pre_hooks_(cogment::PreTrialContext ctx,
-                                                                       const std::string& trial_id) {
+aom::Future<cogment::PreTrialContext> Orchestrator::m_perform_pre_hooks(cogment::PreTrialContext ctx,
+                                                                        const std::string& trial_id) {
   grpc_metadata trial_header;
   trial_header.key = grpc_slice_from_static_string("trial-id");
   trial_header.value = grpc_slice_from_copied_string(trial_id.c_str());
@@ -158,7 +158,7 @@ aom::Future<cogment::PreTrialContext> Orchestrator::perform_pre_hooks_(cogment::
   auto result = prom.get_future();
   prom.set_value(std::move(ctx));
 
-  for (auto& hook : prehooks_) {
+  for (auto& hook : m_prehooks) {
     result = result.then([hook, options, headers](auto context) {
       spdlog::debug("Calling a pre-hook on trial parameters");
       return hook->get_stub().OnPreTrial(std::move(context), options);
@@ -168,23 +168,23 @@ aom::Future<cogment::PreTrialContext> Orchestrator::perform_pre_hooks_(cogment::
   return result.then([headers](auto v) { return v; });
 }
 
-void Orchestrator::set_log_exporter(std::unique_ptr<DatalogStorageInterface> le) { log_exporter_ = std::move(le); }
+void Orchestrator::set_log_exporter(std::unique_ptr<DatalogStorageInterface> le) { m_log_exporter = std::move(le); }
 
 // TODO: Add a timer to do garbage collection after 60 seconds (or whatever) since the last call
 //       in order to prevent old, ended or stale trials from lingering if no new trials are started.
-void Orchestrator::perform_garbage_collection_() {
+void Orchestrator::m_perform_garbage_collection() {
   spdlog::debug("Performing garbage collection of ended and stale trials");
 
   std::vector<Trial*> stale_trials;
   {
-    const std::lock_guard lg(trials_mutex_);
+    const std::lock_guard lg(m_trials_mutex);
 
-    auto itor = trials_.begin();
-    while (itor != trials_.end()) {
+    auto itor = m_trials.begin();
+    while (itor != m_trials.end()) {
       auto& trial = itor->second;
 
       if (trial->state() == Trial::InternalState::ended) {
-        itor = trials_.erase(itor);
+        itor = m_trials.erase(itor);
       }
       else if (trial->is_stale()) {
         stale_trials.emplace_back(trial.get());
@@ -206,9 +206,9 @@ void Orchestrator::perform_garbage_collection_() {
 }
 
 std::shared_ptr<Trial> Orchestrator::get_trial(const uuids::uuid& trial_id) const {
-  const std::lock_guard lg(trials_mutex_);
-  auto itor = trials_.find(trial_id);
-  if (itor != trials_.end()) {
+  const std::lock_guard lg(m_trials_mutex);
+  auto itor = m_trials.find(trial_id);
+  if (itor != m_trials.end()) {
     return itor->second;
   }
   else {
@@ -217,12 +217,12 @@ std::shared_ptr<Trial> Orchestrator::get_trial(const uuids::uuid& trial_id) cons
 }
 
 std::vector<std::shared_ptr<Trial>> Orchestrator::all_trials() const {
-  const std::lock_guard lg(trials_mutex_);
+  const std::lock_guard lg(m_trials_mutex);
 
   std::vector<std::shared_ptr<Trial>> result;
-  result.reserve(trials_.size());
+  result.reserve(m_trials.size());
 
-  for (const auto& t : trials_) {
+  for (const auto& t : m_trials) {
     result.push_back(t.second);
   }
 
@@ -232,23 +232,23 @@ std::vector<std::shared_ptr<Trial>> Orchestrator::all_trials() const {
 void Orchestrator::watch_trials(HandlerFunction func) {
   SPDLOG_TRACE("Adding new notification function");
 
-  const std::lock_guard lg(notification_lock_);
+  const std::lock_guard lg(m_notification_lock);
 
   // Report current trial states
   for (const auto& trial : all_trials()) {
     func(*trial.get());
   }
 
-  trial_watchers_.emplace_back(std::move(func));
+  m_trial_watchers.emplace_back(std::move(func));
 }
 
 void Orchestrator::notify_watchers(const Trial& trial) {
   SPDLOG_TRACE("Trial [{}] changed state to [{}] at tick [{}]", to_string(trial.id()),
                get_trial_state_string(trial.state()), trial.tick_id());
 
-  const std::lock_guard lg(notification_lock_);
+  const std::lock_guard lg(m_notification_lock);
 
-  for (auto& handler : trial_watchers_) {
+  for (auto& handler : m_trial_watchers) {
     handler(trial);
   }
 }

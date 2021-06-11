@@ -63,13 +63,13 @@ class Actor {
   virtual void dispatch_message(cogment::Message&& message) = 0;
 
   private:
-  Trial* trial_;
-  std::string actor_name_;
-  const ActorClass* actor_class_;
-  std::mutex lock_;
+  Trial* m_trial;
+  std::string m_actor_name;
+  const ActorClass* m_actor_class;
+  std::mutex m_lock;
 
-  RewAccumulator reward_accumulator_;
-  std::vector<cogment::Message> message_accumulator_;
+  RewAccumulator m_reward_accumulator;
+  std::vector<cogment::Message> m_message_accumulator;
 };
 
 struct ActorClass {

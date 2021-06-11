@@ -41,19 +41,19 @@ namespace cogment {
 // A thread-safe pool of easy-grpc Communication channel
 class Channel_pool {
   public:
-  Channel_pool(std::shared_ptr<easy_grpc::client::Credentials> creds) : creds_(creds) {}
+  Channel_pool(std::shared_ptr<easy_grpc::client::Credentials> creds) : m_creds(creds) {}
 
   // Gets an easy-grpc channel to the target url, recycling an existing one if
   // present.
   std::shared_ptr<::easy_grpc::client::Channel> get_channel(const std::string& url) {
-    std::lock_guard l(mtx_);
+    std::lock_guard l(m_mtx);
 
-    auto& found = channels_[url];
+    auto& found = m_channels[url];
     auto result = found.lock();
 
     if (!result) {
-      if (creds_.get() != nullptr) {
-        result = std::make_shared<::easy_grpc::client::Secure_channel>(url, nullptr, creds_.get());
+      if (m_creds.get() != nullptr) {
+        result = std::make_shared<::easy_grpc::client::Secure_channel>(url, nullptr, m_creds.get());
         spdlog::info("Opening secured channel to {}", url);
       }
       else {
@@ -67,11 +67,11 @@ class Channel_pool {
     return result;
   }
 
-  std::mutex mtx_;
-  std::unordered_map<std::string, std::weak_ptr<::easy_grpc::client::Channel>> channels_;
+  std::mutex m_mtx;
+  std::unordered_map<std::string, std::weak_ptr<::easy_grpc::client::Channel>> m_channels;
 
   private:
-  std::shared_ptr<easy_grpc::client::Credentials> creds_;
+  std::shared_ptr<easy_grpc::client::Credentials> m_creds;
 };
 
 // A minimal thread-safe queue
@@ -117,7 +117,7 @@ class Stub_pool {
 
   // Constructor
   Stub_pool(Channel_pool* channel_pool, easy_grpc::Completion_queue* queue)
-      : channel_pool_(channel_pool), queue_(queue) {}
+      : m_channel_pool(channel_pool), m_queue(queue) {}
 
   using SerializedFunc = std::function<void()>;
   struct SerialCall {
@@ -221,17 +221,17 @@ class Stub_pool {
     if (url.find("grpc://") != 0) {
       throw MakeException("Bad grpc url: [%s]", url.c_str());
     }
-    std::lock_guard l(mtx_);
+    std::lock_guard l(m_mtx);
 
     auto real_url = url.substr(7);
-    auto& found = entries_[real_url];
+    auto& found = m_entries[real_url];
     auto result = found.lock();
 
     if (!result) {
       spdlog::info("Opening stub for {} at {}", typeid(Service_T).name(), real_url);
-      auto channel = channel_pool_->get_channel(real_url);
+      auto channel = m_channel_pool->get_channel(real_url);
 
-      result = std::make_shared<Entry>(std::move(channel), stub_type(channel.get(), queue_));
+      result = std::make_shared<Entry>(std::move(channel), stub_type(channel.get(), m_queue));
       found = result;
       result->enable_serialization(found);
       spdlog::debug("Stub {} at {} ready for use", typeid(Service_T).name(), real_url);
@@ -241,10 +241,10 @@ class Stub_pool {
   }
 
   private:
-  std::mutex mtx_;
-  Channel_pool* channel_pool_;
-  easy_grpc::Completion_queue* queue_;
-  std::unordered_map<std::string, std::weak_ptr<Entry>> entries_;
+  std::mutex m_mtx;
+  Channel_pool* m_channel_pool;
+  easy_grpc::Completion_queue* m_queue;
+  std::unordered_map<std::string, std::weak_ptr<Entry>> m_entries;
 };
 
 }  // namespace cogment

@@ -26,11 +26,11 @@
 #include <string>
 
 namespace cogment {
-ActorService::ActorService(Orchestrator* orch) : orchestrator_(orch) {}
+ActorService::ActorService(Orchestrator* orch) : m_orchestrator(orch) {}
 
 ::cogment::TrialJoinReply ActorService::JoinTrial(::cogment::TrialJoinRequest req, easy_grpc::Context) {
   SPDLOG_TRACE("JoinTrial [{}]", req.trial_id());
-  return orchestrator_->client_joined(std::move(req));
+  return m_orchestrator->client_joined(std::move(req));
 }
 
 ::easy_grpc::Stream_future<::cogment::TrialActionReply> ActorService::ActionStream(
@@ -39,7 +39,7 @@ ActorService::ActorService(Orchestrator* orch) : orchestrator_(orch) {}
   std::string actor_name(ctx.get_client_header("actor-name"));
 
   SPDLOG_TRACE("ActionStream [{}] [{}]", ctx.get_client_header("trial-id"), actor_name);
-  return orchestrator_->bind_client(trial_id, actor_name, std::move(actions));
+  return m_orchestrator->bind_client(trial_id, actor_name, std::move(actions));
 }
 
 ::easy_grpc::Future<::cogment::TrialHeartbeatReply> ActorService::Heartbeat(::cogment::TrialHeartbeatRequest,
@@ -53,7 +53,7 @@ ActorService::ActorService(Orchestrator* orch) : orchestrator_(orch) {}
   std::string actor_name(ctx.get_client_header("actor-name"));
   SPDLOG_TRACE("SendReward [{}] [{}]", ctx.get_client_header("trial-id"), actor_name);
 
-  auto trial = orchestrator_->get_trial(trial_id);
+  auto trial = m_orchestrator->get_trial(trial_id);
   if (trial != nullptr) {
     for (auto& rew : reward.rewards()) {
       trial->reward_received(rew, actor_name);
@@ -77,7 +77,7 @@ ActorService::ActorService(Orchestrator* orch) : orchestrator_(orch) {}
   std::string actor_name(ctx.get_client_header("actor-name"));
   SPDLOG_TRACE("SendMessage [{}] [{}]", ctx.get_client_header("trial-id"), actor_name);
 
-  auto trial = orchestrator_->get_trial(trial_id);
+  auto trial = m_orchestrator->get_trial(trial_id);
   if (trial != nullptr) {
     for (auto& mess : message.messages()) {
       trial->message_received(mess, actor_name);

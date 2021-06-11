@@ -74,36 +74,36 @@ cogment::TrialState get_trial_api_state(Trial::InternalState state) {
   throw MakeException<std::out_of_range>("Unknown trial state for api: [%d]", static_cast<int>(state));
 }
 
-uuids::uuid_system_generator Trial::id_generator_;
+uuids::uuid_system_generator Trial::m_id_generator;
 
 Trial::Trial(Orchestrator* orch, std::string user_id)
-    : orchestrator_(orch),
-      id_(id_generator_()),
-      user_id_(std::move(user_id)),
-      state_(InternalState::unknown),
-      tick_id_(0),
-      start_timestamp_(Timestamp()),
-      end_timestamp_(0) {
-  SPDLOG_TRACE("New Trial [{}]", to_string(id_));
+    : m_orchestrator(orch),
+      m_id(m_id_generator()),
+      m_user_id(std::move(user_id)),
+      m_state(InternalState::unknown),
+      m_tick_id(0),
+      m_start_timestamp(Timestamp()),
+      m_end_timestamp(0) {
+  SPDLOG_TRACE("New Trial [{}]", to_string(m_id));
 
   set_state(InternalState::initializing);
   refresh_activity();
 
-  datalog_interface_ = orch->start_log(this);
+  m_datalog_interface = orch->start_log(this);
 }
 
-Trial::~Trial() { SPDLOG_TRACE("Tearing down trial [{}]", to_string(id_)); }
+Trial::~Trial() { SPDLOG_TRACE("Tearing down trial [{}]", to_string(m_id)); }
 
 const std::unique_ptr<Actor>& Trial::actor(const std::string& name) const {
-  auto actor_index = actor_indexes_.at(name);
-  return actors_[actor_index];
+  auto actor_index = m_actor_indexes.at(name);
+  return m_actors[actor_index];
 }
 
 void Trial::advance_tick() {
-  SPDLOG_TRACE("Tick [{}] is done for Trial [{}]", tick_id_, to_string(id_));
+  SPDLOG_TRACE("Tick [{}] is done for Trial [{}]", m_tick_id, to_string(m_id));
 
-  tick_id_++;
-  if (tick_id_ > MAX_TICK_ID) {
+  m_tick_id++;
+  if (m_tick_id > MAX_TICK_ID) {
     throw MakeException("Tick id has reached the limit");
   }
 }
@@ -118,7 +118,7 @@ void Trial::new_obs(ObservationSet&& obs) {
   else {
     const uint64_t new_tick_id = static_cast<uint64_t>(obs.tick_id());
 
-    if (new_tick_id < tick_id_) {
+    if (new_tick_id < m_tick_id) {
       throw MakeException("Environment repeated a tick id: [%llu]", new_tick_id);
     }
 
@@ -126,8 +126,8 @@ void Trial::new_obs(ObservationSet&& obs) {
       throw MakeException("Tick id from environment is too large");
     }
 
-    if (new_tick_id > tick_id_) {
-      throw MakeException("Environment skipped tick id: [%llu] vs [%llu]", new_tick_id, tick_id_);
+    if (new_tick_id > m_tick_id) {
+      throw MakeException("Environment skipped tick id: [%llu] vs [%llu]", new_tick_id, m_tick_id);
     }
   }
 
@@ -136,9 +136,9 @@ void Trial::new_obs(ObservationSet&& obs) {
 }
 
 cogment::DatalogSample* Trial::get_last_sample() {
-  const std::lock_guard<std::mutex> lg(sample_lock_);
-  if (!step_data_.empty()) {
-    return &(step_data_.back());
+  const std::lock_guard<std::mutex> lg(m_sample_lock);
+  if (!m_step_data.empty()) {
+    return &(m_step_data.back());
   }
   else {
     return nullptr;
@@ -146,47 +146,47 @@ cogment::DatalogSample* Trial::get_last_sample() {
 }
 
 cogment::DatalogSample& Trial::make_new_sample() {
-  const std::lock_guard<std::mutex> lg(sample_lock_);
+  const std::lock_guard<std::mutex> lg(m_sample_lock);
 
-  if (!step_data_.empty()) {
-    step_data_.back().mutable_trial_data()->set_state(get_trial_api_state(state_));
+  if (!m_step_data.empty()) {
+    m_step_data.back().mutable_trial_data()->set_state(get_trial_api_state(m_state));
   }
 
-  step_data_.emplace_back();
-  auto& sample = step_data_.back();
+  m_step_data.emplace_back();
+  auto& sample = m_step_data.back();
 
   auto sample_actions = sample.mutable_actions();
-  sample_actions->Reserve(actors_.size());
-  for (size_t index = 0; index < actors_.size(); index++) {
+  sample_actions->Reserve(m_actors.size());
+  for (size_t index = 0; index < m_actors.size(); index++) {
     auto no_action = sample_actions->Add();
     no_action->set_tick_id(NO_DATA_TICK_ID);
   }
-  gathered_actions_count_ = 0;
+  m_gathered_actions_count = 0;
 
   auto trial_data = sample.mutable_trial_data();
-  trial_data->set_tick_id(tick_id_);
+  trial_data->set_tick_id(m_tick_id);
   trial_data->set_timestamp(Timestamp());
 
   return sample;
 }
 
 void Trial::flush_samples() {
-  const std::lock_guard<std::mutex> lg(sample_lock_);
+  const std::lock_guard<std::mutex> lg(m_sample_lock);
 
-  if (!step_data_.empty()) {
-    step_data_.back().mutable_trial_data()->set_state(get_trial_api_state(state_));
+  if (!m_step_data.empty()) {
+    m_step_data.back().mutable_trial_data()->set_state(get_trial_api_state(m_state));
   }
 
-  for (auto& sample : step_data_) {
-    datalog_interface_->add_sample(std::move(sample));
+  for (auto& sample : m_step_data) {
+    m_datalog_interface->add_sample(std::move(sample));
   }
-  step_data_.clear();
+  m_step_data.clear();
 }
 
 void Trial::prepare_actors() {
-  for (const auto& actor_info : params_.actors()) {
+  for (const auto& actor_info : m_params.actors()) {
     auto url = actor_info.endpoint();
-    const auto& actor_class = orchestrator_->get_trial_spec().get_actor_class(actor_info.actor_class());
+    const auto& actor_class = m_orchestrator->get_trial_spec().get_actor_class(actor_info.actor_class());
 
     if (url == "client") {
       std::optional<std::string> config;
@@ -194,35 +194,35 @@ void Trial::prepare_actors() {
         config = actor_info.config().content();
       }
       auto client_actor = std::make_unique<Client_actor>(this, actor_info.name(), &actor_class, config);
-      actors_.push_back(std::move(client_actor));
+      m_actors.push_back(std::move(client_actor));
     }
     else {
       std::optional<std::string> config;
       if (actor_info.has_config()) {
         config = actor_info.config().content();
       }
-      auto stub_entry = orchestrator_->agent_pool()->get_stub_entry(url);
+      auto stub_entry = m_orchestrator->agent_pool()->get_stub_entry(url);
       auto agent_actor = std::make_unique<Agent>(this, actor_info.name(), &actor_class, actor_info.implementation(),
                                                  stub_entry, config);
-      actors_.push_back(std::move(agent_actor));
+      m_actors.push_back(std::move(agent_actor));
     }
 
-    actor_indexes_.emplace(actor_info.name(), actors_.size() - 1);
+    m_actor_indexes.emplace(actor_info.name(), m_actors.size() - 1);
   }
 }
 
 cogment::EnvStartRequest Trial::prepare_environment() {
-  env_entry_ = orchestrator_->env_pool()->get_stub_entry(params_.environment().endpoint());
+  m_env_entry = m_orchestrator->env_pool()->get_stub_entry(m_params.environment().endpoint());
 
   cogment::EnvStartRequest env_start_req;
-  env_start_req.set_tick_id(tick_id_);
-  env_start_req.set_impl_name(params_.environment().implementation());
-  if (params_.environment().has_config()) {
-    *env_start_req.mutable_config() = params_.environment().config();
+  env_start_req.set_tick_id(m_tick_id);
+  env_start_req.set_impl_name(m_params.environment().implementation());
+  if (m_params.environment().has_config()) {
+    *env_start_req.mutable_config() = m_params.environment().config();
   }
 
-  for (const auto& actor_info : params_.actors()) {
-    const auto& actor_class = orchestrator_->get_trial_spec().get_actor_class(actor_info.actor_class());
+  for (const auto& actor_info : m_params.actors()) {
+    const auto& actor_class = m_orchestrator->get_trial_spec().get_actor_class(actor_info.actor_class());
     auto actor_in_trial = env_start_req.add_actors_in_trial();
     actor_in_trial->set_actor_class(actor_class.name);
     actor_in_trial->set_name(actor_info.name());
@@ -232,21 +232,21 @@ cogment::EnvStartRequest Trial::prepare_environment() {
 }
 
 void Trial::start(cogment::TrialParams params) {
-  SPDLOG_TRACE("Starting Trial [{}]", to_string(id_));
+  SPDLOG_TRACE("Starting Trial [{}]", to_string(m_id));
 
-  if (state_ != InternalState::initializing) {
-    throw MakeException("Trial [%s] is not in proper state to start: [%s]", to_string(id_).c_str(),
-                        get_trial_state_string(state_));
+  if (m_state != InternalState::initializing) {
+    throw MakeException("Trial [%s] is not in proper state to start: [%s]", to_string(m_id).c_str(),
+                        get_trial_state_string(m_state));
   }
 
-  params_ = std::move(params);
-  SPDLOG_DEBUG("Configuring trial {} with parameters: {}", to_string(id_), params_.DebugString());
+  m_params = std::move(params);
+  SPDLOG_DEBUG("Configuring trial {} with parameters: {}", to_string(m_id), m_params.DebugString());
 
   grpc_metadata trial_header;
   trial_header.key = grpc_slice_from_static_string("trial-id");
-  trial_header.value = grpc_slice_from_copied_string(to_string(id_).c_str());
-  headers_.push_back(trial_header);
-  call_options_.headers = &headers_;
+  trial_header.value = grpc_slice_from_copied_string(to_string(m_id).c_str());
+  m_headers.push_back(trial_header);
+  m_call_options.headers = &m_headers;
 
   auto env_start_req = prepare_environment();
 
@@ -257,11 +257,11 @@ void Trial::start(cogment::TrialParams params) {
   set_state(InternalState::pending);
 
   std::vector<aom::Future<void>> actors_ready;
-  for (const auto& actor : actors_) {
+  for (const auto& actor : m_actors) {
     actors_ready.push_back(actor->init());
   }
 
-  auto env_ready = env_entry_->get_stub().OnStart(std::move(env_start_req), call_options_).then_expect([](auto rep) {
+  auto env_ready = m_env_entry->get_stub().OnStart(std::move(env_start_req), m_call_options).then_expect([](auto rep) {
     if (!rep) {
       spdlog::error("failed to connect to environment");
       try {
@@ -275,7 +275,7 @@ void Trial::start(cogment::TrialParams params) {
   });
 
   auto self = shared_from_this();
-  SPDLOG_TRACE("Trial [{}]: waiting for actors and environment...", to_string(id_));
+  SPDLOG_TRACE("Trial [{}]: waiting for actors and environment...", to_string(m_id));
   join(env_ready, concat(actors_ready.begin(), actors_ready.end()))
       .then([this](auto env_rep) {
         new_obs(std::move(*env_rep.mutable_observation_set()));
@@ -287,20 +287,20 @@ void Trial::start(cogment::TrialParams params) {
         // Send the initial state
         dispatch_observations();
       })
-      .finally([self](auto) { SPDLOG_TRACE("Trial [{}]: All components started.", to_string(self->id_)); });
+      .finally([self](auto) { SPDLOG_TRACE("Trial [{}]: All components started.", to_string(self->m_id)); });
 
-  spdlog::debug("Trial {} is configured", to_string(id_));
+  spdlog::debug("Trial {} is configured", to_string(m_id));
 }
 
 void Trial::reward_received(const cogment::Reward& reward, const std::string& sender) {
-  if (state_ < InternalState::pending) {
-    spdlog::warn("Too early for trial [{}] to receive rewards.", to_string(id_));
+  if (m_state < InternalState::pending) {
+    spdlog::warn("Too early for trial [{}] to receive rewards.", to_string(m_id));
     return;
   }
 
   auto sample = get_last_sample();
   if (sample != nullptr) {
-    const std::lock_guard<std::mutex> lg(reward_lock_);
+    const std::lock_guard<std::mutex> lg(m_reward_lock);
     auto new_rew = sample->add_rewards();
     *new_rew = reward;
   }
@@ -309,18 +309,18 @@ void Trial::reward_received(const cogment::Reward& reward, const std::string& se
   }
 
   // TODO: Decide what to do with timed rewards (send anything present and past, hold future?)
-  if (reward.tick_id() != AUTO_TICK_ID && reward.tick_id() != static_cast<int64_t>(tick_id_)) {
-    spdlog::error("Invalid reward tick from [{}]: [{}] (current tick id: [{}])", sender, reward.tick_id(), tick_id_);
+  if (reward.tick_id() != AUTO_TICK_ID && reward.tick_id() != static_cast<int64_t>(m_tick_id)) {
+    spdlog::error("Invalid reward tick from [{}]: [{}] (current tick id: [{}])", sender, reward.tick_id(), m_tick_id);
     return;
   }
 
   // Rewards are not dispatched as we receive them. They are accumulated, and sent once
   // per update.
-  auto actor_index_itor = actor_indexes_.find(reward.receiver_name());
-  if (actor_index_itor != actor_indexes_.end()) {
+  auto actor_index_itor = m_actor_indexes.find(reward.receiver_name());
+  if (actor_index_itor != m_actor_indexes.end()) {
     // Normally we should have only one source when receiving
     for (const auto& src : reward.sources()) {
-      actors_[actor_index_itor->second]->add_immediate_reward_src(src, sender, tick_id_);
+      m_actors[actor_index_itor->second]->add_immediate_reward_src(src, sender, m_tick_id);
     }
   }
   else {
@@ -329,14 +329,14 @@ void Trial::reward_received(const cogment::Reward& reward, const std::string& se
 }
 
 void Trial::message_received(const cogment::Message& message, const std::string& sender) {
-  if (state_ < InternalState::pending) {
-    spdlog::warn("Too early for trial [{}] to receive messages.", to_string(id_));
+  if (m_state < InternalState::pending) {
+    spdlog::warn("Too early for trial [{}] to receive messages.", to_string(m_id));
     return;
   }
 
   auto sample = get_last_sample();
   if (sample != nullptr) {
-    const std::lock_guard<std::mutex> lg(sample_message_lock_);
+    const std::lock_guard<std::mutex> lg(m_sample_message_lock);
     auto new_msg = sample->add_messages();
     *new_msg = message;
   }
@@ -345,22 +345,22 @@ void Trial::message_received(const cogment::Message& message, const std::string&
   }
 
   // TODO: Decide what to do with timed messages (send anything present and past, hold future?)
-  if (message.tick_id() != AUTO_TICK_ID && message.tick_id() != static_cast<int64_t>(tick_id_)) {
-    spdlog::error("Invalid message tick from [{}]: [{}] (current tick id: [{}])", sender, message.tick_id(), tick_id_);
+  if (message.tick_id() != AUTO_TICK_ID && message.tick_id() != static_cast<int64_t>(m_tick_id)) {
+    spdlog::error("Invalid message tick from [{}]: [{}] (current tick id: [{}])", sender, message.tick_id(), m_tick_id);
     return;
   }
 
   // Message is not dispatched as we receive it. It is accumulated, and sent once
   // per update.
-  auto actor_index_itor = actor_indexes_.find(message.receiver_name());
-  if (actor_index_itor != actor_indexes_.end()) {
-    actors_[actor_index_itor->second]->add_immediate_message(message, sender, tick_id_);
+  auto actor_index_itor = m_actor_indexes.find(message.receiver_name());
+  if (actor_index_itor != m_actor_indexes.end()) {
+    m_actors[actor_index_itor->second]->add_immediate_message(message, sender, m_tick_id);
   }
   else if (message.receiver_name() == ENVIRONMENT_ACTOR_NAME) {
-    const std::lock_guard<std::mutex> lg(env_message_lock_);
-    env_message_accumulator_.emplace_back(message);
-    env_message_accumulator_.back().set_tick_id(tick_id_);
-    env_message_accumulator_.back().set_sender_name(sender);
+    const std::lock_guard<std::mutex> lg(m_env_message_lock);
+    m_env_message_accumulator.emplace_back(message);
+    m_env_message_accumulator.back().set_tick_id(m_tick_id);
+    m_env_message_accumulator.back().set_sender_name(sender);
   }
   else {
     spdlog::error("Unknown receiver name as message destination [{}]", message.receiver_name());
@@ -383,10 +383,10 @@ void Trial::next_step(EnvActionReply&& reply) {
 }
 
 void Trial::dispatch_observations() {
-  if (state_ == InternalState::ended) {
+  if (m_state == InternalState::ended) {
     return;
   }
-  const bool ending = (state_ == InternalState::terminating);
+  const bool ending = (m_state == InternalState::terminating);
 
   auto sample = get_last_sample();
   if (sample == nullptr) {
@@ -395,10 +395,10 @@ void Trial::dispatch_observations() {
   const auto& observations = sample->observations();
 
   std::uint32_t actor_index = 0;
-  for (const auto& actor : actors_) {
+  for (const auto& actor : m_actors) {
     auto obs_index = observations.actors_map(actor_index);
     cogment::Observation obs;
-    obs.set_tick_id(tick_id_);
+    obs.set_tick_id(m_tick_id);
     obs.set_timestamp(observations.timestamp());
     *obs.mutable_data() = observations.observations(obs_index);
     actor->dispatch_tick(std::move(obs), ending);
@@ -419,13 +419,13 @@ void Trial::cycle_buffer() {
   static_assert(NB_BUFFERED_SAMPLES >= MIN_NB_BUFFERED_SAMPLES);
   static_assert(LOG_BATCH_SIZE > 0);
 
-  const std::lock_guard<std::mutex> lg(sample_lock_);
+  const std::lock_guard<std::mutex> lg(m_sample_lock);
 
   // Send overflow to log
-  if (step_data_.size() >= LOG_TRIGGER_SIZE) {
-    while (step_data_.size() >= NB_BUFFERED_SAMPLES) {
-      datalog_interface_->add_sample(std::move(step_data_.front()));
-      step_data_.pop_front();
+  if (m_step_data.size() >= LOG_TRIGGER_SIZE) {
+    while (m_step_data.size() >= NB_BUFFERED_SAMPLES) {
+      m_datalog_interface->add_sample(std::move(m_step_data.front()));
+      m_step_data.pop_front();
     }
   }
 }
@@ -434,16 +434,16 @@ void Trial::run_environment() {
   auto self = shared_from_this();
 
   // Launch the main update stream
-  auto streams = env_entry_->get_stub().OnAction(call_options_);
+  auto streams = m_env_entry->get_stub().OnAction(m_call_options);
 
-  outgoing_actions_ = std::move(std::get<0>(streams));
+  m_outgoing_actions = std::move(std::get<0>(streams));
   auto incoming_updates = std::move(std::get<1>(streams));
 
   incoming_updates
       .for_each([this](auto update) {
-        SPDLOG_TRACE("Received new observation set for Trial [{}]", to_string(id_));
+        SPDLOG_TRACE("Received new observation set for Trial [{}]", to_string(m_id));
 
-        if (state_ == InternalState::ended) {
+        if (m_state == InternalState::ended) {
           return;
         }
         if (update.final_update()) {
@@ -468,12 +468,12 @@ cogment::EnvActionRequest Trial::make_action_request() {
   cogment::EnvActionRequest req;
   auto action_set = req.mutable_action_set();
 
-  action_set->set_tick_id(tick_id_);
+  action_set->set_tick_id(m_tick_id);
 
-  const std::lock_guard<std::mutex> lg(sample_lock_);
-  auto& sample = step_data_.back();
+  const std::lock_guard<std::mutex> lg(m_sample_lock);
+  auto& sample = m_step_data.back();
   for (auto& act : sample.actions()) {
-    if (act.tick_id() == AUTO_TICK_ID || act.tick_id() == static_cast<int64_t>(tick_id_)) {
+    if (act.tick_id() == AUTO_TICK_ID || act.tick_id() == static_cast<int64_t>(m_tick_id)) {
       action_set->add_actions(act.content());
     }
     else {
@@ -489,14 +489,14 @@ cogment::EnvActionRequest Trial::make_action_request() {
 
 void Trial::terminate() {
   {
-    const std::lock_guard<std::shared_mutex> lg(terminating_lock_);
+    const std::lock_guard<std::shared_mutex> lg(m_terminating_lock);
 
-    if (state_ >= InternalState::terminating) {
+    if (m_state >= InternalState::terminating) {
       return;
     }
-    if (state_ != InternalState::running) {
-      spdlog::error("Trial [{}] cannot terminate in current state: [{}]", to_string(id_).c_str(),
-                    get_trial_state_string(state_));
+    if (m_state != InternalState::running) {
+      spdlog::error("Trial [{}] cannot terminate in current state: [{}]", to_string(m_id).c_str(),
+                    get_trial_state_string(m_state));
       return;
     }
 
@@ -511,12 +511,12 @@ void Trial::terminate() {
   auto req = make_action_request();
 
   // Fail safe timed call because this function is also called to end abnormal/stale trials.
-  auto timed_options = call_options_;
+  auto timed_options = m_call_options;
   timed_options.deadline.tv_sec = 60;
   timed_options.deadline.tv_nsec = 0;
   timed_options.deadline.clock_type = GPR_TIMESPAN;
 
-  env_entry_->get_stub()
+  m_env_entry->get_stub()
       .OnEnd(req, timed_options)
       .then([this](auto rep) {
         next_step(std::move(rep));
@@ -525,33 +525,33 @@ void Trial::terminate() {
       .finally([self](auto) {
         // We are holding on to self to be safe.
 
-        if (self->state_ != InternalState::ended) {
+        if (self->m_state != InternalState::ended) {
           // One possible reason is if the environment took longer than the deadline to respond
-          spdlog::error("Trial [{}] did not end normally.", to_string(self->id_));
+          spdlog::error("Trial [{}] did not end normally.", to_string(self->m_id));
 
           // TODO: Send "ended trial" to all components?  So they don't get stuck waiting. Or cut comms?
 
-          self->state_ = InternalState::ended;  // To enable garbage collection on this trial
+          self->m_state = InternalState::ended;  // To enable garbage collection on this trial
         }
       });
 }
 
 void Trial::actor_acted(const std::string& actor_name, const cogment::Action& action) {
-  std::shared_lock<std::shared_mutex> terminating_guard(terminating_lock_);
+  std::shared_lock<std::shared_mutex> terminating_guard(m_terminating_lock);
 
-  if (state_ < InternalState::pending) {
-    spdlog::warn("Too early for trial [{}] to receive actions from [{}].", to_string(id_), actor_name);
+  if (m_state < InternalState::pending) {
+    spdlog::warn("Too early for trial [{}] to receive actions from [{}].", to_string(m_id), actor_name);
     return;
   }
-  if (state_ >= InternalState::terminating) {
+  if (m_state >= InternalState::terminating) {
     spdlog::info("An action from [{}] arrived after end of trial [{}].  Action will be dropped.", actor_name,
-                 to_string(id_));
+                 to_string(m_id));
     return;
   }
 
-  const auto itor = actor_indexes_.find(actor_name);
-  if (itor == actor_indexes_.end()) {
-    spdlog::error("Unknown actor [{}] for action received in trial [{}].", actor_name, to_string(id_));
+  const auto itor = m_actor_indexes.find(actor_name);
+  if (itor == m_actor_indexes.end()) {
+    spdlog::error("Unknown actor [{}] for action received in trial [{}].", actor_name, to_string(m_id));
     return;
   }
   const auto actor_index = itor->second;
@@ -567,37 +567,37 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
   }
 
   // TODO: Determine what we want to do in case of actions in the past or future
-  if (action.tick_id() != AUTO_TICK_ID && action.tick_id() != static_cast<int64_t>(tick_id_)) {
+  if (action.tick_id() != AUTO_TICK_ID && action.tick_id() != static_cast<int64_t>(m_tick_id)) {
     spdlog::warn("Invalid action tick from [{}]: [{}] vs [{}].  Default action will be used.", actor_name,
-                 action.tick_id(), tick_id_);
+                 action.tick_id(), m_tick_id);
   }
   *sample_action = action;
 
   bool all_actions_received = false;
   {
-    const std::lock_guard<std::mutex> lg(actor_lock_);
-    gathered_actions_count_++;
-    all_actions_received = (gathered_actions_count_ == actors_.size());
+    const std::lock_guard<std::mutex> lg(m_actor_lock);
+    m_gathered_actions_count++;
+    all_actions_received = (m_gathered_actions_count == m_actors.size());
   }
 
   if (all_actions_received) {
-    SPDLOG_TRACE("All actions received for Trial [{}]", to_string(id_));
+    SPDLOG_TRACE("All actions received for Trial [{}]", to_string(m_id));
 
-    const auto max_steps = params_.max_steps();
-    if (max_steps == 0 || tick_id_ < max_steps) {
-      if (outgoing_actions_) {
+    const auto max_steps = m_params.max_steps();
+    if (max_steps == 0 || m_tick_id < max_steps) {
+      if (m_outgoing_actions) {
         dispatch_env_messages();
 
         // We serialize the actions to prevent long lags where
         // messages arrive much later and cause errors.
-        env_entry_->serialize([this]() { outgoing_actions_->push(make_action_request()); });
+        m_env_entry->serialize([this]() { m_outgoing_actions->push(make_action_request()); });
       }
       else {
-        spdlog::error("Environment for trial [{}] not ready for first action set", to_string(id_));
+        spdlog::error("Environment for trial [{}] not ready for first action set", to_string(m_id));
       }
     }
     else {
-      spdlog::info("Trial [{}] reached its maximum number of steps: [{}]", to_string(id_), max_steps);
+      spdlog::info("Trial [{}] reached its maximum number of steps: [{}]", to_string(m_id), max_steps);
       terminating_guard.unlock();
       terminate();
     }
@@ -605,7 +605,7 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
 }
 
 Client_actor* Trial::get_join_candidate(const TrialJoinRequest& req) {
-  if (state_ != InternalState::pending) {
+  if (m_state != InternalState::pending) {
     return nullptr;
   }
 
@@ -613,15 +613,15 @@ Client_actor* Trial::get_join_candidate(const TrialJoinRequest& req) {
 
   switch (req.slot_selection_case()) {
   case TrialJoinRequest::kActorName: {
-    auto actor_index = actor_indexes_.at(req.actor_name());
-    auto& actor = actors_.at(actor_index);
+    auto actor_index = m_actor_indexes.at(req.actor_name());
+    auto& actor = m_actors.at(actor_index);
     if (actor->is_active()) {
       result = actor.get();
     }
   } break;
 
   case TrialJoinRequest::kActorClass:
-    for (auto& actor : actors_) {
+    for (auto& actor : m_actors) {
       if (!actor->is_active() && actor->actor_class()->name == req.actor_class()) {
         result = actor.get();
         break;
@@ -642,10 +642,10 @@ Client_actor* Trial::get_join_candidate(const TrialJoinRequest& req) {
 }
 
 void Trial::set_state(InternalState new_state) {
-  const std::lock_guard<std::mutex> lg(state_lock_);
+  const std::lock_guard<std::mutex> lg(m_state_lock);
 
   bool invalid_transition = false;
-  switch (state_) {
+  switch (m_state) {
   case InternalState::unknown:
     invalid_transition = (new_state != InternalState::initializing);
     break;
@@ -672,26 +672,26 @@ void Trial::set_state(InternalState new_state) {
     }
     else {
       // Shouldn't happen, but acceptable
-      spdlog::debug("Trial [{}] already ended: cannot end again", to_string(id_));
+      spdlog::debug("Trial [{}] already ended: cannot end again", to_string(m_id));
     }
     break;
   }
 
   if (invalid_transition) {
-    throw MakeException("Cannot switch trial state from [%s] to [%s]", get_trial_state_string(state_),
+    throw MakeException("Cannot switch trial state from [%s] to [%s]", get_trial_state_string(m_state),
                         get_trial_state_string(new_state));
   }
 
-  if (state_ != new_state) {
-    state_ = new_state;
+  if (m_state != new_state) {
+    m_state = new_state;
 
     if (new_state == InternalState::ended) {
-      end_timestamp_ = Timestamp();
+      m_end_timestamp = Timestamp();
     }
 
     // TODO: Find a better way so we don't have to be locked when calling out
     //       Right now it is necessary to make sure we don't miss state and they are seen in-order
-    orchestrator_->notify_watchers(*this);
+    m_orchestrator->notify_watchers(*this);
 
     if (new_state == InternalState::ended) {
       flush_samples();
@@ -699,11 +699,11 @@ void Trial::set_state(InternalState new_state) {
   }
 }
 
-void Trial::refresh_activity() { last_activity_ = std::chrono::steady_clock::now(); }
+void Trial::refresh_activity() { m_last_activity = std::chrono::steady_clock::now(); }
 
 bool Trial::is_stale() const {
-  const auto inactivity_period = std::chrono::steady_clock::now() - last_activity_;
-  const auto& max_inactivity = params_.max_inactivity();
+  const auto inactivity_period = std::chrono::steady_clock::now() - m_last_activity;
+  const auto& max_inactivity = m_params.max_inactivity();
 
   const bool stale = (inactivity_period > std::chrono::seconds(max_inactivity));
   return (max_inactivity > 0 && stale);
@@ -711,27 +711,27 @@ bool Trial::is_stale() const {
 
 void Trial::set_info(cogment::TrialInfo* info, bool with_observations, bool with_actors) {
   if (info == nullptr) {
-    spdlog::error("Trial [{}] request for info with no storage", to_string(id_));
+    spdlog::error("Trial [{}] request for info with no storage", to_string(m_id));
     return;
   }
 
   uint64_t end;
-  if (end_timestamp_ == 0) {
+  if (m_end_timestamp == 0) {
     end = Timestamp();
   }
   else {
-    end = end_timestamp_;
+    end = m_end_timestamp;
   }
-  info->set_trial_duration(end - start_timestamp_);
-  info->set_trial_id(to_string(id_));
+  info->set_trial_duration(end - m_start_timestamp);
+  info->set_trial_id(to_string(m_id));
 
   // The state and tick may not be synchronized here, but it is better
   // to have the latest state (as opposed to the state of the sample).
-  info->set_state(get_trial_api_state(state_));
+  info->set_state(get_trial_api_state(m_state));
 
   auto sample = get_last_sample();
   if (sample == nullptr) {
-    info->set_tick_id(tick_id_);
+    info->set_tick_id(m_tick_id);
     return;
   }
 
@@ -742,8 +742,8 @@ void Trial::set_info(cogment::TrialInfo* info, bool with_observations, bool with
     info->mutable_latest_observation()->CopyFrom(sample->observations());
   }
 
-  if (with_actors && state_ >= InternalState::pending) {
-    for (auto& actor : actors_) {
+  if (with_actors && m_state >= InternalState::pending) {
+    for (auto& actor : m_actors) {
       auto trial_actor = info->add_actors_in_trial();
       trial_actor->set_actor_class(actor->actor_class()->name);
       trial_actor->set_name(actor->actor_name());
@@ -752,20 +752,20 @@ void Trial::set_info(cogment::TrialInfo* info, bool with_observations, bool with
 }
 
 void Trial::dispatch_env_messages() {
-  const std::lock_guard<std::mutex> lg(env_message_lock_);
+  const std::lock_guard<std::mutex> lg(m_env_message_lock);
 
   cogment::EnvMessageRequest req;
-  for (auto& message : env_message_accumulator_) {
+  for (auto& message : m_env_message_accumulator) {
     auto msg = req.add_messages();
     *msg = std::move(message);
   }
 
-  if (!env_message_accumulator_.empty()) {
-    env_entry_->serialize(
-        [this, request = std::move(req)]() { env_entry_->get_stub().OnMessage(request, call_options_).get(); });
+  if (!m_env_message_accumulator.empty()) {
+    m_env_entry->serialize(
+        [this, request = std::move(req)]() { m_env_entry->get_stub().OnMessage(request, m_call_options).get(); });
   }
 
-  env_message_accumulator_.clear();
+  m_env_message_accumulator.clear();
 }
 
 }  // namespace cogment

@@ -26,9 +26,9 @@ namespace cogment {
 Agent::Agent(Trial* owner, const std::string& in_actor_name, const ActorClass* actor_class, const std::string& impl,
              StubEntryType stub_entry, std::optional<std::string> config_data)
     : Actor(owner, in_actor_name, actor_class),
-      stub_entry_(std::move(stub_entry)),
-      config_data_(std::move(config_data)),
-      impl_(impl) {
+      m_stub_entry(std::move(stub_entry)),
+      m_config_data(std::move(config_data)),
+      m_impl(impl) {
   SPDLOG_TRACE("Agent(): [{}] [{}] [{}]", to_string(trial()->id()), actor_name(), impl);
 
   grpc_metadata trial_header;
@@ -39,15 +39,15 @@ Agent::Agent(Trial* owner, const std::string& in_actor_name, const ActorClass* a
   actor_header.key = grpc_slice_from_static_string("actor-name");
   actor_header.value = grpc_slice_from_copied_string(actor_name().c_str());
 
-  headers_ = {trial_header, actor_header};
-  options_.headers = &headers_;
+  m_headers = {trial_header, actor_header};
+  m_options.headers = &m_headers;
 }
 
 Agent::~Agent() {
   SPDLOG_TRACE("~Agent(): [{}] [{}]", to_string(trial()->id()), actor_name());
 
-  if (outgoing_observations_) {
-    outgoing_observations_->complete();
+  if (m_outgoing_observations) {
+    m_outgoing_observations->complete();
   }
 }
 
@@ -56,10 +56,10 @@ aom::Future<void> Agent::init() {
 
   cogment::AgentStartRequest req;
 
-  req.set_impl_name(impl_);
+  req.set_impl_name(m_impl);
 
-  if (config_data_) {
-    req.mutable_config()->set_content(config_data_.value());
+  if (m_config_data) {
+    req.mutable_config()->set_content(m_config_data.value());
   }
 
   for (const auto& actor : trial()->actors()) {
@@ -68,7 +68,7 @@ aom::Future<void> Agent::init() {
     actor_in_trial->set_name(actor->actor_name());
   }
 
-  return stub_entry_->get_stub().OnStart(req, options_).then([this](auto rep) {
+  return m_stub_entry->get_stub().OnStart(req, m_options).then([this](auto rep) {
     (void)rep;
     (void)this;
     SPDLOG_DEBUG("Agent init start complete: [{}] [{}]", to_string(trial()->id()), actor_name());
@@ -80,11 +80,11 @@ void Agent::dispatch_observation(cogment::Observation&& observation) {
 
   // We serialize the observations to prevent long lags where
   // rewards/messages arrive much later and cause errors.
-  stub_entry_->serialize([this, obs = std::move(observation)]() {
+  m_stub_entry->serialize([this, obs = std::move(observation)]() {
     cogment::AgentObservationRequest req;
     *req.mutable_observation() = std::move(obs);
 
-    outgoing_observations_->push(std::move(req));
+    m_outgoing_observations->push(std::move(req));
   });
 }
 
@@ -92,14 +92,14 @@ void Agent::dispatch_final_data(cogment::ActorPeriodData&& data) {
   ::cogment::AgentEndRequest req;
   *(req.mutable_final_data()) = std::move(data);
 
-  stub_entry_->get_stub().OnEnd(req, options_);
+  m_stub_entry->get_stub().OnEnd(req, m_options);
 }
 
 void Agent::lazy_start_decision_stream() {
-  if (!outgoing_observations_) {
-    auto stream = stub_entry_->get_stub().OnObservation(options_);
+  if (!m_outgoing_observations) {
+    auto stream = m_stub_entry->get_stub().OnObservation(m_options);
 
-    outgoing_observations_ = std::move(std::get<0>(stream));
+    m_outgoing_observations = std::move(std::get<0>(stream));
     auto incoming_actions = std::move(std::get<1>(stream));
 
     std::weak_ptr trial_weak = trial()->get_shared();
@@ -129,21 +129,21 @@ bool Agent::is_active() const {
 }
 
 void Agent::dispatch_reward(cogment::Reward&& reward) {
-  stub_entry_->serialize([this, rew = std::move(reward)]() {
+  m_stub_entry->serialize([this, rew = std::move(reward)]() {
     cogment::AgentRewardRequest req;
     *req.mutable_reward() = std::move(rew);
 
-    stub_entry_->get_stub().OnReward(req, options_).get();
+    m_stub_entry->get_stub().OnReward(req, m_options).get();
   });
 }
 
 void Agent::dispatch_message(cogment::Message&& message) {
-  stub_entry_->serialize([this, msg = std::move(message)]() {
+  m_stub_entry->serialize([this, msg = std::move(message)]() {
     cogment::AgentMessageRequest req;
     auto new_msg = req.add_messages();
     *new_msg = std::move(msg);
 
-    stub_entry_->get_stub().OnMessage(req, options_).get();
+    m_stub_entry->get_stub().OnMessage(req, m_options).get();
   });
 }
 

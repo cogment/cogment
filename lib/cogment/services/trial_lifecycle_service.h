@@ -21,7 +21,7 @@ namespace cogment {
 
 class Orchestrator;
 class TrialLifecycleService {
-  Orchestrator* orchestrator_;
+  Orchestrator* m_orchestrator;
 
   using Trial_promise = ::easy_grpc::Stream_promise<::cogment::TrialListEntry>;
   using Trial_future = ::easy_grpc::Stream_future<::cogment::TrialListEntry>;

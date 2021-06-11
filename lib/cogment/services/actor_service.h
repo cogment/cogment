@@ -20,7 +20,7 @@
 namespace cogment {
 class Orchestrator;
 class ActorService {
-  Orchestrator* orchestrator_;
+  Orchestrator* m_orchestrator;
 
   public:
   using service_type = cogment::ClientActor;

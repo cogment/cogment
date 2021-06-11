@@ -71,41 +71,41 @@ void process_rewards(cogment::Actor::RewAccumulator* rew_acc, const std::string&
 namespace cogment {
 
 Actor::Actor(Trial* trial, const std::string& actor_name, const ActorClass* actor_class)
-    : trial_(trial), actor_name_(actor_name), actor_class_(actor_class) {}
+    : m_trial(trial), m_actor_name(actor_name), m_actor_class(actor_class) {}
 
 Actor::~Actor() {}
 
-Trial* Actor::trial() const { return trial_; }
+Trial* Actor::trial() const { return m_trial; }
 
-const std::string& Actor::actor_name() const { return actor_name_; }
+const std::string& Actor::actor_name() const { return m_actor_name; }
 
-const ActorClass* Actor::actor_class() const { return actor_class_; }
+const ActorClass* Actor::actor_class() const { return m_actor_class; }
 
 void Actor::add_immediate_reward_src(const cogment::RewardSource& source, const std::string& sender, uint64_t tick_id) {
-  const std::lock_guard<std::mutex> lg(lock_);
-  auto& src_acc = reward_accumulator_[tick_id];
+  const std::lock_guard<std::mutex> lg(m_lock);
+  auto& src_acc = m_reward_accumulator[tick_id];
   src_acc.emplace_back(source);
   src_acc.back().set_sender_name(sender);
 }
 
 void Actor::add_immediate_message(const cogment::Message& message, const std::string& sender, uint64_t tick_id) {
-  const std::lock_guard<std::mutex> lg(lock_);
-  message_accumulator_.emplace_back(message);
-  message_accumulator_.back().set_tick_id(tick_id);
-  message_accumulator_.back().set_sender_name(sender);
+  const std::lock_guard<std::mutex> lg(m_lock);
+  m_message_accumulator.emplace_back(message);
+  m_message_accumulator.back().set_tick_id(tick_id);
+  m_message_accumulator.back().set_sender_name(sender);
 }
 
 void Actor::dispatch_tick(cogment::Observation&& obs, bool final_tick) {
   RewAccumulator reward_acc;
   std::vector<cogment::Message> msg_acc;
   {
-    const std::lock_guard<std::mutex> lg(lock_);
-    reward_acc.swap(reward_accumulator_);
-    msg_acc.swap(message_accumulator_);
+    const std::lock_guard<std::mutex> lg(m_lock);
+    reward_acc.swap(m_reward_accumulator);
+    msg_acc.swap(m_message_accumulator);
   }
 
   if (!final_tick) {
-    process_rewards(&reward_acc, actor_name_, [this](cogment::Reward&& rew) { dispatch_reward(std::move(rew)); });
+    process_rewards(&reward_acc, m_actor_name, [this](cogment::Reward&& rew) { dispatch_reward(std::move(rew)); });
 
     for (auto& message : msg_acc) {
       dispatch_message(std::move(message));
@@ -116,7 +116,7 @@ void Actor::dispatch_tick(cogment::Observation&& obs, bool final_tick) {
   else {
     cogment::ActorPeriodData data;
 
-    process_rewards(&reward_acc, actor_name_, [&data](cogment::Reward&& rew) {
+    process_rewards(&reward_acc, m_actor_name, [&data](cogment::Reward&& rew) {
       auto new_reward = data.add_rewards();
       *new_reward = std::move(rew);
     });
