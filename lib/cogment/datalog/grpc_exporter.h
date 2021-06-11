@@ -31,7 +31,7 @@ class GrpcDatalogExporterBase : public DatalogStorageInterface {
     Trial_log(GrpcDatalogExporterBase* owner, const Trial* trial);
     ~Trial_log();
 
-    void add_sample(cogment::DatalogSample data) override;
+    void add_sample(cogment::DatalogSample&& data) override;
 
     private:
     GrpcDatalogExporterBase* owner_ = nullptr;

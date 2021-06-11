@@ -147,6 +147,11 @@ cogment::DatalogSample* Trial::get_last_sample() {
 
 cogment::DatalogSample& Trial::make_new_sample() {
   const std::lock_guard<std::mutex> lg(sample_lock_);
+
+  if (!step_data_.empty()) {
+    step_data_.back().mutable_trial_data()->set_state(get_trial_api_state(state_));
+  }
+
   step_data_.emplace_back();
   auto& sample = step_data_.back();
 
@@ -161,13 +166,16 @@ cogment::DatalogSample& Trial::make_new_sample() {
   auto trial_data = sample.mutable_trial_data();
   trial_data->set_tick_id(tick_id_);
   trial_data->set_timestamp(Timestamp());
-  trial_data->set_state(get_trial_api_state(state_));
 
   return sample;
 }
 
 void Trial::flush_samples() {
   const std::lock_guard<std::mutex> lg(sample_lock_);
+
+  if (!step_data_.empty()) {
+    step_data_.back().mutable_trial_data()->set_state(get_trial_api_state(state_));
+  }
 
   for (auto& sample : step_data_) {
     datalog_interface_->add_sample(std::move(sample));

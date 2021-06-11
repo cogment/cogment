@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Update copyright notice to use the legal name of AI Redefined Inc.
 
+### Fixed
+
+- Order of state recording in datalog sample (to be the state at the end of the tick).
+
 ## v1.0.1 - 2021-06-02
 
 ### Changed

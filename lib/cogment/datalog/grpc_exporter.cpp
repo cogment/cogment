@@ -58,7 +58,7 @@ void GrpcDatalogExporterBase::Trial_log::lazy_start_stream_() {
   }
 }
 
-void GrpcDatalogExporterBase::Trial_log::add_sample(cogment::DatalogSample data) {
+void GrpcDatalogExporterBase::Trial_log::add_sample(cogment::DatalogSample&& data) {
   lazy_start_stream_();
 
   cogment::LogExporterSampleRequest msg;

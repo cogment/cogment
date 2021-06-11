@@ -27,13 +27,7 @@ class TrialLogInterface {
   public:
   virtual ~TrialLogInterface() {}
 
-  virtual void add_sample(cogment::DatalogSample data) = 0;
-
-  virtual void add_samples(std::vector<cogment::DatalogSample>&& data) {
-    for (auto i = data.begin(); i != data.end(); ++i) {
-      add_sample(std::move(*i));
-    }
-  }
+  virtual void add_sample(cogment::DatalogSample&& data) = 0;
 };
 
 // Orchestrator-wide datalog interface.
@@ -45,5 +39,7 @@ class DatalogStorageInterface {
 
   static std::unique_ptr<DatalogStorageInterface> create(const std::string& spec, const YAML::Node& cfg);
 };
+
 }  // namespace cogment
+
 #endif
