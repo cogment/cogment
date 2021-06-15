@@ -558,6 +558,8 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
 
   auto sample = get_last_sample();
   if (sample == nullptr) {
+    spdlog::warn("No sample to accept action from [{}] in trial [{}]. Trial may be finished.", actor_name,
+                 to_string(m_id));
     return;
   }
   auto sample_action = sample->mutable_actions(actor_index);
@@ -571,6 +573,8 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
     spdlog::warn("Invalid action tick from [{}]: [{}] vs [{}].  Default action will be used.", actor_name,
                  action.tick_id(), m_tick_id);
   }
+
+  SPDLOG_TRACE("Received action from actor [{}] in trial [{}] for tick [{}].", actor_name, to_string(m_id), m_tick_id);
   *sample_action = action;
 
   bool all_actions_received = false;
@@ -581,7 +585,7 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
   }
 
   if (all_actions_received) {
-    SPDLOG_TRACE("All actions received for Trial [{}]", to_string(m_id));
+    SPDLOG_TRACE("All actions received in Trial [{}] for tick [{}]", to_string(m_id), m_tick_id);
 
     const auto max_steps = m_params.max_steps();
     if (max_steps == 0 || m_tick_id < max_steps) {

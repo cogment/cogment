@@ -45,12 +45,12 @@ class ProtoErrorCollector : public google::protobuf::compiler::MultiFileErrorCol
 namespace cogment {
 
 Trial_spec::Trial_spec(const YAML::Node& root) {
-  ProtoErrorCollector error_collector_;
+  ProtoErrorCollector error_collector;
 
   m_source_tree = std::make_unique<google::protobuf::compiler::DiskSourceTree>();
   m_source_tree->MapPath("", ".");
 
-  m_importer = std::make_unique<google::protobuf::compiler::Importer>(m_source_tree.get(), &error_collector_);
+  m_importer = std::make_unique<google::protobuf::compiler::Importer>(m_source_tree.get(), &error_collector);
 
   for (const auto& i : root[cfg_file::import_key][cfg_file::i_proto_key]) {
     spdlog::info("Importing protobuf: {}", i.as<std::string>());
