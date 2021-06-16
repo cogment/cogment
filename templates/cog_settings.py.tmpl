@@ -37,16 +37,3 @@ trial = SimpleNamespace(config_type={{if .Trial}}{{if .Trial.ConfigType}}{{.Tria
 
 # Environment
 environment = SimpleNamespace(config_type={{if .Environment}}{{if .Environment.ConfigType}}{{.Environment.ConfigType}}{{else}}None{{end}}{{else}}None{{end}})
-
-
-class ActionsTable:
-{{- range .ActorClasses}}
-    {{.Name}}: List[{{.Action.Space}}]
-{{- end}}
-    def __init__(self, trial):
-{{- range $i, $ac := .ActorClasses}}
-        self.{{$ac.Name}} = [{{$ac.Action.Space}}() for _ in range(trial.actor_counts[{{$i}}])]
-{{- end}}
-
-    def all_actions(self):
-        return {{range $i, $ac := .ActorClasses}}{{if $i}} + {{end}}self.{{.Name}}{{end}}
