@@ -70,8 +70,8 @@ void process_rewards(cogment::Actor::RewAccumulator* rew_acc, const std::string&
 
 namespace cogment {
 
-Actor::Actor(Trial* trial, const std::string& actor_name, const ActorClass* actor_class)
-    : m_trial(trial), m_actor_name(actor_name), m_actor_class(actor_class) {}
+Actor::Actor(Trial* trial, const std::string& actor_name, const ActorClass* actor_class) :
+    m_trial(trial), m_actor_name(actor_name), m_actor_class(actor_class) {}
 
 Actor::~Actor() {}
 
@@ -105,7 +105,9 @@ void Actor::dispatch_tick(cogment::Observation&& obs, bool final_tick) {
   }
 
   if (!final_tick) {
-    process_rewards(&reward_acc, m_actor_name, [this](cogment::Reward&& rew) { dispatch_reward(std::move(rew)); });
+    process_rewards(&reward_acc, m_actor_name, [this](cogment::Reward&& rew) {
+      dispatch_reward(std::move(rew));
+    });
 
     for (auto& message : msg_acc) {
       dispatch_message(std::move(message));

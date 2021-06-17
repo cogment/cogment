@@ -36,7 +36,7 @@ class Trial;
 struct ActorClass;
 
 class Actor {
-  public:
+public:
   using SrcAccumulator = std::vector<cogment::RewardSource>;
   using RewAccumulator = std::map<uint64_t, SrcAccumulator>;
 
@@ -56,13 +56,13 @@ class Actor {
 
   void dispatch_tick(cogment::Observation&& obs, bool final_tick);
 
-  protected:
+protected:
   virtual void dispatch_observation(cogment::Observation&& obs) = 0;
   virtual void dispatch_final_data(cogment::ActorPeriodData&& data) = 0;
   virtual void dispatch_reward(cogment::Reward&& reward) = 0;
   virtual void dispatch_message(cogment::Message&& message) = 0;
 
-  private:
+private:
   Trial* m_trial;
   std::string m_actor_name;
   const ActorClass* m_actor_class;

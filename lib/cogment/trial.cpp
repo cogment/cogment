@@ -76,14 +76,14 @@ cogment::TrialState get_trial_api_state(Trial::InternalState state) {
 
 uuids::uuid_system_generator Trial::m_id_generator;
 
-Trial::Trial(Orchestrator* orch, std::string user_id)
-    : m_orchestrator(orch),
-      m_id(m_id_generator()),
-      m_user_id(std::move(user_id)),
-      m_state(InternalState::unknown),
-      m_tick_id(0),
-      m_start_timestamp(Timestamp()),
-      m_end_timestamp(0) {
+Trial::Trial(Orchestrator* orch, std::string user_id) :
+    m_orchestrator(orch),
+    m_id(m_id_generator()),
+    m_user_id(std::move(user_id)),
+    m_state(InternalState::unknown),
+    m_tick_id(0),
+    m_start_timestamp(Timestamp()),
+    m_end_timestamp(0) {
   SPDLOG_TRACE("New Trial [{}]", to_string(m_id));
 
   set_state(InternalState::initializing);
@@ -266,7 +266,8 @@ void Trial::start(cogment::TrialParams params) {
       spdlog::error("failed to connect to environment");
       try {
         std::rethrow_exception(rep.error());
-      } catch (std::exception& e) {
+      }
+      catch (std::exception& e) {
         spdlog::error("OnStart exception: {}", e.what());
       }
     }
@@ -287,7 +288,9 @@ void Trial::start(cogment::TrialParams params) {
         // Send the initial state
         dispatch_observations();
       })
-      .finally([self](auto) { SPDLOG_TRACE("Trial [{}]: All components started.", to_string(self->m_id)); });
+      .finally([self](auto) {
+        SPDLOG_TRACE("Trial [{}]: All components started.", to_string(self->m_id));
+      });
 
   spdlog::debug("Trial {} is configured", to_string(m_id));
 }
@@ -594,7 +597,9 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
 
         // We serialize the actions to prevent long lags where
         // messages arrive much later and cause errors.
-        m_env_entry->serialize([this]() { m_outgoing_actions->push(make_action_request()); });
+        m_env_entry->serialize([this]() {
+          m_outgoing_actions->push(make_action_request());
+        });
       }
       else {
         spdlog::error("Environment for trial [{}] not ready for first action set", to_string(m_id));
@@ -765,8 +770,9 @@ void Trial::dispatch_env_messages() {
   }
 
   if (!m_env_message_accumulator.empty()) {
-    m_env_entry->serialize(
-        [this, request = std::move(req)]() { m_env_entry->get_stub().OnMessage(request, m_call_options).get(); });
+    m_env_entry->serialize([this, request = std::move(req)]() {
+      m_env_entry->get_stub().OnMessage(request, m_call_options).get();
+    });
   }
 
   m_env_message_accumulator.clear();

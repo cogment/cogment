@@ -30,7 +30,7 @@
 
 namespace cogment {
 class Orchestrator {
-  public:
+public:
   using HandlerFunction = std::function<void(const Trial& trial)>;
 
   Orchestrator(Trial_spec trial_spec, cogment::TrialParams default_trial_params,
@@ -77,7 +77,7 @@ class Orchestrator {
 
   void notify_watchers(const Trial& trial);
 
-  private:
+private:
   // Configuration
   Trial_spec m_trial_spec;
   cogment::TrialParams m_default_trial_params;

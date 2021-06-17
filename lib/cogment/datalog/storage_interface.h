@@ -24,7 +24,7 @@ namespace cogment {
 class Trial;
 // Per trial datalog interface.
 class TrialLogInterface {
-  public:
+public:
   virtual ~TrialLogInterface() {}
 
   virtual void add_sample(cogment::DatalogSample&& data) = 0;
@@ -32,7 +32,7 @@ class TrialLogInterface {
 
 // Orchestrator-wide datalog interface.
 class DatalogStorageInterface {
-  public:
+public:
   virtual ~DatalogStorageInterface() {}
 
   virtual std::unique_ptr<TrialLogInterface> start_log(const Trial* trial) = 0;

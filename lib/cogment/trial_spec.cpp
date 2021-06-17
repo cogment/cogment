@@ -23,7 +23,7 @@
 
 namespace {
 class ProtoErrorCollector : public google::protobuf::compiler::MultiFileErrorCollector {
-  public:
+public:
   void AddError(const google::protobuf::string& filename, int line, int column,
                 const google::protobuf::string& message) override {
     (void)filename;

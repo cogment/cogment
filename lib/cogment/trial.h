@@ -43,7 +43,7 @@ class TrialLogInterface;
 class Trial : public std::enable_shared_from_this<Trial> {
   static uuids::uuid_system_generator m_id_generator;
 
-  public:
+public:
   enum class InternalState { unknown, initializing, pending, running, terminating, ended };
 
   Trial(Orchestrator* orch, std::string user_id);
@@ -92,7 +92,7 @@ class Trial : public std::enable_shared_from_this<Trial> {
 
   void set_info(cogment::TrialInfo* info, bool with_observations, bool with_actors);
 
-  private:
+private:
   void prepare_actors();
   cogment::EnvStartRequest prepare_environment();
   cogment::DatalogSample& make_new_sample();

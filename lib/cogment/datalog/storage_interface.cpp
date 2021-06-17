@@ -46,7 +46,7 @@ slt::Setting datalog_flush_frequency =
 
 namespace {
 class Noop_trial_log_interface : public cogment::TrialLogInterface {
-  public:
+public:
   void add_sample(cogment::DatalogSample&&) override {}
 };
 

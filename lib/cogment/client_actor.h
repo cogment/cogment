@@ -25,7 +25,7 @@ namespace cogment {
 
 class Trial;
 class Client_actor : public Actor {
-  public:
+public:
   using Action_future = ::easy_grpc::Stream_future<::cogment::TrialActionRequest>;
 
   using Observation_promise = ::easy_grpc::Stream_promise<::cogment::TrialActionReply>;
@@ -44,13 +44,13 @@ class Client_actor : public Actor {
   std::optional<std::string> join();
   Observation_future bind(Action_future actions);
 
-  protected:
+protected:
   void dispatch_observation(cogment::Observation&& obs) override;
   void dispatch_final_data(cogment::ActorPeriodData&& data) override;
   void dispatch_reward(cogment::Reward&& reward) override;
   void dispatch_message(cogment::Message&& message) override;
 
-  private:
+private:
   bool m_joined;
 
   cogment::Action m_latest_action;

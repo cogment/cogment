@@ -74,7 +74,8 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : m_orchestrato
   std::string_view trial_id_strv;
   try {
     trial_id_strv = ctx.get_client_header("trial-id");
-  } catch (const std::out_of_range&) {
+  }
+  catch (const std::out_of_range&) {
     // There was no "trial-id" header
   }
   SPDLOG_TRACE("GetTrialInfo [{}]", trial_id_strv);

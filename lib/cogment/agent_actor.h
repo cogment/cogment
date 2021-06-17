@@ -26,7 +26,7 @@ namespace cogment {
 class Trial;
 
 class Agent : public Actor {
-  public:
+public:
   using StubEntryType = std::shared_ptr<Stub_pool<cogment::AgentEndpoint>::Entry>;
   Agent(Trial* owner, const std::string& actor_name, const ActorClass* actor_class, const std::string& impl,
         StubEntryType stub_entry, std::optional<std::string> config_data);
@@ -37,13 +37,13 @@ class Agent : public Actor {
 
   bool is_active() const override;
 
-  protected:
+protected:
   void dispatch_observation(cogment::Observation&& obs) override;
   void dispatch_final_data(cogment::ActorPeriodData&& data) override;
   void dispatch_reward(cogment::Reward&& reward) override;
   void dispatch_message(cogment::Message&& message) override;
 
-  private:
+private:
   void lazy_start_decision_stream();
 
   StubEntryType m_stub_entry;

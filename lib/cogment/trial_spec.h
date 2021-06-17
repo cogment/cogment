@@ -28,7 +28,7 @@ struct Trial_spec {
   const google::protobuf::Message* get_trial_config_proto() const { return trial_config_prototype; }
   const google::protobuf::Message* get_env_config_prototype() const { return env_config_prototype; }
 
-  private:
+private:
   std::unique_ptr<google::protobuf::compiler::DiskSourceTree> m_source_tree;
   std::unique_ptr<google::protobuf::compiler::Importer> m_importer;
   std::unique_ptr<google::protobuf::DynamicMessageFactory> m_message_factory;

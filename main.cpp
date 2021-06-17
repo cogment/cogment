@@ -209,7 +209,8 @@ int main(int argc, const char* argv[]) {
     YAML::Node cogment_yaml;
     try {
       cogment_yaml = YAML::LoadFile(settings::config_file.get());
-    } catch (std::exception& e) {
+    }
+    catch (std::exception& e) {
       spdlog::error("failed to load {}: {}", settings::config_file.get(), e.what());
       return 1;
     }

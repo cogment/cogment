@@ -25,15 +25,15 @@
 namespace cogment {
 
 class GrpcDatalogExporterBase : public DatalogStorageInterface {
-  public:
+public:
   class Trial_log : public TrialLogInterface {
-    public:
+  public:
     Trial_log(GrpcDatalogExporterBase* owner, const Trial* trial);
     ~Trial_log();
 
     void add_sample(cogment::DatalogSample&& data) override;
 
-    private:
+  private:
     GrpcDatalogExporterBase* m_owner = nullptr;
     const Trial* m_trial = nullptr;
     ::easy_grpc::Stream_future<::cogment::LogExporterSampleReply> m_reply;
@@ -48,16 +48,16 @@ class GrpcDatalogExporterBase : public DatalogStorageInterface {
 
   void set_stub(cogment::LogExporter::Stub_interface* stub) { m_stub = stub; }
 
-  private:
+private:
   cogment::LogExporter::Stub_interface* m_stub = nullptr;
 };
 
 // Stores Data samples to a local CVS file.
 class GrpcDatalogExporter : public GrpcDatalogExporterBase {
-  public:
+public:
   GrpcDatalogExporter(const std::string& url);
 
-  private:
+private:
   easy_grpc::Completion_queue m_work_thread;
   easy_grpc::client::Unsecure_channel m_channel;
   cogment::LogExporter::Stub m_stub_impl;

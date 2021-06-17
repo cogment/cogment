@@ -24,11 +24,11 @@
 namespace cogment {
 
 Agent::Agent(Trial* owner, const std::string& in_actor_name, const ActorClass* actor_class, const std::string& impl,
-             StubEntryType stub_entry, std::optional<std::string> config_data)
-    : Actor(owner, in_actor_name, actor_class),
-      m_stub_entry(std::move(stub_entry)),
-      m_config_data(std::move(config_data)),
-      m_impl(impl) {
+             StubEntryType stub_entry, std::optional<std::string> config_data) :
+    Actor(owner, in_actor_name, actor_class),
+    m_stub_entry(std::move(stub_entry)),
+    m_config_data(std::move(config_data)),
+    m_impl(impl) {
   SPDLOG_TRACE("Agent(): [{}] [{}] [{}]", to_string(trial()->id()), actor_name(), impl);
 
   grpc_metadata trial_header;

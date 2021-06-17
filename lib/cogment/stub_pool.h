@@ -40,7 +40,7 @@ namespace cogment {
 
 // A thread-safe pool of easy-grpc Communication channel
 class Channel_pool {
-  public:
+public:
   Channel_pool(std::shared_ptr<easy_grpc::client::Credentials> creds) : m_creds(creds) {}
 
   // Gets an easy-grpc channel to the target url, recycling an existing one if
@@ -70,19 +70,21 @@ class Channel_pool {
   std::mutex m_mtx;
   std::unordered_map<std::string, std::weak_ptr<::easy_grpc::client::Channel>> m_channels;
 
-  private:
+private:
   std::shared_ptr<easy_grpc::client::Credentials> m_creds;
 };
 
 // A minimal thread-safe queue
 template <typename T>
 class ThrQueue {
-  public:
+public:
   T pop() {
     std::unique_lock ul(m_lock);
 
     if (m_data.empty()) {
-      m_cond.wait(ul, [this]() { return !m_data.empty(); });
+      m_cond.wait(ul, [this]() {
+        return !m_data.empty();
+      });
     }
 
     T val(std::move(m_data.front()));
@@ -103,7 +105,7 @@ class ThrQueue {
     return m_data.size();
   }
 
-  private:
+private:
   std::queue<T> m_data;
   mutable std::mutex m_lock;
   std::condition_variable m_cond;
@@ -112,12 +114,12 @@ class ThrQueue {
 // A thread-safe pool of easy-grpc connection stubs
 template <typename Service_T>
 class Stub_pool {
-  public:
+public:
   using stub_type = typename Service_T::Stub;
 
   // Constructor
-  Stub_pool(Channel_pool* channel_pool, easy_grpc::Completion_queue* queue)
-      : m_channel_pool(channel_pool), m_queue(queue) {}
+  Stub_pool(Channel_pool* channel_pool, easy_grpc::Completion_queue* queue) :
+      m_channel_pool(channel_pool), m_queue(queue) {}
 
   using SerializedFunc = std::function<void()>;
   struct SerialCall {
@@ -130,7 +132,7 @@ class Stub_pool {
   // TODO: Implement proper destruction, or remove serialization option.  It leaks as it is.
   //       In current use-cases, it is not a big problem because entries are semi-permanent, and are few.
   class Entry {
-    public:
+  public:
     using ChannelType = std::shared_ptr<::easy_grpc::client::Channel>;
     Entry(ChannelType&& chan, stub_type&& stb) : m_channel(chan), m_stub(stb) {}
 
@@ -162,14 +164,17 @@ class Stub_pool {
               call.func();
               SPDLOG_TRACE("Serialized function call returned");
               call.prom.set_value();
-            } catch (...) {
+            }
+            catch (...) {
               try {
                 call.prom.set_exception(std::current_exception());
-              } catch (...) {
+              }
+              catch (...) {
                 spdlog::error("Exception trying to set promise exception");
               }
             }
-          } catch (...) {
+          }
+          catch (...) {
             spdlog::error("Could not pop serialized call");
           }
         }
@@ -199,7 +204,7 @@ class Stub_pool {
 
     stub_type& get_stub() { return m_stub; }
 
-    private:
+  private:
     // Prevents the channel from being destroyed.
     ChannelType m_channel;
 
@@ -240,7 +245,7 @@ class Stub_pool {
     return result;
   }
 
-  private:
+private:
   std::mutex m_mtx;
   Channel_pool* m_channel_pool;
   easy_grpc::Completion_queue* m_queue;

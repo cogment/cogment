@@ -35,14 +35,14 @@ slt::Setting garbage_collection_frequency = slt::Setting_builder<std::uint32_t>(
 
 namespace cogment {
 Orchestrator::Orchestrator(Trial_spec trial_spec, cogment::TrialParams default_trial_params,
-                           std::shared_ptr<easy_grpc::client::Credentials> creds)
-    : m_trial_spec(std::move(trial_spec)),
-      m_default_trial_params(std::move(default_trial_params)),
-      m_channel_pool(creds),
-      m_env_stubs(&m_channel_pool, &m_client_queue),
-      m_agent_stubs(&m_channel_pool, &m_client_queue),
-      m_actor_service(this),
-      m_trial_lifecycle_service(this) {
+                           std::shared_ptr<easy_grpc::client::Credentials> creds) :
+    m_trial_spec(std::move(trial_spec)),
+    m_default_trial_params(std::move(default_trial_params)),
+    m_channel_pool(creds),
+    m_env_stubs(&m_channel_pool, &m_client_queue),
+    m_agent_stubs(&m_channel_pool, &m_client_queue),
+    m_actor_service(this),
+    m_trial_lifecycle_service(this) {
   SPDLOG_TRACE("Orchestrator()");
   m_garbage_collection_countdown.store(settings::garbage_collection_frequency.get());
 }
@@ -149,7 +149,7 @@ aom::Future<cogment::PreTrialContext> Orchestrator::m_perform_pre_hooks(cogment:
 
   // We need this set of headers to live through the pre-hook RPCS, and there's not great place to anchor them.
   // Since this is not performance critical, we'll just ref-count them on the ultimate result.
-  auto headers = std::make_shared<std::vector<grpc_metadata>>(std::vector<grpc_metadata>{trial_header});
+  auto headers = std::make_shared<std::vector<grpc_metadata>>(std::vector<grpc_metadata> {trial_header});
 
   easy_grpc::client::Call_options options;
   options.headers = headers.get();
@@ -165,7 +165,9 @@ aom::Future<cogment::PreTrialContext> Orchestrator::m_perform_pre_hooks(cogment:
     });
   }
 
-  return result.then([headers](auto v) { return v; });
+  return result.then([headers](auto v) {
+    return v;
+  });
 }
 
 void Orchestrator::set_log_exporter(std::unique_ptr<DatalogStorageInterface> le) { m_log_exporter = std::move(le); }

@@ -25,8 +25,8 @@
 
 namespace cogment {
 
-GrpcDatalogExporterBase::Trial_log::Trial_log(GrpcDatalogExporterBase* owner, const Trial* trial)
-    : m_owner(owner), m_trial(trial) {}
+GrpcDatalogExporterBase::Trial_log::Trial_log(GrpcDatalogExporterBase* owner, const Trial* trial) :
+    m_owner(owner), m_trial(trial) {}
 
 GrpcDatalogExporterBase::Trial_log::~Trial_log() {
   if (m_output_promise) {
@@ -70,8 +70,8 @@ std::unique_ptr<TrialLogInterface> GrpcDatalogExporterBase::start_log(const Tria
   return std::make_unique<GrpcDatalogExporter::Trial_log>(this, trial);
 }
 
-GrpcDatalogExporter::GrpcDatalogExporter(const std::string& url)
-    : m_channel(url, &m_work_thread), m_stub_impl(&m_channel) {
+GrpcDatalogExporter::GrpcDatalogExporter(const std::string& url) :
+    m_channel(url, &m_work_thread), m_stub_impl(&m_channel) {
   set_stub(&m_stub_impl);
   spdlog::info("Sending datalog to service running at: {}", url);
 }

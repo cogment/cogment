@@ -23,11 +23,11 @@
 
 namespace cogment {
 Client_actor::Client_actor(Trial* owner, const std::string& actor_name, const ActorClass* actor_class,
-                           std::optional<std::string> config_data)
-    : Actor(owner, actor_name, actor_class),
-      m_joined(false),
-      m_config_data(std::move(config_data)),
-      m_outgoing_observations_future(m_outgoing_observations.get_future()) {
+                           std::optional<std::string> config_data) :
+    Actor(owner, actor_name, actor_class),
+    m_joined(false),
+    m_config_data(std::move(config_data)),
+    m_outgoing_observations_future(m_outgoing_observations.get_future()) {
   SPDLOG_TRACE("Client_actor(): [{}] [{}]", to_string(trial()->id()), actor_name);
 }
 
