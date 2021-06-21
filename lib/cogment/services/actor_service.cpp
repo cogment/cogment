@@ -35,10 +35,10 @@ ActorService::ActorService(Orchestrator* orch) : m_orchestrator(orch) {}
 
 ::easy_grpc::Stream_future<::cogment::TrialActionReply> ActorService::ActionStream(
     ::easy_grpc::Stream_future<::cogment::TrialActionRequest> actions, easy_grpc::Context ctx) {
-  auto trial_id = uuids::uuid::from_string(ctx.get_client_header("trial-id"));
+  std::string trial_id(ctx.get_client_header("trial-id"));
   std::string actor_name(ctx.get_client_header("actor-name"));
 
-  SPDLOG_TRACE("ActionStream [{}] [{}]", ctx.get_client_header("trial-id"), actor_name);
+  SPDLOG_TRACE("ActionStream [{}] [{}]", trial_id, actor_name);
   return m_orchestrator->bind_client(trial_id, actor_name, std::move(actions));
 }
 
@@ -49,9 +49,9 @@ ActorService::ActorService(Orchestrator* orch) : m_orchestrator(orch) {}
 
 ::easy_grpc::Future<::cogment::TrialRewardReply> ActorService::SendReward(::cogment::TrialRewardRequest reward,
                                                                           easy_grpc::Context ctx) {
-  auto trial_id = uuids::uuid::from_string(ctx.get_client_header("trial-id"));
+  std::string trial_id(ctx.get_client_header("trial-id"));
   std::string actor_name(ctx.get_client_header("actor-name"));
-  SPDLOG_TRACE("SendReward [{}] [{}]", ctx.get_client_header("trial-id"), actor_name);
+  SPDLOG_TRACE("SendReward [{}] [{}]", trial_id, actor_name);
 
   auto trial = m_orchestrator->get_trial(trial_id);
   if (trial != nullptr) {
@@ -60,7 +60,7 @@ ActorService::ActorService(Orchestrator* orch) : m_orchestrator(orch) {}
     }
   }
   else {
-    spdlog::error("Trial [{}] doesn't exist to send reward", to_string(trial_id));
+    spdlog::error("Trial [{}] doesn't exist to send reward", trial_id);
   }
 
   ::easy_grpc::Promise<::cogment::TrialRewardReply> prom;
@@ -73,9 +73,9 @@ ActorService::ActorService(Orchestrator* orch) : m_orchestrator(orch) {}
 
 ::easy_grpc::Future<::cogment::TrialMessageReply> ActorService::SendMessage(::cogment::TrialMessageRequest message,
                                                                             easy_grpc::Context ctx) {
-  auto trial_id = uuids::uuid::from_string(ctx.get_client_header("trial-id"));
+  std::string trial_id(ctx.get_client_header("trial-id"));
   std::string actor_name(ctx.get_client_header("actor-name"));
-  SPDLOG_TRACE("SendMessage [{}] [{}]", ctx.get_client_header("trial-id"), actor_name);
+  SPDLOG_TRACE("SendMessage [{}] [{}]", trial_id, actor_name);
 
   auto trial = m_orchestrator->get_trial(trial_id);
   if (trial != nullptr) {
@@ -84,7 +84,7 @@ ActorService::ActorService(Orchestrator* orch) : m_orchestrator(orch) {}
     }
   }
   else {
-    spdlog::error("Trial [{}] doesn't exist to send message", to_string(trial_id));
+    spdlog::error("Trial [{}] doesn't exist to send message", trial_id);
   }
 
   ::easy_grpc::Promise<::cogment::TrialMessageReply> prom;

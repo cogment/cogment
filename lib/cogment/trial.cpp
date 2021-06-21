@@ -27,7 +27,13 @@
 
 #include "spdlog/spdlog.h"
 
+#include "uuid.h"
+
 #include <limits>
+
+namespace {
+uuids::uuid_system_generator g_uuid_generator;
+}
 
 namespace cogment {
 
@@ -74,17 +80,15 @@ cogment::TrialState get_trial_api_state(Trial::InternalState state) {
   throw MakeException<std::out_of_range>("Unknown trial state for api: [%d]", static_cast<int>(state));
 }
 
-uuids::uuid_system_generator Trial::m_id_generator;
-
-Trial::Trial(Orchestrator* orch, std::string user_id) :
+Trial::Trial(Orchestrator* orch, const std::string& user_id) :
     m_orchestrator(orch),
-    m_id(m_id_generator()),
-    m_user_id(std::move(user_id)),
+    m_id(to_string(g_uuid_generator())),
+    m_user_id(user_id),
     m_state(InternalState::unknown),
     m_tick_id(0),
     m_start_timestamp(Timestamp()),
     m_end_timestamp(0) {
-  SPDLOG_TRACE("New Trial [{}]", to_string(m_id));
+  SPDLOG_TRACE("New Trial [{}]", m_id);
 
   set_state(InternalState::initializing);
   refresh_activity();
@@ -92,7 +96,7 @@ Trial::Trial(Orchestrator* orch, std::string user_id) :
   m_datalog_interface = orch->start_log(this);
 }
 
-Trial::~Trial() { SPDLOG_TRACE("Tearing down trial [{}]", to_string(m_id)); }
+Trial::~Trial() { SPDLOG_TRACE("Tearing down trial [{}]", m_id); }
 
 const std::unique_ptr<Actor>& Trial::actor(const std::string& name) const {
   auto actor_index = m_actor_indexes.at(name);
@@ -100,7 +104,7 @@ const std::unique_ptr<Actor>& Trial::actor(const std::string& name) const {
 }
 
 void Trial::advance_tick() {
-  SPDLOG_TRACE("Tick [{}] is done for Trial [{}]", m_tick_id, to_string(m_id));
+  SPDLOG_TRACE("Tick [{}] is done for Trial [{}]", m_tick_id, m_id);
 
   m_tick_id++;
   if (m_tick_id > MAX_TICK_ID) {
@@ -232,19 +236,19 @@ cogment::EnvStartRequest Trial::prepare_environment() {
 }
 
 void Trial::start(cogment::TrialParams params) {
-  SPDLOG_TRACE("Starting Trial [{}]", to_string(m_id));
+  SPDLOG_TRACE("Starting Trial [{}]", m_id);
 
   if (m_state != InternalState::initializing) {
-    throw MakeException("Trial [%s] is not in proper state to start: [%s]", to_string(m_id).c_str(),
+    throw MakeException("Trial [%s] is not in proper state to start: [%s]", m_id.c_str(),
                         get_trial_state_string(m_state));
   }
 
   m_params = std::move(params);
-  SPDLOG_DEBUG("Configuring trial {} with parameters: {}", to_string(m_id), m_params.DebugString());
+  SPDLOG_DEBUG("Configuring trial [{}] with parameters: {}", m_id, m_params.DebugString());
 
   grpc_metadata trial_header;
   trial_header.key = grpc_slice_from_static_string("trial-id");
-  trial_header.value = grpc_slice_from_copied_string(to_string(m_id).c_str());
+  trial_header.value = grpc_slice_from_copied_string(m_id.c_str());
   m_headers.push_back(trial_header);
   m_call_options.headers = &m_headers;
 
@@ -276,7 +280,7 @@ void Trial::start(cogment::TrialParams params) {
   });
 
   auto self = shared_from_this();
-  SPDLOG_TRACE("Trial [{}]: waiting for actors and environment...", to_string(m_id));
+  SPDLOG_TRACE("Trial [{}]: waiting for actors and environment...", m_id);
   join(env_ready, concat(actors_ready.begin(), actors_ready.end()))
       .then([this](auto env_rep) {
         new_obs(std::move(*env_rep.mutable_observation_set()));
@@ -289,15 +293,15 @@ void Trial::start(cogment::TrialParams params) {
         dispatch_observations();
       })
       .finally([self](auto) {
-        SPDLOG_TRACE("Trial [{}]: All components started.", to_string(self->m_id));
+        SPDLOG_TRACE("Trial [{}]: All components started.", self->m_id);
       });
 
-  spdlog::debug("Trial {} is configured", to_string(m_id));
+  spdlog::debug("Trial [{}] is configured", m_id);
 }
 
 void Trial::reward_received(const cogment::Reward& reward, const std::string& sender) {
   if (m_state < InternalState::pending) {
-    spdlog::warn("Too early for trial [{}] to receive rewards.", to_string(m_id));
+    spdlog::warn("Too early for trial [{}] to receive rewards.", m_id);
     return;
   }
 
@@ -333,7 +337,7 @@ void Trial::reward_received(const cogment::Reward& reward, const std::string& se
 
 void Trial::message_received(const cogment::Message& message, const std::string& sender) {
   if (m_state < InternalState::pending) {
-    spdlog::warn("Too early for trial [{}] to receive messages.", to_string(m_id));
+    spdlog::warn("Too early for trial [{}] to receive messages.", m_id);
     return;
   }
 
@@ -444,7 +448,7 @@ void Trial::run_environment() {
 
   incoming_updates
       .for_each([this](auto update) {
-        SPDLOG_TRACE("Received new observation set for Trial [{}]", to_string(m_id));
+        SPDLOG_TRACE("Received new observation set for Trial [{}]", m_id);
 
         if (m_state == InternalState::ended) {
           return;
@@ -498,7 +502,7 @@ void Trial::terminate() {
       return;
     }
     if (m_state != InternalState::running) {
-      spdlog::error("Trial [{}] cannot terminate in current state: [{}]", to_string(m_id).c_str(),
+      spdlog::error("Trial [{}] cannot terminate in current state: [{}]", m_id.c_str(),
                     get_trial_state_string(m_state));
       return;
     }
@@ -530,7 +534,7 @@ void Trial::terminate() {
 
         if (self->m_state != InternalState::ended) {
           // One possible reason is if the environment took longer than the deadline to respond
-          spdlog::error("Trial [{}] did not end normally.", to_string(self->m_id));
+          spdlog::error("Trial [{}] did not end normally.", self->m_id);
 
           // TODO: Send "ended trial" to all components?  So they don't get stuck waiting. Or cut comms?
 
@@ -543,26 +547,24 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
   std::shared_lock<std::shared_mutex> terminating_guard(m_terminating_lock);
 
   if (m_state < InternalState::pending) {
-    spdlog::warn("Too early for trial [{}] to receive actions from [{}].", to_string(m_id), actor_name);
+    spdlog::warn("Too early for trial [{}] to receive actions from [{}].", m_id, actor_name);
     return;
   }
   if (m_state >= InternalState::terminating) {
-    spdlog::info("An action from [{}] arrived after end of trial [{}].  Action will be dropped.", actor_name,
-                 to_string(m_id));
+    spdlog::info("An action from [{}] arrived after end of trial [{}].  Action will be dropped.", actor_name, m_id);
     return;
   }
 
   const auto itor = m_actor_indexes.find(actor_name);
   if (itor == m_actor_indexes.end()) {
-    spdlog::error("Unknown actor [{}] for action received in trial [{}].", actor_name, to_string(m_id));
+    spdlog::error("Unknown actor [{}] for action received in trial [{}].", actor_name, m_id);
     return;
   }
   const auto actor_index = itor->second;
 
   auto sample = get_last_sample();
   if (sample == nullptr) {
-    spdlog::warn("No sample to accept action from [{}] in trial [{}]. Trial may be finished.", actor_name,
-                 to_string(m_id));
+    spdlog::warn("No sample to accept action from [{}] in trial [{}]. Trial may be finished.", actor_name, m_id);
     return;
   }
   auto sample_action = sample->mutable_actions(actor_index);
@@ -577,7 +579,7 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
                  action.tick_id(), m_tick_id);
   }
 
-  SPDLOG_TRACE("Received action from actor [{}] in trial [{}] for tick [{}].", actor_name, to_string(m_id), m_tick_id);
+  SPDLOG_TRACE("Received action from actor [{}] in trial [{}] for tick [{}].", actor_name, m_id, m_tick_id);
   *sample_action = action;
 
   bool all_actions_received = false;
@@ -588,7 +590,7 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
   }
 
   if (all_actions_received) {
-    SPDLOG_TRACE("All actions received in Trial [{}] for tick [{}]", to_string(m_id), m_tick_id);
+    SPDLOG_TRACE("All actions received in Trial [{}] for tick [{}]", m_id, m_tick_id);
 
     const auto max_steps = m_params.max_steps();
     if (max_steps == 0 || m_tick_id < max_steps) {
@@ -602,11 +604,11 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
         });
       }
       else {
-        spdlog::error("Environment for trial [{}] not ready for first action set", to_string(m_id));
+        spdlog::error("Environment for trial [{}] not ready for first action set", m_id);
       }
     }
     else {
-      spdlog::info("Trial [{}] reached its maximum number of steps: [{}]", to_string(m_id), max_steps);
+      spdlog::info("Trial [{}] reached its maximum number of steps: [{}]", m_id, max_steps);
       terminating_guard.unlock();
       terminate();
     }
@@ -681,7 +683,7 @@ void Trial::set_state(InternalState new_state) {
     }
     else {
       // Shouldn't happen, but acceptable
-      spdlog::debug("Trial [{}] already ended: cannot end again", to_string(m_id));
+      spdlog::debug("Trial [{}] already ended: cannot end again", m_id);
     }
     break;
   }
@@ -720,7 +722,7 @@ bool Trial::is_stale() const {
 
 void Trial::set_info(cogment::TrialInfo* info, bool with_observations, bool with_actors) {
   if (info == nullptr) {
-    spdlog::error("Trial [{}] request for info with no storage", to_string(m_id));
+    spdlog::error("Trial [{}] request for info with no storage", m_id);
     return;
   }
 
@@ -732,7 +734,7 @@ void Trial::set_info(cogment::TrialInfo* info, bool with_observations, bool with
     end = m_end_timestamp;
   }
   info->set_trial_duration(end - m_start_timestamp);
-  info->set_trial_id(to_string(m_id));
+  info->set_trial_id(m_id);
 
   // The state and tick may not be synchronized here, but it is better
   // to have the latest state (as opposed to the state of the sample).

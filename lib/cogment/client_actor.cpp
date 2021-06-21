@@ -28,18 +28,18 @@ Client_actor::Client_actor(Trial* owner, const std::string& actor_name, const Ac
     m_joined(false),
     m_config_data(std::move(config_data)),
     m_outgoing_observations_future(m_outgoing_observations.get_future()) {
-  SPDLOG_TRACE("Client_actor(): [{}] [{}]", to_string(trial()->id()), actor_name);
+  SPDLOG_TRACE("Client_actor(): [{}] [{}]", trial()->id(), actor_name);
 }
 
 Client_actor::~Client_actor() {
-  SPDLOG_TRACE("~Client_actor(): [{}] [{}]", to_string(trial()->id()), actor_name());
+  SPDLOG_TRACE("~Client_actor(): [{}] [{}]", trial()->id(), actor_name());
   if (m_outgoing_observations) {
     m_outgoing_observations.complete();
   }
 }
 
 aom::Future<void> Client_actor::init() {
-  SPDLOG_TRACE("Client_actor::init(): [{}] [{}]", to_string(trial()->id()), actor_name());
+  SPDLOG_TRACE("Client_actor::init(): [{}] [{}]", trial()->id(), actor_name());
   // Client actors are ready once a client has connected to it.
   return m_ready_promise.get_future();
 }

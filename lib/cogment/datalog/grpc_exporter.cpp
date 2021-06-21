@@ -38,7 +38,7 @@ void GrpcDatalogExporterBase::Trial_log::m_lazy_start_stream() {
   if (!m_output_promise) {
     grpc_metadata trial_header;
     trial_header.key = grpc_slice_from_static_string("trial-id");
-    trial_header.value = grpc_slice_from_copied_string(to_string(m_trial->id()).c_str());
+    trial_header.value = grpc_slice_from_copied_string(m_trial->id().c_str());
     m_headers = {trial_header};
     m_options.headers = &m_headers;
 

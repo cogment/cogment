@@ -29,11 +29,11 @@ Agent::Agent(Trial* owner, const std::string& in_actor_name, const ActorClass* a
     m_stub_entry(std::move(stub_entry)),
     m_config_data(std::move(config_data)),
     m_impl(impl) {
-  SPDLOG_TRACE("Agent(): [{}] [{}] [{}]", to_string(trial()->id()), actor_name(), impl);
+  SPDLOG_TRACE("Agent(): [{}] [{}] [{}]", trial()->id(), actor_name(), impl);
 
   grpc_metadata trial_header;
   trial_header.key = grpc_slice_from_static_string("trial-id");
-  trial_header.value = grpc_slice_from_copied_string(to_string(trial()->id()).c_str());
+  trial_header.value = grpc_slice_from_copied_string(trial()->id().c_str());
 
   grpc_metadata actor_header;
   actor_header.key = grpc_slice_from_static_string("actor-name");
@@ -44,7 +44,7 @@ Agent::Agent(Trial* owner, const std::string& in_actor_name, const ActorClass* a
 }
 
 Agent::~Agent() {
-  SPDLOG_TRACE("~Agent(): [{}] [{}]", to_string(trial()->id()), actor_name());
+  SPDLOG_TRACE("~Agent(): [{}] [{}]", trial()->id(), actor_name());
 
   if (m_outgoing_observations) {
     m_outgoing_observations->complete();
@@ -52,7 +52,7 @@ Agent::~Agent() {
 }
 
 aom::Future<void> Agent::init() {
-  SPDLOG_TRACE("Agent::init(): [{}] [{}]", to_string(trial()->id()), actor_name());
+  SPDLOG_TRACE("Agent::init(): [{}] [{}]", trial()->id(), actor_name());
 
   cogment::AgentStartRequest req;
 
@@ -71,7 +71,7 @@ aom::Future<void> Agent::init() {
   return m_stub_entry->get_stub().OnStart(req, m_options).then([this](auto rep) {
     (void)rep;
     (void)this;
-    SPDLOG_DEBUG("Agent init start complete: [{}] [{}]", to_string(trial()->id()), actor_name());
+    SPDLOG_DEBUG("Agent init start complete: [{}] [{}]", trial()->id(), actor_name());
   });
 }
 

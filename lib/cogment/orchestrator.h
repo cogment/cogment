@@ -43,12 +43,12 @@ public:
   void set_log_exporter(std::unique_ptr<DatalogStorageInterface> le);
 
   // Lifecycle
-  aom::Future<std::shared_ptr<Trial>> start_trial(cogment::TrialParams params, std::string user_id);
+  aom::Future<std::shared_ptr<Trial>> start_trial(cogment::TrialParams params, const std::string& user_id);
 
   // Client API
   TrialJoinReply client_joined(TrialJoinRequest);
   ::easy_grpc::Stream_future<::cogment::TrialActionReply> bind_client(
-      const uuids::uuid& trial_id, std::string& actor_name,
+      const std::string& trial_id, const std::string& actor_name,
       ::easy_grpc::Stream_future<::cogment::TrialActionRequest> actions);
 
   // Services
@@ -56,7 +56,7 @@ public:
   TrialLifecycleService& trial_lifecycle_service() { return m_trial_lifecycle_service; }
 
   // Lookups
-  std::shared_ptr<Trial> get_trial(const uuids::uuid& trial_id) const;
+  std::shared_ptr<Trial> get_trial(const std::string& trial_id) const;
 
   // Gets all running trials.
   std::vector<std::shared_ptr<Trial>> all_trials() const;
@@ -84,7 +84,7 @@ private:
 
   // Currently existing Trials
   mutable std::mutex m_trials_mutex;
-  std::unordered_map<uuids::uuid, std::shared_ptr<Trial>> m_trials;
+  std::unordered_map<std::string, std::shared_ptr<Trial>> m_trials;
 
   // List of trial pre-hooks to invoke before actually launching trials
   std::vector<HookEntryType> m_prehooks;

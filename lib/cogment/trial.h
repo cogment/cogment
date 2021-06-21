@@ -24,8 +24,6 @@
 
 #include "cogment/stub_pool.h"
 
-#include "uuid.h"
-
 #include <atomic>
 #include <chrono>
 #include <deque>
@@ -41,12 +39,10 @@ class TrialLogInterface;
 
 // TODO: Make Trial independent of orchestrator (to remove any chance of circular reference)
 class Trial : public std::enable_shared_from_this<Trial> {
-  static uuids::uuid_system_generator m_id_generator;
-
 public:
   enum class InternalState { unknown, initializing, pending, running, terminating, ended };
 
-  Trial(Orchestrator* orch, std::string user_id);
+  Trial(Orchestrator* orch, const std::string& user_id);
   ~Trial();
 
   Trial(Trial&&) = delete;
@@ -60,7 +56,7 @@ public:
   uint64_t start_timestamp() const { return m_start_timestamp; }
 
   // Trial identification
-  const uuids::uuid& id() const { return m_id; }
+  const std::string& id() const { return m_id; }
   const std::string& user_id() const { return m_user_id; }
 
   // Actors present in the trial
@@ -118,8 +114,8 @@ private:
   std::mutex m_env_message_lock;
   std::shared_mutex m_terminating_lock;
 
-  uuids::uuid m_id;  // TODO: Store as string (since we convert everywhere back and forth)
-  std::string m_user_id;
+  const std::string m_id;
+  const std::string m_user_id;
 
   cogment::TrialParams m_params;
 

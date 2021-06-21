@@ -49,7 +49,7 @@ Orchestrator::Orchestrator(Trial_spec trial_spec, cogment::TrialParams default_t
 
 Orchestrator::~Orchestrator() { SPDLOG_TRACE("~Orchestrator()"); }
 
-aom::Future<std::shared_ptr<Trial>> Orchestrator::start_trial(cogment::TrialParams params, std::string user_id) {
+aom::Future<std::shared_ptr<Trial>> Orchestrator::start_trial(cogment::TrialParams params, const std::string& user_id) {
   m_garbage_collection_countdown--;
   if (m_garbage_collection_countdown <= 0) {
     m_garbage_collection_countdown.store(settings::garbage_collection_frequency.get());
@@ -68,12 +68,11 @@ aom::Future<std::shared_ptr<Trial>> Orchestrator::start_trial(cogment::TrialPara
   *init_ctx.mutable_params() = std::move(params);
   init_ctx.set_user_id(user_id);
 
-  auto trial_id = to_string(new_trial->id());
-  auto final_ctx_fut = m_perform_pre_hooks(std::move(init_ctx), trial_id);
+  auto final_ctx_fut = m_perform_pre_hooks(std::move(init_ctx), new_trial->id());
 
-  return final_ctx_fut.then([new_trial, trial_id](auto final_ctx) {
+  return final_ctx_fut.then([new_trial](auto final_ctx) {
     new_trial->start(std::move(*final_ctx.mutable_params()));
-    spdlog::info("Trial [{}] successfully initialized", trial_id);
+    spdlog::info("Trial [{}] successfully initialized", new_trial->id());
     return new_trial;
   });
 }
@@ -86,8 +85,7 @@ TrialJoinReply Orchestrator::client_joined(TrialJoinRequest req) {
   if (req.trial_id() != "") {
     const std::lock_guard lg(m_trials_mutex);
 
-    auto trial_uuid = uuids::uuid::from_string(req.trial_id());
-    auto trial_itor = m_trials.find(trial_uuid);
+    auto trial_itor = m_trials.find(req.trial_id());
     if (trial_itor != m_trials.end()) {
       joined_as_actor = trial_itor->second->get_join_candidate(req);
     }
@@ -111,7 +109,7 @@ TrialJoinReply Orchestrator::client_joined(TrialJoinRequest req) {
     result.mutable_config()->set_content(config_data.value());
   }
   result.set_actor_name(joined_as_actor->actor_name());
-  result.set_trial_id(to_string(joined_as_actor->trial()->id()));
+  result.set_trial_id(joined_as_actor->trial()->id());
 
   for (const auto& actor : joined_as_actor->trial()->actors()) {
     auto actor_in_trial = result.add_actors_in_trial();
@@ -123,11 +121,11 @@ TrialJoinReply Orchestrator::client_joined(TrialJoinRequest req) {
 }
 
 ::easy_grpc::Stream_future<::cogment::TrialActionReply> Orchestrator::bind_client(
-    const uuids::uuid& trial_id, std::string& actor_name,
+    const std::string& trial_id, const std::string& actor_name,
     ::easy_grpc::Stream_future<::cogment::TrialActionRequest> actions) {
   auto trial = get_trial(trial_id);
   if (trial == nullptr) {
-    throw MakeException("Unknown trial to bind [%s]", to_string(trial_id).c_str());
+    throw MakeException("Unknown trial to bind [%s]", std::string(trial_id).c_str());
   }
 
   auto actor = dynamic_cast<Client_actor*>(trial->actor(actor_name).get());
@@ -200,14 +198,14 @@ void Orchestrator::m_perform_garbage_collection() {
 
   // terminate may be long, so we don't want to lock the list during that time
   for (auto trial : stale_trials) {
-    spdlog::warn("Terminating trial [{}] because inactive for too long", to_string(trial->id()));
+    spdlog::warn("Terminating trial [{}] because inactive for too long", trial->id());
     trial->terminate();
   }
 
   SPDLOG_TRACE("Garbage collection done");
 }
 
-std::shared_ptr<Trial> Orchestrator::get_trial(const uuids::uuid& trial_id) const {
+std::shared_ptr<Trial> Orchestrator::get_trial(const std::string& trial_id) const {
   const std::lock_guard lg(m_trials_mutex);
   auto itor = m_trials.find(trial_id);
   if (itor != m_trials.end()) {
@@ -245,8 +243,8 @@ void Orchestrator::watch_trials(HandlerFunction func) {
 }
 
 void Orchestrator::notify_watchers(const Trial& trial) {
-  SPDLOG_TRACE("Trial [{}] changed state to [{}] at tick [{}]", to_string(trial.id()),
-               get_trial_state_string(trial.state()), trial.tick_id());
+  SPDLOG_TRACE("Trial [{}] changed state to [{}] at tick [{}]", trial.id(), get_trial_state_string(trial.state()),
+               trial.tick_id());
 
   const std::lock_guard lg(m_notification_lock);
 

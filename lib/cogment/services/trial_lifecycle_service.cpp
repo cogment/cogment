@@ -42,7 +42,7 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : m_orchestrato
   return trial_fut.then([](std::shared_ptr<Trial> trial) {
     ::cogment::TrialStartReply reply;
 
-    reply.set_trial_id(to_string(trial->id()));
+    reply.set_trial_id(trial->id());
 
     for (const auto& actor : trial->actors()) {
       auto actor_in_trial = reply.add_actors_in_trial();
@@ -56,34 +56,34 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : m_orchestrato
 
 ::cogment::TerminateTrialReply TrialLifecycleService::TerminateTrial(::cogment::TerminateTrialRequest,
                                                                      easy_grpc::Context ctx) {
-  const auto trial_id_strv = ctx.get_client_header("trial-id");
-  SPDLOG_TRACE("TerminateTrial [{}]", trial_id_strv);
+  std::string trial_id(ctx.get_client_header("trial-id"));
+  SPDLOG_TRACE("TerminateTrial [{}]", trial_id);
 
-  auto trial = m_orchestrator->get_trial(uuids::uuid::from_string(trial_id_strv));
+  auto trial = m_orchestrator->get_trial(trial_id);
   if (trial != nullptr) {
     trial->terminate();
   }
   else {
-    spdlog::error("Trial [{}] doesn't exist for termination", std::string(trial_id_strv));
+    spdlog::error("Trial [{}] doesn't exist for termination", trial_id);
   }
 
   return {};
 }
 
 ::cogment::TrialInfoReply TrialLifecycleService::GetTrialInfo(::cogment::TrialInfoRequest req, easy_grpc::Context ctx) {
-  std::string_view trial_id_strv;
+  std::string_view trial_id;
   try {
-    trial_id_strv = ctx.get_client_header("trial-id");
+    // TODO: Find a way to test for header values instead of relying on exceptions
+    trial_id = ctx.get_client_header("trial-id");
   }
   catch (const std::out_of_range&) {
     // There was no "trial-id" header
   }
-  SPDLOG_TRACE("GetTrialInfo [{}]", trial_id_strv);
+  SPDLOG_TRACE("GetTrialInfo [{}]", trial_id);
 
   cogment::TrialInfoReply result;
-  if (!trial_id_strv.empty()) {
-    const auto trial_id = uuids::uuid::from_string(trial_id_strv);
-    auto trial = m_orchestrator->get_trial(trial_id);
+  if (!trial_id.empty()) {
+    auto trial = m_orchestrator->get_trial(std::string(trial_id));
     if (trial != nullptr) {
       auto trial_info = result.add_trial();
       trial->set_info(trial_info, req.get_latest_observation(), req.get_actor_list());
@@ -127,7 +127,7 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : m_orchestrato
 
     if (state_mask.test(static_cast<std::size_t>(state))) {
       cogment::TrialListEntry msg;
-      msg.set_trial_id(to_string(trial.id()));
+      msg.set_trial_id(trial.id());
       msg.set_state(state);
       promise->push(std::move(msg));
     }
