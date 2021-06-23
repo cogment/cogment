@@ -123,6 +123,8 @@ func TestCreateProjectFiles(t *testing.T) {
 		Components: api.ComponentsConfigurations{
 			Orchestrator: helper.VersionInfo{Version: "v1.0"},
 			Python:       helper.VersionInfo{Version: "1.0"},
+			Metrics:      helper.VersionInfo{Version: "2.0"},
+			Dashboard:    helper.VersionInfo{Version: "v1.5-beta"},
 		},
 		ActorClasses: []*api.ActorClass{
 			&api.ActorClass{Name: "master"},

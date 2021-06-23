@@ -6,3 +6,9 @@ components:
   python:
     package: cogment
     version: v1.1.1
+  metrics:
+    package: cogment/metrics
+    version: v1.2.3
+  dashboard:
+    package: cogment/dashboard
+    version: v1.2.3

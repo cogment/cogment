@@ -178,6 +178,8 @@ type ProjectConfig struct {
 type ComponentsConfigurations struct {
 	Orchestrator helper.VersionInfo
 	Python       helper.VersionInfo
+	Metrics      helper.VersionInfo
+	Dashboard    helper.VersionInfo
 }
 
 type Environment struct {

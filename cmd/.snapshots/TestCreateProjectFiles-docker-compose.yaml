@@ -58,7 +58,7 @@ services:
   #user: 0:0 is required so the generated files aren't created under root, and therefor unacessible by the dashboard/metrics
   dashboard:
     user: 0:0
-    image: cogment/dashboard:latest
+    image: cogment/dashboard:v1.5
     ports:
       - 3003:3000/tcp
     depends_on:
@@ -66,7 +66,7 @@ services:
 
   metrics:
     user: 0:0
-    image: cogment/metrics:latest
+    image: cogment/metrics:v2.0
     command: --config.file=/etc/prometheus/prometheus.yml --log.level=error
     volumes:
       - ./metrics/prometheus.yml:/etc/prometheus/prometheus.yml:ro
