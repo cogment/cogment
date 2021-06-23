@@ -1,4 +1,4 @@
-# Copyright 2020 Artificial Intelligence Redefined <dev+cogment@ai-r.com>
+# Copyright 2021 AI Redefined Inc. <dev+cogment@ai-r.com>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,13 +13,13 @@
 # limitations under the License.
 
 
-import cogment as _cog
 from types import SimpleNamespace
 from typing import List
 
+import cogment as _cog
 import data_pb2
-import subdir.otherdata_pb2
 import delta
+import subdir.otherdata_pb2
 
 _plane_class = _cog.ActorClass(
     id='plane',
@@ -60,8 +60,10 @@ class ActionsTable:
     ai_drone: List[data_pb2.Ai_DroneAction]
 
     def __init__(self, trial):
-        self.plane = [data_pb2.Human_PlaneAction() for _ in range(trial.actor_counts[0])]
-        self.ai_drone = [data_pb2.Ai_DroneAction() for _ in range(trial.actor_counts[1])]
+        self.plane = [data_pb2.Human_PlaneAction()
+                      for _ in range(trial.actor_counts[0])]
+        self.ai_drone = [data_pb2.Ai_DroneAction()
+                         for _ in range(trial.actor_counts[1])]
 
     def all_actions(self):
         return self.plane + self.ai_drone
@@ -83,6 +85,7 @@ class plane_ObservationProxy(_cog.env_service.ObservationProxy):
     @delta.setter
     def delta(self, v):
         self._set_delta(v)
+
 
 class ai_drone_ObservationProxy(_cog.env_service.ObservationProxy):
     @property
@@ -107,8 +110,10 @@ class ObservationsTable:
     ai_drone: List[ai_drone_ObservationProxy]
 
     def __init__(self, trial):
-        self.plane = [plane_ObservationProxy() for _ in range(trial.actor_counts[0])]
-        self.ai_drone = [ai_drone_ObservationProxy() for _ in range(trial.actor_counts[1])]
+        self.plane = [plane_ObservationProxy()
+                      for _ in range(trial.actor_counts[0])]
+        self.ai_drone = [ai_drone_ObservationProxy()
+                         for _ in range(trial.actor_counts[1])]
 
     def all_observations(self):
         return self.plane + self.ai_drone

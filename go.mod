@@ -9,7 +9,6 @@ require (
 	github.com/golang/protobuf v1.4.0-rc.4
 	github.com/imdario/mergo v0.3.11
 	github.com/jinzhu/copier v0.1.0
-	github.com/jstemmer/go-junit-report v0.9.1 // indirect
 	github.com/magiconair/properties v1.8.0
 	github.com/markbates/pkger v0.17.1
 	github.com/mitchellh/go-homedir v1.1.0
