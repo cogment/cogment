@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/cogment/cogment-cli/api"
+	"github.com/cogment/cogment-cli/helper"
 )
 
 var expectedConfig, err = api.ExtendDefaultProjectConfig(&api.ProjectConfig{
@@ -120,8 +121,8 @@ func TestCreateProjectFiles(t *testing.T) {
 		ProjectName:       "testit",
 		ProjectConfigPath: path.Join(dir, "cogment.yaml"),
 		Components: api.ComponentsConfigurations{
-			Orchestrator: api.OrchestratorConfiguration{Version: "v1.0"},
-			Python:       api.PythonConfiguration{Version: "1.0"},
+			Orchestrator: helper.VersionInfo{Version: "v1.0"},
+			Python:       helper.VersionInfo{Version: "1.0"},
 		},
 		ActorClasses: []*api.ActorClass{
 			&api.ActorClass{Name: "master"},
@@ -182,7 +183,7 @@ func TestCreateProjectFilesDashes(t *testing.T) {
 		ProjectName:       "a-test-project-with-dashes",
 		ProjectConfigPath: path.Join(dir, "cogment.yaml"),
 		Components: api.ComponentsConfigurations{
-			Orchestrator: api.OrchestratorConfiguration{Version: "v1.0"},
+			Orchestrator: helper.VersionInfo{Version: "v1.0"},
 		},
 		ActorClasses: []*api.ActorClass{
 			&api.ActorClass{Name: "smart"},

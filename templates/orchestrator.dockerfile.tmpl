@@ -1,4 +1,4 @@
-FROM {{ .Components.Orchestrator.Image }}:{{ .Components.Orchestrator.Version }}
+FROM {{ .Components.Orchestrator.Package }}:v{{ .Components.Orchestrator.Version | sanitizeVersion }}
 
 COPY cogment.yaml .
 COPY *.proto .

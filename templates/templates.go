@@ -52,6 +52,7 @@ func GenerateFromTemplate(tmplPath string, config interface{}, outputPath string
 		"snakeify":                     helper.Snakeify,
 		"kebabify":                     helper.Kebabify,
 		"pascalify":                    helper.Pascalify,
+		"sanitizeVersion":              helper.SanitizeVersion,
 		"tocaps":                       helper.Tocaps,
 		"computeTrialActorServiceName": api.ComputeTrialActorServiceName,
 		"protoPathToPyPath":            helper.ProtoPathToPyPath,
