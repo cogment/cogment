@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - `cogment init` now uses fixed version for the metrics and dashboard.
+- cogment.yaml template includes client in docker-compose build command
 
 ## v1.0.2 - 2021-06-17
 

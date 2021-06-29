@@ -14,7 +14,7 @@ commands:
     {{- range .ListServiceActorServices }}
     --python_dir {{.Name|snakeify}}
     {{- end }}
-  build: docker-compose build orchestrator metrics dashboard environment{{ range .ListServiceActorServices }} {{.Name|kebabify}}{{end}}{{ if $config.WebClient }} web-client{{ end }}
+  build: docker-compose build orchestrator metrics dashboard client environment{{ range .ListServiceActorServices }} {{.Name|kebabify}}{{end}}{{ if $config.WebClient }} web-client{{ end }}
   dashboard: docker-compose up --build dashboard
   start: docker-compose up orchestrator metrics dashboard environment{{ range .ListServiceActorServices }} {{.Name|kebabify}}{{end}}{{ if $config.WebClient }} web-client{{ end }}
   stop: docker-compose stop orchestrator metrics dashboard environment{{ range .ListServiceActorServices }} {{.Name|kebabify}}{{end}}{{ if $config.WebClient }} web-client{{ end }}

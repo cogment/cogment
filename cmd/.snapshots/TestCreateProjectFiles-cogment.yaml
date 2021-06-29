@@ -9,7 +9,7 @@ commands:
     --python_dir client
     --python_dir dumb
     --python_dir smart
-  build: docker-compose build orchestrator metrics dashboard environment dumb smart
+  build: docker-compose build orchestrator metrics dashboard client environment dumb smart
   dashboard: docker-compose up --build dashboard
   start: docker-compose up orchestrator metrics dashboard environment dumb smart
   stop: docker-compose stop orchestrator metrics dashboard environment dumb smart
