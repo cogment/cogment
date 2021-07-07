@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v1.0.2 - 2021-07-07
+
 ### Changed
 
 - Update copyright notice to use the legal name of AI Redefined Inc.
