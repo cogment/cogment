@@ -2,10 +2,10 @@
 components:
   orchestrator:
     package: cogment/orchestrator
-    version: v1.0.1
+    version: v1.0.2
   python:
     package: cogment
-    version: v1.1.1
+    version: v1.2.0
   metrics:
     package: cogment/metrics
     version: v1.2.3
