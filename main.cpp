@@ -223,13 +223,16 @@ int main(int argc, const char* argv[]) {
     spdlog::info("Cogment API v. {}", COGMENT_API_VERSION);
 
     // ******************* Endpoints *******************
-    auto lifecycle_endpoint = fmt::format("0.0.0.0:{}", settings::lifecycle_port.get());
-    auto actor_endpoint = fmt::format("0.0.0.0:{}", settings::actor_port.get());
-    auto prometheus_endpoint = fmt::format("0.0.0.0:{}", settings::prometheus_port.get());
+    auto lifecycle_endpoint = std::string("0.0.0.0:") + std::to_string(settings::lifecycle_port.get());
+    auto actor_endpoint = std::string("0.0.0.0:") + std::to_string(settings::actor_port.get());
 
     // ******************* Monitoring *******************
-    spdlog::info("Starting prometheus at: {}", prometheus_endpoint);
-    prometheus::Exposer ExposePublicParser(prometheus_endpoint);
+    std::unique_ptr<prometheus::Exposer> ExposePublicParser;
+    if (settings::prometheus_port.get() > 0) {
+      auto prometheus_endpoint = std::string("0.0.0.0:") + std::to_string(settings::prometheus_port.get());
+      spdlog::info("Starting prometheus at: {}", prometheus_endpoint);
+      ExposePublicParser = std::make_unique<prometheus::Exposer>(prometheus_endpoint);
+    }
 
     // ******************* Orchestrator *******************
     cogment::Trial_spec trial_spec(cogment_yaml);

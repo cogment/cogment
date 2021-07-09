@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Update copyright notice to use the legal name of AI Redefined Inc.
 - Use strings everywhere for trial id
+- Add ability to disable Prometheus server
 
 ### Fixed
 
