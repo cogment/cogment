@@ -25,6 +25,9 @@
 #include "cogment/trial_spec.h"
 #include "cogment/utils.h"
 
+#include <prometheus/registry.h>
+#include <prometheus/summary.h>
+
 #include <atomic>
 #include <unordered_map>
 
@@ -34,7 +37,7 @@ public:
   using HandlerFunction = std::function<void(const Trial& trial)>;
 
   Orchestrator(Trial_spec trial_spec, cogment::TrialParams default_trial_params,
-               std::shared_ptr<easy_grpc::client::Credentials> creds);
+               std::shared_ptr<easy_grpc::client::Credentials> creds, prometheus::Registry* metrics_registry);
   ~Orchestrator();
 
   // Initialization
@@ -81,6 +84,9 @@ private:
   // Configuration
   Trial_spec m_trial_spec;
   cogment::TrialParams m_default_trial_params;
+  prometheus::Summary* m_trials_metrics;
+  prometheus::Summary* m_ticks_metrics;
+  prometheus::Summary* m_gc_metrics;
 
   // Currently existing Trials
   mutable std::mutex m_trials_mutex;

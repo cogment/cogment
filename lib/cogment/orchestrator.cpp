@@ -23,6 +23,10 @@
 #include "slt/settings.h"
 #include "spdlog/spdlog.h"
 
+namespace {
+constexpr double NANOS_INV = 1.0 / 1'000'000'000;
+}
+
 namespace settings {
 
 constexpr std::uint32_t default_garbage_collection_frequency = 10;
@@ -35,7 +39,8 @@ slt::Setting garbage_collection_frequency = slt::Setting_builder<std::uint32_t>(
 
 namespace cogment {
 Orchestrator::Orchestrator(Trial_spec trial_spec, cogment::TrialParams default_trial_params,
-                           std::shared_ptr<easy_grpc::client::Credentials> creds) :
+                           std::shared_ptr<easy_grpc::client::Credentials> creds,
+                           prometheus::Registry* metrics_registry) :
     m_trial_spec(std::move(trial_spec)),
     m_default_trial_params(std::move(default_trial_params)),
     m_channel_pool(creds),
@@ -45,6 +50,31 @@ Orchestrator::Orchestrator(Trial_spec trial_spec, cogment::TrialParams default_t
     m_trial_lifecycle_service(this) {
   SPDLOG_TRACE("Orchestrator()");
   m_garbage_collection_countdown.store(settings::garbage_collection_frequency.get());
+
+  if (metrics_registry != nullptr) {
+    auto& trial_family = prometheus::BuildSummary()
+                             .Name("orchestrator_trial_duration_seconds")
+                             .Help("Duration (in seconds) of a trial")
+                             .Register(*metrics_registry);
+    m_trials_metrics = &(trial_family.Add({}, prometheus::Summary::Quantiles()));
+
+    auto& tick_family = prometheus::BuildSummary()
+                            .Name("orchestrator_tick_duration_seconds")
+                            .Help("Duration (in seconds) of a normals step (not the first or last step)")
+                            .Register(*metrics_registry);
+    m_ticks_metrics = &(tick_family.Add({}, prometheus::Summary::Quantiles()));
+
+    auto& gc_family = prometheus::BuildSummary()
+                          .Name("orchestrator_garbage_collection_duration_seconds")
+                          .Help("Duration (in seconds) of a trial garbage collection call")
+                          .Register(*metrics_registry);
+    m_gc_metrics = &(gc_family.Add({}, prometheus::Summary::Quantiles()));
+  }
+  else {
+    m_trials_metrics = nullptr;
+    m_ticks_metrics = nullptr;
+    m_gc_metrics = nullptr;
+  }
 }
 
 Orchestrator::~Orchestrator() { SPDLOG_TRACE("~Orchestrator()"); }
@@ -52,11 +82,17 @@ Orchestrator::~Orchestrator() { SPDLOG_TRACE("~Orchestrator()"); }
 aom::Future<std::shared_ptr<Trial>> Orchestrator::start_trial(cogment::TrialParams params, const std::string& user_id) {
   m_garbage_collection_countdown--;
   if (m_garbage_collection_countdown <= 0) {
+    const auto start = Timestamp();
     m_garbage_collection_countdown.store(settings::garbage_collection_frequency.get());
     m_perform_garbage_collection();
+
+    if (m_gc_metrics != nullptr) {
+      const auto duration = Timestamp() - start;
+      m_gc_metrics->Observe(static_cast<double>(duration) * NANOS_INV);
+    }
   }
 
-  auto new_trial = std::make_shared<Trial>(this, user_id);
+  auto new_trial = std::make_shared<Trial>(this, user_id, Trial::Metrics {m_trials_metrics, m_ticks_metrics});
 
   // Register the trial immediately.
   {

@@ -24,6 +24,8 @@
 
 #include "cogment/stub_pool.h"
 
+#include <prometheus/summary.h>
+
 #include <atomic>
 #include <chrono>
 #include <deque>
@@ -42,7 +44,12 @@ class Trial : public std::enable_shared_from_this<Trial> {
 public:
   enum class InternalState { unknown, initializing, pending, running, terminating, ended };
 
-  Trial(Orchestrator* orch, const std::string& user_id);
+  struct Metrics {
+    prometheus::Summary* trial_duration = nullptr;
+    prometheus::Summary* tick_duration = nullptr;
+  };
+
+  Trial(Orchestrator* orch, const std::string& user_id, const Metrics& met);
   ~Trial();
 
   Trial(Trial&&) = delete;
@@ -105,6 +112,8 @@ private:
   void dispatch_env_messages();
 
   Orchestrator* m_orchestrator;
+  Metrics m_metrics;
+  uint64_t m_tick_start_timestamp;
 
   std::mutex m_state_lock;
   std::mutex m_actor_lock;

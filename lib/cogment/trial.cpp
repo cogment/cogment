@@ -33,7 +33,8 @@
 
 namespace {
 uuids::uuid_system_generator g_uuid_generator;
-}
+constexpr double NANOS_INV = 1.0 / 1'000'000'000;
+}  // namespace
 
 namespace cogment {
 
@@ -80,8 +81,10 @@ cogment::TrialState get_trial_api_state(Trial::InternalState state) {
   throw MakeException<std::out_of_range>("Unknown trial state for api: [%d]", static_cast<int>(state));
 }
 
-Trial::Trial(Orchestrator* orch, const std::string& user_id) :
+Trial::Trial(Orchestrator* orch, const std::string& user_id, const Metrics& met) :
     m_orchestrator(orch),
+    m_metrics(met),
+    m_tick_start_timestamp(0),
     m_id(to_string(g_uuid_generator())),
     m_user_id(user_id),
     m_state(InternalState::unknown),
@@ -602,6 +605,18 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
         m_env_entry->serialize([this]() {
           m_outgoing_actions->push(make_action_request());
         });
+
+        // We put this here to try to be outside the first and last tick (i.e. overhead)
+        if (m_metrics.tick_duration != nullptr) {
+          if (m_tick_start_timestamp > 0) {
+            const uint64_t end = Timestamp();
+            m_metrics.tick_duration->Observe(static_cast<double>(end - m_tick_start_timestamp) * NANOS_INV);
+            m_tick_start_timestamp = end;
+          }
+          else {
+            m_tick_start_timestamp = Timestamp();
+          }
+        }
       }
       else {
         spdlog::error("Environment for trial [{}] not ready for first action set", m_id);
@@ -698,6 +713,10 @@ void Trial::set_state(InternalState new_state) {
 
     if (new_state == InternalState::ended) {
       m_end_timestamp = Timestamp();
+
+      if (m_metrics.trial_duration != nullptr) {
+        m_metrics.trial_duration->Observe(static_cast<double>(m_end_timestamp - m_start_timestamp) * NANOS_INV);
+      }
     }
 
     // TODO: Find a better way so we don't have to be locked when calling out

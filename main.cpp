@@ -62,7 +62,7 @@ slt::Setting config_file = slt::Setting_builder<std::string>()
                                .with_arg("config");
 
 slt::Setting prometheus_port = slt::Setting_builder<std::uint16_t>()
-                                   .with_default(8080)
+                                   .with_default(0)
                                    .with_description("The port to broadcast prometheus metrics on")
                                    .with_env_variable("PROMETHEUS_PORT")
                                    .with_arg("prometheus_port");
@@ -227,18 +227,25 @@ int main(int argc, const char* argv[]) {
     auto actor_endpoint = std::string("0.0.0.0:") + std::to_string(settings::actor_port.get());
 
     // ******************* Monitoring *******************
-    std::unique_ptr<prometheus::Exposer> ExposePublicParser;
+    std::unique_ptr<prometheus::Exposer> metrics_exposer;
+    std::shared_ptr<prometheus::Registry> metrics_registry;
     if (settings::prometheus_port.get() > 0) {
       auto prometheus_endpoint = std::string("0.0.0.0:") + std::to_string(settings::prometheus_port.get());
       spdlog::info("Starting prometheus at: {}", prometheus_endpoint);
-      ExposePublicParser = std::make_unique<prometheus::Exposer>(prometheus_endpoint);
+
+      metrics_exposer = std::make_unique<prometheus::Exposer>(prometheus_endpoint);
+      metrics_registry = std::make_shared<prometheus::Registry>();
+      metrics_exposer->RegisterCollectable(metrics_registry);
+    }
+    else {
+      spdlog::info("Prometheus disabled");
     }
 
     // ******************* Orchestrator *******************
     cogment::Trial_spec trial_spec(cogment_yaml);
     auto params = cogment::load_params(cogment_yaml, trial_spec);
 
-    cogment::Orchestrator orchestrator(std::move(trial_spec), std::move(params), client_creds);
+    cogment::Orchestrator orchestrator(std::move(trial_spec), std::move(params), client_creds, metrics_registry.get());
 
     // ******************* Networking *******************
     cogment::Stub_pool<cogment::TrialHooks> hook_stubs(orchestrator.channel_pool(), orchestrator.client_queue());
