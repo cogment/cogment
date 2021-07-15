@@ -26,7 +26,7 @@ namespace cogment {
 
 TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : m_orchestrator(orch) {}
 
-::easy_grpc::Future<::cogment::TrialStartReply> TrialLifecycleService::StartTrial(::cogment::TrialStartRequest req,
+::easy_grpc::Future<cogmentAPI::TrialStartReply> TrialLifecycleService::StartTrial(::cogmentAPI::TrialStartRequest req,
                                                                                   easy_grpc::Context) {
   SPDLOG_TRACE("StartTrial [{}]", req.user_id());
 
@@ -40,7 +40,7 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : m_orchestrato
   auto trial_fut = m_orchestrator->start_trial(std::move(params), req.user_id());
 
   return trial_fut.then([](std::shared_ptr<Trial> trial) {
-    ::cogment::TrialStartReply reply;
+    ::cogmentAPI::TrialStartReply reply;
 
     reply.set_trial_id(trial->id());
 
@@ -54,7 +54,7 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : m_orchestrato
   });
 }
 
-::cogment::TerminateTrialReply TrialLifecycleService::TerminateTrial(::cogment::TerminateTrialRequest,
+::cogmentAPI::TerminateTrialReply TrialLifecycleService::TerminateTrial(::cogmentAPI::TerminateTrialRequest,
                                                                      easy_grpc::Context ctx) {
   std::string trial_id(ctx.get_client_header("trial-id"));
   SPDLOG_TRACE("TerminateTrial [{}]", trial_id);
@@ -70,7 +70,7 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : m_orchestrato
   return {};
 }
 
-::cogment::TrialInfoReply TrialLifecycleService::GetTrialInfo(::cogment::TrialInfoRequest req, easy_grpc::Context ctx) {
+::cogmentAPI::TrialInfoReply TrialLifecycleService::GetTrialInfo(::cogmentAPI::TrialInfoRequest req, easy_grpc::Context ctx) {
   std::string_view trial_id;
   try {
     // TODO: Find a way to test for header values instead of relying on exceptions
@@ -81,7 +81,7 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : m_orchestrato
   }
   SPDLOG_TRACE("GetTrialInfo [{}]", trial_id);
 
-  cogment::TrialInfoReply result;
+  cogmentAPI::TrialInfoReply result;
   if (!trial_id.empty()) {
     auto trial = m_orchestrator->get_trial(std::string(trial_id));
     if (trial != nullptr) {
@@ -101,8 +101,8 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : m_orchestrato
   return result;
 }
 
-::easy_grpc::Stream_future<::cogment::TrialListEntry> TrialLifecycleService::WatchTrials(
-    ::cogment::TrialListRequest req, easy_grpc::Context) {
+::easy_grpc::Stream_future<cogmentAPI::TrialListEntry> TrialLifecycleService::WatchTrials(
+    ::cogmentAPI::TrialListRequest req, easy_grpc::Context) {
   SPDLOG_TRACE("WatchTrials");
 
   // Shared and not a unique ptr because we want the lambda copy constructible
@@ -110,7 +110,7 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : m_orchestrato
   Trial_future future(promise->get_future());
 
   // Build a bitmask for testing wether or not a trial should be reported.
-  std::bitset<cogment::TrialState_MAX + 1> state_mask;
+  std::bitset<cogmentAPI::TrialState_MAX + 1> state_mask;
   if (req.filter_size() == 0) {
     // If filter is empty, we report everything
     state_mask.set();
@@ -126,7 +126,7 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : m_orchestrato
     auto state = get_trial_api_state(trial.state());
 
     if (state_mask.test(static_cast<std::size_t>(state))) {
-      cogment::TrialListEntry msg;
+      cogmentAPI::TrialListEntry msg;
       msg.set_trial_id(trial.id());
       msg.set_state(state);
       promise->push(std::move(msg));
@@ -138,8 +138,8 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : m_orchestrato
   return future;
 }
 
-::cogment::VersionInfo TrialLifecycleService::Version(::cogment::VersionRequest, easy_grpc::Context) {
-  ::cogment::VersionInfo result;
+::cogmentAPI::VersionInfo TrialLifecycleService::Version(::cogmentAPI::VersionRequest, easy_grpc::Context) {
+  ::cogmentAPI::VersionInfo result;
 
   auto ver = result.add_versions();
   ver->set_name("orchestrator");

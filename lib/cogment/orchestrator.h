@@ -37,23 +37,23 @@ class Orchestrator {
 public:
   using HandlerFunction = std::function<void(const Trial& trial)>;
 
-  Orchestrator(Trial_spec trial_spec, cogment::TrialParams default_trial_params,
+  Orchestrator(Trial_spec trial_spec, cogmentAPI::TrialParams default_trial_params,
                std::shared_ptr<easy_grpc::client::Credentials> creds, prometheus::Registry* metrics_registry);
   ~Orchestrator();
 
   // Initialization
-  using HookEntryType = std::shared_ptr<Stub_pool<cogment::TrialHooks>::Entry>;
+  using HookEntryType = std::shared_ptr<Stub_pool<cogmentAPI::TrialHooks>::Entry>;
   void add_prehook(const HookEntryType& prehook);
   void set_log_exporter(std::unique_ptr<DatalogStorageInterface> le);
 
   // Lifecycle
-  aom::Future<std::shared_ptr<Trial>> start_trial(cogment::TrialParams params, const std::string& user_id);
+  aom::Future<std::shared_ptr<Trial>> start_trial(cogmentAPI::TrialParams params, const std::string& user_id);
 
   // Client API
-  TrialJoinReply client_joined(TrialJoinRequest);
-  ::easy_grpc::Stream_future<::cogment::TrialActionReply> bind_client(
+  cogmentAPI::TrialJoinReply client_joined(cogmentAPI::TrialJoinRequest);
+  easy_grpc::Stream_future<cogmentAPI::TrialActionReply> bind_client(
       const std::string& trial_id, const std::string& actor_name,
-      ::easy_grpc::Stream_future<::cogment::TrialActionRequest> actions);
+      easy_grpc::Stream_future<cogmentAPI::TrialActionRequest> actions);
 
   // Services
   ActorService& actor_service() { return m_actor_service; }
@@ -68,10 +68,10 @@ public:
   // Semi-internal, rpc management related.
   easy_grpc::Completion_queue* client_queue() { return &m_client_queue; }
   Channel_pool* channel_pool() { return &m_channel_pool; }
-  Stub_pool<cogment::EnvironmentEndpoint>* env_pool() { return &m_env_stubs; }
-  Stub_pool<cogment::AgentEndpoint>* agent_pool() { return &m_agent_stubs; }
+  Stub_pool<cogmentAPI::EnvironmentEndpoint>* env_pool() { return &m_env_stubs; }
+  Stub_pool<cogmentAPI::AgentEndpoint>* agent_pool() { return &m_agent_stubs; }
 
-  const cogment::TrialParams& default_trial_params() const { return m_default_trial_params; }
+  const cogmentAPI::TrialParams& default_trial_params() const { return m_default_trial_params; }
 
   const Trial_spec& get_trial_spec() const { return m_trial_spec; }
 
@@ -83,11 +83,11 @@ public:
 
 private:
   void m_perform_garbage_collection();
-  aom::Future<cogment::PreTrialContext> m_perform_pre_hooks(cogment::PreTrialContext ctx, const std::string& trial_id);
+  aom::Future<cogmentAPI::PreTrialContext> m_perform_pre_hooks(cogmentAPI::PreTrialContext ctx, const std::string& trial_id);
 
   // Configuration
   Trial_spec m_trial_spec;
-  cogment::TrialParams m_default_trial_params;
+  cogmentAPI::TrialParams m_default_trial_params;
   prometheus::Summary* m_trials_metrics;
   prometheus::Summary* m_ticks_metrics;
   prometheus::Summary* m_gc_metrics;
@@ -106,8 +106,8 @@ private:
   easy_grpc::Completion_queue m_client_queue;
   Channel_pool m_channel_pool;
 
-  Stub_pool<cogment::EnvironmentEndpoint> m_env_stubs;
-  Stub_pool<cogment::AgentEndpoint> m_agent_stubs;
+  Stub_pool<cogmentAPI::EnvironmentEndpoint> m_env_stubs;
+  Stub_pool<cogmentAPI::AgentEndpoint> m_agent_stubs;
 
   ActorService m_actor_service;
   TrialLifecycleService m_trial_lifecycle_service;

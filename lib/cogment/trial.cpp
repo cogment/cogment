@@ -62,20 +62,20 @@ const char* get_trial_state_string(Trial::InternalState state) {
   throw MakeException<std::out_of_range>("Unknown trial state for string [%d]", static_cast<int>(state));
 }
 
-cogment::TrialState get_trial_api_state(Trial::InternalState state) {
+cogmentAPI::TrialState get_trial_api_state(Trial::InternalState state) {
   switch (state) {
   case Trial::InternalState::unknown:
-    return cogment::UNKNOWN;
+    return cogmentAPI::UNKNOWN;
   case Trial::InternalState::initializing:
-    return cogment::INITIALIZING;
+    return cogmentAPI::INITIALIZING;
   case Trial::InternalState::pending:
-    return cogment::PENDING;
+    return cogmentAPI::PENDING;
   case Trial::InternalState::running:
-    return cogment::RUNNING;
+    return cogmentAPI::RUNNING;
   case Trial::InternalState::terminating:
-    return cogment::TERMINATING;
+    return cogmentAPI::TERMINATING;
   case Trial::InternalState::ended:
-    return cogment::ENDED;
+    return cogmentAPI::ENDED;
   }
 
   throw MakeException<std::out_of_range>("Unknown trial state for api: [%d]", static_cast<int>(state));
@@ -129,7 +129,7 @@ void Trial::advance_tick() {
   }
 }
 
-void Trial::new_obs(ObservationSet&& obs) {
+void Trial::new_obs(cogmentAPI::ObservationSet&& obs) {
   if (obs.tick_id() == AUTO_TICK_ID) {
     // do nothing
   }
@@ -156,7 +156,7 @@ void Trial::new_obs(ObservationSet&& obs) {
   *(sample->mutable_observations()) = std::move(obs);
 }
 
-cogment::DatalogSample* Trial::get_last_sample() {
+cogmentAPI::DatalogSample* Trial::get_last_sample() {
   const std::lock_guard<std::mutex> lg(m_sample_lock);
   if (!m_step_data.empty()) {
     return &(m_step_data.back());
@@ -166,7 +166,7 @@ cogment::DatalogSample* Trial::get_last_sample() {
   }
 }
 
-cogment::DatalogSample& Trial::make_new_sample() {
+cogmentAPI::DatalogSample& Trial::make_new_sample() {
   const std::lock_guard<std::mutex> lg(m_sample_lock);
 
   if (!m_step_data.empty()) {
@@ -233,10 +233,10 @@ void Trial::prepare_actors() {
   }
 }
 
-cogment::EnvStartRequest Trial::prepare_environment() {
+cogmentAPI::EnvStartRequest Trial::prepare_environment() {
   m_env_entry = m_orchestrator->env_pool()->get_stub_entry(m_params.environment().endpoint());
 
-  cogment::EnvStartRequest env_start_req;
+  cogmentAPI::EnvStartRequest env_start_req;
   env_start_req.set_tick_id(m_tick_id);
   env_start_req.set_impl_name(m_params.environment().implementation());
   if (m_params.environment().has_config()) {
@@ -253,7 +253,7 @@ cogment::EnvStartRequest Trial::prepare_environment() {
   return env_start_req;
 }
 
-void Trial::start(cogment::TrialParams params) {
+void Trial::start(cogmentAPI::TrialParams params) {
   SPDLOG_TRACE("Trial [{}]: Starting", m_id);
 
   if (m_state != InternalState::initializing) {
@@ -317,7 +317,7 @@ void Trial::start(cogment::TrialParams params) {
   spdlog::debug("Trial [{}]: Configured", m_id);
 }
 
-void Trial::reward_received(const cogment::Reward& reward, const std::string& sender) {
+void Trial::reward_received(const cogmentAPI::Reward& reward, const std::string& sender) {
   if (m_state < InternalState::pending) {
     spdlog::warn("Too early for trial [{}] to receive rewards.", m_id);
     return;
@@ -353,7 +353,7 @@ void Trial::reward_received(const cogment::Reward& reward, const std::string& se
   }
 }
 
-void Trial::message_received(const cogment::Message& message, const std::string& sender) {
+void Trial::message_received(const cogmentAPI::Message& message, const std::string& sender) {
   if (m_state < InternalState::pending) {
     spdlog::warn("Too early for trial [{}] to receive messages.", m_id);
     return;
@@ -392,7 +392,7 @@ void Trial::message_received(const cogment::Message& message, const std::string&
   }
 }
 
-void Trial::next_step(EnvActionReply&& reply) {
+void Trial::next_step(cogmentAPI::EnvActionReply&& reply) {
   // Rewards and messages are for last step here
   for (auto&& rew : reply.rewards()) {
     reward_received(rew, ENVIRONMENT_ACTOR_NAME);
@@ -422,7 +422,7 @@ void Trial::dispatch_observations() {
   std::uint32_t actor_index = 0;
   for (const auto& actor : m_actors) {
     auto obs_index = observations.actors_map(actor_index);
-    cogment::Observation obs;
+    cogmentAPI::Observation obs;
     obs.set_tick_id(m_tick_id);
     obs.set_timestamp(observations.timestamp());
     *obs.mutable_data() = observations.observations(obs_index);
@@ -487,9 +487,9 @@ void Trial::run_environment() {
       });
 }
 
-cogment::EnvActionRequest Trial::make_action_request() {
+cogmentAPI::EnvActionRequest Trial::make_action_request() {
   // TODO: Look into merging data formats so we don't have to copy all actions every time
-  cogment::EnvActionRequest req;
+  cogmentAPI::EnvActionRequest req;
   auto action_set = req.mutable_action_set();
 
   action_set->set_tick_id(m_tick_id);
@@ -559,7 +559,7 @@ void Trial::terminate() {
       });
 }
 
-void Trial::actor_acted(const std::string& actor_name, const cogment::Action& action) {
+void Trial::actor_acted(const std::string& actor_name, const cogmentAPI::Action& action) {
   std::shared_lock<std::shared_mutex> terminating_guard(m_terminating_lock);
 
   if (m_state < InternalState::pending) {
@@ -643,7 +643,7 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
   }
 }
 
-Client_actor* Trial::get_join_candidate(const TrialJoinRequest& req) {
+Client_actor* Trial::get_join_candidate(const cogmentAPI::TrialJoinRequest& req) {
   if (m_state != InternalState::pending) {
     return nullptr;
   }
@@ -651,7 +651,7 @@ Client_actor* Trial::get_join_candidate(const TrialJoinRequest& req) {
   Actor* result = nullptr;
 
   switch (req.slot_selection_case()) {
-  case TrialJoinRequest::kActorName: {
+  case cogmentAPI::TrialJoinRequest::kActorName: {
     auto actor_index = m_actor_indexes.at(req.actor_name());
     auto& actor = m_actors.at(actor_index);
     if (actor->is_active()) {
@@ -659,7 +659,7 @@ Client_actor* Trial::get_join_candidate(const TrialJoinRequest& req) {
     }
   } break;
 
-  case TrialJoinRequest::kActorClass:
+  case cogmentAPI::TrialJoinRequest::kActorClass:
     for (auto& actor : m_actors) {
       if (!actor->is_active() && actor->actor_class()->name == req.actor_class()) {
         result = actor.get();
@@ -668,7 +668,7 @@ Client_actor* Trial::get_join_candidate(const TrialJoinRequest& req) {
     }
     break;
 
-  case TrialJoinRequest::SLOT_SELECTION_NOT_SET:
+  case cogmentAPI::TrialJoinRequest::SLOT_SELECTION_NOT_SET:
   default:
     throw MakeException<std::invalid_argument>("Must specify either actor_name or actor_class");
   }
@@ -755,7 +755,7 @@ bool Trial::is_stale() const {
   return (max_inactivity > 0 && stale);
 }
 
-void Trial::set_info(cogment::TrialInfo* info, bool with_observations, bool with_actors) {
+void Trial::set_info(cogmentAPI::TrialInfo* info, bool with_observations, bool with_actors) {
   if (info == nullptr) {
     spdlog::error("Trial [{}] request for info with no storage", m_id);
     return;
@@ -800,7 +800,7 @@ void Trial::set_info(cogment::TrialInfo* info, bool with_observations, bool with
 void Trial::dispatch_env_messages() {
   const std::lock_guard<std::mutex> lg(m_env_message_lock);
 
-  cogment::EnvMessageRequest req;
+  cogmentAPI::EnvMessageRequest req;
   for (auto& message : m_env_message_accumulator) {
     auto msg = req.add_messages();
     *msg = std::move(message);

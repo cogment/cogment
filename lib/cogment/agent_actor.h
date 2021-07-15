@@ -27,7 +27,7 @@ class Trial;
 
 class Agent : public Actor {
 public:
-  using StubEntryType = std::shared_ptr<Stub_pool<cogment::AgentEndpoint>::Entry>;
+  using StubEntryType = std::shared_ptr<Stub_pool<cogmentAPI::AgentEndpoint>::Entry>;
   Agent(Trial* owner, const std::string& actor_name, const ActorClass* actor_class, const std::string& impl,
         StubEntryType stub_entry, std::optional<std::string> config_data);
 
@@ -38,10 +38,10 @@ public:
   bool is_active() const override;
 
 protected:
-  void dispatch_observation(cogment::Observation&& obs) override;
-  void dispatch_final_data(cogment::ActorPeriodData&& data) override;
-  void dispatch_reward(cogment::Reward&& reward) override;
-  void dispatch_message(cogment::Message&& message) override;
+  void dispatch_observation(cogmentAPI::Observation&& obs) override;
+  void dispatch_final_data(cogmentAPI::ActorPeriodData&& data) override;
+  void dispatch_reward(cogmentAPI::Reward&& reward) override;
+  void dispatch_message(cogmentAPI::Message&& message) override;
 
 private:
   void lazy_start_decision_stream();
@@ -50,10 +50,10 @@ private:
   std::vector<grpc_metadata> m_headers;
   easy_grpc::client::Call_options m_options;
 
-  cogment::Action m_latest_action;
+  cogmentAPI::Action m_latest_action;
   std::optional<std::string> m_config_data;
 
-  std::optional<::easy_grpc::Stream_promise<::cogment::AgentObservationRequest>> m_outgoing_observations;
+  std::optional<easy_grpc::Stream_promise<cogmentAPI::AgentObservationRequest>> m_outgoing_observations;
   std::promise<void> m_stream_end_prom;
   std::future<void> m_stream_end_fut;
 

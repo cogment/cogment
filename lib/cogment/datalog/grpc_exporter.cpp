@@ -59,7 +59,7 @@ void GrpcDatalogExporterBase::Trial_log::m_lazy_start_stream() {
       m_stream_end_prom.set_value();
     });
 
-    cogment::LogExporterSampleRequest msg;
+    cogmentAPI::LogExporterSampleRequest msg;
     *msg.mutable_trial_params() = m_trial->params();
     stream.push(std::move(msg));
 
@@ -67,10 +67,10 @@ void GrpcDatalogExporterBase::Trial_log::m_lazy_start_stream() {
   }
 }
 
-void GrpcDatalogExporterBase::Trial_log::add_sample(cogment::DatalogSample&& data) {
+void GrpcDatalogExporterBase::Trial_log::add_sample(cogmentAPI::DatalogSample&& data) {
   m_lazy_start_stream();
 
-  cogment::LogExporterSampleRequest msg;
+  cogmentAPI::LogExporterSampleRequest msg;
   *msg.mutable_sample() = std::move(data);
   m_output_promise->push(std::move(msg));
 }

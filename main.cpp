@@ -248,8 +248,8 @@ int main(int argc, const char* argv[]) {
     cogment::Orchestrator orchestrator(std::move(trial_spec), std::move(params), client_creds, metrics_registry.get());
 
     // ******************* Networking *******************
-    cogment::Stub_pool<cogment::TrialHooks> hook_stubs(orchestrator.channel_pool(), orchestrator.client_queue());
-    std::vector<std::shared_ptr<cogment::Stub_pool<cogment::TrialHooks>::Entry>> hooks;
+    cogment::Stub_pool<cogmentAPI::TrialHooks> hook_stubs(orchestrator.channel_pool(), orchestrator.client_queue());
+    std::vector<std::shared_ptr<cogment::Stub_pool<cogmentAPI::TrialHooks>::Entry>> hooks;
 
     int nb_prehooks = 0;
     if (cogment_yaml[cfg_file::trial_key]) {

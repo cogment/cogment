@@ -23,20 +23,20 @@ class ActorService {
   Orchestrator* m_orchestrator;
 
 public:
-  using service_type = cogment::ClientActor;
+  using service_type = cogmentAPI::ClientActor;
 
   ActorService(Orchestrator* orch);
 
-  ::cogment::TrialJoinReply JoinTrial(::cogment::TrialJoinRequest, easy_grpc::Context ctx);
+  ::cogmentAPI::TrialJoinReply JoinTrial(::cogmentAPI::TrialJoinRequest, easy_grpc::Context ctx);
 
-  ::easy_grpc::Stream_future<::cogment::TrialActionReply> ActionStream(
-      ::easy_grpc::Stream_future<::cogment::TrialActionRequest>, easy_grpc::Context ctx);
-  ::easy_grpc::Future<::cogment::TrialHeartbeatReply> Heartbeat(::cogment::TrialHeartbeatRequest,
+  ::easy_grpc::Stream_future<cogmentAPI::TrialActionReply> ActionStream(
+      ::easy_grpc::Stream_future<cogmentAPI::TrialActionRequest>, easy_grpc::Context ctx);
+  ::easy_grpc::Future<cogmentAPI::TrialHeartbeatReply> Heartbeat(::cogmentAPI::TrialHeartbeatRequest,
                                                                 easy_grpc::Context ctx);
-  ::easy_grpc::Future<::cogment::TrialRewardReply> SendReward(::cogment::TrialRewardRequest, easy_grpc::Context ctx);
-  ::easy_grpc::Future<::cogment::TrialMessageReply> SendMessage(::cogment::TrialMessageRequest, easy_grpc::Context ctx);
+  ::easy_grpc::Future<cogmentAPI::TrialRewardReply> SendReward(::cogmentAPI::TrialRewardRequest, easy_grpc::Context ctx);
+  ::easy_grpc::Future<cogmentAPI::TrialMessageReply> SendMessage(::cogmentAPI::TrialMessageRequest, easy_grpc::Context ctx);
 
-  ::cogment::VersionInfo Version(::cogment::VersionRequest, easy_grpc::Context ctx);
+  ::cogmentAPI::VersionInfo Version(::cogmentAPI::VersionRequest, easy_grpc::Context ctx);
 };
 }  // namespace cogment
 

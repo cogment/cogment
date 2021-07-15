@@ -23,20 +23,20 @@ class Orchestrator;
 class TrialLifecycleService {
   Orchestrator* m_orchestrator;
 
-  using Trial_promise = ::easy_grpc::Stream_promise<::cogment::TrialListEntry>;
-  using Trial_future = ::easy_grpc::Stream_future<::cogment::TrialListEntry>;
+  using Trial_promise = ::easy_grpc::Stream_promise<cogmentAPI::TrialListEntry>;
+  using Trial_future = ::easy_grpc::Stream_future<cogmentAPI::TrialListEntry>;
 
 public:
-  using service_type = cogment::TrialLifecycle;
+  using service_type = cogmentAPI::TrialLifecycle;
 
   TrialLifecycleService(Orchestrator* orch);
 
-  ::easy_grpc::Future<::cogment::TrialStartReply> StartTrial(::cogment::TrialStartRequest, easy_grpc::Context ctx);
-  ::cogment::TerminateTrialReply TerminateTrial(::cogment::TerminateTrialRequest, easy_grpc::Context ctx);
-  ::cogment::TrialInfoReply GetTrialInfo(::cogment::TrialInfoRequest, easy_grpc::Context ctx);
-  ::easy_grpc::Stream_future<::cogment::TrialListEntry> WatchTrials(::cogment::TrialListRequest,
+  ::easy_grpc::Future<cogmentAPI::TrialStartReply> StartTrial(::cogmentAPI::TrialStartRequest, easy_grpc::Context ctx);
+  ::cogmentAPI::TerminateTrialReply TerminateTrial(::cogmentAPI::TerminateTrialRequest, easy_grpc::Context ctx);
+  ::cogmentAPI::TrialInfoReply GetTrialInfo(::cogmentAPI::TrialInfoRequest, easy_grpc::Context ctx);
+  ::easy_grpc::Stream_future<cogmentAPI::TrialListEntry> WatchTrials(::cogmentAPI::TrialListRequest,
                                                                     easy_grpc::Context ctx);
-  ::cogment::VersionInfo Version(::cogment::VersionRequest, easy_grpc::Context ctx);
+  ::cogmentAPI::VersionInfo Version(::cogmentAPI::VersionRequest, easy_grpc::Context ctx);
 };
 
 }  // namespace cogment

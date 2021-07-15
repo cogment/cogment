@@ -26,10 +26,10 @@ namespace cogment {
 class Trial;
 class Client_actor : public Actor {
 public:
-  using Action_future = ::easy_grpc::Stream_future<::cogment::TrialActionRequest>;
+  using Action_future = ::easy_grpc::Stream_future<::cogmentAPI::TrialActionRequest>;
 
-  using Observation_promise = ::easy_grpc::Stream_promise<::cogment::TrialActionReply>;
-  using Observation_future = ::easy_grpc::Stream_future<::cogment::TrialActionReply>;
+  using Observation_promise = ::easy_grpc::Stream_promise<::cogmentAPI::TrialActionReply>;
+  using Observation_future = ::easy_grpc::Stream_future<::cogmentAPI::TrialActionReply>;
 
   Client_actor(Trial* owner, const std::string& actor_name, const ActorClass* actor_class,
                std::optional<std::string> config_data);
@@ -45,15 +45,15 @@ public:
   Observation_future bind(Action_future actions);
 
 protected:
-  void dispatch_observation(cogment::Observation&& obs) override;
-  void dispatch_final_data(cogment::ActorPeriodData&& data) override;
-  void dispatch_reward(cogment::Reward&& reward) override;
-  void dispatch_message(cogment::Message&& message) override;
+  void dispatch_observation(cogmentAPI::Observation&& obs) override;
+  void dispatch_final_data(cogmentAPI::ActorPeriodData&& data) override;
+  void dispatch_reward(cogmentAPI::Reward&& reward) override;
+  void dispatch_message(cogmentAPI::Message&& message) override;
 
 private:
   bool m_joined;
 
-  cogment::Action m_latest_action;
+  cogmentAPI::Action m_latest_action;
   std::optional<std::string> m_config_data;
 
   Observation_promise m_outgoing_observations;

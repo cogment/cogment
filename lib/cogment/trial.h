@@ -71,11 +71,11 @@ public:
   const std::unique_ptr<Actor>& actor(const std::string& name) const;
 
   // Initializes the trial
-  void start(cogment::TrialParams params);
-  const cogment::TrialParams& params() const { return m_params; }
+  void start(cogmentAPI::TrialParams params);
+  const cogmentAPI::TrialParams& params() const { return m_params; }
 
   // returns either a valid actor for the given request, or nullptr if none can be found
-  Client_actor* get_join_candidate(const TrialJoinRequest& req);
+  Client_actor* get_join_candidate(const cogmentAPI::TrialJoinRequest& req);
 
   // Ends the trial. terminate() will hold a shared_ptr to the trial until
   // termination is complete, so it's safe to let go of the trial once
@@ -88,27 +88,27 @@ public:
   // Marks the trial as being active.
   void refresh_activity();
 
-  void actor_acted(const std::string& actor_name, const cogment::Action& action);
-  void reward_received(const cogment::Reward& reward, const std::string& source);
-  void message_received(const cogment::Message& message, const std::string& source);
+  void actor_acted(const std::string& actor_name, const cogmentAPI::Action& action);
+  void reward_received(const cogmentAPI::Reward& reward, const std::string& source);
+  void message_received(const cogmentAPI::Message& message, const std::string& source);
   std::shared_ptr<Trial> get_shared() { return shared_from_this(); }
 
-  void set_info(cogment::TrialInfo* info, bool with_observations, bool with_actors);
+  void set_info(cogmentAPI::TrialInfo* info, bool with_observations, bool with_actors);
 
 private:
   void prepare_actors();
-  cogment::EnvStartRequest prepare_environment();
-  cogment::DatalogSample& make_new_sample();
-  cogment::DatalogSample* get_last_sample();
+  cogmentAPI::EnvStartRequest prepare_environment();
+  cogmentAPI::DatalogSample& make_new_sample();
+  cogmentAPI::DatalogSample* get_last_sample();
   void flush_samples();
   void set_state(InternalState state);
   void advance_tick();
-  void new_obs(ObservationSet&& new_obs);
-  void next_step(EnvActionReply&& reply);
+  void new_obs(cogmentAPI::ObservationSet&& new_obs);
+  void next_step(cogmentAPI::EnvActionReply&& reply);
   void dispatch_observations();
   void cycle_buffer();
   void run_environment();
-  cogment::EnvActionRequest make_action_request();
+  cogmentAPI::EnvActionRequest make_action_request();
   void dispatch_env_messages();
 
   Orchestrator* m_orchestrator;
@@ -126,9 +126,9 @@ private:
   const std::string m_id;
   const std::string m_user_id;
 
-  cogment::TrialParams m_params;
+  cogmentAPI::TrialParams m_params;
 
-  std::shared_ptr<cogment::Stub_pool<cogment::EnvironmentEndpoint>::Entry> m_env_entry;
+  std::shared_ptr<cogment::Stub_pool<cogmentAPI::EnvironmentEndpoint>::Entry> m_env_entry;
 
   InternalState m_state;
   uint64_t m_tick_id;
@@ -136,25 +136,25 @@ private:
   uint64_t m_end_timestamp;
 
   std::vector<std::unique_ptr<Actor>> m_actors;
-  std::vector<Message> m_env_message_accumulator;
+  std::vector<cogmentAPI::Message> m_env_message_accumulator;
   std::unordered_map<std::string, uint32_t> m_actor_indexes;
   std::chrono::time_point<std::chrono::steady_clock> m_last_activity;
 
   std::vector<grpc_metadata> m_headers;
   easy_grpc::client::Call_options m_call_options;
 
-  std::optional<::easy_grpc::Stream_promise<::cogment::EnvActionRequest>> m_outgoing_actions;
+  std::optional<easy_grpc::Stream_promise<cogmentAPI::EnvActionRequest>> m_outgoing_actions;
   std::promise<void> m_stream_end_prom;
   std::future<void> m_stream_end_fut;
 
   std::uint32_t m_gathered_actions_count;
 
   std::unique_ptr<TrialLogInterface> m_datalog_interface;
-  std::deque<cogment::DatalogSample> m_step_data;
+  std::deque<cogmentAPI::DatalogSample> m_step_data;
 };
 
 const char* get_trial_state_string(Trial::InternalState);
-cogment::TrialState get_trial_api_state(Trial::InternalState);
+cogmentAPI::TrialState get_trial_api_state(Trial::InternalState);
 
 }  // namespace cogment
 

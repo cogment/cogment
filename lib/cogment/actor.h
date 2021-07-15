@@ -37,7 +37,7 @@ struct ActorClass;
 
 class Actor {
 public:
-  using SrcAccumulator = std::vector<cogment::RewardSource>;
+  using SrcAccumulator = std::vector<cogmentAPI::RewardSource>;
   using RewAccumulator = std::map<uint64_t, SrcAccumulator>;
 
   Actor(Trial* trial, const std::string& actor_name, const ActorClass* actor_class);
@@ -51,16 +51,16 @@ public:
   const std::string& actor_name() const;
   const ActorClass* actor_class() const;
 
-  void add_immediate_reward_src(const cogment::RewardSource& source, const std::string& sender, uint64_t tick_id);
-  void add_immediate_message(const cogment::Message& message, const std::string& source, uint64_t tick_id);
+  void add_immediate_reward_src(const cogmentAPI::RewardSource& source, const std::string& sender, uint64_t tick_id);
+  void add_immediate_message(const cogmentAPI::Message& message, const std::string& source, uint64_t tick_id);
 
-  void dispatch_tick(cogment::Observation&& obs, bool final_tick);
+  void dispatch_tick(cogmentAPI::Observation&& obs, bool final_tick);
 
 protected:
-  virtual void dispatch_observation(cogment::Observation&& obs) = 0;
-  virtual void dispatch_final_data(cogment::ActorPeriodData&& data) = 0;
-  virtual void dispatch_reward(cogment::Reward&& reward) = 0;
-  virtual void dispatch_message(cogment::Message&& message) = 0;
+  virtual void dispatch_observation(cogmentAPI::Observation&& obs) = 0;
+  virtual void dispatch_final_data(cogmentAPI::ActorPeriodData&& data) = 0;
+  virtual void dispatch_reward(cogmentAPI::Reward&& reward) = 0;
+  virtual void dispatch_message(cogmentAPI::Message&& message) = 0;
 
 private:
   Trial* m_trial;
@@ -69,7 +69,7 @@ private:
   std::mutex m_lock;
 
   RewAccumulator m_reward_accumulator;
-  std::vector<cogment::Message> m_message_accumulator;
+  std::vector<cogmentAPI::Message> m_message_accumulator;
 };
 
 struct ActorClass {

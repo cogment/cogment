@@ -38,7 +38,7 @@ slt::Setting garbage_collection_frequency = slt::Setting_builder<std::uint32_t>(
 }  // namespace settings
 
 namespace cogment {
-Orchestrator::Orchestrator(Trial_spec trial_spec, cogment::TrialParams default_trial_params,
+Orchestrator::Orchestrator(Trial_spec trial_spec, cogmentAPI::TrialParams default_trial_params,
                            std::shared_ptr<easy_grpc::client::Credentials> creds,
                            prometheus::Registry* metrics_registry) :
     m_trial_spec(std::move(trial_spec)),
@@ -103,7 +103,7 @@ Orchestrator::~Orchestrator() {
   m_trial_deletion_thread.join();
 }
 
-aom::Future<std::shared_ptr<Trial>> Orchestrator::start_trial(cogment::TrialParams params, const std::string& user_id) {
+aom::Future<std::shared_ptr<Trial>> Orchestrator::start_trial(cogmentAPI::TrialParams params, const std::string& user_id) {
   m_garbage_collection_countdown--;
   if (m_garbage_collection_countdown == 0) {
     const auto start = Timestamp();
@@ -124,7 +124,7 @@ aom::Future<std::shared_ptr<Trial>> Orchestrator::start_trial(cogment::TrialPara
     m_trials[new_trial->id()] = new_trial;
   }
 
-  cogment::PreTrialContext init_ctx;
+  cogmentAPI::PreTrialContext init_ctx;
   *init_ctx.mutable_params() = std::move(params);
   init_ctx.set_user_id(user_id);
 
@@ -137,10 +137,10 @@ aom::Future<std::shared_ptr<Trial>> Orchestrator::start_trial(cogment::TrialPara
   });
 }
 
-TrialJoinReply Orchestrator::client_joined(TrialJoinRequest req) {
+cogmentAPI::TrialJoinReply Orchestrator::client_joined(cogmentAPI::TrialJoinRequest req) {
   Client_actor* joined_as_actor = nullptr;
 
-  TrialJoinReply result;
+  cogmentAPI::TrialJoinReply result;
 
   if (req.trial_id() != "") {
     const std::lock_guard lg(m_trials_mutex);
@@ -180,9 +180,9 @@ TrialJoinReply Orchestrator::client_joined(TrialJoinRequest req) {
   return result;
 }
 
-::easy_grpc::Stream_future<::cogment::TrialActionReply> Orchestrator::bind_client(
+::easy_grpc::Stream_future<cogmentAPI::TrialActionReply> Orchestrator::bind_client(
     const std::string& trial_id, const std::string& actor_name,
-    ::easy_grpc::Stream_future<::cogment::TrialActionRequest> actions) {
+    easy_grpc::Stream_future<cogmentAPI::TrialActionRequest> actions) {
   auto trial = get_trial(trial_id);
   if (trial == nullptr) {
     throw MakeException("Unknown trial to bind [%s]", std::string(trial_id).c_str());
@@ -199,7 +199,7 @@ TrialJoinReply Orchestrator::client_joined(TrialJoinRequest req) {
 
 void Orchestrator::add_prehook(const HookEntryType& hook) { m_prehooks.push_back(hook); }
 
-aom::Future<cogment::PreTrialContext> Orchestrator::m_perform_pre_hooks(cogment::PreTrialContext ctx,
+aom::Future<cogmentAPI::PreTrialContext> Orchestrator::m_perform_pre_hooks(cogmentAPI::PreTrialContext ctx,
                                                                         const std::string& trial_id) {
   grpc_metadata trial_header;
   trial_header.key = grpc_slice_from_static_string("trial-id");
@@ -212,7 +212,7 @@ aom::Future<cogment::PreTrialContext> Orchestrator::m_perform_pre_hooks(cogment:
   easy_grpc::client::Call_options options;
   options.headers = headers.get();
 
-  aom::Promise<cogment::PreTrialContext> prom;
+  aom::Promise<cogmentAPI::PreTrialContext> prom;
   auto result = prom.get_future();
   prom.set_value(std::move(ctx));
 

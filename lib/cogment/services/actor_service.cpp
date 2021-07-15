@@ -28,13 +28,13 @@
 namespace cogment {
 ActorService::ActorService(Orchestrator* orch) : m_orchestrator(orch) {}
 
-::cogment::TrialJoinReply ActorService::JoinTrial(::cogment::TrialJoinRequest req, easy_grpc::Context) {
+::cogmentAPI::TrialJoinReply ActorService::JoinTrial(::cogmentAPI::TrialJoinRequest req, easy_grpc::Context) {
   SPDLOG_TRACE("JoinTrial [{}]", req.trial_id());
   return m_orchestrator->client_joined(std::move(req));
 }
 
-::easy_grpc::Stream_future<::cogment::TrialActionReply> ActorService::ActionStream(
-    ::easy_grpc::Stream_future<::cogment::TrialActionRequest> actions, easy_grpc::Context ctx) {
+::easy_grpc::Stream_future<cogmentAPI::TrialActionReply> ActorService::ActionStream(
+    ::easy_grpc::Stream_future<cogmentAPI::TrialActionRequest> actions, easy_grpc::Context ctx) {
   std::string trial_id(ctx.get_client_header("trial-id"));
   std::string actor_name(ctx.get_client_header("actor-name"));
 
@@ -42,12 +42,12 @@ ActorService::ActorService(Orchestrator* orch) : m_orchestrator(orch) {}
   return m_orchestrator->bind_client(trial_id, actor_name, std::move(actions));
 }
 
-::easy_grpc::Future<::cogment::TrialHeartbeatReply> ActorService::Heartbeat(::cogment::TrialHeartbeatRequest,
+::easy_grpc::Future<cogmentAPI::TrialHeartbeatReply> ActorService::Heartbeat(::cogmentAPI::TrialHeartbeatRequest,
                                                                             easy_grpc::Context) {
   return {};
 }
 
-::easy_grpc::Future<::cogment::TrialRewardReply> ActorService::SendReward(::cogment::TrialRewardRequest reward,
+::easy_grpc::Future<cogmentAPI::TrialRewardReply> ActorService::SendReward(::cogmentAPI::TrialRewardRequest reward,
                                                                           easy_grpc::Context ctx) {
   std::string trial_id(ctx.get_client_header("trial-id"));
   std::string actor_name(ctx.get_client_header("actor-name"));
@@ -63,15 +63,15 @@ ActorService::ActorService(Orchestrator* orch) : m_orchestrator(orch) {}
     spdlog::error("Trial [{}] doesn't exist to send reward", trial_id);
   }
 
-  ::easy_grpc::Promise<::cogment::TrialRewardReply> prom;
+  ::easy_grpc::Promise<cogmentAPI::TrialRewardReply> prom;
   auto result = prom.get_future();
-  ::cogment::TrialRewardReply reply;
+  ::cogmentAPI::TrialRewardReply reply;
   prom.set_value(std::move(reply));
 
   return result;
 }
 
-::easy_grpc::Future<::cogment::TrialMessageReply> ActorService::SendMessage(::cogment::TrialMessageRequest message,
+::easy_grpc::Future<cogmentAPI::TrialMessageReply> ActorService::SendMessage(::cogmentAPI::TrialMessageRequest message,
                                                                             easy_grpc::Context ctx) {
   std::string trial_id(ctx.get_client_header("trial-id"));
   std::string actor_name(ctx.get_client_header("actor-name"));
@@ -87,17 +87,17 @@ ActorService::ActorService(Orchestrator* orch) : m_orchestrator(orch) {}
     spdlog::error("Trial [{}] doesn't exist to send message", trial_id);
   }
 
-  ::easy_grpc::Promise<::cogment::TrialMessageReply> prom;
+  ::easy_grpc::Promise<cogmentAPI::TrialMessageReply> prom;
   auto result = prom.get_future();
-  ::cogment::TrialMessageReply reply;
+  ::cogmentAPI::TrialMessageReply reply;
   prom.set_value(std::move(reply));
 
   return result;
 }
 
-::cogment::VersionInfo ActorService::Version(::cogment::VersionRequest, easy_grpc::Context ctx) {
+::cogmentAPI::VersionInfo ActorService::Version(::cogmentAPI::VersionRequest, easy_grpc::Context ctx) {
   (void)ctx;
-  ::cogment::VersionInfo result;
+  ::cogmentAPI::VersionInfo result;
   auto v = result.add_versions();
 
   v->set_name("orchestrator");

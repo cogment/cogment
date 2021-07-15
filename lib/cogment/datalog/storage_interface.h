@@ -27,7 +27,7 @@ class TrialLogInterface {
 public:
   virtual ~TrialLogInterface() {}
 
-  virtual void add_sample(cogment::DatalogSample&& data) = 0;
+  virtual void add_sample(cogmentAPI::DatalogSample&& data) = 0;
 };
 
 // Orchestrator-wide datalog interface.

@@ -67,8 +67,8 @@ void encode_user_config(YAML::Node config_node, const google::protobuf::Message*
 }  // namespace
 
 // Loads and interprets the default params structure from the root cogment.yaml
-cogment::TrialParams load_params(const YAML::Node& yaml, const Trial_spec& spec) {
-  cogment::TrialParams result;
+cogmentAPI::TrialParams load_params(const YAML::Node& yaml, const Trial_spec& spec) {
+  cogmentAPI::TrialParams result;
 
   if (yaml[cfg_file::params_key] != nullptr) {
     YAML::Node yaml_params = yaml[cfg_file::params_key];
