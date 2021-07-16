@@ -49,10 +49,10 @@ public:
 
   std::unique_ptr<TrialLogInterface> start_log(const Trial* trial) final override;
 
-  void set_stub(cogmentAPI::LogExporter::Stub_interface* stub) { m_stub = stub; }
+  void set_stub(cogmentAPI::LogExporterSP::Stub_interface* stub) { m_stub = stub; }
 
 private:
-  cogmentAPI::LogExporter::Stub_interface* m_stub = nullptr;
+  cogmentAPI::LogExporterSP::Stub_interface* m_stub = nullptr;
 };
 
 // Stores Data samples to a local CVS file.
@@ -63,7 +63,7 @@ public:
 private:
   easy_grpc::Completion_queue m_work_thread;
   easy_grpc::client::Unsecure_channel m_channel;
-  cogmentAPI::LogExporter::Stub m_stub_impl;
+  cogmentAPI::LogExporterSP::Stub m_stub_impl;
 };
 }  // namespace cogment
 #endif

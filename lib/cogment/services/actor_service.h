@@ -23,7 +23,7 @@ class ActorService {
   Orchestrator* m_orchestrator;
 
 public:
-  using service_type = cogmentAPI::ClientActor;
+  using service_type = cogmentAPI::ClientActorSP;
 
   ActorService(Orchestrator* orch);
 

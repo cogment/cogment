@@ -248,8 +248,8 @@ int main(int argc, const char* argv[]) {
     cogment::Orchestrator orchestrator(std::move(trial_spec), std::move(params), client_creds, metrics_registry.get());
 
     // ******************* Networking *******************
-    cogment::Stub_pool<cogmentAPI::TrialHooks> hook_stubs(orchestrator.channel_pool(), orchestrator.client_queue());
-    std::vector<std::shared_ptr<cogment::Stub_pool<cogmentAPI::TrialHooks>::Entry>> hooks;
+    cogment::Stub_pool<cogmentAPI::TrialHooksSP> hook_stubs(orchestrator.channel_pool(), orchestrator.client_queue());
+    std::vector<std::shared_ptr<cogment::Stub_pool<cogmentAPI::TrialHooksSP>::Entry>> hooks;
 
     int nb_prehooks = 0;
     if (cogment_yaml[cfg_file::trial_key]) {
@@ -276,7 +276,7 @@ int main(int argc, const char* argv[]) {
         .add_service(orchestrator.trial_lifecycle_service())
         .add_listening_port(lifecycle_endpoint, server_creds);
 
-    // If the lifecycle endpoint is the same as the ClientActor, then run them
+    // If the lifecycle endpoint is the same as the ClientActorSP, then run them
     // off the same server, otherwise, start a second server.
     if (lifecycle_endpoint == actor_endpoint) {
       cfg.add_service(orchestrator.actor_service());

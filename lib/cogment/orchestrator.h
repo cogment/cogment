@@ -42,7 +42,7 @@ public:
   ~Orchestrator();
 
   // Initialization
-  using HookEntryType = std::shared_ptr<Stub_pool<cogmentAPI::TrialHooks>::Entry>;
+  using HookEntryType = std::shared_ptr<Stub_pool<cogmentAPI::TrialHooksSP>::Entry>;
   void add_prehook(const HookEntryType& prehook);
   void set_log_exporter(std::unique_ptr<DatalogStorageInterface> le);
 
@@ -68,8 +68,8 @@ public:
   // Semi-internal, rpc management related.
   easy_grpc::Completion_queue* client_queue() { return &m_client_queue; }
   Channel_pool* channel_pool() { return &m_channel_pool; }
-  Stub_pool<cogmentAPI::EnvironmentEndpoint>* env_pool() { return &m_env_stubs; }
-  Stub_pool<cogmentAPI::AgentEndpoint>* agent_pool() { return &m_agent_stubs; }
+  Stub_pool<cogmentAPI::EnvironmentSP>* env_pool() { return &m_env_stubs; }
+  Stub_pool<cogmentAPI::ServiceActorSP>* agent_pool() { return &m_agent_stubs; }
 
   const cogmentAPI::TrialParams& default_trial_params() const { return m_default_trial_params; }
 
@@ -106,8 +106,8 @@ private:
   easy_grpc::Completion_queue m_client_queue;
   Channel_pool m_channel_pool;
 
-  Stub_pool<cogmentAPI::EnvironmentEndpoint> m_env_stubs;
-  Stub_pool<cogmentAPI::AgentEndpoint> m_agent_stubs;
+  Stub_pool<cogmentAPI::EnvironmentSP> m_env_stubs;
+  Stub_pool<cogmentAPI::ServiceActorSP> m_agent_stubs;
 
   ActorService m_actor_service;
   TrialLifecycleService m_trial_lifecycle_service;

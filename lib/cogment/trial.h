@@ -128,7 +128,7 @@ private:
 
   cogmentAPI::TrialParams m_params;
 
-  std::shared_ptr<cogment::Stub_pool<cogmentAPI::EnvironmentEndpoint>::Entry> m_env_entry;
+  std::shared_ptr<cogment::Stub_pool<cogmentAPI::EnvironmentSP>::Entry> m_env_entry;
 
   InternalState m_state;
   uint64_t m_tick_id;

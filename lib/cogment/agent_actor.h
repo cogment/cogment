@@ -27,7 +27,7 @@ class Trial;
 
 class Agent : public Actor {
 public:
-  using StubEntryType = std::shared_ptr<Stub_pool<cogmentAPI::AgentEndpoint>::Entry>;
+  using StubEntryType = std::shared_ptr<Stub_pool<cogmentAPI::ServiceActorSP>::Entry>;
   Agent(Trial* owner, const std::string& actor_name, const ActorClass* actor_class, const std::string& impl,
         StubEntryType stub_entry, std::optional<std::string> config_data);
 
