@@ -30,6 +30,7 @@
 
 #include <atomic>
 #include <unordered_map>
+#include <thread>
 
 namespace cogment {
 class Orchestrator {
@@ -81,6 +82,9 @@ public:
   void notify_watchers(const Trial& trial);
 
 private:
+  void m_perform_garbage_collection();
+  aom::Future<cogment::PreTrialContext> m_perform_pre_hooks(cogment::PreTrialContext ctx, const std::string& trial_id);
+
   // Configuration
   Trial_spec m_trial_spec;
   cogment::TrialParams m_default_trial_params;
@@ -112,9 +116,8 @@ private:
   std::vector<HandlerFunction> m_trial_watchers;
 
   std::atomic<int> m_garbage_collection_countdown;
-  void m_perform_garbage_collection();
-
-  aom::Future<cogment::PreTrialContext> m_perform_pre_hooks(cogment::PreTrialContext ctx, const std::string& trial_id);
+  std::thread m_trial_deletion_thread;
+  ThrQueue<std::shared_ptr<Trial>> m_trials_to_delete;
 };
 }  // namespace cogment
 #endif

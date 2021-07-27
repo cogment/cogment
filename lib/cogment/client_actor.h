@@ -58,6 +58,8 @@ private:
 
   Observation_promise m_outgoing_observations;
   Observation_future m_outgoing_observations_future;
+  std::promise<void> m_stream_end_prom;
+  std::future<void> m_stream_end_fut;
 
   aom::Promise<void> m_ready_promise;
 };

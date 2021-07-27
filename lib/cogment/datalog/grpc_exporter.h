@@ -34,14 +34,17 @@ public:
     void add_sample(cogment::DatalogSample&& data) override;
 
   private:
+    void m_lazy_start_stream();
+
     GrpcDatalogExporterBase* m_owner = nullptr;
     const Trial* m_trial = nullptr;
     ::easy_grpc::Stream_future<::cogment::LogExporterSampleReply> m_reply;
     std::vector<grpc_metadata> m_headers;
     easy_grpc::client::Call_options m_options;
 
-    void m_lazy_start_stream();
     std::optional<::easy_grpc::Stream_promise<::cogment::LogExporterSampleRequest>> m_output_promise;
+    std::promise<void> m_stream_end_prom;
+    std::future<void> m_stream_end_fut;
   };
 
   std::unique_ptr<TrialLogInterface> start_log(const Trial* trial) final override;

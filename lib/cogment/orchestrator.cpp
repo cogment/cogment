@@ -51,6 +51,25 @@ Orchestrator::Orchestrator(Trial_spec trial_spec, cogment::TrialParams default_t
   SPDLOG_TRACE("Orchestrator()");
   m_garbage_collection_countdown.store(settings::garbage_collection_frequency.get());
 
+  m_trial_deletion_thread = std::thread([this]() {
+    while (true) {
+      try {  // overkill
+        auto trial = m_trials_to_delete.pop();
+        if (trial == nullptr) {
+          return;
+        }
+        SPDLOG_TRACE("Trial [{}]: deleting...", trial->id());
+        trial.reset();  // Not really necessary, but clarifies intent
+      }
+      catch (const std::exception& exc) {
+        spdlog::error("Problem deleting a trial: {}", exc.what());
+      }
+      catch (...) {
+        spdlog::error("Unknown problem deleting a trial");
+      }
+    }
+  });
+
   if (metrics_registry != nullptr) {
     auto& trial_family = prometheus::BuildSummary()
                              .Name("orchestrator_trial_duration_seconds")
@@ -77,11 +96,16 @@ Orchestrator::Orchestrator(Trial_spec trial_spec, cogment::TrialParams default_t
   }
 }
 
-Orchestrator::~Orchestrator() { SPDLOG_TRACE("~Orchestrator()"); }
+Orchestrator::~Orchestrator() {
+  SPDLOG_TRACE("~Orchestrator()");
+
+  m_trials_to_delete.push({});
+  m_trial_deletion_thread.join();
+}
 
 aom::Future<std::shared_ptr<Trial>> Orchestrator::start_trial(cogment::TrialParams params, const std::string& user_id) {
   m_garbage_collection_countdown--;
-  if (m_garbage_collection_countdown <= 0) {
+  if (m_garbage_collection_countdown == 0) {
     const auto start = Timestamp();
     m_garbage_collection_countdown.store(settings::garbage_collection_frequency.get());
     m_perform_garbage_collection();
@@ -220,6 +244,7 @@ void Orchestrator::m_perform_garbage_collection() {
       auto& trial = itor->second;
 
       if (trial->state() == Trial::InternalState::ended) {
+        m_trials_to_delete.push(std::move(trial));
         itor = m_trials.erase(itor);
       }
       else if (trial->is_stale()) {
@@ -232,7 +257,8 @@ void Orchestrator::m_perform_garbage_collection() {
     }
   }
 
-  // terminate may be long, so we don't want to lock the list during that time
+  // Terminate may be long, so we don't want to lock the list during that time.
+  // We don't go as far as with the deleted trials because stale trials should be rare.
   for (auto trial : stale_trials) {
     spdlog::warn("Terminating trial [{}] because inactive for too long", trial->id());
     trial->terminate();
@@ -279,9 +305,6 @@ void Orchestrator::watch_trials(HandlerFunction func) {
 }
 
 void Orchestrator::notify_watchers(const Trial& trial) {
-  SPDLOG_TRACE("Trial [{}] changed state to [{}] at tick [{}]", trial.id(), get_trial_state_string(trial.state()),
-               trial.tick_id());
-
   const std::lock_guard lg(m_notification_lock);
 
   for (auto& handler : m_trial_watchers) {

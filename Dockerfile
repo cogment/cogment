@@ -1,4 +1,4 @@
-FROM cogment/orchestrator-build-env:v1.1.0 as build
+FROM cogment/orchestrator-build-env:v1.1.2 as build
 
 WORKDIR /workspace
 

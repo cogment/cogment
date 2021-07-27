@@ -28,6 +28,7 @@ Agent::Agent(Trial* owner, const std::string& in_actor_name, const ActorClass* a
     Actor(owner, in_actor_name, actor_class),
     m_stub_entry(std::move(stub_entry)),
     m_config_data(std::move(config_data)),
+    m_stream_end_fut(m_stream_end_prom.get_future()),
     m_impl(impl) {
   SPDLOG_TRACE("Agent(): [{}] [{}] [{}]", trial()->id(), actor_name(), impl);
 
@@ -48,6 +49,7 @@ Agent::~Agent() {
 
   if (m_outgoing_observations) {
     m_outgoing_observations->complete();
+    m_stream_end_fut.wait();
   }
 }
 
@@ -103,22 +105,23 @@ void Agent::lazy_start_decision_stream() {
     auto incoming_actions = std::move(std::get<1>(stream));
 
     std::weak_ptr trial_weak = trial()->get_shared();
-    auto name = actor_name();
-
     incoming_actions
-        .for_each([trial_weak, name](auto rep) {
+        .for_each([this, trial_weak](auto rep) {
           auto trial = trial_weak.lock();
-          if (trial && trial->state() != Trial::InternalState::ended) {
-            trial->actor_acted(name, rep.action());
+          if (trial != nullptr && trial->state() != Trial::InternalState::ended) {
+            trial->actor_acted(actor_name(), rep.action());
             for (auto& rew : rep.rewards()) {
-              trial->reward_received(rew, name);
+              trial->reward_received(rew, actor_name());
             }
             for (auto& message : rep.messages()) {
-              trial->message_received(message, name);
+              trial->message_received(message, actor_name());
             }
           }
         })
-        .finally([](auto) {});
+        .finally([this](auto) {
+          SPDLOG_TRACE("Trial: Finalized service actor [{}] stream", actor_name());
+          m_stream_end_prom.set_value();
+        });
   }
 }
 

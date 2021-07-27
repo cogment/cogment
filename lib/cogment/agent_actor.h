@@ -54,6 +54,8 @@ private:
   std::optional<std::string> m_config_data;
 
   std::optional<::easy_grpc::Stream_promise<::cogment::AgentObservationRequest>> m_outgoing_observations;
+  std::promise<void> m_stream_end_prom;
+  std::future<void> m_stream_end_fut;
 
   std::string m_impl;
 };

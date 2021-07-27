@@ -4,7 +4,7 @@ stages:
   - publish
 
 .base_cpp:
-  image: cogment/orchestrator-build-env:v1.1.0
+  image: cogment/orchestrator-build-env:v1.1.2
   before_script:
     - mkdir build
     - cd build

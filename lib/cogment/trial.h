@@ -144,8 +144,10 @@ private:
   easy_grpc::client::Call_options m_call_options;
 
   std::optional<::easy_grpc::Stream_promise<::cogment::EnvActionRequest>> m_outgoing_actions;
+  std::promise<void> m_stream_end_prom;
+  std::future<void> m_stream_end_fut;
 
-  std::uint32_t m_gathered_actions_count = 0;
+  std::uint32_t m_gathered_actions_count;
 
   std::unique_ptr<TrialLogInterface> m_datalog_interface;
   std::deque<cogment::DatalogSample> m_step_data;

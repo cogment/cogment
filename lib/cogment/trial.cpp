@@ -90,8 +90,10 @@ Trial::Trial(Orchestrator* orch, const std::string& user_id, const Metrics& met)
     m_state(InternalState::unknown),
     m_tick_id(0),
     m_start_timestamp(Timestamp()),
-    m_end_timestamp(0) {
-  SPDLOG_TRACE("New Trial [{}]", m_id);
+    m_end_timestamp(0),
+    m_stream_end_fut(m_stream_end_prom.get_future()),
+    m_gathered_actions_count(0) {
+  SPDLOG_TRACE("Trial [{}]: Constructor", m_id);
 
   set_state(InternalState::initializing);
   refresh_activity();
@@ -99,7 +101,14 @@ Trial::Trial(Orchestrator* orch, const std::string& user_id, const Metrics& met)
   m_datalog_interface = orch->start_log(this);
 }
 
-Trial::~Trial() { SPDLOG_TRACE("Tearing down trial [{}]", m_id); }
+Trial::~Trial() {
+  SPDLOG_TRACE("Trial [{}]: Destructor", m_id);
+
+  if (m_outgoing_actions) {
+    m_outgoing_actions->complete();
+    m_stream_end_fut.wait();
+  }
+}
 
 const std::unique_ptr<Actor>& Trial::actor(const std::string& name) const {
   auto actor_index = m_actor_indexes.at(name);
@@ -107,7 +116,7 @@ const std::unique_ptr<Actor>& Trial::actor(const std::string& name) const {
 }
 
 void Trial::advance_tick() {
-  SPDLOG_TRACE("Tick [{}] is done for Trial [{}]", m_tick_id, m_id);
+  SPDLOG_TRACE("Trial [{}]: Tick [{}] is done", m_id, m_tick_id);
 
   m_tick_id++;
   if (m_tick_id > MAX_TICK_ID) {
@@ -179,6 +188,7 @@ cogment::DatalogSample& Trial::make_new_sample() {
 
 void Trial::flush_samples() {
   const std::lock_guard<std::mutex> lg(m_sample_lock);
+  SPDLOG_TRACE("Trial [{}]: Flushing last samples", m_id);
 
   if (!m_step_data.empty()) {
     m_step_data.back().mutable_trial_data()->set_state(get_trial_api_state(m_state));
@@ -239,7 +249,7 @@ cogment::EnvStartRequest Trial::prepare_environment() {
 }
 
 void Trial::start(cogment::TrialParams params) {
-  SPDLOG_TRACE("Starting Trial [{}]", m_id);
+  SPDLOG_TRACE("Trial [{}]: Starting", m_id);
 
   if (m_state != InternalState::initializing) {
     throw MakeException("Trial [%s] is not in proper state to start: [%s]", m_id.c_str(),
@@ -247,7 +257,7 @@ void Trial::start(cogment::TrialParams params) {
   }
 
   m_params = std::move(params);
-  SPDLOG_DEBUG("Configuring trial [{}] with parameters: {}", m_id, m_params.DebugString());
+  SPDLOG_DEBUG("Trial [{}]: Configuring with parameters: {}", m_id, m_params.DebugString());
 
   grpc_metadata trial_header;
   trial_header.key = grpc_slice_from_static_string("trial-id");
@@ -283,7 +293,7 @@ void Trial::start(cogment::TrialParams params) {
   });
 
   auto self = shared_from_this();
-  SPDLOG_TRACE("Trial [{}]: waiting for actors and environment...", m_id);
+  SPDLOG_TRACE("Trial [{}]: Waiting for actors and environment...", m_id);
   join(env_ready, concat(actors_ready.begin(), actors_ready.end()))
       .then([this](auto env_rep) {
         new_obs(std::move(*env_rep.mutable_observation_set()));
@@ -296,10 +306,10 @@ void Trial::start(cogment::TrialParams params) {
         dispatch_observations();
       })
       .finally([self](auto) {
-        SPDLOG_TRACE("Trial [{}]: All components started.", self->m_id);
+        SPDLOG_TRACE("Trial [{}]: All components started", self->m_id);
       });
 
-  spdlog::debug("Trial [{}] is configured", m_id);
+  spdlog::debug("Trial [{}]: Configured", m_id);
 }
 
 void Trial::reward_received(const cogment::Reward& reward, const std::string& sender) {
@@ -451,7 +461,7 @@ void Trial::run_environment() {
 
   incoming_updates
       .for_each([this](auto update) {
-        SPDLOG_TRACE("Received new observation set for Trial [{}]", m_id);
+        SPDLOG_TRACE("Trial [{}]: Received new observation set", m_id);
 
         if (m_state == InternalState::ended) {
           return;
@@ -466,10 +476,9 @@ void Trial::run_environment() {
         dispatch_observations();
         cycle_buffer();
       })
-      .finally([self](auto) {
-        // We are holding on to self until the rpc is over.
-        // This is important because we we still need to finish
-        // this call while the trial may be "deleted".
+      .finally([this](auto) {
+        SPDLOG_TRACE("Trial [{}]: Finalized environment stream", m_id);
+        m_stream_end_prom.set_value();
       });
 }
 
@@ -498,6 +507,7 @@ cogment::EnvActionRequest Trial::make_action_request() {
 }
 
 void Trial::terminate() {
+  SPDLOG_TRACE("Trial [{}]: terminate()", m_id);
   {
     const std::lock_guard<std::shared_mutex> lg(m_terminating_lock);
 
@@ -533,15 +543,13 @@ void Trial::terminate() {
         dispatch_observations();
       })
       .finally([self](auto) {
-        // We are holding on to self to be safe.
-
         if (self->m_state != InternalState::ended) {
           // One possible reason is if the environment took longer than the deadline to respond
           spdlog::error("Trial [{}] did not end normally.", self->m_id);
 
           // TODO: Send "ended trial" to all components?  So they don't get stuck waiting. Or cut comms?
 
-          self->m_state = InternalState::ended;  // To enable garbage collection on this trial
+          self->set_state(InternalState::ended);  // To enable garbage collection on this trial
         }
       });
 }
@@ -582,7 +590,7 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
                  action.tick_id(), m_tick_id);
   }
 
-  SPDLOG_TRACE("Received action from actor [{}] in trial [{}] for tick [{}].", actor_name, m_id, m_tick_id);
+  SPDLOG_TRACE("Trial [{}]: Received action from actor [{}] for tick [{}].", m_id, actor_name, m_tick_id);
   *sample_action = action;
 
   bool all_actions_received = false;
@@ -593,7 +601,7 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
   }
 
   if (all_actions_received) {
-    SPDLOG_TRACE("All actions received in Trial [{}] for tick [{}]", m_id, m_tick_id);
+    SPDLOG_TRACE("Trial [{}]: All actions received for tick [{}]", m_id, m_tick_id);
 
     const auto max_steps = m_params.max_steps();
     if (max_steps == 0 || m_tick_id < max_steps) {
@@ -623,7 +631,7 @@ void Trial::actor_acted(const std::string& actor_name, const cogment::Action& ac
       }
     }
     else {
-      spdlog::info("Trial [{}] reached its maximum number of steps: [{}]", m_id, max_steps);
+      spdlog::info("Trial [{}]: Reached configured maximum number of steps [{}]", m_id, max_steps);
       terminating_guard.unlock();
       terminate();
     }
@@ -709,15 +717,8 @@ void Trial::set_state(InternalState new_state) {
   }
 
   if (m_state != new_state) {
+    SPDLOG_TRACE("Trial [{}]: New state [{}] at tick [{}]", m_id, get_trial_state_string(new_state), m_tick_id);
     m_state = new_state;
-
-    if (new_state == InternalState::ended) {
-      m_end_timestamp = Timestamp();
-
-      if (m_metrics.trial_duration != nullptr) {
-        m_metrics.trial_duration->Observe(static_cast<double>(m_end_timestamp - m_start_timestamp) * NANOS_INV);
-      }
-    }
 
     // TODO: Find a better way so we don't have to be locked when calling out
     //       Right now it is necessary to make sure we don't miss state and they are seen in-order
@@ -725,6 +726,12 @@ void Trial::set_state(InternalState new_state) {
 
     if (new_state == InternalState::ended) {
       flush_samples();
+
+      m_end_timestamp = Timestamp();
+
+      if (m_metrics.trial_duration != nullptr) {
+        m_metrics.trial_duration->Observe(static_cast<double>(m_end_timestamp - m_start_timestamp) * NANOS_INV);
+      }
     }
   }
 }
@@ -732,6 +739,10 @@ void Trial::set_state(InternalState new_state) {
 void Trial::refresh_activity() { m_last_activity = std::chrono::steady_clock::now(); }
 
 bool Trial::is_stale() const {
+  if (m_state == InternalState::ended) {
+    return false;
+  }
+
   const auto inactivity_period = std::chrono::steady_clock::now() - m_last_activity;
   const auto& max_inactivity = m_params.max_inactivity();
 

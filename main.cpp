@@ -174,7 +174,7 @@ int main(int argc, const char* argv[]) {
     auto private_key_file = std::ifstream(settings::private_key.get());
     if (!private_key_file.is_open() || !private_key_file.good()) {
       auto cwd = std::filesystem::current_path().string();
-      spdlog::error("Could not open private key file: {}/{}", cwd, settings::private_key.get());
+      spdlog::error("Could not open private key file: [{}/{}]", cwd, settings::private_key.get());
       return 1;
     }
     std::stringstream private_key;
@@ -183,7 +183,7 @@ int main(int argc, const char* argv[]) {
     auto root_cert_file = std::ifstream(settings::root_cert.get());
     if (!root_cert_file.is_open() || !root_cert_file.good()) {
       auto cwd = std::filesystem::current_path().string();
-      spdlog::error("Could not open root certificate file: {}/{}", cwd, settings::root_cert.get());
+      spdlog::error("Could not open root certificate file: [{}/{}]", cwd, settings::root_cert.get());
       return 1;
     }
     std::stringstream root_cert;
@@ -192,7 +192,7 @@ int main(int argc, const char* argv[]) {
     auto trust_chain_file = std::ifstream(settings::trust_chain.get());
     if (!trust_chain_file.is_open() || !trust_chain_file.good()) {
       auto cwd = std::filesystem::current_path().string();
-      spdlog::error("Could not open certificate trust chain file: {}/{}", cwd, settings::trust_chain.get());
+      spdlog::error("Could not open certificate trust chain file: [{}/{}]", cwd, settings::trust_chain.get());
       return 1;
     }
     std::stringstream trust_chain;
@@ -211,7 +211,7 @@ int main(int argc, const char* argv[]) {
       cogment_yaml = YAML::LoadFile(settings::config_file.get());
     }
     catch (std::exception& e) {
-      spdlog::error("failed to load {}: {}", settings::config_file.get(), e.what());
+      spdlog::error("failed to load [{}]: {}", settings::config_file.get(), e.what());
       return 1;
     }
 
@@ -219,8 +219,8 @@ int main(int argc, const char* argv[]) {
 
     std::array<rpc::Completion_queue, 4> server_queues;
 
-    spdlog::info("Cogment Orchestrator v. {}", COGMENT_ORCHESTRATOR_VERSION);
-    spdlog::info("Cogment API v. {}", COGMENT_API_VERSION);
+    spdlog::info("Cogment Orchestrator [{}]", COGMENT_ORCHESTRATOR_VERSION);
+    spdlog::info("Cogment API [{}]", COGMENT_API_VERSION);
 
     // ******************* Endpoints *******************
     auto lifecycle_endpoint = std::string("0.0.0.0:") + std::to_string(settings::lifecycle_port.get());
@@ -231,7 +231,7 @@ int main(int argc, const char* argv[]) {
     std::shared_ptr<prometheus::Registry> metrics_registry;
     if (settings::prometheus_port.get() > 0) {
       auto prometheus_endpoint = std::string("0.0.0.0:") + std::to_string(settings::prometheus_port.get());
-      spdlog::info("Starting prometheus at: {}", prometheus_endpoint);
+      spdlog::info("Starting prometheus at [{}]", prometheus_endpoint);
 
       metrics_exposer = std::make_unique<prometheus::Exposer>(prometheus_endpoint);
       metrics_registry = std::make_shared<prometheus::Registry>();
@@ -297,8 +297,8 @@ int main(int argc, const char* argv[]) {
       *status_file << ready_status_string << std::flush;
     }
 
-    spdlog::info("Server listening for lifecycle on {}", lifecycle_endpoint);
-    spdlog::info("Server listening for Actors on {}", actor_endpoint);
+    spdlog::info("Server listening for lifecycle on [{}]", lifecycle_endpoint);
+    spdlog::info("Server listening for Actors on [{}]", actor_endpoint);
 
     // Wait for a termination signal.
     sigset_t sig_set;

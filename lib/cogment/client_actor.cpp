@@ -27,7 +27,8 @@ Client_actor::Client_actor(Trial* owner, const std::string& actor_name, const Ac
     Actor(owner, actor_name, actor_class),
     m_joined(false),
     m_config_data(std::move(config_data)),
-    m_outgoing_observations_future(m_outgoing_observations.get_future()) {
+    m_outgoing_observations_future(m_outgoing_observations.get_future()),
+    m_stream_end_fut(m_stream_end_prom.get_future()) {
   SPDLOG_TRACE("Client_actor(): [{}] [{}]", trial()->id(), actor_name);
 }
 
@@ -35,6 +36,7 @@ Client_actor::~Client_actor() {
   SPDLOG_TRACE("~Client_actor(): [{}] [{}]", trial()->id(), actor_name());
   if (m_outgoing_observations) {
     m_outgoing_observations.complete();
+    m_stream_end_fut.wait();
   }
 }
 
@@ -55,16 +57,18 @@ std::optional<std::string> Client_actor::join() {
 
 Client_actor::Observation_future Client_actor::bind(Client_actor::Action_future actions) {
   std::weak_ptr trial_weak = trial()->get_shared();
-  auto name = actor_name();
 
   actions
-      .for_each([trial_weak, name](auto rep) {
+      .for_each([this, trial_weak](auto rep) {
         auto trial = trial_weak.lock();
         if (trial) {
-          trial->actor_acted(name, rep.action());
+          trial->actor_acted(actor_name(), rep.action());
         }
       })
-      .finally([](auto) {});
+      .finally([this](auto) {
+        SPDLOG_TRACE("Trial: Finalized client actor [{}] stream", actor_name());
+        m_stream_end_prom.set_value();
+      });
 
   return std::move(m_outgoing_observations_future);
 }

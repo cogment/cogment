@@ -26,11 +26,12 @@
 namespace cogment {
 
 GrpcDatalogExporterBase::Trial_log::Trial_log(GrpcDatalogExporterBase* owner, const Trial* trial) :
-    m_owner(owner), m_trial(trial) {}
+    m_owner(owner), m_trial(trial), m_stream_end_fut(m_stream_end_prom.get_future()) {}
 
 GrpcDatalogExporterBase::Trial_log::~Trial_log() {
   if (m_output_promise) {
     m_output_promise->complete();
+    m_stream_end_fut.wait();
   }
 }
 
@@ -48,7 +49,10 @@ void GrpcDatalogExporterBase::Trial_log::m_lazy_start_stream() {
 
     // We'll just ignore whatever comes back from the log exporter service.
     // TODO: It is required to bypass a probable bug in easy_grpc that expects a stream to be "used".
-    m_reply.for_each([](auto) {}).finally([](auto) {});
+    m_reply.for_each([](auto) {}).finally([this](auto) {
+      SPDLOG_TRACE("Trial [{}]: Finalized datalog stream", m_trial->id());
+      m_stream_end_prom.set_value();
+    });
 
     cogment::LogExporterSampleRequest msg;
     *msg.mutable_trial_params() = m_trial->params();
