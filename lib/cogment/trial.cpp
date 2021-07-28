@@ -108,6 +108,11 @@ Trial::~Trial() {
     m_outgoing_actions->complete();
     m_stream_end_fut.wait();
   }
+
+  for (auto& metadata : m_headers) {
+    grpc_slice_unref(metadata.key);
+    grpc_slice_unref(metadata.value);
+  }
 }
 
 const std::unique_ptr<Actor>& Trial::actor(const std::string& name) const {

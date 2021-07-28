@@ -22,7 +22,7 @@ The orchestrator has a few dependecies:
 The easiest way to build the orchestrator is to make use of [cogment orchestrator build env](https://hub.docker.com/repository/docker/cogment/orchestrator-build-env) Docker image:
 
 ```
-docker run --rm -it -v$(pwd):/workspace cogment/orchestrator-build-env:v1.1.2
+docker run --rm -it -v$(pwd):/workspace cogment/orchestrator-build-env:v1.1.3
 mkdir _bld
 cd _bld
 cmake ..

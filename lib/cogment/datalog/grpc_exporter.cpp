@@ -33,6 +33,11 @@ GrpcDatalogExporterBase::Trial_log::~Trial_log() {
     m_output_promise->complete();
     m_stream_end_fut.wait();
   }
+
+  for (auto& metadata : m_headers) {
+    grpc_slice_unref(metadata.key);
+    grpc_slice_unref(metadata.value);
+  }
 }
 
 void GrpcDatalogExporterBase::Trial_log::m_lazy_start_stream() {

@@ -224,6 +224,10 @@ aom::Future<cogment::PreTrialContext> Orchestrator::m_perform_pre_hooks(cogment:
   }
 
   return result.then([headers](auto v) {
+    for (auto& metadata : *headers) {
+      grpc_slice_unref(metadata.key);
+      grpc_slice_unref(metadata.value);
+    }
     return v;
   });
 }

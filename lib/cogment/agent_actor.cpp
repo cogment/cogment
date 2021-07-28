@@ -51,6 +51,11 @@ Agent::~Agent() {
     m_outgoing_observations->complete();
     m_stream_end_fut.wait();
   }
+
+  for (auto& metadata : m_headers) {
+    grpc_slice_unref(metadata.key);
+    grpc_slice_unref(metadata.value);
+  }
 }
 
 aom::Future<void> Agent::init() {
