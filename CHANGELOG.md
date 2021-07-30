@@ -9,11 +9,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Prometheus metrics for trial garbage collection, trial duration and tick duration
+- Add Prometheus metrics for trial garbage collection, trial duration and tick duration
+- Add the ability to disable Prometheus server by setting its port to 0 in `PROMETHEUS_PORT` or with the `--prometheus-port` CLI flag
 
 ### Fixed
 
-- Memory leaks
+- Fix several memory leaks that was causing the memory to grow with each trial execution
 
 ## v1.0.2 - 2021-07-07
 
@@ -21,7 +22,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Update copyright notice to use the legal name of AI Redefined Inc.
 - Use strings everywhere for trial id
-- Add ability to disable Prometheus server
 
 ### Fixed
 
