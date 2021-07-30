@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v1.0.3 - 2021-07-30
+
 ### Added
 
 - Add Prometheus metrics for trial garbage collection, trial duration and tick duration
