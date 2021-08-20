@@ -130,13 +130,13 @@ func execCommand(command string, directory string, errorString string) error {
 	return nil
 }
 
-func runProtoc(projectRootPath string, protoFiles []string, otherParams []string) error {
+func runProtoc(protocBinary string, projectRootPath string, protoFiles []string, otherParams []string) error {
 	params := append(otherParams, "--proto_path", projectRootPath)
 	params = append(params, protoFiles...)
 
-	logger.Debugf("Running `protoc %s`", strings.Join(params, " "))
+	logger.Debugf("Running `%s %s`", protocBinary, strings.Join(params, " "))
 
-	subProcess := exec.Command("protoc", params...)
+	subProcess := exec.Command(protocBinary, params...)
 	subProcess.Dir = projectRootPath
 	subProcess.Stdout = os.Stdout
 	subProcess.Stderr = os.Stderr
@@ -159,7 +159,7 @@ func registerProtos(config *api.ProjectConfig) error {
 	descriptorPath := path.Join(tmpDir, "data.pb")
 
 	// Generating a descriptor file from all the proto files in the project
-	err = runProtoc(projectRootPath, config.Import.Proto, []string{"--descriptor_set_out", descriptorPath})
+	err = runProtoc("protoc", projectRootPath, config.Import.Proto, []string{"--descriptor_set_out", descriptorPath})
 	if err != nil {
 		return err
 	}
@@ -268,7 +268,7 @@ func generatePython(config *api.ProjectConfig, outputPaths []string) error {
 		params = append(params, "--python_out", outputPath)
 	}
 
-	err := runProtoc(path.Dir(config.ProjectConfigPath), config.Import.Proto, params)
+	err := runProtoc("protoc", path.Dir(config.ProjectConfigPath), config.Import.Proto, params)
 	if err != nil {
 		return err
 	}
@@ -325,7 +325,9 @@ func generateWebClient(config *api.ProjectConfig, jsOutPaths []string) error {
 }
 
 func compileProtosJs(config *api.ProjectConfig, jsOutPath string) error {
-	params := []string{fmt.Sprintf("--js_out=import_style=commonjs,binary:%s/src", jsOutPath)}
+	params := []string{
+		fmt.Sprintf("--js_out=import_style=commonjs,binary:%s/src", jsOutPath), 
+	}
 
 	if config.Typescript {
 		params = append(
@@ -335,7 +337,12 @@ func compileProtosJs(config *api.ProjectConfig, jsOutPath string) error {
 		)
 	}
 
-	err := runProtoc(path.Dir(config.ProjectConfigPath), config.Import.Proto, params)
+
+	
+
+	jsProtocBinary := path.Join(jsOutPath, "node_modules/.bin/grpc_tools_node_protoc");
+
+	err := runProtoc(jsProtocBinary, path.Dir(config.ProjectConfigPath), config.Import.Proto, params)
 	if err != nil {
 		return err
 	}
@@ -356,9 +363,6 @@ func generateCogSettings(config *api.ProjectConfig, jsOutPath string) error {
 	}
 
 	deleteCommand := fmt.Sprintf("rm src/%s", api.SettingsFilenameJs)
-	if config.Typescript {
-		deleteCommand = ""
-	}
 
 	tscCompileCmd := fmt.Sprintf(
 		`

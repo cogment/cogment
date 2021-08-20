@@ -37,12 +37,14 @@ import (
 var JavascriptDependencies = []string{
 	"@cogment/cogment-js-sdk",
 	"google-protobuf",
+	"grpc-tools",
+	"grpc_tools_node_protoc_ts",
+	"ts-protoc-gen@0.14.0",
 }
 
 var JavascriptDevDependencies = []string{
 	"eslint",
 	"nps",
-	"ts-protoc-gen",
 	"typescript",
 }
 
