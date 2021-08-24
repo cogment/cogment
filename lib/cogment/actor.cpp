@@ -93,6 +93,7 @@ void Actor::add_immediate_message(const cogmentAPI::Message& message, const std:
   m_message_accumulator.emplace_back(message);
   m_message_accumulator.back().set_tick_id(tick_id);
   m_message_accumulator.back().set_sender_name(sender);
+  m_message_accumulator.back().set_receiver_name(m_actor_name);  // Because of wildcard messages
 }
 
 void Actor::dispatch_tick(cogmentAPI::Observation&& obs, bool final_tick) {

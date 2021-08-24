@@ -164,6 +164,7 @@ cogmentAPI::TrialJoinReply Orchestrator::client_joined(cogmentAPI::TrialJoinRequ
   if (joined_as_actor == nullptr) {
     throw MakeException("Could not join trial");
   }
+
   auto config_data = joined_as_actor->join();
   if (config_data) {
     result.mutable_config()->set_content(config_data.value());
@@ -191,7 +192,7 @@ cogmentAPI::TrialJoinReply Orchestrator::client_joined(cogmentAPI::TrialJoinRequ
   auto actor = dynamic_cast<Client_actor*>(trial->actor(actor_name).get());
 
   if (actor == nullptr) {
-    throw MakeException("Attempting to bind a service-driven actor");
+    throw MakeException("Attempting to bind a service-driven actor [%s]", actor_name.c_str());
   }
 
   return actor->bind(std::move(actions));

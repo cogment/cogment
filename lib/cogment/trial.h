@@ -110,6 +110,8 @@ private:
   void run_environment();
   cogmentAPI::EnvActionRequest make_action_request();
   void dispatch_env_messages();
+  std::vector<Actor*> get_all_actors(const std::string& name);
+  bool for_actors(const std::string& pattern, std::function<void(Actor*)> func);
 
   Orchestrator* m_orchestrator;
   Metrics m_metrics;

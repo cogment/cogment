@@ -104,6 +104,9 @@ Trial::Trial(Orchestrator* orch, const std::string& user_id, const Metrics& met)
 Trial::~Trial() {
   SPDLOG_TRACE("Trial [{}]: Destructor", m_id);
 
+  // Destroy actors while this trial instance still exists
+  m_actors.clear();
+
   if (m_outgoing_actions) {
     m_outgoing_actions->complete();
     m_stream_end_fut.wait();
@@ -327,7 +330,7 @@ void Trial::reward_received(const cogmentAPI::Reward& reward, const std::string&
   if (sample != nullptr) {
     const std::lock_guard<std::mutex> lg(m_reward_lock);
     auto new_rew = sample->add_rewards();
-    *new_rew = reward;
+    *new_rew = reward;  // TODO: The reward may have a wildcard (or invalid) receiver, do we want that in the sample?
   }
   else {
     return;
@@ -341,15 +344,15 @@ void Trial::reward_received(const cogmentAPI::Reward& reward, const std::string&
 
   // Rewards are not dispatched as we receive them. They are accumulated, and sent once
   // per update.
-  auto actor_index_itor = m_actor_indexes.find(reward.receiver_name());
-  if (actor_index_itor != m_actor_indexes.end()) {
-    // Normally we should have only one source when receiving
-    for (const auto& src : reward.sources()) {
-      m_actors[actor_index_itor->second]->add_immediate_reward_src(src, sender, m_tick_id);
-    }
-  }
-  else {
-    spdlog::error("Unknown actor name as reward destination [{}]", reward.receiver_name());
+  bool valid_name = for_actors(reward.receiver_name(), [this, &reward, &sender](auto actor) {
+      // Normally we should have only one source when receiving
+      for (const auto& src : reward.sources()) {
+        actor->add_immediate_reward_src(src, sender, m_tick_id);
+      }
+  });
+
+  if (!valid_name) {
+    spdlog::error("Trial [{}] - Unknown receiver as reward destination [{}]", m_id, reward.receiver_name());
   }
 }
 
@@ -377,19 +380,70 @@ void Trial::message_received(const cogmentAPI::Message& message, const std::stri
 
   // Message is not dispatched as we receive it. It is accumulated, and sent once
   // per update.
-  auto actor_index_itor = m_actor_indexes.find(message.receiver_name());
-  if (actor_index_itor != m_actor_indexes.end()) {
-    m_actors[actor_index_itor->second]->add_immediate_message(message, sender, m_tick_id);
-  }
-  else if (message.receiver_name() == ENVIRONMENT_ACTOR_NAME) {
+  if (message.receiver_name() == ENVIRONMENT_ACTOR_NAME) {
     const std::lock_guard<std::mutex> lg(m_env_message_lock);
     m_env_message_accumulator.emplace_back(message);
     m_env_message_accumulator.back().set_tick_id(m_tick_id);
     m_env_message_accumulator.back().set_sender_name(sender);
   }
   else {
-    spdlog::error("Unknown receiver name as message destination [{}]", message.receiver_name());
+    bool valid_name = for_actors(message.receiver_name(), [this, &message, &sender](auto actor) {
+        actor->add_immediate_message(message, sender, m_tick_id);
+    });
+
+    if (!valid_name) {
+      spdlog::error("Trial [{}] - Unknown receiver as message destination [{}]", m_id, message.receiver_name());
+    }
   }
+}
+
+bool Trial::for_actors(const std::string& pattern, std::function<void(Actor*)> func) {
+  // If exact name
+  const auto actor_index_itor = m_actor_indexes.find(pattern);
+  if (actor_index_itor != m_actor_indexes.end()) {
+    const uint32_t index = actor_index_itor->second;
+    func(m_actors[index].get());
+    return true;
+  }
+
+  // If all actors
+  if (pattern == "*") {
+    for (const auto& actor : m_actors) {
+      func(actor.get());
+    }
+    return true;
+  }
+
+  // If "class_name.actor_name" where actor_name can be "*"
+  auto pos = pattern.find('.');
+  if (pos != pattern.npos) {
+    const auto class_name = pattern.substr(0, pos);
+    const auto actor_name = pattern.substr(pos + 1);
+
+    // If "class_name.*"
+    if (actor_name == "*") {
+      bool at_least_one = false;
+      for (const auto& actor : m_actors) {
+        if (actor->actor_class()->name == class_name) {
+          at_least_one = true;
+          func(actor.get());
+        }
+      }
+
+      return at_least_one;
+    }
+
+    const auto actor_index_itor = m_actor_indexes.find(actor_name);
+    if (actor_index_itor != m_actor_indexes.end()) {
+      const uint32_t index = actor_index_itor->second;
+      if (m_actors[index]->actor_class()->name == class_name) {
+        func(m_actors[index].get());
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 void Trial::next_step(cogmentAPI::EnvActionReply&& reply) {
@@ -657,9 +711,10 @@ Client_actor* Trial::get_join_candidate(const cogmentAPI::TrialJoinRequest& req)
     if (actor->is_active()) {
       result = actor.get();
     }
-  } break;
+    break;
+  }
 
-  case cogmentAPI::TrialJoinRequest::kActorClass:
+  case cogmentAPI::TrialJoinRequest::kActorClass: {
     for (auto& actor : m_actors) {
       if (!actor->is_active() && actor->actor_class()->name == req.actor_class()) {
         result = actor.get();
@@ -667,6 +722,7 @@ Client_actor* Trial::get_join_candidate(const cogmentAPI::TrialJoinRequest& req)
       }
     }
     break;
+  }
 
   case cogmentAPI::TrialJoinRequest::SLOT_SELECTION_NOT_SET:
   default:

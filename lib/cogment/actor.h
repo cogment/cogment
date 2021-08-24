@@ -56,11 +56,15 @@ public:
 
   void dispatch_tick(cogmentAPI::Observation&& obs, bool final_tick);
 
+  aom::Future<void> last_ack() { return m_last_ack_prom.get_future(); }
+
 protected:
   virtual void dispatch_observation(cogmentAPI::Observation&& obs) = 0;
   virtual void dispatch_final_data(cogmentAPI::ActorPeriodData&& data) = 0;
   virtual void dispatch_reward(cogmentAPI::Reward&& reward) = 0;
   virtual void dispatch_message(cogmentAPI::Message&& message) = 0;
+
+  void ack_last() { m_last_ack_prom.set_value(); }
 
 private:
   Trial* m_trial;
@@ -70,6 +74,8 @@ private:
 
   RewAccumulator m_reward_accumulator;
   std::vector<cogmentAPI::Message> m_message_accumulator;
+
+  aom::Promise<void> m_last_ack_prom;
 };
 
 struct ActorClass {

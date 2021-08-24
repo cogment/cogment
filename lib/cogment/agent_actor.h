@@ -39,25 +39,30 @@ public:
 
 protected:
   void dispatch_observation(cogmentAPI::Observation&& obs) override;
-  void dispatch_final_data(cogmentAPI::ActorPeriodData&& data) override;
   void dispatch_reward(cogmentAPI::Reward&& reward) override;
   void dispatch_message(cogmentAPI::Message&& message) override;
+  void dispatch_final_data(cogmentAPI::ActorPeriodData&& data) override;
 
 private:
-  void lazy_start_decision_stream();
+  void process_communication_state(cogmentAPI::CommunicationState in_state, const std::string* details);
+  void process_incoming_data(const cogmentAPI::ServiceActorRunOutput& data);
 
   StubEntryType m_stub_entry;
-  std::vector<grpc_metadata> m_headers;
-  easy_grpc::client::Call_options m_options;
 
   cogmentAPI::Action m_latest_action;
   std::optional<std::string> m_config_data;
 
-  std::optional<easy_grpc::Stream_promise<cogmentAPI::AgentObservationRequest>> m_outgoing_observations;
   std::promise<void> m_stream_end_prom;
   std::future<void> m_stream_end_fut;
+  aom::Promise<void> m_init_prom;
+  easy_grpc::Stream_promise<cogmentAPI::ServiceActorRunInput> m_outgoing_data;
+  easy_grpc::Stream_future<cogmentAPI::ServiceActorRunOutput> m_incoming_data;
 
   std::string m_impl;
+
+  // Communication
+  bool m_last_sent;
+  bool m_init_completed;
 };
 
 }  // namespace cogment

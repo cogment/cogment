@@ -52,21 +52,24 @@ std::optional<std::string> Client_actor::join() {
   m_joined = true;
   m_ready_promise.set_value();
 
+  spdlog::debug("Trial [{}] - Actor [{}] has joined the trial", trial()->id(), actor_name());
   return m_config_data;
 }
 
 Client_actor::Observation_future Client_actor::bind(Client_actor::Action_future actions) {
-  std::weak_ptr trial_weak = trial()->get_shared();
+  SPDLOG_TRACE("Trial [{}] - Actor [{}] binding", trial()->id(), actor_name());
 
+  std::weak_ptr trial_weak = trial()->get_shared();
   actions
       .for_each([this, trial_weak](auto rep) {
+        SPDLOG_TRACE("Trial [{}] - Actor [{}] received from stream", trial()->id(), actor_name());
         auto trial = trial_weak.lock();
         if (trial) {
           trial->actor_acted(actor_name(), rep.action());
         }
       })
       .finally([this](auto) {
-        SPDLOG_TRACE("Trial: Finalized client actor [{}] stream", actor_name());
+        SPDLOG_DEBUG("Trial: Finalized client actor [{}] stream", actor_name());
         m_stream_end_prom.set_value();
       });
 
