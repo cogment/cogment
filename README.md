@@ -4,13 +4,29 @@
 
 [Cogment](https://cogment.ai) is an innovative open source AI platform designed to leverage the advent of AI to benefit humankind through human-AI collaboration developed by [AI Redefined](https://ai-r.com). Cogment enables AI researchers and engineers to build, train and operate AI agents in simulated or real environments shared with humans. For the full user documentation visit <https://docs.cogment.ai>
 
-This module, `cogment-cli`, is a command line tool providing a set of useful command utilities that
+This module, cogment CLI, is a command line tool providing a set of useful command utilities that
 provide the following functions:
 
 - generate, perform the code generation phase from a project's proto files.
 - init, bootstrap a new project locally.
 - run, run a command from the cogment.yaml 'commands' section.
 - version, print the version nummber of the Cogment CLI.
+
+## Installation
+
+To install the latest published version run the following command:
+
+```console
+$ curl --silent -L https://raw.githubusercontent.com/cogment/cogment-cli/main/install.sh | sudo bash
+```
+
+To install a specific version (here v1.0.0) run the following command:
+
+```console
+$ curl --silent -L https://raw.githubusercontent.com/cogment/cogment-cli/main/install.sh | sudo bash -s -- --version v1.0.0
+```
+
+For futher installation options please refer to cogment's [installation guide](https://docs.cogment.ai/introduction/installation/).
 
 ## Developers
 

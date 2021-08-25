@@ -51,7 +51,7 @@ shellcheck:
   before_script:
     - shellcheck --version
   script:
-    - shellcheck ./scripts/*.sh
+    - shellcheck $(find . -name '*.sh' | xargs)
 
 shfmt:
   image: mvdan/shfmt:v3.1.0-alpine
@@ -59,7 +59,7 @@ shfmt:
   before_script:
     - shfmt -version
   script:
-    - shfmt -i 2 -ci -d ./scripts
+    - shfmt -i 2 -ci -d .
 
 apache_licenses_check:
   stage: lint
