@@ -1,0 +1,14 @@
+# Directory used on the CI for go dependencies cache
+.go
+
+# Git and cache folders
+.git
+.cache
+
+# Build output
+build
+
+# Test outputs
+raw_report.txt
+report.xml
+test_failed.txt
