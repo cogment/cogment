@@ -2,10 +2,10 @@ FROM golang:1.16 as build
 
 WORKDIR /app
 
-# Retrieve and build transitive dependencies to help with caching
-# Method suggested in https://github.com/golang/go/issues/27719
+RUN apt-get update -y && apt-get install -y protobuf-compiler
+
 COPY go.mod go.sum ./
-RUN go mod graph | awk '$1 !~ /@/ { print $2 }' | xargs -r go get
+RUN go mod download
 
 COPY . .
 RUN make build

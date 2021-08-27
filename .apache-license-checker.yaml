@@ -1,3 +1,5 @@
 license:
   CopyrightYear: 2021
   Author: "AI Redefined Inc. <dev+cogment@ai-r.com>"
+ignore:
+  - "grpcapi"

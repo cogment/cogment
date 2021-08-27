@@ -5,3 +5,6 @@ build
 raw_report.txt
 report.xml
 test_failed.txt
+
+# Downloaded / generated GRPC API
+grpcapi

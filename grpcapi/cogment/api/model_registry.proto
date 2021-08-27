@@ -1,0 +1,98 @@
+// Copyright 2021 Artificial Intelligence Redefined <dev+cogment@ai-r.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package cogment;
+
+import "google/protobuf/timestamp.proto";
+
+message ModelInfo {
+	string model_id = 1;
+}
+
+message ModelVersionInfo {
+	string model_id = 1;
+  google.protobuf.Timestamp created_at = 2;
+	uint32 number = 3;
+	bool archive = 4;
+	string hash = 5;
+}
+
+service ModelRegistry {
+  rpc CreateModel(CreateModelRequest) returns (CreateModelReply) {}
+  rpc DeleteModel(DeleteModelRequest) returns (DeleteModelReply) {}
+  rpc ListModelVersions(ListModelVersionsRequest) returns (ListModelVersionsReply) {}
+
+  rpc CreateModelVersion(stream CreateModelVersionRequestChunk) returns (CreateModelVersionReply) {}
+  rpc RetrieveModelInfo(RetrieveModelInfoRequest) returns (RetrieveModelInfoReply) {}
+  rpc RetrieveModelData(RetrieveModelDataRequest) returns (stream RetrieveModelDataReplyChunk) {}
+}
+
+message CreateModelRequest {
+  string model_id = 1;
+}
+
+message CreateModelReply {
+  ModelInfo model = 1;
+}
+
+message ListModelVersionsRequest {
+  string model_id = 1;
+  uint32 page_size = 2;
+  uint32 page_offset = 3;
+}
+
+message ListModelVersionsReply {
+  repeated ModelVersionInfo versions = 2;
+  uint32 next_page_offset = 3;
+}
+
+message DeleteModelRequest {
+  string model_id = 1;
+}
+
+message DeleteModelReply {
+  ModelInfo model = 1;
+}
+
+message CreateModelVersionRequestChunk {
+  string model_id = 1;  // First chunk in the stream must define, if defined in following chunks it will be ignore
+  bool archive = 2;     // Same
+  bytes data_chunk = 3; // All data chunk will be concatened to form the version data
+  bool last_chunk = 4;  // True for the last chunk, false otherwise
+}
+
+message CreateModelVersionReply {
+  ModelVersionInfo version_info = 1;
+}
+
+message RetrieveModelInfoRequest {
+  string model_id = 1;
+  uint32 number = 3;
+}
+
+message RetrieveModelInfoReply {
+  ModelVersionInfo version_info = 1;
+}
+
+message RetrieveModelDataRequest {
+  string model_id = 1;
+  uint32 number = 3;
+}
+
+message RetrieveModelDataReplyChunk {
+  bytes data_chunk = 1; // All data chunk will be concatened to form the version data
+  bool last_chunk = 2;  // True for the last chunk, false otherwise
+}

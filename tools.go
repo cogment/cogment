@@ -16,6 +16,12 @@
 
 package tools
 
+//go:generate go install google.golang.org/protobuf/cmd/protoc-gen-go
+//go:generate go install google.golang.org/grpc/cmd/protoc-gen-go-grpc
+//go:generate ./scripts/generate_protos.sh
+
 import (
 	_ "github.com/jstemmer/go-junit-report"
+	_ "google.golang.org/grpc/cmd/protoc-gen-go-grpc"
+	_ "google.golang.org/protobuf/cmd/protoc-gen-go"
 )

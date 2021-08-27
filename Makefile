@@ -3,7 +3,10 @@ all: lint build install
 install:
 	go install
 
-build:
+generate-protos:
+	go generate -tags tools
+
+build: generate-protos
 	go build -o build/cogment-model-registry
 
 clean:
@@ -16,10 +19,10 @@ lint:
 fix-lint:
 	golangci-lint run --fix
 
-test:
+test: generate-protos
 	go test -v ./...
 
-test-with-report:
+test-with-report: generate-protos
 	rm -f test_failed.txt
 	go test -v ./... 2>&1 > raw_report.txt || echo test_failed > test_failed.txt
 	go run github.com/jstemmer/go-junit-report < raw_report.txt > report.xml
