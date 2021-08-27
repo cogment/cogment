@@ -69,21 +69,21 @@ endmacro()
 
 macro(compile_grpc_proto PROTO)
         add_custom_command(
-                OUTPUT  "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.egrpc.pb.h"
-                        "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.egrpc.pb.cc"
+                OUTPUT  "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.grpc.pb.h"
+                        "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.grpc.pb.cc"
                         "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.h"
                         "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.cc"
                 COMMAND ${Protobuf_PROTOC_EXECUTABLE}
                 ARGS
                 "--proto_path=${COGMENT_API_DIR}/"
-                "--egrpc_out=${GENERATED_PROTOBUF_PATH}"
+                "--grpc_out=${GENERATED_PROTOBUF_PATH}"
                 "--cpp_out=${GENERATED_PROTOBUF_PATH}"
-                "--plugin=protoc-gen-egrpc=$<TARGET_FILE:easy_grpc_protoc_plugin>"
+                "--plugin=protoc-gen-grpc=/usr/local/bin/grpc_cpp_plugin"
                 "${COGMENT_API_DIR}/cogment/api/${PROTO}.proto"
                 MAIN_DEPENDENCY ${COGMENT_API_DIR}/cogment/api/${PROTO}.proto
                 )
         list(APPEND COGMENT_API_SRC ${COGMENT_API_DIR}/cogment/api/${PROTO}.proto)
-        list(APPEND PROTO_SRC ${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.egrpc.pb.cc)
+        list(APPEND PROTO_SRC ${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.grpc.pb.cc)
         list(APPEND PROTO_SRC ${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.cc)
 endmacro()
 
@@ -105,6 +105,11 @@ add_library(orchestrator_protos
   ${PROTO_SRC}
 )
 
+target_link_libraries(orchestrator_protos
+PUBLIC
+    gRPC::grpc++
+)
+
 target_include_directories(orchestrator_protos
 PUBLIC
     ${GENERATED_PROTOBUF_PATH}
@@ -114,15 +119,13 @@ add_library(orchestrator_lib
   cogment/actor.cpp
   cogment/agent_actor.cpp
   cogment/client_actor.cpp
+  cogment/datalog.cpp
   cogment/base64.cpp
   cogment/orchestrator.cpp
   cogment/trial_params.cpp
   cogment/trial_spec.cpp
   cogment/trial.cpp
   cogment/utils.cpp
-
-  cogment/datalog/storage_interface.cpp
-  cogment/datalog/grpc_exporter.cpp
 
   cogment/services/actor_service.cpp
   cogment/services/trial_lifecycle_service.cpp
@@ -138,8 +141,6 @@ target_link_libraries(orchestrator_lib
     slt_settings
     slt_concur
     uuid.a
-    easy_grpc
-    easy_grpc_reflection
     yaml-cpp
     grpc.a
     gpr.a

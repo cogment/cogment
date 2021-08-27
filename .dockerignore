@@ -5,6 +5,7 @@
 # "local" builds
 build/
 _bld/
+!build/orchestrator
 
 # Backup of "sed-ed" files
 *.bak

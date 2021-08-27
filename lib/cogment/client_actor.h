@@ -16,33 +16,31 @@
 #define AOM_ORCHESTRATOR_CLIENT_ACTOR_H
 
 #include "cogment/actor.h"
-#include "cogment/api/agent.egrpc.pb.h"
 #include "cogment/stub_pool.h"
+#include "grpc++/grpc++.h"
 
 #include <optional>
+#include <thread>
 
 namespace cogment {
 
 class Trial;
 class Client_actor : public Actor {
 public:
-  using Action_future = ::easy_grpc::Stream_future<::cogmentAPI::TrialActionRequest>;
-
-  using Observation_promise = ::easy_grpc::Stream_promise<::cogmentAPI::TrialActionReply>;
-  using Observation_future = ::easy_grpc::Stream_future<::cogmentAPI::TrialActionReply>;
+  using StreamType = grpc::ServerReaderWriter<cogmentAPI::TrialActionReply, cogmentAPI::TrialActionRequest>;
 
   Client_actor(Trial* owner, const std::string& actor_name, const ActorClass* actor_class,
                std::optional<std::string> config_data);
 
   ~Client_actor();
 
-  aom::Future<void> init() override;
-
+  std::future<void> init() override;
   bool is_active() const override;
+  void trial_ended(std::string_view details) override;
 
   // Indicate that a client has claimed this actor
   std::optional<std::string> join();
-  Observation_future bind(Action_future actions);
+  grpc::Status bind(StreamType* stream);
 
 protected:
   void dispatch_observation(cogmentAPI::Observation&& obs) override;
@@ -51,17 +49,21 @@ protected:
   void dispatch_message(cogmentAPI::Message&& message) override;
 
 private:
+  void finish_stream();
+
   bool m_joined;
 
   cogmentAPI::Action m_latest_action;
   std::optional<std::string> m_config_data;
 
-  Observation_promise m_outgoing_observations;
-  Observation_future m_outgoing_observations_future;
-  std::promise<void> m_stream_end_prom;
-  std::future<void> m_stream_end_fut;
+  StreamType* m_stream;
+  std::thread m_incoming_thread;
 
-  aom::Promise<void> m_ready_promise;
+  std::promise<void> m_ready_prom;
+  std::promise<void> m_finished_prom;
+  std::future<void> m_finished_fut;
+  grpc::Status m_incoming_stream_status;
+  std::mutex m_finishing_mutex;
 };
 }  // namespace cogment
 #endif

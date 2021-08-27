@@ -5,7 +5,6 @@ project(cogment_orchestrator)
 set(Protobuf_USE_STATIC_LIBS ON)
 find_package(protobuf)
 find_package(gRPC)
-find_package(easy_grpc)
 
 find_package(prometheus-cpp REQUIRED)
 find_package(spdlog REQUIRED)

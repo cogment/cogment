@@ -15,12 +15,13 @@
 #ifndef AOM_ORCHESTRATOR_ACTOR_H
 #define AOM_ORCHESTRATOR_ACTOR_H
 
-#include "cogment/api/agent.egrpc.pb.h"
+#include "cogment/api/agent.grpc.pb.h"
 #include "cogment/api/orchestrator.pb.h"
 
 #include "cogment/utils.h"
 
-#include "easy_grpc/easy_grpc.h"
+#include "grpc++/grpc++.h"
+
 #include "yaml-cpp/yaml.h"
 
 #include <google/protobuf/compiler/importer.h>
@@ -29,6 +30,7 @@
 
 #include <memory>
 #include <vector>
+#include <future>
 
 namespace cogment {
 
@@ -43,9 +45,9 @@ public:
   Actor(Trial* trial, const std::string& actor_name, const ActorClass* actor_class);
   virtual ~Actor();
 
-  virtual aom::Future<void> init() = 0;
-
+  virtual std::future<void> init() = 0;
   virtual bool is_active() const = 0;
+  virtual void trial_ended(std::string_view details) = 0;
 
   Trial* trial() const;
   const std::string& actor_name() const;
@@ -56,7 +58,7 @@ public:
 
   void dispatch_tick(cogmentAPI::Observation&& obs, bool final_tick);
 
-  aom::Future<void> last_ack() { return m_last_ack_prom.get_future(); }
+  std::future<void> last_ack() { return m_last_ack_prom.get_future(); }
 
 protected:
   virtual void dispatch_observation(cogmentAPI::Observation&& obs) = 0;
@@ -75,7 +77,7 @@ private:
   RewAccumulator m_reward_accumulator;
   std::vector<cogmentAPI::Message> m_message_accumulator;
 
-  aom::Promise<void> m_last_ack_prom;
+  std::promise<void> m_last_ack_prom;
 };
 
 struct ActorClass {

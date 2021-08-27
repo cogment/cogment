@@ -28,54 +28,54 @@ Agent::Agent(Trial* owner, const std::string& in_actor_name, const ActorClass* a
     Actor(owner, in_actor_name, actor_class),
     m_stub_entry(std::move(stub_entry)),
     m_config_data(std::move(config_data)),
-    m_stream_end_fut(m_stream_end_prom.get_future()),
     m_impl(impl),
     m_last_sent(false),
     m_init_completed(false) {
   SPDLOG_TRACE("Agent(): [{}] [{}] [{}]", trial()->id(), actor_name(), impl);
 
-  grpc_metadata trial_header;
-  trial_header.key = grpc_slice_from_static_string("trial-id");
-  trial_header.value = grpc_slice_from_copied_string(trial()->id().c_str());
+  m_context.AddMetadata("trial-id", trial()->id());
+  m_context.AddMetadata("actor-name", actor_name());
 
-  grpc_metadata actor_header;
-  actor_header.key = grpc_slice_from_static_string("actor-name");
-  actor_header.value = grpc_slice_from_copied_string(actor_name().c_str());
+  // TODO: Move this out of the constructor and in its own thread to wait for the stream init without blocking.
+  //       But then we'll need to synchonize with other parts.
+  m_stream = m_stub_entry->get_stub().RunTrial(&m_context);
 
-  std::vector<grpc_metadata> headers = {trial_header, actor_header};
-  easy_grpc::client::Call_options options;
-  options.headers = &headers;
-
-  auto stream = m_stub_entry->get_stub().RunTrial(options);
-  for (auto& metadata : headers) {
-    grpc_slice_unref(metadata.key);
-    grpc_slice_unref(metadata.value);
-  }
-  m_outgoing_data = std::move(std::get<0>(stream));
-  m_incoming_data = std::move(std::get<1>(stream));
-
-  m_incoming_data.for_each([this](auto in_data) {
-    process_incoming_data(in_data);
-  })
-  .finally([this](auto) {
-    SPDLOG_TRACE("Trial [{}]: Finalized service actor [{}] stream", trial()->id(), actor_name());
-    m_stream_end_prom.set_value();
+  m_incoming_thread = std::thread([this]() {
+    try {
+      cogmentAPI::ServiceActorRunOutput data;
+      while(m_stream->Read(&data)) {
+        process_incoming_data(std::move(data));
+      }
+      SPDLOG_TRACE("Trial [{}]: Service actor [{}] finished reading stream", trial()->id(), actor_name());
+    }
+    catch(const std::exception& exc) {
+      spdlog::error("Trial [{}] - Service actor [{}]: Error reading stream [{}]", trial()->id(), actor_name(), exc.what());
+    }
+    catch(...) {
+      spdlog::error("Trial [{}] - Service actor [{}]: Unknown exception reading stream", trial()->id(), actor_name());
+    }
   });
 }
 
 Agent::~Agent() {
   SPDLOG_TRACE("~Agent(): [{}] [{}]", trial()->id(), actor_name());
 
-  // TODO: move this out of the destructor
-  cogmentAPI::ServiceActorRunInput input;
-  input.set_state(cogmentAPI::CommunicationState::END);
-  m_outgoing_data.push(std::move(input));
-
-  m_outgoing_data.complete();
-  m_stream_end_fut.wait();
+  m_stream->Finish();
   if (!m_init_completed) {
     m_init_prom.set_value();
   }
+
+  m_incoming_thread.join();
+}
+
+void Agent::trial_ended(std::string_view details) {
+  cogmentAPI::ServiceActorRunInput data;
+  data.set_state(cogmentAPI::CommunicationState::END);
+  if (details.size() > 0) {
+    data.set_details(details.data(), details.size());
+  }
+  m_stream->Write(data);
+  m_stream->WritesDone();
 }
 
 void Agent::process_communication_state(cogmentAPI::CommunicationState in_state, const std::string* details) {
@@ -134,7 +134,7 @@ void Agent::process_communication_state(cogmentAPI::CommunicationState in_state,
 
 }
 
-void Agent::process_incoming_data(const cogmentAPI::ServiceActorRunOutput& data) {
+void Agent::process_incoming_data(cogmentAPI::ServiceActorRunOutput&& data) {
   SPDLOG_TRACE("Trial [{}] - Service actor [{}]: Processing incoming data", trial()->id(), actor_name());
 
   const auto state = data.state();
@@ -187,10 +187,12 @@ void Agent::process_incoming_data(const cogmentAPI::ServiceActorRunOutput& data)
   }
 }
 
-aom::Future<void> Agent::init() {
+std::future<void> Agent::init() {
   SPDLOG_TRACE("Trial [{}] - Agent::init(): [{}]", trial()->id(), actor_name());
 
   cogmentAPI::ServiceActorRunInput input;
+  input.set_state(cogmentAPI::CommunicationState::NORMAL);
+
   cogmentAPI::ServiceActorInitialInput init_input;
   init_input.set_actor_class(actor_class()->name);
   init_input.set_impl_name(m_impl);
@@ -198,7 +200,7 @@ aom::Future<void> Agent::init() {
     init_input.mutable_config()->set_content(m_config_data.value());
   }
   *(input.mutable_init_input()) = std::move(init_input);
-  m_outgoing_data.push(std::move(input));
+  m_stream->Write(input);
 
   return m_init_prom.get_future();
 }
@@ -207,21 +209,21 @@ void Agent::dispatch_observation(cogmentAPI::Observation&& observation) {
   cogmentAPI::ServiceActorRunInput input;
   input.set_state(cogmentAPI::CommunicationState::NORMAL);
   *(input.mutable_observation()) = std::move(observation);
-  m_outgoing_data.push(std::move(input));
+  m_stream->Write(input);
 }
 
 void Agent::dispatch_reward(cogmentAPI::Reward&& reward) {
   cogmentAPI::ServiceActorRunInput input;
   input.set_state(cogmentAPI::CommunicationState::NORMAL);
   *(input.mutable_reward()) = std::move(reward);
-  m_outgoing_data.push(std::move(input));
+  m_stream->Write(input);
 }
 
 void Agent::dispatch_message(cogmentAPI::Message&& message) {
   cogmentAPI::ServiceActorRunInput input;
   input.set_state(cogmentAPI::CommunicationState::NORMAL);
   *(input.mutable_message()) = std::move(message);
-  m_outgoing_data.push(std::move(input));
+  m_stream->Write(input);
 }
 
 void Agent::dispatch_final_data(cogmentAPI::ActorPeriodData&& data) {
@@ -243,7 +245,7 @@ void Agent::dispatch_final_data(cogmentAPI::ActorPeriodData&& data) {
   if (last_obs != nullptr) {
     cogmentAPI::ServiceActorRunInput input;
     input.set_state(cogmentAPI::CommunicationState::LAST);
-    m_outgoing_data.push(std::move(input));
+    m_stream->Write(input);
     m_last_sent = true;
 
     dispatch_observation(std::move(*last_obs));

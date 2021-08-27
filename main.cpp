@@ -16,10 +16,7 @@
   #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
 #endif
 
-#include "easy_grpc/easy_grpc.h"
-#include "easy_grpc_reflection/reflection.h"
-
-namespace rpc = easy_grpc;
+#include "grpc++/grpc++.h"
 
 #include "cogment/config_file.h"
 #include "cogment/orchestrator.h"
@@ -123,6 +120,8 @@ void sigsegv_handler(int signal) {
 }  // namespace
 
 int main(int argc, const char* argv[]) {
+  signal(SIGSEGV, sigsegv_handler);
+
   slt::Settings_context ctx("orchestrator", argc, argv);
   if (ctx.help_requested()) {
     return 0;
@@ -166,11 +165,18 @@ int main(int argc, const char* argv[]) {
     *status_file << init_status_string << std::flush;
   }
 
-  std::shared_ptr<rpc::server::Credentials> server_creds;
-  std::shared_ptr<rpc::client::Credentials> client_creds;
+  std::shared_ptr<grpc::ServerCredentials> server_creds;
+  std::shared_ptr<grpc::ChannelCredentials> client_creds;
   const bool using_ssl = !(settings::private_key.get().empty() && settings::root_cert.get().empty() &&
                            settings::trust_chain.get().empty());
-  if (using_ssl) {
+  if (!using_ssl) {
+    spdlog::info("Using unsecured communication");
+    server_creds = grpc::InsecureServerCredentials();
+    client_creds = grpc::InsecureChannelCredentials();
+  }
+  else {
+    spdlog::info("Using secured TLS communication");
+
     auto private_key_file = std::ifstream(settings::private_key.get());
     if (!private_key_file.is_open() || !private_key_file.good()) {
       auto cwd = std::filesystem::current_path().string();
@@ -198,10 +204,19 @@ int main(int argc, const char* argv[]) {
     std::stringstream trust_chain;
     trust_chain << trust_chain_file.rdbuf();
 
-    server_creds = std::make_shared<rpc::server::Credentials>(root_cert.str().c_str(), private_key.str().c_str(),
-                                                              trust_chain.str().c_str());
-    client_creds = std::make_shared<rpc::client::Credentials>(root_cert.str().c_str(), private_key.str().c_str(),
-                                                              trust_chain.str().c_str());
+    grpc::SslServerCredentialsOptions server_opt(GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_AND_VERIFY);
+    server_opt.pem_root_certs = root_cert.str();
+    grpc::SslServerCredentialsOptions::PemKeyCertPair server_cert_pair;
+    server_cert_pair.private_key = private_key.str();
+    server_cert_pair.cert_chain = trust_chain.str();
+    server_opt.pem_key_cert_pairs.emplace_back(server_cert_pair);
+    server_creds = grpc::SslServerCredentials(server_opt);
+
+    grpc::SslCredentialsOptions client_opt;
+    client_opt.pem_root_certs = root_cert.str();
+    client_opt.pem_private_key = private_key.str();
+    client_opt.pem_cert_chain = trust_chain.str();
+    client_creds = grpc::SslCredentials(client_opt);
   }
 
   {  // Create a scope so that all local variables created from this
@@ -214,10 +229,6 @@ int main(int argc, const char* argv[]) {
       spdlog::error("failed to load [{}]: {}", settings::config_file.get(), e.what());
       return 1;
     }
-
-    rpc::Environment grpc_env;
-
-    std::array<rpc::Completion_queue, 4> server_queues;
 
     spdlog::info("Cogment Orchestrator [{}]", COGMENT_ORCHESTRATOR_VERSION);
     spdlog::info("Cogment API [{}]", COGMENT_API_VERSION);
@@ -248,8 +259,8 @@ int main(int argc, const char* argv[]) {
     cogment::Orchestrator orchestrator(std::move(trial_spec), std::move(params), client_creds, metrics_registry.get());
 
     // ******************* Networking *******************
-    cogment::Stub_pool<cogmentAPI::TrialHooksSP> hook_stubs(orchestrator.channel_pool(), orchestrator.client_queue());
-    std::vector<std::shared_ptr<cogment::Stub_pool<cogmentAPI::TrialHooksSP>::Entry>> hooks;
+    cogment::StubPool<cogmentAPI::TrialHooksSP> hook_stubs(orchestrator.channel_pool());
+    std::vector<std::shared_ptr<cogment::StubPool<cogmentAPI::TrialHooksSP>::Entry>> hooks;
 
     int nb_prehooks = 0;
     if (cogment_yaml[cfg_file::trial_key]) {
@@ -265,38 +276,51 @@ int main(int argc, const char* argv[]) {
     if (cogment_yaml[cfg_file::datalog_key] && cogment_yaml[cfg_file::datalog_key][cfg_file::d_type_key]) {
       datalog_type = cogment_yaml[cfg_file::datalog_key][cfg_file::d_type_key].as<std::string>();
     }
-    auto datalog = cogment::DatalogStorageInterface::create(datalog_type, cogment_yaml);
-    orchestrator.set_log_exporter(std::move(datalog));
 
-    std::vector<rpc::server::Server> servers;
-
-    rpc::server::Config cfg;
-    cfg.add_default_listening_queues({server_queues.begin(), server_queues.end()})
-        .add_feature(rpc::Reflection_feature())
-        .add_service(orchestrator.trial_lifecycle_service())
-        .add_listening_port(lifecycle_endpoint, server_creds);
-
-    // If the lifecycle endpoint is the same as the ClientActorSP, then run them
-    // off the same server, otherwise, start a second server.
-    if (lifecycle_endpoint == actor_endpoint) {
-      cfg.add_service(orchestrator.actor_service());
+    std::transform(datalog_type.begin(), datalog_type.end(), datalog_type.begin(), ::tolower);
+    if (datalog_type == "none") {
+      orchestrator.set_log_exporter("");
+    }
+    else if (datalog_type == "grpc") {
+      auto url = cogment_yaml[cfg_file::datalog_key][cfg_file::d_url_key].as<std::string>();
+      url = "grpc://" + url;  // TODO: Remove this to use a standard url format for the datalog in cogment.yaml
+      orchestrator.set_log_exporter(url);
     }
     else {
-      rpc::server::Config actor_cfg;
-      actor_cfg.add_default_listening_queues({server_queues.begin(), server_queues.end()})
-          .add_feature(rpc::Reflection_feature())
-          .add_service(orchestrator.actor_service())
-          .add_listening_port(actor_endpoint, server_creds);
-
-      servers.emplace_back(std::move(actor_cfg));
+      spdlog::error("Invalid datalog specification [{}]", datalog_type);
+      return 1;
     }
 
-    servers.emplace_back(std::move(cfg));
+    std::vector<std::unique_ptr<grpc::Server>> servers;
+
+    {
+      grpc::ServerBuilder builder;
+      builder.AddListeningPort(lifecycle_endpoint, server_creds);
+      builder.RegisterService(orchestrator.trial_lifecycle_service());
+
+      // If the lifecycle endpoint is the same as the ClientActorSP, then run them
+      // off the same server, otherwise, start a second server.
+      if (lifecycle_endpoint == actor_endpoint) {
+        SPDLOG_TRACE("Actor endpoint has same server as Trial Lifecycle");
+        builder.RegisterService(orchestrator.actor_service());
+      }
+      else {
+        SPDLOG_TRACE("Actor endpoint has a different server than Trial Lifecycle");
+        grpc::ServerBuilder actor_builder;
+        actor_builder.AddListeningPort(actor_endpoint, server_creds);
+        actor_builder.RegisterService(orchestrator.actor_service());
+        servers.emplace_back(actor_builder.BuildAndStart());
+      }
+
+      SPDLOG_TRACE("Building main server");
+      auto server = builder.BuildAndStart();
+      SPDLOG_TRACE("Main server built");
+      servers.emplace_back(std::move(server));
+    }
 
     if (status_file) {
       *status_file << ready_status_string << std::flush;
     }
-
     spdlog::info("Server listening for lifecycle on [{}]", lifecycle_endpoint);
     spdlog::info("Server listening for Actors on [{}]", actor_endpoint);
 
@@ -309,10 +333,9 @@ int main(int argc, const char* argv[]) {
     // Prevent normal handling of these signals.
     pthread_sigmask(SIG_BLOCK, &sig_set, nullptr);
 
-    signal(SIGSEGV, sigsegv_handler);
-
+    SPDLOG_TRACE("Main done");
     int sig = 0;
-    sigwait(&sig_set, &sig);
+    sigwait(&sig_set, &sig);  // Blocking
     spdlog::info("Shutting down...");
   }
 

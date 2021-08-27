@@ -20,9 +20,10 @@
 #include <mutex>
 #include <set>
 #include <typeinfo>
+#include <queue>
 #include "cogment/utils.h"
-#include "easy_grpc/easy_grpc.h"
 #include "spdlog/spdlog.h"
+#include "grpc++/grpc++.h"
 
 namespace cogment {
 
@@ -39,39 +40,38 @@ namespace cogment {
 // - A stub must close as soon as no trial is making use of it.
 
 // A thread-safe pool of easy-grpc Communication channel
-class Channel_pool {
+class ChannelPool {
 public:
-  Channel_pool(std::shared_ptr<easy_grpc::client::Credentials> creds) : m_creds(creds) {}
+  ChannelPool(std::shared_ptr<grpc::ChannelCredentials> creds) {
+    if (creds.get() == nullptr) {
+      spdlog::warn("Implicitly using unsecured channels");
+      m_creds = grpc::InsecureChannelCredentials();
+    }
+    else {
+      m_creds = std::move(creds);
+    }
+  }
 
-  // Gets an easy-grpc channel to the target url, recycling an existing one if
-  // present.
-  std::shared_ptr<::easy_grpc::client::Channel> get_channel(const std::string& url) {
+  std::shared_ptr<grpc::Channel> get_channel(const std::string& url) {
     std::lock_guard l(m_mtx);
 
     auto& found = m_channels[url];
     auto result = found.lock();
 
     if (!result) {
-      if (m_creds.get() != nullptr) {
-        result = std::make_shared<::easy_grpc::client::Secure_channel>(url, nullptr, m_creds.get());
-        spdlog::info("Opening secured channel to {}", url);
-      }
-      else {
-        result = std::make_shared<::easy_grpc::client::Unsecure_channel>(url, nullptr);
-        spdlog::info("Opening unsecured channel to {}", url);
-      }
-
+      result = grpc::CreateChannel(url, m_creds);
       found = result;
     }
+    // TODO: manage the "else" for nullptr
 
     return result;
   }
 
   std::mutex m_mtx;
-  std::unordered_map<std::string, std::weak_ptr<::easy_grpc::client::Channel>> m_channels;
+  std::unordered_map<std::string, std::weak_ptr<grpc::Channel>> m_channels;
 
 private:
-  std::shared_ptr<easy_grpc::client::Credentials> m_creds;
+  std::shared_ptr<grpc::ChannelCredentials> m_creds;
 };
 
 // A minimal thread-safe queue
@@ -111,117 +111,28 @@ private:
   std::condition_variable m_cond;
 };
 
-// A thread-safe pool of easy-grpc connection stubs
 template <typename Service_T>
-class Stub_pool {
+class StubPool {
 public:
-  using stub_type = typename Service_T::Stub;
+  using StubType = typename Service_T::Stub;
 
   // Constructor
-  Stub_pool(Channel_pool* channel_pool, easy_grpc::Completion_queue* queue) :
-      m_channel_pool(channel_pool), m_queue(queue) {}
+  StubPool(ChannelPool* channel_pool): m_channel_pool(channel_pool) {}
 
-  using SerializedFunc = std::function<void()>;
-  struct SerialCall {
-    SerialCall(SerializedFunc&& serial_func) : func(serial_func) {}
-    SerialCall(SerialCall&& prev) : func(std::move(prev.func)), prom(std::move(prev.prom)) {}
-    SerializedFunc func;
-    std::promise<void> prom;
-  };
-
-  // TODO: Implement proper destruction, or remove serialization option.  It leaks as it is.
-  //       In current use-cases, it is not a big problem because entries are semi-permanent, and are few.
   class Entry {
   public:
-    using ChannelType = std::shared_ptr<::easy_grpc::client::Channel>;
-    Entry(ChannelType&& chan, stub_type&& stb) : m_channel(chan), m_stub(stb) {}
+    using ChannelType = std::shared_ptr<grpc::Channel>;
+    Entry(ChannelType&& chan, StubType&& stb) : m_channel(chan), m_stub(stb) {}
 
-    void enable_serialization(std::weak_ptr<Entry> this_weak) {
-      auto this_entry = this_weak.lock();
-      if (this_entry.get() != this) {
-        throw MakeException("Entry serialization enabling must be done with own pointer.");
-      }
-
-      if (m_serializing_thread.joinable()) {
-        spdlog::warn("Serialization already enabled");
-        return;
-      }
-
-      m_serializing_thread = std::thread([this_weak]() {
-        spdlog::debug("Stub serialization thread started");
-
-        while (true) {
-          auto this_entry = this_weak.lock();
-          if (this_entry == nullptr) {
-            break;
-          }
-
-          try {
-            auto call = this_entry->m_serialized_calls.pop();
-            SPDLOG_TRACE("Stub serialization thread popped a call");
-
-            try {
-              call.func();
-              SPDLOG_TRACE("Serialized function call returned");
-              call.prom.set_value();
-            }
-            catch (...) {
-              try {
-                call.prom.set_exception(std::current_exception());
-              }
-              catch (...) {
-                spdlog::error("Exception trying to set promise exception");
-              }
-            }
-          }
-          catch (...) {
-            spdlog::error("Could not pop serialized call");
-          }
-        }
-
-        // A "warning" because there is no planned way to end up here
-        spdlog::warn("Stub serialization thread ending");
-      });
-    }
-
-    std::future<void> serialize(SerializedFunc&& func) {
-      if (m_serializing_thread.joinable()) {
-        SerialCall call(std::move(func));
-        auto fut = call.prom.get_future();
-        m_serialized_calls.push(std::move(call));
-        return fut;
-      }
-      else {
-        SPDLOG_WARN("Trying to serialize a call when serialization is disabled");
-        func();
-
-        std::promise<void> prom;
-        auto fut = prom.get_future();
-        prom.set_value();
-        return fut;
-      }
-    }
-
-    stub_type& get_stub() { return m_stub; }
+    StubType& get_stub() { return m_stub; }
 
   private:
     // Prevents the channel from being destroyed.
     ChannelType m_channel;
 
-    stub_type m_stub;
-
-    // TODO: Re-evaluate if this serialization is still needed
-    // We use serialization because of a bug in gRPC 1.37.1 (or easygrpc) that causes
-    // a crash when multiple non-streamning calls are made to the same service simultenously.
-    // We need to implement the serialization this way becasue we cannot make the calls synchronous
-    // (i.e. wait for call to be done with `future.get()`) because of the use of
-    // completion queues that lead to deadlock when calls are embeded.
-    ThrQueue<SerialCall> m_serialized_calls;
-    std::thread m_serializing_thread;
+    StubType m_stub;
   };
 
-  // Gets an easy-grpc channel to the target service at the target url,
-  // recycling an existing one if present.
   std::shared_ptr<Entry> get_stub_entry(const std::string& url) {
     if (url.find("grpc://") != 0) {
       throw MakeException("Bad grpc url: [%s]", url.c_str());
@@ -233,13 +144,12 @@ public:
     auto result = found.lock();
 
     if (!result) {
-      spdlog::info("Opening stub for {} at {}", typeid(Service_T).name(), real_url);
+      spdlog::info("Opening channel for [{}] at [{}]", Service_T::service_full_name(), real_url);
       auto channel = m_channel_pool->get_channel(real_url);
 
-      result = std::make_shared<Entry>(std::move(channel), stub_type(channel.get(), m_queue));
+      result = std::make_shared<Entry>(std::move(channel), StubType(channel));
       found = result;
-      result->enable_serialization(found);
-      spdlog::debug("Stub {} at {} ready for use", typeid(Service_T).name(), real_url);
+      spdlog::debug("Stub [{}] at [{}] ready for use", Service_T::service_full_name(), real_url);
     }
 
     return result;
@@ -247,8 +157,7 @@ public:
 
 private:
   std::mutex m_mtx;
-  Channel_pool* m_channel_pool;
-  easy_grpc::Completion_queue* m_queue;
+  ChannelPool* m_channel_pool;
   std::unordered_map<std::string, std::weak_ptr<Entry>> m_entries;
 };
 

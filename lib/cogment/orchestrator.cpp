@@ -17,11 +17,12 @@
 #endif
 
 #include "cogment/orchestrator.h"
-#include "cogment/client_actor.h"
 #include "cogment/utils.h"
 
 #include "slt/settings.h"
 #include "spdlog/spdlog.h"
+
+#include <exception>
 
 namespace {
 constexpr double NANOS_INV = 1.0 / 1'000'000'000;
@@ -39,15 +40,17 @@ slt::Setting garbage_collection_frequency = slt::Setting_builder<std::uint32_t>(
 
 namespace cogment {
 Orchestrator::Orchestrator(Trial_spec trial_spec, cogmentAPI::TrialParams default_trial_params,
-                           std::shared_ptr<easy_grpc::client::Credentials> creds,
+                           std::shared_ptr<grpc::ChannelCredentials> creds,
                            prometheus::Registry* metrics_registry) :
     m_trial_spec(std::move(trial_spec)),
     m_default_trial_params(std::move(default_trial_params)),
     m_channel_pool(creds),
-    m_env_stubs(&m_channel_pool, &m_client_queue),
-    m_agent_stubs(&m_channel_pool, &m_client_queue),
+    m_env_stubs(&m_channel_pool),
+    m_agent_stubs(&m_channel_pool),
+    m_log_stubs(&m_channel_pool),
     m_actor_service(this),
-    m_trial_lifecycle_service(this) {
+    m_trial_lifecycle_service(this),
+    m_watchtrial_fut(m_watchtrial_prom.get_future()) {
   SPDLOG_TRACE("Orchestrator()");
   m_garbage_collection_countdown.store(settings::garbage_collection_frequency.get());
 
@@ -99,11 +102,14 @@ Orchestrator::Orchestrator(Trial_spec trial_spec, cogmentAPI::TrialParams defaul
 Orchestrator::~Orchestrator() {
   SPDLOG_TRACE("~Orchestrator()");
 
+  m_watchtrial_prom.set_value();
   m_trials_to_delete.push({});
   m_trial_deletion_thread.join();
 }
 
-aom::Future<std::shared_ptr<Trial>> Orchestrator::start_trial(cogmentAPI::TrialParams params, const std::string& user_id) {
+std::shared_ptr<Trial> Orchestrator::start_trial(cogmentAPI::TrialParams params, const std::string& user_id) {
+  spdlog::info("New trial requested by user [{}]", user_id);
+
   m_garbage_collection_countdown--;
   if (m_garbage_collection_countdown == 0) {
     const auto start = Timestamp();
@@ -116,7 +122,16 @@ aom::Future<std::shared_ptr<Trial>> Orchestrator::start_trial(cogmentAPI::TrialP
     }
   }
 
-  auto new_trial = std::make_shared<Trial>(this, user_id, Trial::Metrics {m_trials_metrics, m_ticks_metrics});
+  // TODO: The whole datalog management needs to be refactored
+  std::unique_ptr<DatalogService> datalog;
+  if (m_log_url.empty()) {
+    datalog.reset(new DatalogServiceNull());
+  }
+  else {
+    auto stub_entry = m_log_stubs.get_stub_entry(m_log_url);
+    datalog.reset(new DatalogServiceImpl(stub_entry));
+  }
+  auto new_trial = std::make_shared<Trial>(this, std::move(datalog), user_id, Trial::Metrics {m_trials_metrics, m_ticks_metrics});
 
   // Register the trial immediately.
   {
@@ -124,20 +139,19 @@ aom::Future<std::shared_ptr<Trial>> Orchestrator::start_trial(cogmentAPI::TrialP
     m_trials[new_trial->id()] = new_trial;
   }
 
-  cogmentAPI::PreTrialContext init_ctx;
-  *init_ctx.mutable_params() = std::move(params);
-  init_ctx.set_user_id(user_id);
+  cogmentAPI::PreTrialContext init_param;
+  *init_param.mutable_params() = std::move(params);
+  init_param.set_user_id(user_id);
 
-  auto final_ctx_fut = m_perform_pre_hooks(std::move(init_ctx), new_trial->id());
+  auto final_param = m_perform_pre_hooks(std::move(init_param), new_trial->id());
 
-  return final_ctx_fut.then([new_trial](auto final_ctx) {
-    new_trial->start(std::move(*final_ctx.mutable_params()));
-    spdlog::info("Trial [{}] successfully initialized", new_trial->id());
-    return new_trial;
-  });
+  new_trial->start(std::move(*final_param.mutable_params()));
+  spdlog::info("Trial [{}] successfully initialized", new_trial->id());
+
+  return new_trial;
 }
 
-cogmentAPI::TrialJoinReply Orchestrator::client_joined(cogmentAPI::TrialJoinRequest req) {
+cogmentAPI::TrialJoinReply Orchestrator::client_joined(const cogmentAPI::TrialJoinRequest& req) {
   Client_actor* joined_as_actor = nullptr;
 
   cogmentAPI::TrialJoinReply result;
@@ -149,20 +163,26 @@ cogmentAPI::TrialJoinReply Orchestrator::client_joined(cogmentAPI::TrialJoinRequ
     if (trial_itor != m_trials.end()) {
       joined_as_actor = trial_itor->second->get_join_candidate(req);
     }
-  }
-  else {
-    const std::lock_guard lg(m_trials_mutex);
-    // We need to find a valid trial
-    for (auto& candidate_trial : m_trials) {
-      joined_as_actor = candidate_trial.second->get_join_candidate(req);
-      if (joined_as_actor) {
-        break;
-      }
+    else {
+      throw MakeException("Could not find trial [%s] to join", req.trial_id().c_str());
     }
   }
+  else {
+    // TODO: Should we allow this?  I.e. finding a trial because no trial id was given!
+    //       If so, we need to fix this not to use exceptions in a "normal" run.
 
-  if (joined_as_actor == nullptr) {
-    throw MakeException("Could not join trial");
+    const std::lock_guard lg(m_trials_mutex);
+    for (auto& candidate_trial : m_trials) {
+      try {
+        joined_as_actor = candidate_trial.second->get_join_candidate(req);
+        break;
+      }
+      catch(...) {}
+    }
+
+    if (joined_as_actor == nullptr) {
+      throw MakeException("Could not find a trial to join");
+    }
   }
 
   auto config_data = joined_as_actor->join();
@@ -181,9 +201,7 @@ cogmentAPI::TrialJoinReply Orchestrator::client_joined(cogmentAPI::TrialJoinRequ
   return result;
 }
 
-::easy_grpc::Stream_future<cogmentAPI::TrialActionReply> Orchestrator::bind_client(
-    const std::string& trial_id, const std::string& actor_name,
-    easy_grpc::Stream_future<cogmentAPI::TrialActionRequest> actions) {
+grpc::Status Orchestrator::bind_client(const std::string& trial_id, const std::string& actor_name, Client_actor::StreamType* stream) {
   auto trial = get_trial(trial_id);
   if (trial == nullptr) {
     throw MakeException("Unknown trial to bind [%s]", std::string(trial_id).c_str());
@@ -195,45 +213,24 @@ cogmentAPI::TrialJoinReply Orchestrator::client_joined(cogmentAPI::TrialJoinRequ
     throw MakeException("Attempting to bind a service-driven actor [%s]", actor_name.c_str());
   }
 
-  return actor->bind(std::move(actions));
+  return actor->bind(stream);  // Blocking
 }
 
 void Orchestrator::add_prehook(const HookEntryType& hook) { m_prehooks.push_back(hook); }
 
-aom::Future<cogmentAPI::PreTrialContext> Orchestrator::m_perform_pre_hooks(cogmentAPI::PreTrialContext ctx,
-                                                                        const std::string& trial_id) {
-  grpc_metadata trial_header;
-  trial_header.key = grpc_slice_from_static_string("trial-id");
-  trial_header.value = grpc_slice_from_copied_string(trial_id.c_str());
-
-  // We need this set of headers to live through the pre-hook RPCS, and there's not great place to anchor them.
-  // Since this is not performance critical, we'll just ref-count them on the ultimate result.
-  auto headers = std::make_shared<std::vector<grpc_metadata>>(std::vector<grpc_metadata> {trial_header});
-
-  easy_grpc::client::Call_options options;
-  options.headers = headers.get();
-
-  aom::Promise<cogmentAPI::PreTrialContext> prom;
-  auto result = prom.get_future();
-  prom.set_value(std::move(ctx));
-
+cogmentAPI::PreTrialContext Orchestrator::m_perform_pre_hooks(cogmentAPI::PreTrialContext&& data, const std::string& trial_id) {
   for (auto& hook : m_prehooks) {
-    result = result.then([hook, options, headers](auto context) {
-      spdlog::debug("Calling a pre-hook on trial parameters");
-      return hook->get_stub().OnPreTrial(std::move(context), options);
-    });
+    grpc::ClientContext hook_context;
+    hook_context.AddMetadata("trial-id", trial_id);
+
+    auto status = hook->get_stub().OnPreTrial(&hook_context, data, &data);
+    if (!status.ok()) {
+      throw MakeException("Trial [%s] - Prehook failure [%s]", trial_id.c_str(), status.error_message().c_str());
+    }
   }
 
-  return result.then([headers](auto v) {
-    for (auto& metadata : *headers) {
-      grpc_slice_unref(metadata.key);
-      grpc_slice_unref(metadata.value);
-    }
-    return v;
-  });
+  return std::move(data);
 }
-
-void Orchestrator::set_log_exporter(std::unique_ptr<DatalogStorageInterface> le) { m_log_exporter = std::move(le); }
 
 // TODO: Add a timer to do garbage collection after 60 seconds (or whatever) since the last call
 //       in order to prevent old, ended or stale trials from lingering if no new trials are started.
@@ -265,7 +262,7 @@ void Orchestrator::m_perform_garbage_collection() {
   // Terminate may be long, so we don't want to lock the list during that time.
   // We don't go as far as with the deleted trials because stale trials should be rare.
   for (auto trial : stale_trials) {
-    spdlog::warn("Terminating trial [{}] because inactive for too long", trial->id());
+    spdlog::warn("Trial [{}] - Terminating because inactive for too long", trial->id());
     trial->terminate();
   }
 
@@ -296,7 +293,7 @@ std::vector<std::shared_ptr<Trial>> Orchestrator::all_trials() const {
   return result;
 }
 
-void Orchestrator::watch_trials(HandlerFunction func) {
+std::shared_future<void> Orchestrator::watch_trials(HandlerFunction func) {
   SPDLOG_TRACE("Adding new notification function");
 
   const std::lock_guard lg(m_notification_lock);
@@ -307,6 +304,8 @@ void Orchestrator::watch_trials(HandlerFunction func) {
   }
 
   m_trial_watchers.emplace_back(std::move(func));
+
+  return m_watchtrial_fut;
 }
 
 void Orchestrator::notify_watchers(const Trial& trial) {

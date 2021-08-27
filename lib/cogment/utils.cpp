@@ -34,4 +34,23 @@ uint64_t Timestamp() {
   return (ts.tv_sec * NANOS + ts.tv_nsec);
 }
 
+grpc::Status MakeErrorStatus(const char* format, ...) {
+  static constexpr std::size_t BUF_SIZE = 256;
+
+  try {
+    char buf[BUF_SIZE];
+    va_list args;
+    va_start(args, format);
+    std::vsnprintf(buf, BUF_SIZE, format, args);
+    va_end(args);
+
+    const char* const const_buf = buf;
+    spdlog::error("gRPC error returned: {}", const_buf);
+    return grpc::Status(grpc::StatusCode::UNKNOWN, const_buf);
+  }
+  catch(...) {
+    return grpc::Status::CANCELLED;  // Not ideal, but the only predefined status other than OK
+  }
+}
+
 #endif

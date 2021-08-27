@@ -15,29 +15,26 @@
 #ifndef COGMENT_ORCHESTRATOR_ACTOR_SERVICE_H
 #define COGMENT_ORCHESTRATOR_ACTOR_SERVICE_H
 
-#include "cogment/api/orchestrator.egrpc.pb.h"
+#include "cogment/api/orchestrator.grpc.pb.h"
 
 namespace cogment {
 class Orchestrator;
-class ActorService {
-  Orchestrator* m_orchestrator;
 
+class ActorService final : public cogmentAPI::ClientActorSP::Service {
 public:
-  using service_type = cogmentAPI::ClientActorSP;
-
   ActorService(Orchestrator* orch);
 
-  ::cogmentAPI::TrialJoinReply JoinTrial(::cogmentAPI::TrialJoinRequest, easy_grpc::Context ctx);
+  grpc::Status JoinTrial(grpc::ServerContext* ctx, const cogmentAPI::TrialJoinRequest* in, cogmentAPI::TrialJoinReply* out) override;
+  grpc::Status Heartbeat(grpc::ServerContext* ctx, const cogmentAPI::TrialHeartbeatRequest* in, cogmentAPI::TrialHeartbeatReply* out) override;
+  grpc::Status SendReward(grpc::ServerContext* ctx, const cogmentAPI::TrialRewardRequest* in, cogmentAPI::TrialRewardReply* out) override;
+  grpc::Status ActionStream(grpc::ServerContext* ctx, grpc::ServerReaderWriter<cogmentAPI::TrialActionReply, cogmentAPI::TrialActionRequest>* stream) override;
+  grpc::Status SendMessage(grpc::ServerContext* ctx, const cogmentAPI::TrialMessageRequest* in, cogmentAPI::TrialMessageReply* out) override;
+  grpc::Status Version(grpc::ServerContext* ctx, const cogmentAPI::VersionRequest* in, cogmentAPI::VersionInfo* out) override;
 
-  ::easy_grpc::Stream_future<cogmentAPI::TrialActionReply> ActionStream(
-      ::easy_grpc::Stream_future<cogmentAPI::TrialActionRequest>, easy_grpc::Context ctx);
-  ::easy_grpc::Future<cogmentAPI::TrialHeartbeatReply> Heartbeat(::cogmentAPI::TrialHeartbeatRequest,
-                                                                easy_grpc::Context ctx);
-  ::easy_grpc::Future<cogmentAPI::TrialRewardReply> SendReward(::cogmentAPI::TrialRewardRequest, easy_grpc::Context ctx);
-  ::easy_grpc::Future<cogmentAPI::TrialMessageReply> SendMessage(::cogmentAPI::TrialMessageRequest, easy_grpc::Context ctx);
-
-  ::cogmentAPI::VersionInfo Version(::cogmentAPI::VersionRequest, easy_grpc::Context ctx);
+private:
+  Orchestrator* m_orchestrator;
 };
+
 }  // namespace cogment
 
 #endif

@@ -15,28 +15,23 @@
 #ifndef COGMENT_ORCHESTRATOR_TRIAL_LIFECYCLE_SERVICE_H
 #define COGMENT_ORCHESTRATOR_TRIAL_LIFECYCLE_SERVICE_H
 
-#include "cogment/api/orchestrator.egrpc.pb.h"
+#include "cogment/api/orchestrator.grpc.pb.h"
 
 namespace cogment {
-
 class Orchestrator;
-class TrialLifecycleService {
-  Orchestrator* m_orchestrator;
 
-  using Trial_promise = ::easy_grpc::Stream_promise<cogmentAPI::TrialListEntry>;
-  using Trial_future = ::easy_grpc::Stream_future<cogmentAPI::TrialListEntry>;
-
+class TrialLifecycleService final: public cogmentAPI::TrialLifecycleSP::Service {
 public:
-  using service_type = cogmentAPI::TrialLifecycleSP;
-
   TrialLifecycleService(Orchestrator* orch);
 
-  ::easy_grpc::Future<cogmentAPI::TrialStartReply> StartTrial(::cogmentAPI::TrialStartRequest, easy_grpc::Context ctx);
-  ::cogmentAPI::TerminateTrialReply TerminateTrial(::cogmentAPI::TerminateTrialRequest, easy_grpc::Context ctx);
-  ::cogmentAPI::TrialInfoReply GetTrialInfo(::cogmentAPI::TrialInfoRequest, easy_grpc::Context ctx);
-  ::easy_grpc::Stream_future<cogmentAPI::TrialListEntry> WatchTrials(::cogmentAPI::TrialListRequest,
-                                                                    easy_grpc::Context ctx);
-  ::cogmentAPI::VersionInfo Version(::cogmentAPI::VersionRequest, easy_grpc::Context ctx);
+  grpc::Status StartTrial(grpc::ServerContext* ctx, const cogmentAPI::TrialStartRequest* in, cogmentAPI::TrialStartReply* out) override;
+  grpc::Status TerminateTrial(grpc::ServerContext* ctx, const cogmentAPI::TerminateTrialRequest* in, cogmentAPI::TerminateTrialReply* out) override;
+  grpc::Status GetTrialInfo(grpc::ServerContext* ctx, const cogmentAPI::TrialInfoRequest* in, cogmentAPI::TrialInfoReply* out) override;
+  grpc::Status WatchTrials(grpc::ServerContext* ctx, const cogmentAPI::TrialListRequest* in, grpc::ServerWriter<cogmentAPI::TrialListEntry>* out) override;
+  grpc::Status Version(grpc::ServerContext* ctx, const cogmentAPI::VersionRequest* in, cogmentAPI::VersionInfo* out) override;
+
+private:
+  Orchestrator* m_orchestrator;
 };
 
 }  // namespace cogment

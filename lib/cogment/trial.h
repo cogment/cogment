@@ -16,10 +16,10 @@
 #define COGMENT_ORCHESTRATOR_TRIAL_H
 
 #include "cogment/actor.h"
+#include "cogment/datalog.h"
 #include "cogment/utils.h"
 
-#include "cogment/api/datalog.pb.h"
-#include "cogment/api/environment.egrpc.pb.h"
+#include "cogment/api/environment.grpc.pb.h"
 #include "cogment/api/orchestrator.pb.h"
 
 #include "cogment/stub_pool.h"
@@ -37,19 +37,26 @@
 namespace cogment {
 class Orchestrator;
 class Client_actor;
-class TrialLogInterface;
+class DatalogService;
 
 // TODO: Make Trial independent of orchestrator (to remove any chance of circular reference)
 class Trial : public std::enable_shared_from_this<Trial> {
 public:
-  enum class InternalState { unknown, initializing, pending, running, terminating, ended };
+  enum class InternalState {
+     unknown,
+     initializing,
+     pending,
+     running,
+     terminating,
+     ended
+  };
 
   struct Metrics {
     prometheus::Summary* trial_duration = nullptr;
     prometheus::Summary* tick_duration = nullptr;
   };
 
-  Trial(Orchestrator* orch, const std::string& user_id, const Metrics& met);
+  Trial(Orchestrator* orch, std::unique_ptr<DatalogService> log, const std::string& user_id, const Metrics& met);
   ~Trial();
 
   Trial(Trial&&) = delete;
@@ -111,7 +118,7 @@ private:
   cogmentAPI::EnvActionRequest make_action_request();
   void dispatch_env_messages();
   std::vector<Actor*> get_all_actors(const std::string& name);
-  bool for_actors(const std::string& pattern, std::function<void(Actor*)> func);
+  bool for_actors(const std::string& pattern, const std::function<void(Actor*)>& func);
 
   Orchestrator* m_orchestrator;
   Metrics m_metrics;
@@ -130,7 +137,7 @@ private:
 
   cogmentAPI::TrialParams m_params;
 
-  std::shared_ptr<cogment::Stub_pool<cogmentAPI::EnvironmentSP>::Entry> m_env_entry;
+  std::shared_ptr<cogment::StubPool<cogmentAPI::EnvironmentSP>::Entry> m_env_entry;
 
   InternalState m_state;
   uint64_t m_tick_id;
@@ -142,17 +149,14 @@ private:
   std::unordered_map<std::string, uint32_t> m_actor_indexes;
   std::chrono::time_point<std::chrono::steady_clock> m_last_activity;
 
-  std::vector<grpc_metadata> m_headers;
-  easy_grpc::client::Call_options m_call_options;
-
-  std::optional<easy_grpc::Stream_promise<cogmentAPI::EnvActionRequest>> m_outgoing_actions;
-  std::promise<void> m_stream_end_prom;
-  std::future<void> m_stream_end_fut;
+  std::unique_ptr<grpc::ClientReaderWriter<cogmentAPI::EnvActionRequest, cogmentAPI::EnvActionReply>> m_env_stream;
+  grpc::ClientContext m_env_stream_context;
+  std::thread m_env_incoming_thread;
 
   std::uint32_t m_gathered_actions_count;
 
-  std::unique_ptr<TrialLogInterface> m_datalog_interface;
   std::deque<cogmentAPI::DatalogSample> m_step_data;
+  std::unique_ptr<DatalogService> m_datalog;
 };
 
 const char* get_trial_state_string(Trial::InternalState);

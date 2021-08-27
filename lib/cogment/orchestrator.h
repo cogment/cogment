@@ -15,8 +15,9 @@
 #ifndef COGMENT_ORCHESTRATOR_ORCHESTRATOR_H
 #define COGMENT_ORCHESTRATOR_ORCHESTRATOR_H
 
-#include "cogment/api/hooks.egrpc.pb.h"
-#include "cogment/datalog/storage_interface.h"
+#include "cogment/api/hooks.grpc.pb.h"
+#include "cogment/client_actor.h"
+#include "cogment/datalog.h"
 #include "cogment/services/actor_service.h"
 #include "cogment/services/trial_lifecycle_service.h"
 #include "cogment/stub_pool.h"
@@ -38,26 +39,24 @@ public:
   using HandlerFunction = std::function<void(const Trial& trial)>;
 
   Orchestrator(Trial_spec trial_spec, cogmentAPI::TrialParams default_trial_params,
-               std::shared_ptr<easy_grpc::client::Credentials> creds, prometheus::Registry* metrics_registry);
+               std::shared_ptr<grpc::ChannelCredentials> creds, prometheus::Registry* metrics_registry);
   ~Orchestrator();
 
   // Initialization
-  using HookEntryType = std::shared_ptr<Stub_pool<cogmentAPI::TrialHooksSP>::Entry>;
+  using HookEntryType = std::shared_ptr<StubPool<cogmentAPI::TrialHooksSP>::Entry>;
   void add_prehook(const HookEntryType& prehook);
-  void set_log_exporter(std::unique_ptr<DatalogStorageInterface> le);
+  void set_log_exporter(const std::string& url) { m_log_url = url; }
 
   // Lifecycle
-  aom::Future<std::shared_ptr<Trial>> start_trial(cogmentAPI::TrialParams params, const std::string& user_id);
+  std::shared_ptr<Trial> start_trial(cogmentAPI::TrialParams params, const std::string& user_id);
 
   // Client API
-  cogmentAPI::TrialJoinReply client_joined(cogmentAPI::TrialJoinRequest);
-  easy_grpc::Stream_future<cogmentAPI::TrialActionReply> bind_client(
-      const std::string& trial_id, const std::string& actor_name,
-      easy_grpc::Stream_future<cogmentAPI::TrialActionRequest> actions);
+  cogmentAPI::TrialJoinReply client_joined(const cogmentAPI::TrialJoinRequest&);
+  grpc::Status bind_client(const std::string& trial_id, const std::string& actor_name, Client_actor::StreamType* stream);
 
   // Services
-  ActorService& actor_service() { return m_actor_service; }
-  TrialLifecycleService& trial_lifecycle_service() { return m_trial_lifecycle_service; }
+  ActorService* actor_service() { return &m_actor_service; }
+  TrialLifecycleService* trial_lifecycle_service() { return &m_trial_lifecycle_service; }
 
   // Lookups
   std::shared_ptr<Trial> get_trial(const std::string& trial_id) const;
@@ -66,24 +65,21 @@ public:
   std::vector<std::shared_ptr<Trial>> all_trials() const;
 
   // Semi-internal, rpc management related.
-  easy_grpc::Completion_queue* client_queue() { return &m_client_queue; }
-  Channel_pool* channel_pool() { return &m_channel_pool; }
-  Stub_pool<cogmentAPI::EnvironmentSP>* env_pool() { return &m_env_stubs; }
-  Stub_pool<cogmentAPI::ServiceActorSP>* agent_pool() { return &m_agent_stubs; }
+  ChannelPool* channel_pool() { return &m_channel_pool; }
+  StubPool<cogmentAPI::EnvironmentSP>* env_pool() { return &m_env_stubs; }
+  StubPool<cogmentAPI::ServiceActorSP>* agent_pool() { return &m_agent_stubs; }
 
   const cogmentAPI::TrialParams& default_trial_params() const { return m_default_trial_params; }
 
   const Trial_spec& get_trial_spec() const { return m_trial_spec; }
 
-  std::unique_ptr<TrialLogInterface> start_log(const Trial* trial) { return m_log_exporter->start_log(trial); }
-
-  void watch_trials(HandlerFunction func);
+  std::shared_future<void> watch_trials(HandlerFunction func);
 
   void notify_watchers(const Trial& trial);
 
 private:
   void m_perform_garbage_collection();
-  aom::Future<cogmentAPI::PreTrialContext> m_perform_pre_hooks(cogmentAPI::PreTrialContext ctx, const std::string& trial_id);
+  cogmentAPI::PreTrialContext m_perform_pre_hooks(cogmentAPI::PreTrialContext&& param, const std::string& trial_id);
 
   // Configuration
   Trial_spec m_trial_spec;
@@ -100,14 +96,13 @@ private:
   std::vector<HookEntryType> m_prehooks;
 
   // Send trial data to this destination.
-  std::unique_ptr<DatalogStorageInterface> m_log_exporter;
+  std::string m_log_url;
 
-  // Completion queue for handling requests returning from env/agent/hooks
-  easy_grpc::Completion_queue m_client_queue;
-  Channel_pool m_channel_pool;
+  ChannelPool m_channel_pool;
 
-  Stub_pool<cogmentAPI::EnvironmentSP> m_env_stubs;
-  Stub_pool<cogmentAPI::ServiceActorSP> m_agent_stubs;
+  StubPool<cogmentAPI::EnvironmentSP> m_env_stubs;
+  StubPool<cogmentAPI::ServiceActorSP> m_agent_stubs;
+  StubPool<cogmentAPI::LogExporterSP> m_log_stubs;
 
   ActorService m_actor_service;
   TrialLifecycleService m_trial_lifecycle_service;
@@ -118,6 +113,9 @@ private:
   std::atomic<int> m_garbage_collection_countdown;
   std::thread m_trial_deletion_thread;
   ThrQueue<std::shared_ptr<Trial>> m_trials_to_delete;
+
+  std::promise<void> m_watchtrial_prom;
+  std::shared_future<void> m_watchtrial_fut;
 };
 }  // namespace cogment
 #endif
