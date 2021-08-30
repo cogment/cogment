@@ -33,11 +33,11 @@ message ModelVersionInfo {
 service ModelRegistry {
   rpc CreateModel(CreateModelRequest) returns (CreateModelReply) {}
   rpc DeleteModel(DeleteModelRequest) returns (DeleteModelReply) {}
-  rpc ListModelVersions(ListModelVersionsRequest) returns (ListModelVersionsReply) {}
 
   rpc CreateModelVersion(stream CreateModelVersionRequestChunk) returns (CreateModelVersionReply) {}
-  rpc RetrieveModelInfo(RetrieveModelInfoRequest) returns (RetrieveModelInfoReply) {}
-  rpc RetrieveModelData(RetrieveModelDataRequest) returns (stream RetrieveModelDataReplyChunk) {}
+  rpc ListModelVersions(ListModelVersionsRequest) returns (ListModelVersionsReply) {}
+  rpc RetrieveModelVersionInfo(RetrieveModelVersionInfoRequest) returns (RetrieveModelVersionInfoReply) {}
+  rpc RetrieveModelVersionData(RetrieveModelVersionDataRequest) returns (stream RetrieveModelVersionDataReplyChunk) {}
 }
 
 message CreateModelRequest {
@@ -46,17 +46,6 @@ message CreateModelRequest {
 
 message CreateModelReply {
   ModelInfo model = 1;
-}
-
-message ListModelVersionsRequest {
-  string model_id = 1;
-  uint32 page_size = 2;
-  uint32 page_offset = 3;
-}
-
-message ListModelVersionsReply {
-  repeated ModelVersionInfo versions = 2;
-  uint32 next_page_offset = 3;
 }
 
 message DeleteModelRequest {
@@ -78,21 +67,32 @@ message CreateModelVersionReply {
   ModelVersionInfo version_info = 1;
 }
 
-message RetrieveModelInfoRequest {
+message ListModelVersionsRequest {
   string model_id = 1;
-  uint32 number = 3;
+  int32 page_offset = 3;
+  int32 page_size = 2;
 }
 
-message RetrieveModelInfoReply {
+message ListModelVersionsReply {
+  repeated ModelVersionInfo versions = 2;
+  int32 next_page_offset = 3;
+}
+
+message RetrieveModelVersionInfoRequest {
+  string model_id = 1;
+  int32 number = 2;
+}
+
+message RetrieveModelVersionInfoReply {
   ModelVersionInfo version_info = 1;
 }
 
-message RetrieveModelDataRequest {
+message RetrieveModelVersionDataRequest {
   string model_id = 1;
-  uint32 number = 3;
+  int32 number = 2;
 }
 
-message RetrieveModelDataReplyChunk {
+message RetrieveModelVersionDataReplyChunk {
   bytes data_chunk = 1; // All data chunk will be concatened to form the version data
   bool last_chunk = 2;  // True for the last chunk, false otherwise
 }

@@ -16,6 +16,7 @@ package grpcserver
 
 import (
 	"context"
+	"io"
 	"log"
 	"net"
 	"testing"
@@ -25,6 +26,8 @@ import (
 	grpcapi "github.com/cogment/model-registry/grpcapi/cogment/api"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 )
 
@@ -35,14 +38,25 @@ type testContext struct {
 	connection *grpc.ClientConn
 }
 
-func createContext() (testContext, error) {
+var modelData = []byte(`Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Aenean commodo ligula
+eget dolor. Aenean massa. Cum sociis natoque penatibus et magnis dis parturient
+montes, nascetur ridiculus mus. Donec quam felis, ultricies nec, pellentesque
+eu, pretium quis, sem. Nulla consequat massa quis enim. Donec pede justo,
+fringilla vel, aliquet nec, vulputate eget, arcu. In enim justo, rhoncus ut,
+imperdiet a, venenatis vitae, justo. Nullam dictum felis eu pede mollis pretium.
+Integer tincidunt. Cras dapibus. Vivamus elementum semper nisi. Aenean vulputate
+eleifend tellus. Aenean leo ligula, porttitor eu, consequat vitae, eleifend ac,
+enim. Aliquam lorem ante, dapibus in, viverra quis, feugiat a, tellus. Phasellus
+viverra nulla ut metus varius laoreet.`)
+
+func createContext(sentModelVersionDataChunkSize int) (testContext, error) {
 	listener := bufconn.Listen(1024 * 1024)
 	server := grpc.NewServer()
 	backend, err := db.CreateBackend()
 	if err != nil {
 		return testContext{}, err
 	}
-	err = RegisterServer(server, backend)
+	err = RegisterServer(server, backend, sentModelVersionDataChunkSize)
 	if err != nil {
 		return testContext{}, err
 	}
@@ -77,9 +91,295 @@ func (ctx *testContext) destroy() {
 }
 
 func TestCreateModel(t *testing.T) {
-	ctx, err := createContext()
+	ctx, err := createContext(1024 * 1024)
 	assert.NoError(t, err)
 	defer ctx.destroy()
-	_, err = ctx.client.CreateModel(ctx.grpcCtx, &grpcapi.CreateModelRequest{ModelId: "foo"})
-	assert.Error(t, err) // Not implemented yet
+	{
+		rep, err := ctx.client.CreateModel(ctx.grpcCtx, &grpcapi.CreateModelRequest{ModelId: "foo"})
+		assert.NoError(t, err)
+		assert.Equal(t, "foo", rep.Model.ModelId)
+	}
+	{
+		rep, err := ctx.client.ListModelVersions(ctx.grpcCtx, &grpcapi.ListModelVersionsRequest{ModelId: "foo", PageOffset: -1, PageSize: -1})
+		assert.NoError(t, err)
+		assert.Len(t, rep.Versions, 0)
+		assert.Equal(t, int32(0), rep.NextPageOffset)
+	}
+	{
+		rep, err := ctx.client.CreateModel(ctx.grpcCtx, &grpcapi.CreateModelRequest{ModelId: "foo"})
+		assert.Error(t, err)
+		assert.Equal(t, codes.AlreadyExists, status.Code(err))
+		assert.Nil(t, rep)
+	}
+	{
+		rep, err := ctx.client.CreateModel(ctx.grpcCtx, &grpcapi.CreateModelRequest{ModelId: "bar"})
+		assert.NoError(t, err)
+		assert.Equal(t, "bar", rep.Model.ModelId)
+	}
+	{
+		rep, err := ctx.client.DeleteModel(ctx.grpcCtx, &grpcapi.DeleteModelRequest{ModelId: "foo"})
+		assert.NoError(t, err)
+		assert.Equal(t, "foo", rep.Model.ModelId)
+	}
+}
+
+func TestDeleteModel(t *testing.T) {
+	ctx, err := createContext(1024 * 1024)
+	assert.NoError(t, err)
+	defer ctx.destroy()
+	{
+		rep, err := ctx.client.CreateModel(ctx.grpcCtx, &grpcapi.CreateModelRequest{ModelId: "foo"})
+		assert.NoError(t, err)
+		assert.Equal(t, "foo", rep.Model.ModelId)
+	}
+	{
+		rep, err := ctx.client.CreateModel(ctx.grpcCtx, &grpcapi.CreateModelRequest{ModelId: "bar"})
+		assert.NoError(t, err)
+		assert.Equal(t, "bar", rep.Model.ModelId)
+	}
+	{
+		rep, err := ctx.client.DeleteModel(ctx.grpcCtx, &grpcapi.DeleteModelRequest{ModelId: "bar"})
+		assert.NoError(t, err)
+		assert.Equal(t, "bar", rep.Model.ModelId)
+	}
+	{
+		rep, err := ctx.client.DeleteModel(ctx.grpcCtx, &grpcapi.DeleteModelRequest{ModelId: "baz"})
+		assert.Error(t, err)
+		assert.Equal(t, codes.NotFound, status.Code(err))
+		assert.Nil(t, rep)
+	}
+	{
+		rep, err := ctx.client.CreateModel(ctx.grpcCtx, &grpcapi.CreateModelRequest{ModelId: "bar"})
+		assert.NoError(t, err)
+		assert.Equal(t, "bar", rep.Model.ModelId)
+	}
+}
+
+func TestCreateModelVersion(t *testing.T) {
+	ctx, err := createContext(1024 * 1024)
+	assert.NoError(t, err)
+	defer ctx.destroy()
+	{
+		rep, err := ctx.client.CreateModel(ctx.grpcCtx, &grpcapi.CreateModelRequest{ModelId: "foo"})
+		assert.NoError(t, err)
+		assert.Equal(t, "foo", rep.Model.ModelId)
+	}
+	{
+		stream, err := ctx.client.CreateModelVersion(ctx.grpcCtx)
+		assert.NoError(t, err)
+		err = stream.Send(&grpcapi.CreateModelVersionRequestChunk{ModelId: "foo", Archive: false, DataChunk: modelData, LastChunk: true})
+		assert.NoError(t, err)
+		rep, err := stream.CloseAndRecv()
+		assert.NoError(t, err)
+		assert.Equal(t, "foo", rep.VersionInfo.ModelId)
+		assert.Equal(t, uint(1), uint(rep.VersionInfo.Number))
+		assert.False(t, rep.VersionInfo.Archive)
+		assert.NotZero(t, rep.VersionInfo.Hash)
+		assert.NotZero(t, rep.VersionInfo.CreatedAt)
+	}
+	{
+		stream, err := ctx.client.CreateModelVersion(ctx.grpcCtx)
+		assert.NoError(t, err)
+		err = stream.Send(&grpcapi.CreateModelVersionRequestChunk{ModelId: "foo", Archive: true, DataChunk: modelData[0:10], LastChunk: false})
+		assert.NoError(t, err)
+		err = stream.Send(&grpcapi.CreateModelVersionRequestChunk{DataChunk: modelData[10:30], LastChunk: false})
+		assert.NoError(t, err)
+		err = stream.Send(&grpcapi.CreateModelVersionRequestChunk{DataChunk: modelData[30:], LastChunk: true})
+		assert.NoError(t, err)
+		rep, err := stream.CloseAndRecv()
+		assert.NoError(t, err)
+		assert.Equal(t, "foo", rep.VersionInfo.ModelId)
+		assert.Equal(t, uint(2), uint(rep.VersionInfo.Number))
+		assert.True(t, rep.VersionInfo.Archive)
+		assert.NotZero(t, rep.VersionInfo.Hash)
+		assert.NotZero(t, rep.VersionInfo.CreatedAt)
+	}
+	{
+		rep, err := ctx.client.ListModelVersions(ctx.grpcCtx, &grpcapi.ListModelVersionsRequest{ModelId: "foo", PageOffset: -1, PageSize: -1})
+		assert.NoError(t, err)
+		assert.Equal(t, 2, int(rep.NextPageOffset))
+		assert.Len(t, rep.Versions, 2)
+		assert.Equal(t, "foo", rep.Versions[0].ModelId)
+		assert.Equal(t, uint(1), uint(rep.Versions[0].Number))
+		assert.False(t, rep.Versions[0].Archive)
+		assert.NotZero(t, rep.Versions[0].Hash)
+		assert.NotZero(t, rep.Versions[0].CreatedAt)
+
+		assert.Equal(t, "foo", rep.Versions[1].ModelId)
+		assert.Equal(t, uint(2), uint(rep.Versions[1].Number))
+		assert.True(t, rep.Versions[1].Archive)
+		assert.Equal(t, rep.Versions[0].Hash, rep.Versions[1].Hash)
+		assert.True(t, rep.Versions[1].CreatedAt.AsTime().After(rep.Versions[0].CreatedAt.AsTime()))
+	}
+}
+
+func TestListModelVersions(t *testing.T) {
+	ctx, err := createContext(1024 * 1024)
+	assert.NoError(t, err)
+	defer ctx.destroy()
+	{
+		rep, err := ctx.client.CreateModel(ctx.grpcCtx, &grpcapi.CreateModelRequest{ModelId: "bar"})
+		assert.NoError(t, err)
+		assert.Equal(t, "bar", rep.Model.ModelId)
+	}
+	{
+		for i := 1; i <= 10; i++ {
+			stream, err := ctx.client.CreateModelVersion(ctx.grpcCtx)
+			assert.NoError(t, err)
+			err = stream.Send(&grpcapi.CreateModelVersionRequestChunk{ModelId: "bar", Archive: i%5 == 0, DataChunk: modelData, LastChunk: true})
+			assert.NoError(t, err)
+			_, err = stream.CloseAndRecv()
+			assert.NoError(t, err)
+		}
+	}
+	{
+		rep, err := ctx.client.ListModelVersions(ctx.grpcCtx, &grpcapi.ListModelVersionsRequest{ModelId: "bar", PageOffset: 0, PageSize: 5})
+		assert.NoError(t, err)
+
+		assert.Equal(t, 5, int(rep.NextPageOffset))
+		assert.Len(t, rep.Versions, 5)
+
+		assert.Equal(t, "bar", rep.Versions[0].ModelId)
+		assert.Equal(t, uint(1), uint(rep.Versions[0].Number))
+		assert.False(t, rep.Versions[0].Archive)
+		assert.NotZero(t, rep.Versions[0].Hash)
+		assert.NotZero(t, rep.Versions[0].CreatedAt)
+
+		assert.Equal(t, "bar", rep.Versions[4].ModelId)
+		assert.Equal(t, uint(5), uint(rep.Versions[4].Number))
+		assert.True(t, rep.Versions[4].Archive)
+		assert.Equal(t, rep.Versions[0].Hash, rep.Versions[4].Hash)
+		assert.True(t, rep.Versions[4].CreatedAt.AsTime().After(rep.Versions[0].CreatedAt.AsTime()))
+	}
+	{
+		rep, err := ctx.client.ListModelVersions(ctx.grpcCtx, &grpcapi.ListModelVersionsRequest{ModelId: "bar", PageOffset: 7, PageSize: 5})
+		assert.NoError(t, err)
+
+		assert.Equal(t, 10, int(rep.NextPageOffset))
+		assert.Len(t, rep.Versions, 3)
+
+		assert.Equal(t, "bar", rep.Versions[0].ModelId)
+		assert.Equal(t, uint(8), uint(rep.Versions[0].Number))
+		assert.False(t, rep.Versions[0].Archive)
+		assert.NotZero(t, rep.Versions[0].Hash)
+		assert.NotZero(t, rep.Versions[0].CreatedAt)
+
+		assert.Equal(t, "bar", rep.Versions[2].ModelId)
+		assert.Equal(t, uint(10), uint(rep.Versions[2].Number))
+		assert.True(t, rep.Versions[2].Archive)
+		assert.Equal(t, rep.Versions[0].Hash, rep.Versions[2].Hash)
+		assert.True(t, rep.Versions[2].CreatedAt.AsTime().After(rep.Versions[0].CreatedAt.AsTime()))
+	}
+	{
+		rep, err := ctx.client.ListModelVersions(ctx.grpcCtx, &grpcapi.ListModelVersionsRequest{ModelId: "bar", PageOffset: 10, PageSize: 5})
+		assert.NoError(t, err)
+
+		assert.Equal(t, 10, int(rep.NextPageOffset))
+		assert.Len(t, rep.Versions, 0)
+	}
+}
+
+func TestGetModelVersionInfo(t *testing.T) {
+	ctx, err := createContext(1024 * 1024)
+	assert.NoError(t, err)
+	defer ctx.destroy()
+	{
+		rep, err := ctx.client.CreateModel(ctx.grpcCtx, &grpcapi.CreateModelRequest{ModelId: "bar"})
+		assert.NoError(t, err)
+		assert.Equal(t, "bar", rep.Model.ModelId)
+	}
+	{
+		for i := 1; i <= 10; i++ {
+			stream, err := ctx.client.CreateModelVersion(ctx.grpcCtx)
+			assert.NoError(t, err)
+			err = stream.Send(&grpcapi.CreateModelVersionRequestChunk{ModelId: "bar", Archive: i%5 == 0, DataChunk: modelData, LastChunk: true})
+			assert.NoError(t, err)
+			_, err = stream.CloseAndRecv()
+			assert.NoError(t, err)
+		}
+	}
+	{
+		rep, err := ctx.client.RetrieveModelVersionInfo(ctx.grpcCtx, &grpcapi.RetrieveModelVersionInfoRequest{ModelId: "bar", Number: 1})
+		assert.NoError(t, err)
+		assert.Equal(t, "bar", rep.VersionInfo.ModelId)
+		assert.Equal(t, uint(1), uint(rep.VersionInfo.Number))
+		assert.False(t, rep.VersionInfo.Archive)
+		assert.NotZero(t, rep.VersionInfo.Hash)
+		assert.NotZero(t, rep.VersionInfo.CreatedAt)
+	}
+	{
+		rep, err := ctx.client.RetrieveModelVersionInfo(ctx.grpcCtx, &grpcapi.RetrieveModelVersionInfoRequest{ModelId: "bar", Number: 5})
+		assert.NoError(t, err)
+		assert.Equal(t, "bar", rep.VersionInfo.ModelId)
+		assert.Equal(t, uint(5), uint(rep.VersionInfo.Number))
+		assert.True(t, rep.VersionInfo.Archive)
+		assert.NotZero(t, rep.VersionInfo.Hash)
+		assert.NotZero(t, rep.VersionInfo.CreatedAt)
+	}
+	{
+		rep, err := ctx.client.RetrieveModelVersionInfo(ctx.grpcCtx, &grpcapi.RetrieveModelVersionInfoRequest{ModelId: "bar", Number: -1})
+		assert.NoError(t, err)
+		assert.Equal(t, "bar", rep.VersionInfo.ModelId)
+		assert.Equal(t, uint(10), uint(rep.VersionInfo.Number))
+		assert.True(t, rep.VersionInfo.Archive)
+		assert.NotZero(t, rep.VersionInfo.Hash)
+		assert.NotZero(t, rep.VersionInfo.CreatedAt)
+	}
+	{
+		rep, err := ctx.client.RetrieveModelVersionInfo(ctx.grpcCtx, &grpcapi.RetrieveModelVersionInfoRequest{ModelId: "bar", Number: 28})
+		assert.Error(t, err)
+		assert.Equal(t, codes.NotFound, status.Code(err))
+		assert.Nil(t, rep)
+	}
+}
+
+func TestGetModelVersionData(t *testing.T) {
+	ctx, err := createContext(16) // For the purpose of the test we limit the sent chunk size drastically
+	assert.NoError(t, err)
+	defer ctx.destroy()
+	{
+		rep, err := ctx.client.CreateModel(ctx.grpcCtx, &grpcapi.CreateModelRequest{ModelId: "baz"})
+		assert.NoError(t, err)
+		assert.Equal(t, "baz", rep.Model.ModelId)
+	}
+	{
+		stream, err := ctx.client.CreateModelVersion(ctx.grpcCtx)
+		assert.NoError(t, err)
+		err = stream.Send(&grpcapi.CreateModelVersionRequestChunk{ModelId: "baz", Archive: false, DataChunk: modelData, LastChunk: true})
+		assert.NoError(t, err)
+		_, err = stream.CloseAndRecv()
+		assert.NoError(t, err)
+	}
+	{
+		stream, err := ctx.client.RetrieveModelVersionData(ctx.grpcCtx, &grpcapi.RetrieveModelVersionDataRequest{ModelId: "baz", Number: -1})
+		assert.NoError(t, err)
+		chunks := []*grpcapi.RetrieveModelVersionDataReplyChunk{}
+		data := []byte{}
+		for {
+			chunk, err := stream.Recv()
+			if err == io.EOF {
+				break
+			}
+			assert.NoError(t, err)
+			chunks = append(chunks, chunk)
+			data = append(data, chunk.DataChunk...)
+		}
+		for chunkIdx, chunk := range chunks {
+			if chunkIdx == len(chunks)-1 {
+				assert.True(t, chunk.LastChunk)
+				assert.GreaterOrEqual(t, 16, len(chunk.DataChunk))
+			} else {
+				assert.False(t, chunk.LastChunk)
+				assert.Equal(t, 16, len(chunk.DataChunk))
+			}
+		}
+		assert.Equal(t, modelData, data)
+	}
+	{
+		stream, err := ctx.client.RetrieveModelVersionData(ctx.grpcCtx, &grpcapi.RetrieveModelVersionDataRequest{ModelId: "baz", Number: 4})
+		assert.NoError(t, err)
+		chunk, err := stream.Recv()
+		assert.Equal(t, codes.NotFound, status.Code(err))
+		assert.Nil(t, chunk)
+	}
 }
