@@ -33,15 +33,13 @@ import (
 type dbModel struct {
 	ModelID   string `gorm:"primarykey"`
 	CreatedAt time.Time
-	DeletedAt gorm.DeletedAt `gorm:"index"`
-	Versions  []dbVersion    `gorm:"foreignKey:ModelID;reference:ModelID"`
+	Versions  []dbVersion `gorm:"foreignKey:ModelID;reference:ModelID"`
 }
 
 type dbVersion struct {
 	CreatedAt time.Time
-	DeletedAt gorm.DeletedAt `gorm:"index"`
-	ModelID   string         `gorm:"primarykey"`
-	Number    int            `gorm:"primarykey"`
+	ModelID   string `gorm:"primarykey"`
+	Number    int    `gorm:"primarykey"`
 	Archive   bool
 	Hash      string
 	Data      []byte

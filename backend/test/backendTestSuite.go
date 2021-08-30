@@ -109,31 +109,42 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 				b := createBackend()
 				defer b.Destroy()
 
-				err := b.CreateModel("foo")
-				assert.NoError(t, err)
-
-				err = b.DeleteModel("bar")
 				{
+					err := b.CreateModel("foo")
+					assert.NoError(t, err)
+				}
+				{
+					err := b.DeleteModel("bar")
 					concreteErr := &backend.UnknownModelError{}
 					assert.ErrorAs(t, err, &concreteErr)
 					assert.Equal(t, "bar", concreteErr.ModelID)
+					assert.EqualError(t, err, "no model \"bar\" found")
 				}
-				assert.EqualError(t, err, "no model \"bar\" found")
-
-				found, err := b.HasModel("foo")
-				assert.NoError(t, err)
-				assert.True(t, found)
-
-				err = b.DeleteModel("foo")
-				assert.NoError(t, err)
-
-				err = b.DeleteModel("foo")
 				{
+					found, err := b.HasModel("foo")
+					assert.NoError(t, err)
+					assert.True(t, found)
+				}
+				{
+					err := b.DeleteModel("foo")
+					assert.NoError(t, err)
+				}
+				{
+					err := b.DeleteModel("foo")
 					concreteErr := &backend.UnknownModelError{}
 					assert.ErrorAs(t, err, &concreteErr)
 					assert.Equal(t, "foo", concreteErr.ModelID)
+					assert.EqualError(t, err, "no model \"foo\" found")
 				}
-				assert.EqualError(t, err, "no model \"foo\" found")
+				{
+					found, err := b.HasModel("foo")
+					assert.NoError(t, err)
+					assert.False(t, found)
+				}
+				{
+					err := b.CreateModel("foo")
+					assert.NoError(t, err)
+				}
 			},
 		},
 		{
