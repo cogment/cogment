@@ -12,87 +12,107 @@ This module, cogment Model Registry, is a versioned key value store dedicated to
 $ docker run -p 9000:9000 -v $(pwd)/relative/path/to/model/archive:/data cogment/model-registry
 ```
 
+### Configuration
+
+The following environment variables can be used to configure the server:
+
+- `COGMENT_MODEL_REGISTRY_PORT`: The port to listen on. Defaults to 9000.
+- `COGMENT_MODEL_REGISTRY_ARCHIVE_DIR`: The directory to store model archives. Docker images defaults to `/data`.
+- `COGMENT_MODEL_REGISTRY_SENT_MODEL_VERSION_DATA_CHUNK_SIZE`: The size of the model version data chunk sent by the server. Defaults to 5*1024*1024 (5MB).
+- `COGMENT_MODEL_REGISTRY_GRPC_REFLECTION`: Set to start a [gRPC reflection server](https://github.com/grpc/grpc/blob/master/doc/server-reflection.md). Defaults to `false`.
+
 ## API
 
-### Welcome - `GET /`
+The Model Registry exposes a gRPC defined in the [Model Registry API](grpcapi/cogment/api/model_registry.proto) (This will be moved to the Cogment gRPC API in the future).
+
+### Create a model - `cogment.ModelRegistry/CreateModel( .cogment.CreateModelRequest ) returns ( .cogment.CreateModelReply );`
 
 ```console
-$ curl -s http://localhost:80 | jq .
+$ echo "{\"model_id\":\"my_model\"}" | grpcurl -plaintext -d @ localhost:9000 cogment.ModelRegistry/CreateModel
 {
-  "message": "Welcome to the model registry API"
-}
-```
-
-### Create a model - `POST /models`
-
-```console
-$ curl -X POST -d '{"modelId":"my_model"}' -H "Content-Type: application/json" -s http://localhost:80/models | jq .
-{
-  "modelId": "my_model",
-  "createdAt": "2021-04-29T09:43:33.71684-04:00",
-  "latestVersionCreatedAt": "0001-01-01T00:00:00Z"
-}
-```
-
-### Create a model version - `POST /models/{model_id}`
-
-```console
-curl -X POST -d 'this_is_a_predictive_model' -H "Content-Type: application/octet-stream" -s http://localhost:80/models/my_model | jq .
-{
-  "modelId": "my_model",
-  "createdAt": "2021-04-29T09:46:23.832131-04:00",
-  "number": 1,
-  "hash": "PKEpqIpxMLOG1enOvkMIqOIGvgI4qglUZ35I1+Ij8m8="
-}
-```
-
-### List models - `GET /models`
-
-```console
-$ curl -s http://localhost:80/models | jq .
-[
-  {
-    "modelId": "my_model",
-    "createdAt": "2021-04-29T09:43:33.71684-04:00",
-    "latestVersionCreatedAt": "2021-04-29T09:46:23.832131-04:00",
-    "latestVersionNumber": 1
+  "model": {
+    "modelId": "my_model"
   }
-]
+}
 ```
 
-### List model versions - `GET /models/{model_id}`
+### Create a model version - `cogment.ModelRegistry/CreateModelVersion( stream .cogment.CreateModelVersionRequestChunk ) returns ( .cogment.CreateModelVersionReply );`
 
 ```console
-$ curl -s http://localhost:80/models/my_model | jq .
-[
-  {
+$ echo "{\
+    \"model_id\":\"my_model\",\
+    \"archive\":true,\
+    \"data_chunk\":\"$(echo chunk_1 | base64)\"\
+  }\
+  {\
+    \"data_chunk\":\"$(echo chunk_2 | base64)\",\
+    \"last_chunk\":true\
+  }" | grpcurl -plaintext -d @ localhost:9000 cogment.ModelRegistry/CreateModelVersion
+{
+  "versionInfo": {
     "modelId": "my_model",
-    "createdAt": "2021-04-29T09:46:23.832131-04:00",
+    "createdAt": "2021-08-31T13:46:51.372417Z",
     "number": 1,
-    "hash": "PKEpqIpxMLOG1enOvkMIqOIGvgI4qglUZ35I1+Ij8m8="
-  },
-  {
-    "modelId": "my_model",
-    "createdAt": "2021-04-29T09:48:19.783984-04:00",
-    "number": 2,
-    "hash": "nqiSuZ305oBkbP1EZI5j+BGD3tFCsiHoMghm+7s3S7Y="
+    "archive": true,
+    "hash": "1FoOg5QHj7ctiXEZkr9rDkfJWrsy//DeUsHEmP7PcgA="
   }
-]
+}
 ```
 
-### Retrieve latest version - `GET /models/{model_id}/latest`
+### List model versions - `cogment.ModelRegistry/ListModelVersions ( .cogment.ListModelVersionsRequest ) returns ( .cogment.ListModelVersionsReply );`
 
 ```console
-$ curl -s http://localhost:80/models/my_model/latest
-this_is_another_predictive_model%
+$ echo "{\"model_id\":\"my_model\"}" | grpcurl -plaintext -d @ localhost:9000 cogment.ModelRegistry/ListModelVersions
+{
+  "versions": [
+    {
+      "modelId": "my_model",
+      "createdAt": "2021-08-31T13:42:59.399405Z",
+      "number": 1,
+      "archive": true,
+      "hash": "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU="
+    },
+    {
+      "modelId": "my_model",
+      "createdAt": "2021-08-31T13:45:04.092807Z",
+      "number": 2,
+      "archive": true,
+      "hash": "1FoOg5QHj7ctiXEZkr9rDkfJWrsy//DeUsHEmP7PcgA="
+    },
+  ],
+  "nextPageOffset": 2
+}
 ```
 
-### Retrieve given version - `GET /models/{model_id}/{version_number}`
+### Retrieve given version info - `cogment.ModelRegistry/RetrieveModelVersionInfo ( .cogment.RetrieveModelVersionInfoRequest ) returns ( .cogment.RetrieveModelVersionInfoReply );`
+
 
 ```console
-$ curl -s http://localhost:80/models/my_model/1
-this_is_a_predictive_model%
+$ echo "{\"model_id\":\"my_model\", \"number\":1}" | grpcurl -plaintext -d @ localhost:9000 cogment.ModelRegistry/RetrieveModelVersionInfo
+{
+  "versionInfo": {
+    "modelId": "my_model",
+    "createdAt": "2021-08-31T13:42:59.399405Z",
+    "number": 1,
+    "archive": true,
+    "hash": "1FoOg5QHj7ctiXEZkr9rDkfJWrsy//DeUsHEmP7PcgA="
+  }
+}
 ```
+
+To retrieve the latest version, use `number:-1`.
+
+### Retrieve given version data - `cogment.ModelRegistry/RetrieveModelVersionData ( .cogment.RetrieveModelVersionDataRequest ) returns ( stream .cogment.RetrieveModelVersionDataReplyChunk );`
+
+```console
+$ echo "{\"model_id\":\"my_model\", \"number\":1}" | grpcurl -plaintext -d @ localhost:9000 cogment.ModelRegistry/RetrieveModelVersionData
+{
+  "dataChunk": "Y2h1bmtfMQpjaHVua18yCg==",
+  "lastChunk": true
+}
+```
+
+To retrieve the latest version, use `number:-1`.
 
 ## Developers
 

@@ -13,10 +13,8 @@ RUN make build
 FROM ubuntu:20.04
 
 VOLUME /data
+ENV COGMENT_MODEL_REGISTRY_ARCHIVE_DIR=/data
 
 COPY --from=build /app/build/cogment-model-registry /usr/local/bin/cogment-model-registry
-
-ENV COGMENT_MODEL_REGISTRY_PORT=9000
-ENV COGMENT_MODEL_REGISTRY_ARCHIVE_DIR=/data
 
 ENTRYPOINT ["model-registry"]

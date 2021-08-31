@@ -44,14 +44,15 @@ var modelDirnameRegexp = regexp.MustCompile("[a-zA-Z][a-zA-Z0-9-_]*")
 func CreateBackend(rootDirname string) (backend.Backend, error) {
 	rootDirentry, err := os.Stat(rootDirname)
 	if os.IsNotExist(err) {
-		return nil, fmt.Errorf("Unable to create filesystem backend: %q doesn't exist", rootDirname)
+		return nil, fmt.Errorf("unable to create filesystem backend: %q doesn't exist", rootDirname)
 	}
 	if !rootDirentry.IsDir() {
-		return nil, fmt.Errorf("Unable to create filesystem backend: %q is not a directory", rootDirname)
+		return nil, fmt.Errorf("unable to create filesystem backend: %q is not a directory", rootDirname)
 	}
 	backend := fsBackend{
 		rootDirname: rootDirname,
 	}
+	log.Printf("created a filesystem backend in %q\n", rootDirname)
 	return &backend, nil
 }
 

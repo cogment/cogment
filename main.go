@@ -17,51 +17,64 @@ package main
 import (
 	"fmt"
 	"log"
-	"net/http"
-	"os"
+	"net"
 
-	"github.com/gorilla/handlers"
 	"github.com/spf13/viper"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 
 	"github.com/cogment/model-registry/backend/db"
 	"github.com/cogment/model-registry/backend/fs"
 	"github.com/cogment/model-registry/backend/hybrid"
-	"github.com/cogment/model-registry/routes"
+	"github.com/cogment/model-registry/grpcserver"
 )
 
 func main() {
 	viper.AutomaticEnv()
-	viper.SetDefault("PORT", 80)
-	viper.SetDefault("ARCHIVE_DIR", "/data")
+	viper.SetDefault("PORT", 9000)
+	viper.SetDefault("ARCHIVE_DIR", ".cogment_model_registry")
+	viper.SetDefault("SENT_MODEL_VERSION_DATA_CHUNK_SIZE", 1024*1024*5) // Default chunk size is 5 MB
+	viper.SetDefault("GRPC_REFLECTION", false)
 	viper.SetEnvPrefix("COGMENT_MODEL_REGISTRY")
 
 	dbBackend, err := db.CreateBackend()
 	if err != nil {
-		log.Printf("Unable to create the database backend: %v\n", err)
-		os.Exit(-1)
+		log.Fatalf("unable to create the database backend: %v", err)
 	}
 	defer dbBackend.Destroy()
 
 	fsBackend, err := fs.CreateBackend(viper.GetString("ARCHIVE_DIR"))
 	if err != nil {
-		log.Printf("Unable to create the archive filesystem backend: %v\n", err)
-		os.Exit(-1)
+		log.Fatalf("unable to create the archive filesystem backend: %v", err)
 	}
 	defer fsBackend.Destroy()
 
 	backend, err := hybrid.CreateBackend(dbBackend, fsBackend)
 	if err != nil {
-		log.Printf("Unable to create the backend: %v\n", err)
-		os.Exit(-1)
+		log.Fatalf("unable to create the backend: %v", err)
 	}
 	defer backend.Destroy()
 
-	router := routes.CreateRouter(backend)
-	port := viper.GetString("PORT")
-	log.Printf("Model registry service starts on port %s...\n", port)
-	err = http.ListenAndServe(fmt.Sprintf(":%s", port), handlers.CombinedLoggingHandler(os.Stdout, router))
+	port := viper.GetInt("PORT")
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
-		log.Printf("Error while running the http server: %v\n", err)
-		os.Exit(-1)
+		log.Fatalf("unable to listen to tcp port %d: %v", port, err)
+	}
+	var opts []grpc.ServerOption
+	server := grpc.NewServer(opts...)
+	err = grpcserver.RegisterServer(server, backend, viper.GetInt("SENT_MODEL_VERSION_DATA_CHUNK_SIZE"))
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+
+	if viper.GetBool("GRPC_REFLECTION") {
+		reflection.Register(server)
+		log.Printf("gRPC reflection registered")
+	}
+
+	log.Printf("Cogment Model Registry service starts on port %d...\n", port)
+	err = server.Serve(listener)
+	if err != nil {
+		log.Fatalf("unexpected error while serving grpc services: %v", err)
 	}
 }
