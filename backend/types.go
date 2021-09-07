@@ -72,5 +72,5 @@ func (e *UnknownModelVersionError) Error() string {
 	if e.VersionNumber <= 0 {
 		return fmt.Sprintf("model %q doesn't have any version yet", e.ModelID)
 	}
-	return fmt.Sprintf("no version \"%d\" for model %q found", e.VersionNumber, e.ModelID)
+	return fmt.Sprintf(`no version "%d" for model %q found`, e.VersionNumber, e.ModelID)
 }

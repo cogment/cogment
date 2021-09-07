@@ -170,7 +170,7 @@ func (s *server) RetrieveModelVersionInfo(ctx context.Context, req *grpcapi.Retr
 		if _, ok := err.(*backend.UnknownModelVersionError); ok {
 			return nil, status.Errorf(codes.NotFound, "%s", err)
 		}
-		return nil, status.Errorf(codes.Internal, "unexpected error while retrieving version \"%d\" for model %q: %s", req.Number, req.ModelId, err)
+		return nil, status.Errorf(codes.Internal, `unexpected error while retrieving version "%d" for model %q: %s`, req.Number, req.ModelId, err)
 	}
 
 	pbVersionInfo := createPbModelVersionInfo(versionInfo)
@@ -188,7 +188,7 @@ func (s *server) RetrieveModelVersionData(req *grpcapi.RetrieveModelVersionDataR
 		if _, ok := err.(*backend.UnknownModelVersionError); ok {
 			return status.Errorf(codes.NotFound, "%s", err)
 		}
-		return status.Errorf(codes.Internal, "unexpected error while retrieving version \"%d\" for model %q: %s", req.Number, req.ModelId, err)
+		return status.Errorf(codes.Internal, `unexpected error while retrieving version "%d" for model %q: %s`, req.Number, req.ModelId, err)
 	}
 
 	dataLen := len(modelData)

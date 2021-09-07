@@ -33,9 +33,9 @@ type fsBackend struct {
 	rootDirname string
 }
 
-var versionDataFilenameTemplate = template.Must(template.New("versionDataFilenameTemplate").Parse("{{ .ModelID }}-v{{ .Number | printf \"%06d\" }}.data"))
+var versionDataFilenameTemplate = template.Must(template.New("versionDataFilenameTemplate").Parse(`{{ .ModelID }}-v{{ .Number | printf "%06d" }}.data`))
 
-var versionInfoFilenameTemplate = template.Must(template.New("versionInfoFilenameTemplate").Parse("{{ .ModelID }}-v{{ .Number | printf \"%06d\" }}.yaml"))
+var versionInfoFilenameTemplate = template.Must(template.New("versionInfoFilenameTemplate").Parse(`{{ .ModelID }}-v{{ .Number | printf "%06d" }}.yaml`))
 var versionInfoFilenameRegexp = regexp.MustCompile("[a-zA-Z][a-zA-Z0-9-_]*-v[0-9]+.yaml")
 
 var modelDirnameRegexp = regexp.MustCompile("[a-zA-Z][a-zA-Z0-9-_]*")
@@ -328,7 +328,7 @@ func (b *fsBackend) RetrieveModelVersionData(modelID string, versionNumber int) 
 		if os.IsNotExist(err) {
 			return []byte{}, &backend.UnknownModelVersionError{ModelID: modelID, VersionNumber: versionNumber}
 		}
-		return []byte{}, fmt.Errorf("unable to read data for model %q version \"%d\": %w", versionInfo.ModelID, versionInfo.Number, err)
+		return []byte{}, fmt.Errorf(`unable to read data for model %q version "%d": %w`, versionInfo.ModelID, versionInfo.Number, err)
 	}
 	return versionData, nil
 }
@@ -345,12 +345,12 @@ func (b *fsBackend) DeleteModelVersion(modelID string, versionNumber int) error 
 		if os.IsNotExist(err) {
 			return &backend.UnknownModelVersionError{ModelID: modelID, VersionNumber: versionNumber}
 		}
-		return fmt.Errorf("unable to delete model %q version \"%d\" info: %w", modelID, versionNumber, err)
+		return fmt.Errorf(`unable to delete model %q version "%d" info: %w`, modelID, versionNumber, err)
 	}
 	versionDataFilename := b.buildVersionDataFilename(versionInfo)
 	err = os.Remove(versionDataFilename)
 	if err != nil {
-		return fmt.Errorf("unable to delete model %q version \"%d\" data: %w", modelID, versionNumber, err)
+		return fmt.Errorf(`unable to delete model %q version "%d" data: %w`, modelID, versionNumber, err)
 	}
 	return nil
 }

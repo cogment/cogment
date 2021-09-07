@@ -72,7 +72,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 				expectedErr := &backend.ModelAlreadyExistsError{}
 				assert.ErrorAs(t, err, &expectedErr)
 				assert.Equal(t, expectedErr.ModelID, "foo")
-				assert.EqualError(t, err, "model \"foo\" already exists")
+				assert.EqualError(t, err, `model "foo" already exists`)
 
 				// Create a another one should succeed
 				err = b.CreateModel("bar")
@@ -118,7 +118,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 					concreteErr := &backend.UnknownModelError{}
 					assert.ErrorAs(t, err, &concreteErr)
 					assert.Equal(t, "bar", concreteErr.ModelID)
-					assert.EqualError(t, err, "no model \"bar\" found")
+					assert.EqualError(t, err, `no model "bar" found`)
 				}
 				{
 					found, err := b.HasModel("foo")
@@ -134,7 +134,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 					concreteErr := &backend.UnknownModelError{}
 					assert.ErrorAs(t, err, &concreteErr)
 					assert.Equal(t, "foo", concreteErr.ModelID)
-					assert.EqualError(t, err, "no model \"foo\" found")
+					assert.EqualError(t, err, `no model "foo" found`)
 				}
 				{
 					found, err := b.HasModel("foo")
@@ -273,7 +273,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 					assert.Equal(t, "foo", concreteErr.ModelID)
 					assert.Equal(t, 3, concreteErr.VersionNumber)
 				}
-				assert.EqualError(t, err, "no version \"3\" for model \"foo\" found")
+				assert.EqualError(t, err, `no version "3" for model "foo" found`)
 
 				err = b.DeleteModel("foo")
 				assert.NoError(t, err)
@@ -289,7 +289,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 					assert.Equal(t, "foo", concreteErr.ModelID)
 					assert.Equal(t, 1, concreteErr.VersionNumber)
 				}
-				assert.EqualError(t, err, "no version \"1\" for model \"foo\" found")
+				assert.EqualError(t, err, `no version "1" for model "foo" found`)
 
 				_, err = b.RetrieveModelVersionData("foo", 2)
 				{
@@ -298,7 +298,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 					assert.Equal(t, "foo", concreteErr.ModelID)
 					assert.Equal(t, 2, concreteErr.VersionNumber)
 				}
-				assert.EqualError(t, err, "no version \"2\" for model \"foo\" found")
+				assert.EqualError(t, err, `no version "2" for model "foo" found`)
 			},
 		},
 		{
@@ -316,7 +316,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 					assert.ErrorAs(t, err, &concreteErr)
 					assert.Equal(t, "foo", concreteErr.ModelID)
 				}
-				assert.EqualError(t, err, "model \"foo\" doesn't have any version yet")
+				assert.EqualError(t, err, `model "foo" doesn't have any version yet`)
 
 				_, err = b.RetrieveModelVersionData("foo", -1)
 				{
@@ -324,7 +324,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 					assert.ErrorAs(t, err, &concreteErr)
 					assert.Equal(t, "foo", concreteErr.ModelID)
 				}
-				assert.EqualError(t, err, "model \"foo\" doesn't have any version yet")
+				assert.EqualError(t, err, `model "foo" doesn't have any version yet`)
 
 				_, err = b.CreateOrUpdateModelVersion("foo", -1, Data1, true)
 				assert.NoError(t, err)
