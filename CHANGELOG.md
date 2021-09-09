@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Introduce an install script for cogment CLI.
 
+### Fixed
+
+- Fix `cogment generate` generated typescript code by using `grpc_tools_node_protoc` instead of `protoc` directly.
+
 ## v1.0.3 - 2021-07-07
 
 ### Changed
