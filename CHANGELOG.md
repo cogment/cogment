@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Fix `cogment generate` generated typescript code by using `grpc_tools_node_protoc` instead of `protoc` directly.
 
+### Changed
+
+- Upgrade the version of the orchestrator used by `cogment init` to `v1.0.3`
+
 ## v1.0.3 - 2021-07-07
 
 ### Changed
@@ -36,9 +40,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## v1.0.0-beta3 - 2021-04-27
 
-### Changed
-
-- Prefer `COPY` over `ADD` in dockerfiles
 - Upgrade the version of cogment-orchestrator to `v1.0.0-beta3`
 - Upgrade the version of cogment-py-sdk to `v1.0.0-beta3`
 
