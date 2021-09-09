@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v1.1.0 - 2021-09-09
+
 ### Added
 
 - Introduce an install script for cogment CLI.
