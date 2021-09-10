@@ -1,0 +1,109 @@
+stages:
+  - lint
+  - test
+  - build
+  - publish
+
+.base_golang:
+  image: golang:1.16
+  variables:
+    GOPATH: $CI_PROJECT_DIR/.go
+    GOLANGCI_LINT_VERSION: v1.42.0
+  before_script:
+    - apt-get update -y
+    - apt-get install -y protobuf-compiler
+    - mkdir -p .go
+    - export PATH=$PATH:$(go env GOPATH)/bin
+  cache:
+    key: go-dependencies-cache
+    paths:
+      - .go/pkg/mod/
+
+.base_docker_build:
+  image: docker:20.10.7
+  services:
+    - docker:20.10.7-dind
+  variables:
+    # Use TLS https://docs.gitlab.com/ee/ci/docker/using_docker_build.html#tls-enabled
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+  before_script:
+    - apk add bash
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
+
+shellcheck:
+  image: koalaman/shellcheck-alpine:stable
+  stage: lint
+  before_script:
+    - shellcheck --version
+  script:
+    - shellcheck $(find . -name '*.sh' | xargs)
+
+shfmt:
+  image: mvdan/shfmt:v3.1.0-alpine
+  stage: lint
+  before_script:
+    - shfmt -version
+  script:
+    - shfmt -i 2 -ci -d .
+
+apache_licenses_check:
+  stage: lint
+  image: registry.gitlab.com/ai-r/apache-license-checker:latest
+  script:
+    - apache-license-checker
+
+lint:
+  extends: .base_golang
+  stage: lint
+  script:
+    - wget -O- -nv https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin "${GOLANGCI_LINT_VERSION}"
+    - golangci-lint --version
+    - make lint
+
+test:
+  extends: .base_golang
+  stage: test
+  script:
+    - make test-with-report
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
+
+build_docker:
+  extends: .base_docker_build
+  stage: build
+  variables:
+    COGMENT_ACTIVITY_LOGGER_IMAGE_BUILD_CACHE: $CI_REGISTRY_IMAGE/build:latest
+    COGMENT_ACTIVITY_LOGGER_IMAGE_BUILD: $CI_REGISTRY_IMAGE/build:commit-$CI_COMMIT_SHORT_SHA
+    COGMENT_ACTIVITY_LOGGER_IMAGE: $CI_REGISTRY_IMAGE:commit-$CI_COMMIT_SHORT_SHA
+  script:
+    - ./scripts/build_docker.sh
+    - docker push $COGMENT_ACTIVITY_LOGGER_IMAGE_BUILD
+
+build_binaries:
+  extends: .base_golang
+  stage: build
+  script:
+    - make build
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - build
+
+push_docker_latest:
+  extends: .base_docker_build
+  stage: publish
+  variables:
+    # Reuse the 'commit-$CI_COMMIT_SHORT_SHA' image built in `build_docker`
+    COGMENT_ACTIVITY_LOGGER_IMAGE_BUILD_CACHE: $CI_REGISTRY_IMAGE/build:commit-$CI_COMMIT_SHORT_SHA
+    COGMENT_ACTIVITY_LOGGER_IMAGE_BUILD: $CI_REGISTRY_IMAGE/build:latest
+    COGMENT_ACTIVITY_LOGGER_IMAGE: $CI_REGISTRY_IMAGE:latest
+  script:
+    - ./scripts/build_docker.sh
+    - docker push $COGMENT_ACTIVITY_LOGGER_IMAGE_BUILD
+    - docker push $COGMENT_ACTIVITY_LOGGER_IMAGE
+  only:
+    - main
+    - develop

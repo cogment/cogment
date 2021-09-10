@@ -1,0 +1,10 @@
+# Build output
+build
+
+# Test outputs
+raw_report.txt
+report.xml
+test_failed.txt
+
+# Downloaded / generated GRPC API
+grpcapi
