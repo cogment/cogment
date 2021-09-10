@@ -17,7 +17,7 @@ package hybrid
 import (
 	"fmt"
 
-	"github.com/cogment/model-registry/backend"
+	"github.com/cogment/cogment-model-registry/backend"
 )
 
 type hybridBackend struct {

@@ -17,10 +17,10 @@ package hybrid
 import (
 	"testing"
 
-	"github.com/cogment/model-registry/backend"
-	"github.com/cogment/model-registry/backend/db"
-	"github.com/cogment/model-registry/backend/fs"
-	"github.com/cogment/model-registry/backend/test"
+	"github.com/cogment/cogment-model-registry/backend"
+	"github.com/cogment/cogment-model-registry/backend/db"
+	"github.com/cogment/cogment-model-registry/backend/fs"
+	"github.com/cogment/cogment-model-registry/backend/test"
 	"github.com/stretchr/testify/assert"
 )
 

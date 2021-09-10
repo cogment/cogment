@@ -19,8 +19,8 @@ import (
 	"io"
 	"log"
 
-	"github.com/cogment/model-registry/backend"
-	grpcapi "github.com/cogment/model-registry/grpcapi/cogment/api"
+	"github.com/cogment/cogment-model-registry/backend"
+	grpcapi "github.com/cogment/cogment-model-registry/grpcapi/cogment/api"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

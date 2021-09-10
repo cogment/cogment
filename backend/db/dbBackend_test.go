@@ -17,8 +17,8 @@ package db
 import (
 	"testing"
 
-	"github.com/cogment/model-registry/backend"
-	"github.com/cogment/model-registry/backend/test"
+	"github.com/cogment/cogment-model-registry/backend"
+	"github.com/cogment/cogment-model-registry/backend/test"
 	"github.com/stretchr/testify/assert"
 )
 

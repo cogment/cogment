@@ -23,10 +23,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
-	"github.com/cogment/model-registry/backend/db"
-	"github.com/cogment/model-registry/backend/fs"
-	"github.com/cogment/model-registry/backend/hybrid"
-	"github.com/cogment/model-registry/grpcserver"
+	"github.com/cogment/cogment-model-registry/backend/db"
+	"github.com/cogment/cogment-model-registry/backend/fs"
+	"github.com/cogment/cogment-model-registry/backend/hybrid"
+	"github.com/cogment/cogment-model-registry/grpcserver"
 )
 
 func main() {

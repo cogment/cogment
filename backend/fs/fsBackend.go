@@ -25,7 +25,7 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/cogment/model-registry/backend"
+	"github.com/cogment/cogment-model-registry/backend"
 	"gopkg.in/yaml.v2"
 )
 

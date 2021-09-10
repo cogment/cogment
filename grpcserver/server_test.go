@@ -21,9 +21,9 @@ import (
 	"net"
 	"testing"
 
-	"github.com/cogment/model-registry/backend"
-	"github.com/cogment/model-registry/backend/db"
-	grpcapi "github.com/cogment/model-registry/grpcapi/cogment/api"
+	"github.com/cogment/cogment-model-registry/backend"
+	"github.com/cogment/cogment-model-registry/backend/db"
+	grpcapi "github.com/cogment/cogment-model-registry/grpcapi/cogment/api"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"

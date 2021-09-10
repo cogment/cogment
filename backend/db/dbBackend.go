@@ -23,7 +23,7 @@ import (
 	"path"
 	"time"
 
-	"github.com/cogment/model-registry/backend"
+	"github.com/cogment/cogment-model-registry/backend"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"

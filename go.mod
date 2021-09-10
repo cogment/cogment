@@ -1,4 +1,4 @@
-module github.com/cogment/model-registry
+module github.com/cogment/cogment-model-registry
 
 go 1.16
 
