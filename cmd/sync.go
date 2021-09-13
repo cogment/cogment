@@ -72,7 +72,7 @@ var syncCmd = &cobra.Command{
 			if file.Name() == "cogment.yaml" {
 				hasCogmentYaml = true
 			}
-			if file.IsDir() {
+			if file.IsDir() && !strings.HasPrefix(file.Name(), ".") {
 				directories = append(directories, file.Name())
 			}
 		}
