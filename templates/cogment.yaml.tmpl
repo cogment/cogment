@@ -4,16 +4,28 @@ import:
     - data.proto
 
 commands:
-  generate: >
-    cogment generate
+  sync: >
+    cogment sync
     {{- if $config.WebClient }}
-    --js_dir web-client {{ if $config.Typescript }}--typescript{{ end }}
+    web-client
     {{- end }}
-    --python_dir environment
-    --python_dir client
+    environment
+    client
     {{- range .ListServiceActorServices }}
-    --python_dir {{.Name|snakeify}}
+    {{.Name|snakeify}}
     {{- end }}
+
+  generate: |
+    cogment run sync
+    {{- if $config.WebClient }}
+    cd web-client && npx cogment-js-sdk generate && cd ../
+    {{- end }}
+    cd environment && pip install cogment && python -m cogment.generate && cd ../
+    cd client && pip install cogment && python -m cogment.generate && cd ../
+    {{- range .ListServiceActorServices }}
+    cd {{.Name|snakeify}} && pip install cogment && python -m cogment.generate && cd ../
+    {{- end }}
+  
   build: docker-compose build orchestrator metrics dashboard client environment{{ range .ListServiceActorServices }} {{.Name|kebabify}}{{end}}{{ if $config.WebClient }} web-client{{ end }}
   dashboard: docker-compose up --build dashboard
   start: docker-compose up orchestrator metrics dashboard environment{{ range .ListServiceActorServices }} {{.Name|kebabify}}{{end}}{{ if $config.WebClient }} web-client{{ end }}
