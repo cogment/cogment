@@ -23,6 +23,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/fatih/color"
 	"github.com/golang/protobuf/proto"
 	"github.com/spf13/cobra"
 	"google.golang.org/protobuf/reflect/protodesc"
@@ -84,11 +85,13 @@ var generateCmd = &cobra.Command{
 		return err
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
+		color.Yellow("Command 'generate' is deprecated. Please use cogment sync folder1 folder2 folder3, then generate your language proto files with each respective sdk")
 		err := runGenerateCmd(cmd)
 		if err != nil {
 			return err
 		}
 		logger.Info("Files have been generated")
+		color.Yellow("Command 'generate' is deprecated. Please use cogment sync folder1 folder2 folder3, then generate your language proto files with each respective sdk")
 		return nil
 	},
 }

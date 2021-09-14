@@ -5,6 +5,7 @@ go 1.15
 require (
 	github.com/bradleyjkemp/cupaloy v2.3.0+incompatible
 	github.com/codeskyblue/dockerignore v0.0.0-20151214070507-de82dee623d9
+	github.com/fatih/color v1.12.0
 	github.com/go-resty/resty/v2 v2.0.0
 	github.com/golang/protobuf v1.4.0-rc.4
 	github.com/imdario/mergo v0.3.11
@@ -19,7 +20,6 @@ require (
 	github.com/stretchr/testify v1.4.0
 	go.uber.org/zap v1.16.0
 	golang.org/x/net v0.0.0-20190827160401-ba9fcec4b297 // indirect
-	golang.org/x/sys v0.0.0-20191026070338-33540a1f6037 // indirect
 	golang.org/x/text v0.3.2 // indirect
 	google.golang.org/protobuf v1.20.1
 	gopkg.in/yaml.v2 v2.3.0
