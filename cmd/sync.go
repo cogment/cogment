@@ -65,10 +65,6 @@ var syncCmd = &cobra.Command{
 	Use:   "sync dir1 dir2 dir3",
 	Short: "Sync settings and proto files",
 	RunE: func(cmd *cobra.Command, args []string) error {
-
-		protoFiles := []string{}
-		directories := []string{}
-
 		config, err := api.CreateProjectConfigFromYaml("cogment.yaml")
 		if err != nil {
 			return fmt.Errorf("Not a cogment project! %v", err)
@@ -79,10 +75,10 @@ var syncCmd = &cobra.Command{
 			return err
 		}
 
+		protoFiles := config.Import.Proto
+		directories := []string{}
+
 		for _, file := range files {
-			if strings.HasSuffix(file.Name(), ".proto") && !file.IsDir() && contains(config.Import.Proto, file.Name()) {
-				protoFiles = append(protoFiles, file.Name())
-			}
 			if file.IsDir() && !strings.HasPrefix(file.Name(), ".") {
 				directories = append(directories, file.Name())
 			}
