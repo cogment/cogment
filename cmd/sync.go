@@ -22,6 +22,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/cogment/cogment-cli/api"
 	"github.com/spf13/cobra"
 )
 
@@ -50,15 +51,28 @@ func copy(src, dst string) (int64, error) {
 	return nBytes, err
 }
 
+func contains(s []string, e string) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}
+
 // generateCmd represents the generate command
 var syncCmd = &cobra.Command{
 	Use:   "sync dir1 dir2 dir3",
 	Short: "Sync settings and proto files",
 	RunE: func(cmd *cobra.Command, args []string) error {
 
-		hasCogmentYaml := false
 		protoFiles := []string{}
 		directories := []string{}
+
+		config, err := api.CreateProjectConfigFromYaml("cogment.yaml")
+		if err != nil {
+			return fmt.Errorf("Not a cogment project! %v", err)
+		}
 
 		files, err := ioutil.ReadDir(".")
 		if err != nil {
@@ -66,11 +80,8 @@ var syncCmd = &cobra.Command{
 		}
 
 		for _, file := range files {
-			if strings.HasSuffix(file.Name(), ".proto") && !file.IsDir() {
+			if strings.HasSuffix(file.Name(), ".proto") && !file.IsDir() && contains(config.Import.Proto, file.Name()) {
 				protoFiles = append(protoFiles, file.Name())
-			}
-			if file.Name() == "cogment.yaml" {
-				hasCogmentYaml = true
 			}
 			if file.IsDir() && !strings.HasPrefix(file.Name(), ".") {
 				directories = append(directories, file.Name())
@@ -90,10 +101,6 @@ var syncCmd = &cobra.Command{
 
 		if len(outputDirectories) == 0 {
 			return fmt.Errorf("You must provide at least one directory to sync")
-		}
-
-		if !hasCogmentYaml {
-			return fmt.Errorf("Not a cogment project!")
 		}
 
 		for _, directory := range outputDirectories {
