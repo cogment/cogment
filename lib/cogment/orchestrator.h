@@ -34,6 +34,7 @@
 #include <thread>
 
 namespace cogment {
+
 class Orchestrator {
 public:
   using HandlerFunction = std::function<void(const Trial& trial)>;
@@ -42,6 +43,8 @@ public:
                std::shared_ptr<grpc::ChannelCredentials> creds, prometheus::Registry* metrics_registry);
   ~Orchestrator();
 
+  void Version(cogmentAPI::VersionInfo* out);
+
   // Initialization
   using HookEntryType = std::shared_ptr<StubPool<cogmentAPI::TrialHooksSP>::Entry>;
   void add_prehook(const HookEntryType& prehook);
@@ -49,10 +52,6 @@ public:
 
   // Lifecycle
   std::shared_ptr<Trial> start_trial(cogmentAPI::TrialParams params, const std::string& user_id);
-
-  // Client API
-  cogmentAPI::TrialJoinReply client_joined(const cogmentAPI::TrialJoinRequest&);
-  grpc::Status bind_client(const std::string& trial_id, const std::string& actor_name, Client_actor::StreamType* stream);
 
   // Services
   ActorService* actor_service() { return &m_actor_service; }
@@ -117,5 +116,7 @@ private:
   std::promise<void> m_watchtrial_prom;
   std::shared_future<void> m_watchtrial_fut;
 };
+
 }  // namespace cogment
+
 #endif

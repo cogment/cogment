@@ -16,7 +16,6 @@
 #define AOM_ORCHESTRATOR_AGENT_ACTOR_H
 
 #include "cogment/actor.h"
-#include "cogment/api/agent.grpc.pb.h"
 #include "cogment/stub_pool.h"
 
 #include <optional>
@@ -25,13 +24,16 @@ namespace cogment {
 
 class Trial;
 
-class Agent : public Actor {
+// TODO: See what common aspects (with 'ClientActor') could be moved to 'Actor'
+class ServiceActor : public Actor {
 public:
   using StubEntryType = std::shared_ptr<StubPool<cogmentAPI::ServiceActorSP>::Entry>;
-  Agent(Trial* owner, const std::string& actor_name, const ActorClass* actor_class, const std::string& impl,
+  using StreamType = grpc::ClientReaderWriter<cogmentAPI::ActorRunTrialInput, cogmentAPI::ActorRunTrialOutput>;
+
+  ServiceActor(Trial* owner, const std::string& actor_name, const ActorClass* actor_class, const std::string& impl,
         StubEntryType stub_entry, std::optional<std::string> config_data);
 
-  ~Agent();
+  ~ServiceActor();
 
   std::future<void> init() override;
   bool is_active() const override;
@@ -44,24 +46,21 @@ protected:
   void dispatch_final_data(cogmentAPI::ActorPeriodData&& data) override;
 
 private:
-  void process_communication_state(cogmentAPI::CommunicationState in_state, const std::string* details);
-  void process_incoming_data(cogmentAPI::ServiceActorRunOutput&& data);
+  void write_to_stream(cogmentAPI::ActorRunTrialInput&& data);
+  void process_incoming_data(cogmentAPI::ActorRunTrialOutput&& data);
 
   StubEntryType m_stub_entry;
 
   cogmentAPI::Action m_latest_action;
-  std::optional<std::string> m_config_data;
 
   std::promise<void> m_init_prom;
-  std::unique_ptr<grpc::ClientReaderWriter<cogmentAPI::ServiceActorRunInput, cogmentAPI::ServiceActorRunOutput>> m_stream;
+  std::unique_ptr<StreamType> m_stream;
+  bool m_stream_valid;
   grpc::ClientContext m_context;
   std::thread m_incoming_thread;
 
-  std::string m_impl;
-
-  // Communication
-  bool m_last_sent;
   bool m_init_completed;
+  mutable std::mutex m_writing;
 };
 
 }  // namespace cogment

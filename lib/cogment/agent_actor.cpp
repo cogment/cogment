@@ -23,31 +23,33 @@
 
 namespace cogment {
 
-Agent::Agent(Trial* owner, const std::string& in_actor_name, const ActorClass* actor_class, const std::string& impl,
+ServiceActor::ServiceActor(Trial* owner, const std::string& in_actor_name, const ActorClass* actor_class, const std::string& impl,
              StubEntryType stub_entry, std::optional<std::string> config_data) :
-    Actor(owner, in_actor_name, actor_class),
+    Actor(owner, in_actor_name, actor_class, impl, config_data),
     m_stub_entry(std::move(stub_entry)),
-    m_config_data(std::move(config_data)),
-    m_impl(impl),
-    m_last_sent(false),
+    m_stream_valid(false),
     m_init_completed(false) {
-  SPDLOG_TRACE("Agent(): [{}] [{}] [{}]", trial()->id(), actor_name(), impl);
+  SPDLOG_TRACE("ServiceActor(): [{}] [{}] [{}]", trial()->id(), actor_name(), impl);
 
   m_context.AddMetadata("trial-id", trial()->id());
-  m_context.AddMetadata("actor-name", actor_name());
 
-  // TODO: Move this out of the constructor and in its own thread to wait for the stream init without blocking.
-  //       But then we'll need to synchonize with other parts.
+  // TODO: Move this out of the constructor (maybe in init) and in its own thread to wait
+  //       for the stream init without blocking. But then we'll need to synchonize with other parts.
   m_stream = m_stub_entry->get_stub().RunTrial(&m_context);
+  m_stream_valid = true;
 
   m_incoming_thread = std::thread([this]() {
     try {
-      cogmentAPI::ServiceActorRunOutput data;
+      cogmentAPI::ActorRunTrialOutput data;
       while(m_stream->Read(&data)) {
         process_incoming_data(std::move(data));
+        if (!m_stream_valid) {
+          break;
+        }
       }
-      SPDLOG_TRACE("Trial [{}]: Service actor [{}] finished reading stream", trial()->id(), actor_name());
+      SPDLOG_TRACE("Trial [{}] - Service actor [{}] finished reading stream (valid [{}])", trial()->id(), actor_name(), m_stream_valid);
     }
+    // TODO: Look into a way to cancel the stream immediately here (in case of exception in process_incoming_data)
     catch(const std::exception& exc) {
       spdlog::error("Trial [{}] - Service actor [{}]: Error reading stream [{}]", trial()->id(), actor_name(), exc.what());
     }
@@ -57,8 +59,8 @@ Agent::Agent(Trial* owner, const std::string& in_actor_name, const ActorClass* a
   });
 }
 
-Agent::~Agent() {
-  SPDLOG_TRACE("~Agent(): [{}] [{}]", trial()->id(), actor_name());
+ServiceActor::~ServiceActor() {
+  SPDLOG_TRACE("~ServiceActor(): [{}] [{}]", trial()->id(), actor_name());
 
   m_stream->Finish();
   if (!m_init_completed) {
@@ -68,116 +70,80 @@ Agent::~Agent() {
   m_incoming_thread.join();
 }
 
-void Agent::trial_ended(std::string_view details) {
-  cogmentAPI::ServiceActorRunInput data;
+void ServiceActor::write_to_stream(cogmentAPI::ActorRunTrialInput&& data) {
+  const std::lock_guard<std::mutex> lg(m_writing);
+  if (m_stream_valid) {
+    m_stream->Write(std::move(data));
+  }
+  else {
+    throw MakeException("Trial [%s] - Actor [%s] stream has closed", trial()->id().c_str(), actor_name().c_str());
+  }
+}
+
+void ServiceActor::trial_ended(std::string_view details) {
+  cogmentAPI::ActorRunTrialInput data;
   data.set_state(cogmentAPI::CommunicationState::END);
   if (details.size() > 0) {
     data.set_details(details.data(), details.size());
   }
   m_stream->Write(data);
+  SPDLOG_DEBUG("Trial [{}] - Actor [{}] 'END' sent", trial()->id(), actor_name());
+
   m_stream->WritesDone();
+  m_stream_valid = false;
 }
 
-void Agent::process_communication_state(cogmentAPI::CommunicationState in_state, const std::string* details) {
-  switch(in_state) {
-    case cogmentAPI::UNKNOWN_COM_STATE:
-      if (details != nullptr) {
-        throw MakeException<std::invalid_argument>("Unknown communication state: [%s]", details->c_str());
-      } else {
-        throw MakeException<std::invalid_argument>("Unknown communication state");
-      }
-      break;
-    case cogmentAPI::CommunicationState::NORMAL:
-      if (details != nullptr) {
-        spdlog::info("Communication details received from service actor: [{}]", *details);
-      } else {
-        spdlog::warn("No data in normal communication received from service actor");
-      }
-      break;
-    case cogmentAPI::CommunicationState::HEARTBEAT:
-      if (details != nullptr) {
-        spdlog::info("Heartbeat requested from service actor: [{}]", *details);
-      }
-      // TODO : manage heartbeats
-      break;
-    case cogmentAPI::CommunicationState::LAST:
-      if (details != nullptr) {
-        spdlog::error("Unexpected communication state (LAST) received from service actor: [{}]", *details);
-      } else {
-        spdlog::error("Unexpected communication state (LAST) received from service actor");
-      }
-      break;
-    case cogmentAPI::CommunicationState::LAST_ACK:
-      if (!m_last_sent) {
-        if (details != nullptr) {
-          spdlog::error("Unexpected reception of communication state (LAST_ACK) from service actor: [{}]", *details);
-        } else {
-          spdlog::error("Unexpected reception of communication state (LAST_ACK) from service actor");
-        }
-      }
-      ack_last();
-      break;
-    case cogmentAPI::CommunicationState::END:
-      // TODO: Decide what to do about "END" received from actors
-      if (details != nullptr) {
-        spdlog::error("Unexpected communication state (END) received from service actor: [{}]", *details);
-      } else {
-        spdlog::error("Unexpected communication state (END) received from service actor");
-      }
-      break;
-
-    default:
-      throw MakeException<std::invalid_argument>("Invalid communication state: [%d]", 
-                                                 static_cast<int>(in_state));
-      break;
-  }
-
-}
-
-void Agent::process_incoming_data(cogmentAPI::ServiceActorRunOutput&& data) {
+void ServiceActor::process_incoming_data(cogmentAPI::ActorRunTrialOutput&& data) {
   SPDLOG_TRACE("Trial [{}] - Service actor [{}]: Processing incoming data", trial()->id(), actor_name());
 
   const auto state = data.state();
   const auto data_case = data.data_case();
   switch (data_case) {
-  case cogmentAPI::ServiceActorRunOutput::kInitOutput: {
-    if (state != cogmentAPI::CommunicationState::NORMAL) {
+  case cogmentAPI::ActorRunTrialOutput::kInitOutput: {
+    if (state == cogmentAPI::CommunicationState::NORMAL) {
+      // TODO: Should we have a timer for this reply?
+      m_init_prom.set_value();
+      m_init_completed = true;
+    }
+    else {
       throw MakeException<std::invalid_argument>("'init_output' received from service actor on non-normal communication");
     }
     SPDLOG_DEBUG("Trial [{}] - Service actor [{}] init complete", trial()->id(), actor_name());
-
-    // TODO: Should we have a timer for this reply?
-    m_init_prom.set_value();
-    m_init_completed = true;
     break;
   }
-  case cogmentAPI::ServiceActorRunOutput::kAction: {
-    if (state != cogmentAPI::CommunicationState::NORMAL) {
+  case cogmentAPI::ActorRunTrialOutput::kAction: {
+    if (state == cogmentAPI::CommunicationState::NORMAL) {
+      trial()->actor_acted(actor_name(), data.action());
+    }
+    else {
       throw MakeException<std::invalid_argument>("'action' received on from service actor on non-normal communication");
     }
-    trial()->actor_acted(actor_name(), data.action());
     break;
   }
-  case cogmentAPI::ServiceActorRunOutput::kReward: {
-    if (state != cogmentAPI::CommunicationState::NORMAL) {
+  case cogmentAPI::ActorRunTrialOutput::kReward: {
+    if (state == cogmentAPI::CommunicationState::NORMAL) {
+      trial()->reward_received(data.reward(), actor_name());
+    }
+    else {
       throw MakeException<std::invalid_argument>("'reward' received from service actor on non-normal communication");
     }
-    trial()->reward_received(data.reward(), actor_name());
     break;
   }
-  case cogmentAPI::ServiceActorRunOutput::kMessage: {
-    if (state != cogmentAPI::CommunicationState::NORMAL) {
+  case cogmentAPI::ActorRunTrialOutput::kMessage: {
+    if (state == cogmentAPI::CommunicationState::NORMAL) {
+      trial()->message_received(data.message(), actor_name());
+    }
+    else {
       throw MakeException<std::invalid_argument>("'message' received from service actor on non-normal communication");
     }
-    trial()->message_received(data.message(), actor_name());
     break;
   }
-  case cogmentAPI::ServiceActorRunOutput::kDetails: {
-    process_communication_state(state, &data.details());
+  case cogmentAPI::ActorRunTrialOutput::kDetails: {
+    process_incoming_state(state, &data.details());
     break;
   }
-  case cogmentAPI::ServiceActorRunOutput::DATA_NOT_SET: {
-    process_communication_state(state, nullptr);
+  case cogmentAPI::ActorRunTrialOutput::DATA_NOT_SET: {
+    process_incoming_state(state, nullptr);
     break;
   }
   default: {
@@ -187,46 +153,47 @@ void Agent::process_incoming_data(cogmentAPI::ServiceActorRunOutput&& data) {
   }
 }
 
-std::future<void> Agent::init() {
-  SPDLOG_TRACE("Trial [{}] - Agent::init(): [{}]", trial()->id(), actor_name());
+std::future<void> ServiceActor::init() {
+  SPDLOG_TRACE("Trial [{}] - ServiceActor::init(): [{}]", trial()->id(), actor_name());
 
-  cogmentAPI::ServiceActorRunInput input;
-  input.set_state(cogmentAPI::CommunicationState::NORMAL);
+  cogmentAPI::ActorRunTrialInput msg;
+  msg.set_state(cogmentAPI::CommunicationState::NORMAL);
 
-  cogmentAPI::ServiceActorInitialInput init_input;
+  cogmentAPI::ActorInitialInput init_input;
+  init_input.set_actor_name(actor_name());
   init_input.set_actor_class(actor_class()->name);
-  init_input.set_impl_name(m_impl);
-  if (m_config_data) {
-    init_input.mutable_config()->set_content(m_config_data.value());
+  init_input.set_impl_name(impl());
+  if (config()) {
+    init_input.mutable_config()->set_content(config().value());
   }
-  *(input.mutable_init_input()) = std::move(init_input);
-  m_stream->Write(input);
+  *(msg.mutable_init_input()) = std::move(init_input);
+  write_to_stream(std::move(msg));
 
   return m_init_prom.get_future();
 }
 
-void Agent::dispatch_observation(cogmentAPI::Observation&& observation) {
-  cogmentAPI::ServiceActorRunInput input;
-  input.set_state(cogmentAPI::CommunicationState::NORMAL);
-  *(input.mutable_observation()) = std::move(observation);
-  m_stream->Write(input);
+void ServiceActor::dispatch_observation(cogmentAPI::Observation&& observation) {
+  cogmentAPI::ActorRunTrialInput msg;
+  msg.set_state(cogmentAPI::CommunicationState::NORMAL);
+  *(msg.mutable_observation()) = std::move(observation);
+  write_to_stream(std::move(msg));
 }
 
-void Agent::dispatch_reward(cogmentAPI::Reward&& reward) {
-  cogmentAPI::ServiceActorRunInput input;
-  input.set_state(cogmentAPI::CommunicationState::NORMAL);
-  *(input.mutable_reward()) = std::move(reward);
-  m_stream->Write(input);
+void ServiceActor::dispatch_reward(cogmentAPI::Reward&& reward) {
+  cogmentAPI::ActorRunTrialInput msg;
+  msg.set_state(cogmentAPI::CommunicationState::NORMAL);
+  *(msg.mutable_reward()) = std::move(reward);
+  write_to_stream(std::move(msg));
 }
 
-void Agent::dispatch_message(cogmentAPI::Message&& message) {
-  cogmentAPI::ServiceActorRunInput input;
-  input.set_state(cogmentAPI::CommunicationState::NORMAL);
-  *(input.mutable_message()) = std::move(message);
-  m_stream->Write(input);
+void ServiceActor::dispatch_message(cogmentAPI::Message&& message) {
+  cogmentAPI::ActorRunTrialInput msg;
+  msg.set_state(cogmentAPI::CommunicationState::NORMAL);
+  *(msg.mutable_message()) = std::move(message);
+  write_to_stream(std::move(msg));
 }
 
-void Agent::dispatch_final_data(cogmentAPI::ActorPeriodData&& data) {
+void ServiceActor::dispatch_final_data(cogmentAPI::ActorPeriodData&& data) {
   for (auto& rew : *data.mutable_rewards()) {
     dispatch_reward(std::move(rew));
   }
@@ -243,16 +210,17 @@ void Agent::dispatch_final_data(cogmentAPI::ActorPeriodData&& data) {
     last_obs = &obs;
   }
   if (last_obs != nullptr) {
-    cogmentAPI::ServiceActorRunInput input;
-    input.set_state(cogmentAPI::CommunicationState::LAST);
-    m_stream->Write(input);
-    m_last_sent = true;
+    cogmentAPI::ActorRunTrialInput msg;
+    msg.set_state(cogmentAPI::CommunicationState::LAST);
+    write_to_stream(std::move(msg));
+    SPDLOG_DEBUG("Trial [{}] - Actor [{}] 'LAST' sent", trial()->id(), actor_name());
+    last_sent();
 
     dispatch_observation(std::move(*last_obs));
   }
 }
 
-bool Agent::is_active() const {
+bool ServiceActor::is_active() const {
   // Actors driven by agent services are always active since
   // they are driven by the orchestrator itself.
   return true;

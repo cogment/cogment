@@ -20,7 +20,6 @@
 
 #include "cogment/orchestrator.h"
 #include "cogment/utils.h"
-#include "cogment/versions.h"
 
 #include <bitset>
 
@@ -70,7 +69,7 @@ grpc::Status TrialLifecycleService::TerminateTrial(grpc::ServerContext* ctx, con
     auto trial = m_orchestrator->get_trial(trial_id);
     if (trial != nullptr) {
       spdlog::info("Trial [{}] - Termination externally requested", trial_id);
-      trial->terminate();
+      trial->finish();
     }
     else {
       return MakeErrorStatus("Trial [%s] does not exist", trial_id.c_str());
@@ -169,13 +168,7 @@ grpc::Status TrialLifecycleService::Version(grpc::ServerContext*, const cogmentA
   SPDLOG_TRACE("Version()");
 
   try {
-    auto ver = out->add_versions();
-    ver->set_name("orchestrator");
-    ver->set_version(COGMENT_ORCHESTRATOR_VERSION);
-
-    ver = out->add_versions();
-    ver->set_name("cogment-api");
-    ver->set_version(COGMENT_API_VERSION);
+    m_orchestrator->Version(out);
   }
   catch(const std::exception& exc) {
     return MakeErrorStatus("Version failure on exception [%s]", exc.what());

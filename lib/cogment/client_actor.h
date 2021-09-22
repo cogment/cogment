@@ -25,45 +25,49 @@
 namespace cogment {
 
 class Trial;
-class Client_actor : public Actor {
-public:
-  using StreamType = grpc::ServerReaderWriter<cogmentAPI::TrialActionReply, cogmentAPI::TrialActionRequest>;
 
-  Client_actor(Trial* owner, const std::string& actor_name, const ActorClass* actor_class,
+// TODO: See what common aspects (with 'ServiceActor') could be moved to 'Actor'
+class ClientActor : public Actor {
+public:
+  using StreamType = grpc::ServerReaderWriter<cogmentAPI::ActorRunTrialInput, cogmentAPI::ActorRunTrialOutput>;
+
+  ClientActor(Trial* owner, const std::string& actor_name, const ActorClass* actor_class, const std::string& impl,
                std::optional<std::string> config_data);
 
-  ~Client_actor();
+  ~ClientActor();
 
   std::future<void> init() override;
   bool is_active() const override;
   void trial_ended(std::string_view details) override;
 
-  // Indicate that a client has claimed this actor
-  std::optional<std::string> join();
-  grpc::Status bind(StreamType* stream);
+  static grpc::Status run_an_actor(std::weak_ptr<Trial> trial, StreamType* stream);
 
 protected:
   void dispatch_observation(cogmentAPI::Observation&& obs) override;
-  void dispatch_final_data(cogmentAPI::ActorPeriodData&& data) override;
+  void dispatch_final_data(cogmentAPI::ActorPeriodData&& data) override;  // TODO: Refactor this for API2.0
   void dispatch_reward(cogmentAPI::Reward&& reward) override;
   void dispatch_message(cogmentAPI::Message&& message) override;
 
 private:
+  grpc::Status run(StreamType* stream);
+  void process_incoming_data(cogmentAPI::ActorRunTrialOutput&& data);
   void finish_stream();
-
-  bool m_joined;
+  void write_to_stream(cogmentAPI::ActorRunTrialInput&& data);
 
   cogmentAPI::Action m_latest_action;
-  std::optional<std::string> m_config_data;
 
   StreamType* m_stream;
+  bool m_stream_valid;
   std::thread m_incoming_thread;
 
   std::promise<void> m_ready_prom;
   std::promise<void> m_finished_prom;
   std::future<void> m_finished_fut;
   grpc::Status m_incoming_stream_status;
+
   std::mutex m_finishing_mutex;
+  mutable std::mutex m_active_mutex;
+  mutable std::mutex m_writing;
 };
 }  // namespace cogment
 #endif

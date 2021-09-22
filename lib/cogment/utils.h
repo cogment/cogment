@@ -23,6 +23,7 @@
 grpc::Status MakeErrorStatus(const char* format, ...);
 uint64_t Timestamp();
 
+// TODO: Make a specific cogment exception for all internally generated exceptions
 template <class EXC = std::runtime_error>
 EXC MakeException(const char* format, ...) {
   static constexpr std::size_t BUF_SIZE = 256;

@@ -36,7 +36,7 @@
 
 namespace cogment {
 class Orchestrator;
-class Client_actor;
+class ClientActor;
 class DatalogService;
 
 // TODO: Make Trial independent of orchestrator (to remove any chance of circular reference)
@@ -81,13 +81,12 @@ public:
   void start(cogmentAPI::TrialParams params);
   const cogmentAPI::TrialParams& params() const { return m_params; }
 
-  // returns either a valid actor for the given request, or nullptr if none can be found
-  Client_actor* get_join_candidate(const cogmentAPI::TrialJoinRequest& req);
+  ClientActor* get_join_candidate(const std::string& actor_name, const std::string& actor_class) const;
 
-  // Ends the trial. terminate() will hold a shared_ptr to the trial until
+  // Ends the trial. finish() will hold a shared_ptr to the trial until
   // termination is complete, so it's safe to let go of the trial once
   // this has been called.
-  void terminate();
+  void finish();
 
   // Primarily used to determine garbage collection elligibility.
   bool is_stale() const;
@@ -117,6 +116,8 @@ private:
   void run_environment();
   cogmentAPI::EnvActionRequest make_action_request();
   void dispatch_env_messages();
+  void send_env_end();
+  void finalize_actors();
   std::vector<Actor*> get_all_actors(const std::string& name);
   bool for_actors(const std::string& pattern, const std::function<void(Actor*)>& func);
 
@@ -140,6 +141,7 @@ private:
   std::shared_ptr<cogment::StubPool<cogmentAPI::EnvironmentSP>::Entry> m_env_entry;
 
   InternalState m_state;
+  bool m_env_last_obs;
   uint64_t m_tick_id;
   const uint64_t m_start_timestamp;
   uint64_t m_end_timestamp;

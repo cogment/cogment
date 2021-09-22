@@ -18,6 +18,7 @@
 
 #include "cogment/orchestrator.h"
 #include "cogment/utils.h"
+#include "cogment/versions.h"
 
 #include "slt/settings.h"
 #include "spdlog/spdlog.h"
@@ -61,7 +62,7 @@ Orchestrator::Orchestrator(Trial_spec trial_spec, cogmentAPI::TrialParams defaul
         if (trial == nullptr) {
           return;
         }
-        SPDLOG_TRACE("Trial [{}]: deleting...", trial->id());
+        SPDLOG_TRACE("Trial [{}] - deleting...", trial->id());
         trial.reset();  // Not really necessary, but clarifies intent
       }
       catch (const std::exception& exc) {
@@ -151,71 +152,6 @@ std::shared_ptr<Trial> Orchestrator::start_trial(cogmentAPI::TrialParams params,
   return new_trial;
 }
 
-cogmentAPI::TrialJoinReply Orchestrator::client_joined(const cogmentAPI::TrialJoinRequest& req) {
-  Client_actor* joined_as_actor = nullptr;
-
-  cogmentAPI::TrialJoinReply result;
-
-  if (req.trial_id() != "") {
-    const std::lock_guard lg(m_trials_mutex);
-
-    auto trial_itor = m_trials.find(req.trial_id());
-    if (trial_itor != m_trials.end()) {
-      joined_as_actor = trial_itor->second->get_join_candidate(req);
-    }
-    else {
-      throw MakeException("Could not find trial [%s] to join", req.trial_id().c_str());
-    }
-  }
-  else {
-    // TODO: Should we allow this?  I.e. finding a trial because no trial id was given!
-    //       If so, we need to fix this not to use exceptions in a "normal" run.
-
-    const std::lock_guard lg(m_trials_mutex);
-    for (auto& candidate_trial : m_trials) {
-      try {
-        joined_as_actor = candidate_trial.second->get_join_candidate(req);
-        break;
-      }
-      catch(...) {}
-    }
-
-    if (joined_as_actor == nullptr) {
-      throw MakeException("Could not find a trial to join");
-    }
-  }
-
-  auto config_data = joined_as_actor->join();
-  if (config_data) {
-    result.mutable_config()->set_content(config_data.value());
-  }
-  result.set_actor_name(joined_as_actor->actor_name());
-  result.set_trial_id(joined_as_actor->trial()->id());
-
-  for (const auto& actor : joined_as_actor->trial()->actors()) {
-    auto actor_in_trial = result.add_actors_in_trial();
-    actor_in_trial->set_actor_class(actor->actor_class()->name);
-    actor_in_trial->set_name(actor->actor_name());
-  }
-
-  return result;
-}
-
-grpc::Status Orchestrator::bind_client(const std::string& trial_id, const std::string& actor_name, Client_actor::StreamType* stream) {
-  auto trial = get_trial(trial_id);
-  if (trial == nullptr) {
-    throw MakeException("Unknown trial to bind [%s]", std::string(trial_id).c_str());
-  }
-
-  auto actor = dynamic_cast<Client_actor*>(trial->actor(actor_name).get());
-
-  if (actor == nullptr) {
-    throw MakeException("Attempting to bind a service-driven actor [%s]", actor_name.c_str());
-  }
-
-  return actor->bind(stream);  // Blocking
-}
-
 void Orchestrator::add_prehook(const HookEntryType& hook) { m_prehooks.push_back(hook); }
 
 cogmentAPI::PreTrialContext Orchestrator::m_perform_pre_hooks(cogmentAPI::PreTrialContext&& data, const std::string& trial_id) {
@@ -263,7 +199,7 @@ void Orchestrator::m_perform_garbage_collection() {
   // We don't go as far as with the deleted trials because stale trials should be rare.
   for (auto trial : stale_trials) {
     spdlog::warn("Trial [{}] - Terminating because inactive for too long", trial->id());
-    trial->terminate();
+    trial->finish();
   }
 
   SPDLOG_TRACE("Garbage collection done");
@@ -316,4 +252,15 @@ void Orchestrator::notify_watchers(const Trial& trial) {
   }
 }
 
+void Orchestrator::Version(cogmentAPI::VersionInfo* out) {
+  SPDLOG_TRACE("Orchestrator::Version()");
+
+  auto ver = out->add_versions();
+  ver->set_name("orchestrator");
+  ver->set_version(COGMENT_ORCHESTRATOR_VERSION);
+
+  ver = out->add_versions();
+  ver->set_name("cogment-api");
+  ver->set_version(COGMENT_API_VERSION);
+}
 }  // namespace cogment

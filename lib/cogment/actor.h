@@ -42,16 +42,19 @@ public:
   using SrcAccumulator = std::vector<cogmentAPI::RewardSource>;
   using RewAccumulator = std::map<uint64_t, SrcAccumulator>;
 
-  Actor(Trial* trial, const std::string& actor_name, const ActorClass* actor_class);
+  Actor(Trial* trial, const std::string& actor_name, const ActorClass* actor_class, const std::string& impl,
+                           std::optional<std::string> config_data);
   virtual ~Actor();
 
   virtual std::future<void> init() = 0;
   virtual bool is_active() const = 0;
   virtual void trial_ended(std::string_view details) = 0;
 
-  Trial* trial() const;
-  const std::string& actor_name() const;
-  const ActorClass* actor_class() const;
+  Trial* trial() const { return m_trial; }
+  const std::string& actor_name() const { return m_actor_name; }
+  const ActorClass* actor_class() const { return m_actor_class; }
+  const std::string& impl() const { return m_impl; }
+  const std::optional<std::string>& config() const { return m_config_data; }
 
   void add_immediate_reward_src(const cogmentAPI::RewardSource& source, const std::string& sender, uint64_t tick_id);
   void add_immediate_message(const cogmentAPI::Message& message, const std::string& source, uint64_t tick_id);
@@ -66,17 +69,22 @@ protected:
   virtual void dispatch_reward(cogmentAPI::Reward&& reward) = 0;
   virtual void dispatch_message(cogmentAPI::Message&& message) = 0;
 
-  void ack_last() { m_last_ack_prom.set_value(); }
+  void process_incoming_state(cogmentAPI::CommunicationState in_state, const std::string* details);
+  void last_sent() { m_last_sent = true; }
 
 private:
   Trial* m_trial;
   std::string m_actor_name;
   const ActorClass* m_actor_class;
+  std::string m_impl;
+  std::optional<std::string> m_config_data;
+
   std::mutex m_lock;
 
   RewAccumulator m_reward_accumulator;
   std::vector<cogmentAPI::Message> m_message_accumulator;
 
+  bool m_last_sent;
   std::promise<void> m_last_ack_prom;
 };
 

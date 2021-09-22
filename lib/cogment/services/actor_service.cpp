@@ -26,121 +26,39 @@
 #include <string>
 
 namespace cogment {
+
 ActorService::ActorService(Orchestrator* orch) : m_orchestrator(orch) {}
 
-grpc::Status ActorService::JoinTrial(grpc::ServerContext*, const cogmentAPI::TrialJoinRequest* in, cogmentAPI::TrialJoinReply* out) {
-  SPDLOG_TRACE("JoinTrial()");
-
-  try {
-    SPDLOG_TRACE("JoinTrial [{}]", in->DebugString());
-    *out = m_orchestrator->client_joined(*in);
-  }
-  catch(const std::exception& exc) {
-    return MakeErrorStatus("JoinTrial failure on exception [%s]", exc.what());
-  }
-  catch(...) {
-    return MakeErrorStatus("JoinTrial failure on unknown exception");
-  }
-
-  return grpc::Status::OK;
-}
-
-grpc::Status ActorService::ActionStream(grpc::ServerContext* ctx, grpc::ServerReaderWriter<cogmentAPI::TrialActionReply, cogmentAPI::TrialActionRequest>* stream) {
-  SPDLOG_TRACE("ActionStream()");
+grpc::Status ActorService::RunTrial(grpc::ServerContext* ctx, grpc::ServerReaderWriter<cogmentAPI::ActorRunTrialInput, cogmentAPI::ActorRunTrialOutput>* stream) {
+  SPDLOG_TRACE("ActorService::RunTrial()");
 
   try {
     auto& metadata = ctx->client_metadata();
     std::string trial_id(OneFromMetadata(metadata, "trial-id"));
-    std::string actor_name(OneFromMetadata(metadata, "actor-name"));
-    SPDLOG_TRACE("ActionStream [{}] [{}] [{}]", trial_id, actor_name, ctx->peer());
-
-    return m_orchestrator->bind_client(trial_id, actor_name, stream);  // Blocking
-  }
-  catch(const std::exception& exc) {
-    return MakeErrorStatus("ActionStream failure on exception [%s]", exc.what());
-  }
-  catch(...) {
-    return MakeErrorStatus("ActionStream failure on unknown exception");
-  }
-}
-
-grpc::Status ActorService::Heartbeat(grpc::ServerContext* ctx, const cogmentAPI::TrialHeartbeatRequest* in, cogmentAPI::TrialHeartbeatReply* out) {
-  return grpc::Status(grpc::StatusCode::UNIMPLEMENTED, "Heartbeat()");
-}
-
-grpc::Status ActorService::SendReward(grpc::ServerContext* ctx, const cogmentAPI::TrialRewardRequest* in, cogmentAPI::TrialRewardReply* out) {
-  SPDLOG_TRACE("SendReward()");
-
-  try {
-    auto& metadata = ctx->client_metadata();
-    std::string trial_id(OneFromMetadata(metadata, "trial-id"));
-    std::string actor_name(OneFromMetadata(metadata, "actor-name"));
-    SPDLOG_TRACE("SendReward [{}] [{}]", trial_id, actor_name);
+    SPDLOG_TRACE("ActorService::RunTrial [{}] [{}]", trial_id, ctx->peer());
 
     auto trial = m_orchestrator->get_trial(trial_id);
-    if (trial != nullptr) {
-      for (auto& rew : in->rewards()) {
-        trial->reward_received(rew, actor_name);
-      }
-    }
-    else {
-      return MakeErrorStatus("SendReward could not find trial [%s]", trial_id.c_str());
+    if (trial == nullptr) {
+      throw MakeException("Trial [%s] - Unknown trial for actor to join", trial_id.c_str());
     }
 
-    out->Clear();
+    std::weak_ptr<Trial> ptr(trial);
+    trial.reset();
+    return ClientActor::run_an_actor(ptr, stream);  // Blocking
   }
   catch(const std::exception& exc) {
-    return MakeErrorStatus("SendReward failure on exception [%s]", exc.what());
+    return MakeErrorStatus("ActorService::RunTrial failure on exception: %s", exc.what());
   }
   catch(...) {
-    return MakeErrorStatus("SendReward failure on unknown exception");
+    return MakeErrorStatus("ActorService::RunTrial failure on unknown exception");
   }
-
-  return grpc::Status::OK;
-}
-
-grpc::Status ActorService::SendMessage(grpc::ServerContext* ctx, const cogmentAPI::TrialMessageRequest* in, cogmentAPI::TrialMessageReply* out) {
-  SPDLOG_TRACE("SendMessage()");
-
-  try {
-    auto& metadata = ctx->client_metadata();
-    std::string trial_id(OneFromMetadata(metadata, "trial-id"));
-    std::string actor_name(OneFromMetadata(metadata, "actor-name"));
-    SPDLOG_TRACE("SendMessage [{}] [{}]", trial_id, actor_name);
-
-    auto trial = m_orchestrator->get_trial(trial_id);
-    if (trial != nullptr) {
-      for (auto& mess : in->messages()) {
-        trial->message_received(mess, actor_name);
-      }
-    }
-    else {
-      return MakeErrorStatus("SendMessage could not find trial [%s]", trial_id.c_str());
-    }
-
-    out->Clear();
-  }
-  catch(const std::exception& exc) {
-    return MakeErrorStatus("SendMessage failure on exception [%s]", exc.what());
-  }
-  catch(...) {
-    return MakeErrorStatus("SendMessage failure on unknown exception");
-  }
-
-  return grpc::Status::OK;
 }
 
 grpc::Status ActorService::Version(grpc::ServerContext*, const cogmentAPI::VersionRequest*, cogmentAPI::VersionInfo* out) {
   SPDLOG_TRACE("Version()");
 
   try {
-    auto ver = out->add_versions();
-    ver->set_name("orchestrator");
-    ver->set_version(COGMENT_ORCHESTRATOR_VERSION);
-
-    ver = out->add_versions();
-    ver->set_name("cogment-api");
-    ver->set_version(COGMENT_API_VERSION);
+    m_orchestrator->Version(out);
   }
   catch(const std::exception& exc) {
     return MakeErrorStatus("Version failure on exception [%s]", exc.what());

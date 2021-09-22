@@ -70,16 +70,16 @@ void process_rewards(cogment::Actor::RewAccumulator* rew_acc, const std::string&
 
 namespace cogment {
 
-Actor::Actor(Trial* trial, const std::string& actor_name, const ActorClass* actor_class) :
-    m_trial(trial), m_actor_name(actor_name), m_actor_class(actor_class) {}
+Actor::Actor(Trial* trial, const std::string& actor_name, const ActorClass* actor_class, const std::string& impl,
+                           std::optional<std::string> config_data) :
+    m_trial(trial),
+    m_actor_name(actor_name),
+    m_actor_class(actor_class),
+    m_impl(impl),
+    m_config_data(std::move(config_data)),
+    m_last_sent(false) {}
 
 Actor::~Actor() {}
-
-Trial* Actor::trial() const { return m_trial; }
-
-const std::string& Actor::actor_name() const { return m_actor_name; }
-
-const ActorClass* Actor::actor_class() const { return m_actor_class; }
 
 void Actor::add_immediate_reward_src(const cogmentAPI::RewardSource& source, const std::string& sender, uint64_t tick_id) {
   const std::lock_guard<std::mutex> lg(m_lock);
@@ -133,6 +133,64 @@ void Actor::dispatch_tick(cogmentAPI::Observation&& obs, bool final_tick) {
     *new_obs = std::move(obs);
 
     dispatch_final_data(std::move(data));
+  }
+}
+
+void Actor::process_incoming_state(cogmentAPI::CommunicationState in_state, const std::string* details) {
+  switch(in_state) {
+    case cogmentAPI::UNKNOWN_COM_STATE:
+      if (details != nullptr) {
+        throw MakeException<std::invalid_argument>("Unknown communication state: [%s]", details->c_str());
+      } else {
+        throw MakeException<std::invalid_argument>("Unknown communication state");
+      }
+      break;
+    case cogmentAPI::CommunicationState::NORMAL:
+      if (details != nullptr) {
+        spdlog::info("Trial [{}] - Actor [{}] Communication details received [{}]", trial()->id(), actor_name(), *details);
+      } else {
+        spdlog::warn("Trial [{}] - Actor [{}] No data in normal communication received", trial()->id(), actor_name());
+      }
+      break;
+    case cogmentAPI::CommunicationState::HEARTBEAT:
+      SPDLOG_TRACE("Trial [{}] - Actor [{}] 'HEARTBEAT' received", trial()->id(), actor_name());
+      if (details != nullptr) {
+        spdlog::info("Trial [{}] - Actor [{}] Heartbeat requested [{}]", trial()->id(), actor_name(), *details);
+      }
+      // TODO : manage heartbeats
+      break;
+    case cogmentAPI::CommunicationState::LAST:
+      if (details != nullptr) {
+        spdlog::error("Trial [{}] - Actor [{}] Unexpected communication state (LAST) received [{}]", trial()->id(), actor_name(), *details);
+      } else {
+        spdlog::error("Trial [{}] - Actor [{}] Unexpected communication state (LAST) received", trial()->id(), actor_name());
+      }
+      break;
+    case cogmentAPI::CommunicationState::LAST_ACK:
+      SPDLOG_DEBUG("Trial [{}] - Actor [{}] 'LAST_ACK' received", trial()->id(), actor_name());
+      if (!m_last_sent) {
+        if (details != nullptr) {
+          spdlog::error("Trial [{}] - Actor [{}] Unexpected communication state (LAST_ACK) received [{}]", trial()->id(), actor_name(), *details);
+        } else {
+          spdlog::error("Trial [{}] - Actor [{}] Unexpected communication state (LAST_ACK) received", trial()->id(), actor_name());
+        }
+      }
+      // TODO: Should we accept even if the "LAST" was not sent?
+      //       This could be used to indicate that the actor has finished interacting with the trial.
+      m_last_ack_prom.set_value();
+      break;
+    case cogmentAPI::CommunicationState::END:
+      // TODO: Decide what to do about "END" received from actors
+      if (details != nullptr) {
+        spdlog::error("Trial [{}] - Actor [{}] Unexpected communication state (END) received [{}]", trial()->id(), actor_name(), *details);
+      } else {
+        spdlog::error("Trial [{}] - Actor [{}] Unexpected communication state (END) received", trial()->id(), actor_name());
+      }
+      break;
+
+    default:
+      throw MakeException<std::invalid_argument>("Invalid communication state: [%d]", static_cast<int>(in_state));
+      break;
   }
 }
 
