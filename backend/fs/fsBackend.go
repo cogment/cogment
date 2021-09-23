@@ -36,6 +36,7 @@ type fsBackend struct {
 var versionDataFilenameTemplate = template.Must(template.New("versionDataFilenameTemplate").Parse(`{{ .ModelID }}-v{{ .Number | printf "%06d" }}.data`))
 
 var versionInfoFilenameTemplate = template.Must(template.New("versionInfoFilenameTemplate").Parse(`{{ .ModelID }}-v{{ .Number | printf "%06d" }}.yaml`))
+var modelInfoFilenameTemplate = template.Must(template.New("modelInfoFilenameTemplate").Parse(`{{ .ModelID }}.yaml`))
 var versionInfoFilenameRegexp = regexp.MustCompile("[a-zA-Z][a-zA-Z0-9-_]*-v[0-9]+.yaml")
 
 var modelDirnameRegexp = regexp.MustCompile("[a-zA-Z][a-zA-Z0-9-_]*")
@@ -62,19 +63,29 @@ func (b *fsBackend) Destroy() {
 }
 
 // CreateModel creates a model with a given unique id in the backend
-func (b *fsBackend) CreateModel(modelID string) error {
-	modelDirname := path.Join(b.rootDirname, modelID)
-	_, err := os.Stat(modelDirname)
-	if !os.IsNotExist(err) {
-		return &backend.ModelAlreadyExistsError{ModelID: modelID}
-	}
-
-	err = os.Mkdir(modelDirname, 0750)
+func (b *fsBackend) CreateOrUpdateModel(modelInfo backend.ModelInfo) (backend.ModelInfo, error) {
+	modelDirname := path.Join(b.rootDirname, modelInfo.ModelID)
+	modelInfoFilename := b.buildModelInfoFilename(modelInfo)
+	modelInfoData, err := yaml.Marshal(modelInfo)
 	if err != nil {
-		return fmt.Errorf("unable to create model %q: %w", modelID, err)
+		return backend.ModelInfo{}, fmt.Errorf("unable to create model %q: %w", modelInfo.ModelID, err)
 	}
 
-	return nil
+	_, err = os.Stat(modelDirname)
+	if os.IsNotExist(err) {
+		err = os.Mkdir(modelDirname, 0750)
+		if err != nil {
+			return backend.ModelInfo{}, fmt.Errorf("unable to create model %q: %w", modelInfo.ModelID, err)
+		}
+	}
+
+	err = os.WriteFile(modelInfoFilename, modelInfoData, 0640)
+
+	if err != nil {
+		return backend.ModelInfo{}, fmt.Errorf("unable to update a model %q: %w", modelInfo.ModelID, err)
+	}
+
+	return modelInfo, nil
 }
 
 func loadVersionInfoFile(versionInfoFilename string) (backend.VersionInfo, error) {
@@ -90,6 +101,21 @@ func loadVersionInfoFile(versionInfoFilename string) (backend.VersionInfo, error
 	}
 
 	return versionInfo, nil
+}
+
+func loadModelInfoFile(modelInfoFilename string) (backend.ModelInfo, error) {
+	modelInfoData, err := os.ReadFile(modelInfoFilename)
+	if err != nil {
+		return backend.ModelInfo{}, fmt.Errorf("unable to read model info from %q: %w", modelInfoFilename, err)
+	}
+
+	modelInfo := backend.ModelInfo{}
+	err = yaml.Unmarshal(modelInfoData, &modelInfo)
+	if err != nil {
+		return backend.ModelInfo{}, fmt.Errorf("unable to deserialize model info from %q: %w", modelInfoFilename, err)
+	}
+
+	return modelInfo, nil
 }
 
 func (b *fsBackend) retrieveModelLatestVersionInfo(modelID string) (backend.VersionInfo, error) {
@@ -202,6 +228,15 @@ func (b *fsBackend) buildVersionInfoFilename(versionInfo backend.VersionInfo) st
 	return path.Join(b.rootDirname, versionInfo.ModelID, versionInfoFilenameBuffer.String())
 }
 
+func (b *fsBackend) buildModelInfoFilename(modelInfo backend.ModelInfo) string {
+	modelInfoFilenameBuffer := new(bytes.Buffer)
+	err := modelInfoFilenameTemplate.Execute(modelInfoFilenameBuffer, modelInfo)
+	if err != nil {
+		panic(err)
+	}
+	return path.Join(b.rootDirname, modelInfo.ModelID, modelInfoFilenameBuffer.String())
+}
+
 func (b *fsBackend) buildVersionDataFilename(versionInfo backend.VersionInfo) string {
 	versionDataFilenameBuffer := new(bytes.Buffer)
 	err := versionDataFilenameTemplate.Execute(versionDataFilenameBuffer, versionInfo)
@@ -212,9 +247,9 @@ func (b *fsBackend) buildVersionDataFilename(versionInfo backend.VersionInfo) st
 }
 
 // CreateModelVersion creates and store a new version for a model and returns its info, including the version number
-func (b *fsBackend) CreateOrUpdateModelVersion(modelID string, versionNumber int, data []byte, archive bool) (backend.VersionInfo, error) {
+func (b *fsBackend) CreateOrUpdateModelVersion(modelID string, versionInfoArgs backend.VersionInfoArgs) (backend.VersionInfo, error) {
 	var versionInfo backend.VersionInfo
-	if versionNumber <= 0 {
+	if versionInfoArgs.VersionNumber <= 0 {
 		// Create a new version after the last one
 		latestVersionInfo, err := b.retrieveModelLatestVersionInfo(modelID)
 		if err != nil {
@@ -223,13 +258,14 @@ func (b *fsBackend) CreateOrUpdateModelVersion(modelID string, versionNumber int
 		versionInfo = backend.VersionInfo{
 			ModelID:   modelID,
 			CreatedAt: time.Now(),
-			Archive:   archive,
-			Hash:      backend.ComputeHash(data),
+			Archive:   versionInfoArgs.Archive,
+			Hash:      backend.ComputeHash(versionInfoArgs.Data),
 			Number:    latestVersionInfo.Number + 1,
+			Metadata:  versionInfoArgs.Metadata,
 		}
 	} else {
 		// Maybe there is an existing version
-		existingVersionInfo, err := b.RetrieveModelVersionInfo(modelID, versionNumber)
+		existingVersionInfo, err := b.RetrieveModelVersionInfo(modelID, versionInfoArgs.VersionNumber)
 		if err != nil {
 			if _, ok := err.(*backend.UnknownModelVersionError); !ok {
 				return backend.VersionInfo{}, err
@@ -238,21 +274,22 @@ func (b *fsBackend) CreateOrUpdateModelVersion(modelID string, versionNumber int
 			versionInfo = backend.VersionInfo{
 				ModelID:   modelID,
 				CreatedAt: time.Now(),
-				Archive:   archive,
-				Hash:      backend.ComputeHash(data),
-				Number:    versionNumber,
+				Archive:   versionInfoArgs.Archive,
+				Hash:      backend.ComputeHash(versionInfoArgs.Data),
+				Number:    versionInfoArgs.VersionNumber,
+				Metadata:  versionInfoArgs.Metadata,
 			}
 		} else {
 			// Update an existing version
 			versionInfo = existingVersionInfo
-			versionInfo.Archive = archive
-			versionInfo.Hash = backend.ComputeHash(data)
+			versionInfo.Archive = versionInfoArgs.Archive
+			versionInfo.Hash = backend.ComputeHash(versionInfoArgs.Data)
 		}
 	}
 
 	versionDataFilename := b.buildVersionDataFilename(versionInfo)
 
-	err := os.WriteFile(versionDataFilename, data, 0640)
+	err := os.WriteFile(versionDataFilename, versionInfoArgs.Data, 0640)
 	if err != nil {
 		return backend.VersionInfo{}, fmt.Errorf("unable to create a version for model %q: %w", modelID, err)
 	}
@@ -301,6 +338,24 @@ func (b *fsBackend) RetrieveModelVersionInfo(modelID string, versionNumber int) 
 		return backend.VersionInfo{}, err
 	}
 	return versionInfo, err
+}
+
+func (b *fsBackend) RetrieveModelInfo(modelID string) (backend.ModelInfo, error) {
+
+	// Retrieve a specific version
+	modelInfoFilename := b.buildModelInfoFilename(backend.ModelInfo{ModelID: modelID})
+	_, err := os.Stat(modelInfoFilename)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return backend.ModelInfo{}, &backend.UnknownModelError{ModelID: modelID}
+		}
+		return backend.ModelInfo{}, fmt.Errorf("unable to read model info from %q: %w", modelInfoFilename, err)
+	}
+	modelInfo, err := loadModelInfoFile(modelInfoFilename)
+	if err != nil {
+		return backend.ModelInfo{}, err
+	}
+	return modelInfo, err
 }
 
 // RetrieveModelVersion retrieves a given model version data

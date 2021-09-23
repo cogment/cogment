@@ -90,14 +90,20 @@ func (ctx *testContext) destroy() {
 	ctx.backend.Destroy()
 }
 
-func TestCreateModel(t *testing.T) {
+func TestCreateOrUpdateModel(t *testing.T) {
+
+	modelMetadata := make(map[string]string)
+	modelMetadata["model_test1"] = "model_test1"
+	modelMetadata["model_test2"] = "model_test2"
+	modelMetadata["model_test3"] = "model_test3"
+
 	ctx, err := createContext(1024 * 1024)
 	assert.NoError(t, err)
 	defer ctx.destroy()
 	{
-		rep, err := ctx.client.CreateModel(ctx.grpcCtx, &grpcapi.CreateModelRequest{ModelId: "foo"})
+		rep, err := ctx.client.CreateOrUpdateModel(ctx.grpcCtx, &grpcapi.CreateOrUpdateModelRequest{ModelInfo: &grpcapi.ModelInfo{ModelId: "foo", Metadata: modelMetadata}})
 		assert.NoError(t, err)
-		assert.Equal(t, "foo", rep.Model.ModelId)
+		assert.Equal(t, "foo", rep.ModelInfo.ModelId)
 	}
 	{
 		rep, err := ctx.client.ListModelVersions(ctx.grpcCtx, &grpcapi.ListModelVersionsRequest{ModelId: "foo", PageOffset: -1, PageSize: -1})
@@ -106,15 +112,9 @@ func TestCreateModel(t *testing.T) {
 		assert.Equal(t, int32(0), rep.NextPageOffset)
 	}
 	{
-		rep, err := ctx.client.CreateModel(ctx.grpcCtx, &grpcapi.CreateModelRequest{ModelId: "foo"})
-		assert.Error(t, err)
-		assert.Equal(t, codes.AlreadyExists, status.Code(err))
-		assert.Nil(t, rep)
-	}
-	{
-		rep, err := ctx.client.CreateModel(ctx.grpcCtx, &grpcapi.CreateModelRequest{ModelId: "bar"})
+		rep, err := ctx.client.CreateOrUpdateModel(ctx.grpcCtx, &grpcapi.CreateOrUpdateModelRequest{ModelInfo: &grpcapi.ModelInfo{ModelId: "bar", Metadata: modelMetadata}})
 		assert.NoError(t, err)
-		assert.Equal(t, "bar", rep.Model.ModelId)
+		assert.Equal(t, "bar", rep.ModelInfo.ModelId)
 	}
 	{
 		rep, err := ctx.client.DeleteModel(ctx.grpcCtx, &grpcapi.DeleteModelRequest{ModelId: "foo"})
@@ -124,18 +124,23 @@ func TestCreateModel(t *testing.T) {
 }
 
 func TestDeleteModel(t *testing.T) {
+	modelMetadata := make(map[string]string)
+	modelMetadata["model_test1"] = "model_test1"
+	modelMetadata["model_test2"] = "model_test2"
+	modelMetadata["model_test3"] = "model_test3"
+
 	ctx, err := createContext(1024 * 1024)
 	assert.NoError(t, err)
 	defer ctx.destroy()
 	{
-		rep, err := ctx.client.CreateModel(ctx.grpcCtx, &grpcapi.CreateModelRequest{ModelId: "foo"})
+		rep, err := ctx.client.CreateOrUpdateModel(ctx.grpcCtx, &grpcapi.CreateOrUpdateModelRequest{ModelInfo: &grpcapi.ModelInfo{ModelId: "foo", Metadata: modelMetadata}})
 		assert.NoError(t, err)
-		assert.Equal(t, "foo", rep.Model.ModelId)
+		assert.Equal(t, "foo", rep.ModelInfo.ModelId)
 	}
 	{
-		rep, err := ctx.client.CreateModel(ctx.grpcCtx, &grpcapi.CreateModelRequest{ModelId: "bar"})
+		rep, err := ctx.client.CreateOrUpdateModel(ctx.grpcCtx, &grpcapi.CreateOrUpdateModelRequest{ModelInfo: &grpcapi.ModelInfo{ModelId: "bar", Metadata: modelMetadata}})
 		assert.NoError(t, err)
-		assert.Equal(t, "bar", rep.Model.ModelId)
+		assert.Equal(t, "bar", rep.ModelInfo.ModelId)
 	}
 	{
 		rep, err := ctx.client.DeleteModel(ctx.grpcCtx, &grpcapi.DeleteModelRequest{ModelId: "bar"})
@@ -149,25 +154,36 @@ func TestDeleteModel(t *testing.T) {
 		assert.Nil(t, rep)
 	}
 	{
-		rep, err := ctx.client.CreateModel(ctx.grpcCtx, &grpcapi.CreateModelRequest{ModelId: "bar"})
+		rep, err := ctx.client.CreateOrUpdateModel(ctx.grpcCtx, &grpcapi.CreateOrUpdateModelRequest{ModelInfo: &grpcapi.ModelInfo{ModelId: "bar", Metadata: modelMetadata}})
 		assert.NoError(t, err)
-		assert.Equal(t, "bar", rep.Model.ModelId)
+		assert.Equal(t, "bar", rep.ModelInfo.ModelId)
 	}
 }
 
-func TestCreateModelVersion(t *testing.T) {
+func TestCreateOrUpdateModelVersion(t *testing.T) {
+
+	modelMetadata := make(map[string]string)
+	modelMetadata["model_test1"] = "model_test1"
+	modelMetadata["model_test2"] = "model_test2"
+	modelMetadata["model_test3"] = "model_test3"
+
+	versionMetadata := make(map[string]string)
+	versionMetadata["version_test1"] = "version_test1"
+	versionMetadata["version_test2"] = "version_test2"
+	versionMetadata["version_test3"] = "version_test3"
+
 	ctx, err := createContext(1024 * 1024)
 	assert.NoError(t, err)
 	defer ctx.destroy()
 	{
-		rep, err := ctx.client.CreateModel(ctx.grpcCtx, &grpcapi.CreateModelRequest{ModelId: "foo"})
+		rep, err := ctx.client.CreateOrUpdateModel(ctx.grpcCtx, &grpcapi.CreateOrUpdateModelRequest{ModelInfo: &grpcapi.ModelInfo{ModelId: "foo", Metadata: modelMetadata}})
 		assert.NoError(t, err)
-		assert.Equal(t, "foo", rep.Model.ModelId)
+		assert.Equal(t, "foo", rep.ModelInfo.ModelId)
 	}
 	{
-		stream, err := ctx.client.CreateModelVersion(ctx.grpcCtx)
+		stream, err := ctx.client.CreateOrUpdateModelVersion(ctx.grpcCtx)
 		assert.NoError(t, err)
-		err = stream.Send(&grpcapi.CreateModelVersionRequestChunk{ModelId: "foo", Archive: false, DataChunk: modelData, LastChunk: true})
+		err = stream.Send(&grpcapi.CreateOrUpdateModelVersionRequestChunk{ModelId: "foo", Archive: false, Metadata: versionMetadata, DataChunk: modelData, LastChunk: true})
 		assert.NoError(t, err)
 		rep, err := stream.CloseAndRecv()
 		assert.NoError(t, err)
@@ -178,13 +194,13 @@ func TestCreateModelVersion(t *testing.T) {
 		assert.NotZero(t, rep.VersionInfo.CreatedAt)
 	}
 	{
-		stream, err := ctx.client.CreateModelVersion(ctx.grpcCtx)
+		stream, err := ctx.client.CreateOrUpdateModelVersion(ctx.grpcCtx)
 		assert.NoError(t, err)
-		err = stream.Send(&grpcapi.CreateModelVersionRequestChunk{ModelId: "foo", Archive: true, DataChunk: modelData[0:10], LastChunk: false})
+		err = stream.Send(&grpcapi.CreateOrUpdateModelVersionRequestChunk{ModelId: "foo", Archive: true, Metadata: versionMetadata, DataChunk: modelData[0:10], LastChunk: false})
 		assert.NoError(t, err)
-		err = stream.Send(&grpcapi.CreateModelVersionRequestChunk{DataChunk: modelData[10:30], LastChunk: false})
+		err = stream.Send(&grpcapi.CreateOrUpdateModelVersionRequestChunk{DataChunk: modelData[10:30], LastChunk: false})
 		assert.NoError(t, err)
-		err = stream.Send(&grpcapi.CreateModelVersionRequestChunk{DataChunk: modelData[30:], LastChunk: true})
+		err = stream.Send(&grpcapi.CreateOrUpdateModelVersionRequestChunk{DataChunk: modelData[30:], LastChunk: true})
 		assert.NoError(t, err)
 		rep, err := stream.CloseAndRecv()
 		assert.NoError(t, err)
@@ -214,19 +230,29 @@ func TestCreateModelVersion(t *testing.T) {
 }
 
 func TestListModelVersions(t *testing.T) {
+	modelMetadata := make(map[string]string)
+	modelMetadata["model_test1"] = "model_test1"
+	modelMetadata["model_test2"] = "model_test2"
+	modelMetadata["model_test3"] = "model_test3"
+
+	versionMetadata := make(map[string]string)
+	versionMetadata["version_test1"] = "version_test1"
+	versionMetadata["version_test2"] = "version_test2"
+	versionMetadata["version_test3"] = "version_test3"
+
 	ctx, err := createContext(1024 * 1024)
 	assert.NoError(t, err)
 	defer ctx.destroy()
 	{
-		rep, err := ctx.client.CreateModel(ctx.grpcCtx, &grpcapi.CreateModelRequest{ModelId: "bar"})
+		rep, err := ctx.client.CreateOrUpdateModel(ctx.grpcCtx, &grpcapi.CreateOrUpdateModelRequest{ModelInfo: &grpcapi.ModelInfo{ModelId: "bar", Metadata: modelMetadata}})
 		assert.NoError(t, err)
-		assert.Equal(t, "bar", rep.Model.ModelId)
+		assert.Equal(t, "bar", rep.ModelInfo.ModelId)
 	}
 	{
 		for i := 1; i <= 10; i++ {
-			stream, err := ctx.client.CreateModelVersion(ctx.grpcCtx)
+			stream, err := ctx.client.CreateOrUpdateModelVersion(ctx.grpcCtx)
 			assert.NoError(t, err)
-			err = stream.Send(&grpcapi.CreateModelVersionRequestChunk{ModelId: "bar", Archive: i%5 == 0, DataChunk: modelData, LastChunk: true})
+			err = stream.Send(&grpcapi.CreateOrUpdateModelVersionRequestChunk{ModelId: "bar", Metadata: versionMetadata, Archive: i%5 == 0, DataChunk: modelData, LastChunk: true})
 			assert.NoError(t, err)
 			_, err = stream.CloseAndRecv()
 			assert.NoError(t, err)
@@ -280,19 +306,29 @@ func TestListModelVersions(t *testing.T) {
 }
 
 func TestGetModelVersionInfo(t *testing.T) {
+	modelMetadata := make(map[string]string)
+	modelMetadata["model_test1"] = "model_test1"
+	modelMetadata["model_test2"] = "model_test2"
+	modelMetadata["model_test3"] = "model_test3"
+
+	versionMetadata := make(map[string]string)
+	versionMetadata["version_test1"] = "version_test1"
+	versionMetadata["version_test2"] = "version_test2"
+	versionMetadata["version_test3"] = "version_test3"
+
 	ctx, err := createContext(1024 * 1024)
 	assert.NoError(t, err)
 	defer ctx.destroy()
 	{
-		rep, err := ctx.client.CreateModel(ctx.grpcCtx, &grpcapi.CreateModelRequest{ModelId: "bar"})
+		rep, err := ctx.client.CreateOrUpdateModel(ctx.grpcCtx, &grpcapi.CreateOrUpdateModelRequest{ModelInfo: &grpcapi.ModelInfo{ModelId: "bar", Metadata: modelMetadata}})
 		assert.NoError(t, err)
-		assert.Equal(t, "bar", rep.Model.ModelId)
+		assert.Equal(t, "bar", rep.ModelInfo.ModelId)
 	}
 	{
 		for i := 1; i <= 10; i++ {
-			stream, err := ctx.client.CreateModelVersion(ctx.grpcCtx)
+			stream, err := ctx.client.CreateOrUpdateModelVersion(ctx.grpcCtx)
 			assert.NoError(t, err)
-			err = stream.Send(&grpcapi.CreateModelVersionRequestChunk{ModelId: "bar", Archive: i%5 == 0, DataChunk: modelData, LastChunk: true})
+			err = stream.Send(&grpcapi.CreateOrUpdateModelVersionRequestChunk{ModelId: "bar", Metadata: versionMetadata, Archive: i%5 == 0, DataChunk: modelData, LastChunk: true})
 			assert.NoError(t, err)
 			_, err = stream.CloseAndRecv()
 			assert.NoError(t, err)
@@ -334,18 +370,28 @@ func TestGetModelVersionInfo(t *testing.T) {
 }
 
 func TestGetModelVersionData(t *testing.T) {
+	modelMetadata := make(map[string]string)
+	modelMetadata["model_test1"] = "model_test1"
+	modelMetadata["model_test2"] = "model_test2"
+	modelMetadata["model_test3"] = "model_test3"
+
+	versionMetadata := make(map[string]string)
+	versionMetadata["version_test1"] = "version_test1"
+	versionMetadata["version_test2"] = "version_test2"
+	versionMetadata["version_test3"] = "version_test3"
+
 	ctx, err := createContext(16) // For the purpose of the test we limit the sent chunk size drastically
 	assert.NoError(t, err)
 	defer ctx.destroy()
 	{
-		rep, err := ctx.client.CreateModel(ctx.grpcCtx, &grpcapi.CreateModelRequest{ModelId: "baz"})
+		rep, err := ctx.client.CreateOrUpdateModel(ctx.grpcCtx, &grpcapi.CreateOrUpdateModelRequest{ModelInfo: &grpcapi.ModelInfo{ModelId: "baz", Metadata: modelMetadata}})
 		assert.NoError(t, err)
-		assert.Equal(t, "baz", rep.Model.ModelId)
+		assert.Equal(t, "baz", rep.ModelInfo.ModelId)
 	}
 	{
-		stream, err := ctx.client.CreateModelVersion(ctx.grpcCtx)
+		stream, err := ctx.client.CreateOrUpdateModelVersion(ctx.grpcCtx)
 		assert.NoError(t, err)
-		err = stream.Send(&grpcapi.CreateModelVersionRequestChunk{ModelId: "baz", Archive: false, DataChunk: modelData, LastChunk: true})
+		err = stream.Send(&grpcapi.CreateOrUpdateModelVersionRequestChunk{ModelId: "baz", Archive: false, Metadata: versionMetadata, DataChunk: modelData, LastChunk: true})
 		assert.NoError(t, err)
 		_, err = stream.CloseAndRecv()
 		assert.NoError(t, err)

@@ -46,6 +46,16 @@ Integer tincidunt.`)
 
 // RunSuite runs the full backend test suite
 func RunSuite(t *testing.T, createBackend func() backend.Backend) {
+	versionMetadata := make(map[string]string)
+	versionMetadata["version_test1"] = "version_test1"
+	versionMetadata["version_test2"] = "version_test2"
+	versionMetadata["version_test3"] = "version_test3"
+
+	modelMetadata := make(map[string]string)
+	modelMetadata["model_test1"] = "model_test1"
+	modelMetadata["model_test2"] = "model_test2"
+	modelMetadata["model_test3"] = "model_test3"
+
 	cases := []struct {
 		name string
 		test func(t *testing.T)
@@ -64,18 +74,17 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 				b := createBackend()
 				defer b.Destroy()
 
-				err := b.CreateModel("foo")
+				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
+					ModelID:  "foo",
+					Metadata: modelMetadata,
+				})
 				assert.NoError(t, err)
 
-				// Create a duplicate should fail
-				err = b.CreateModel("foo")
-				expectedErr := &backend.ModelAlreadyExistsError{}
-				assert.ErrorAs(t, err, &expectedErr)
-				assert.Equal(t, expectedErr.ModelID, "foo")
-				assert.EqualError(t, err, `model "foo" already exists`)
-
 				// Create a another one should succeed
-				err = b.CreateModel("bar")
+				_, err = b.CreateOrUpdateModel(backend.ModelInfo{
+					ModelID:  "bar",
+					Metadata: modelMetadata,
+				})
 				assert.NoError(t, err)
 			},
 		},
@@ -85,13 +94,22 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 				b := createBackend()
 				defer b.Destroy()
 
-				err := b.CreateModel("foo")
+				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
+					ModelID:  "foo",
+					Metadata: modelMetadata,
+				})
 				assert.NoError(t, err)
 
-				err = b.CreateModel("bar")
+				_, err = b.CreateOrUpdateModel(backend.ModelInfo{
+					ModelID:  "bar",
+					Metadata: modelMetadata,
+				})
 				assert.NoError(t, err)
 
-				err = b.CreateModel("baz")
+				_, err = b.CreateOrUpdateModel(backend.ModelInfo{
+					ModelID:  "baz",
+					Metadata: modelMetadata,
+				})
 				assert.NoError(t, err)
 
 				found, err := b.HasModel("bar")
@@ -110,7 +128,10 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 				defer b.Destroy()
 
 				{
-					err := b.CreateModel("foo")
+					_, err := b.CreateOrUpdateModel(backend.ModelInfo{
+						ModelID:  "foo",
+						Metadata: modelMetadata,
+					})
 					assert.NoError(t, err)
 				}
 				{
@@ -142,7 +163,10 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 					assert.False(t, found)
 				}
 				{
-					err := b.CreateModel("foo")
+					_, err := b.CreateOrUpdateModel(backend.ModelInfo{
+						ModelID:  "foo",
+						Metadata: modelMetadata,
+					})
 					assert.NoError(t, err)
 				}
 			},
@@ -157,21 +181,40 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 				assert.NoError(t, err)
 				assert.Len(t, models, 0)
 
-				err = b.CreateModel("foo")
+				_, err = b.CreateOrUpdateModel(backend.ModelInfo{
+					ModelID:  "foo",
+					Metadata: modelMetadata,
+				})
 				assert.NoError(t, err)
 
-				_, err = b.CreateOrUpdateModelVersion("foo", -1, Data1, false)
+				_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionInfoArgs{
+					VersionNumber: -1,
+					Data:          Data1,
+					Archive:       false,
+					Metadata:      versionMetadata,
+				})
 				assert.NoError(t, err)
 
-				err = b.CreateModel("bar")
+				_, err = b.CreateOrUpdateModel(backend.ModelInfo{
+					ModelID:  "bar",
+					Metadata: modelMetadata,
+				})
 				assert.NoError(t, err)
 
 				for i := 0; i < 15; i++ {
-					_, err = b.CreateOrUpdateModelVersion("bar", -1, Data2, true)
+					_, err = b.CreateOrUpdateModelVersion("bar", backend.VersionInfoArgs{
+						VersionNumber: -1,
+						Data:          Data2,
+						Archive:       true,
+						Metadata:      versionMetadata,
+					})
 					assert.NoError(t, err)
 				}
 
-				err = b.CreateModel("baz")
+				_, err = b.CreateOrUpdateModel(backend.ModelInfo{
+					ModelID:  "baz",
+					Metadata: modelMetadata,
+				})
 				assert.NoError(t, err)
 
 				models, err = b.ListModels(-1, -1)
@@ -199,31 +242,59 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 				b := createBackend()
 				defer b.Destroy()
 
-				err := b.CreateModel("foo")
+				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
+					ModelID:  "foo",
+					Metadata: modelMetadata,
+				})
 				assert.NoError(t, err)
 
-				modelVersion1, err := b.CreateOrUpdateModelVersion("foo", -1, Data1, true)
+				modelVersion1, err := b.CreateOrUpdateModelVersion("foo", backend.VersionInfoArgs{
+					VersionNumber: -1,
+					Data:          Data1,
+					Archive:       true,
+					Metadata:      versionMetadata,
+				})
 				assert.NoError(t, err)
 				assert.Equal(t, 1, modelVersion1.Number)
 				assert.Equal(t, "foo", modelVersion1.ModelID)
 
-				modelVersion2, err := b.CreateOrUpdateModelVersion("foo", -1, Data1, true)
+				modelVersion2, err := b.CreateOrUpdateModelVersion("foo", backend.VersionInfoArgs{
+					VersionNumber: -1,
+					Data:          Data1,
+					Archive:       true,
+					Metadata:      versionMetadata,
+				})
 				assert.NoError(t, err)
 				assert.Equal(t, 2, modelVersion2.Number)
 				assert.Equal(t, "foo", modelVersion1.ModelID)
 
 				for i := 0; i < 20; i++ {
-					modelVersionI, err := b.CreateOrUpdateModelVersion("foo", -1, Data2, false)
+					modelVersionI, err := b.CreateOrUpdateModelVersion("foo", backend.VersionInfoArgs{
+						VersionNumber: -1,
+						Data:          Data2,
+						Archive:       false,
+						Metadata:      versionMetadata,
+					})
 					assert.NoError(t, err)
 					assert.Equal(t, backend.ComputeHash(Data2), modelVersionI.Hash)
 				}
 
-				modelVersion23, err := b.CreateOrUpdateModelVersion("foo", -1, Data1, true)
+				modelVersion23, err := b.CreateOrUpdateModelVersion("foo", backend.VersionInfoArgs{
+					VersionNumber: -1,
+					Data:          Data1,
+					Archive:       true,
+					Metadata:      versionMetadata,
+				})
 				assert.NoError(t, err)
 				assert.Equal(t, 23, modelVersion23.Number)
 				assert.Equal(t, backend.ComputeHash(Data1), modelVersion23.Hash)
 
-				modelVersion10, err := b.CreateOrUpdateModelVersion("foo", 10, Data1, true)
+				modelVersion10, err := b.CreateOrUpdateModelVersion("foo", backend.VersionInfoArgs{
+					VersionNumber: 10,
+					Data:          Data1,
+					Archive:       true,
+					Metadata:      versionMetadata,
+				})
 				assert.NoError(t, err)
 				assert.Equal(t, 10, modelVersion10.Number)
 				assert.Equal(t, backend.ComputeHash(Data1), modelVersion10.Hash)
@@ -235,13 +306,26 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 				b := createBackend()
 				defer b.Destroy()
 
-				err := b.CreateModel("foo")
+				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
+					ModelID:  "foo",
+					Metadata: modelMetadata,
+				})
 				assert.NoError(t, err)
 
-				_, err = b.CreateOrUpdateModelVersion("foo", -1, Data1, false)
+				_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionInfoArgs{
+					VersionNumber: -1,
+					Data:          Data1,
+					Archive:       false,
+					Metadata:      versionMetadata,
+				})
 				assert.NoError(t, err)
 
-				_, err = b.CreateOrUpdateModelVersion("foo", -1, Data2, true)
+				_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionInfoArgs{
+					VersionNumber: -1,
+					Data:          Data2,
+					Archive:       true,
+					Metadata:      versionMetadata,
+				})
 				assert.NoError(t, err)
 
 				modelVersion1, err := b.RetrieveModelVersionInfo("foo", 1)
@@ -307,7 +391,10 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 				b := createBackend()
 				defer b.Destroy()
 
-				err := b.CreateModel("foo")
+				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
+					ModelID:  "foo",
+					Metadata: modelMetadata,
+				})
 				assert.NoError(t, err)
 
 				_, err = b.RetrieveModelVersionInfo("foo", -1)
@@ -326,7 +413,12 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 				}
 				assert.EqualError(t, err, `model "foo" doesn't have any version yet`)
 
-				_, err = b.CreateOrUpdateModelVersion("foo", -1, Data1, true)
+				_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionInfoArgs{
+					VersionNumber: -1,
+					Data:          Data1,
+					Archive:       true,
+					Metadata:      versionMetadata,
+				})
 				assert.NoError(t, err)
 
 				modelVersion1, err := b.RetrieveModelVersionInfo("foo", -1)
@@ -340,7 +432,12 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 				assert.NoError(t, err)
 				assert.Equal(t, Data1, modelVersion1Data)
 
-				_, err = b.CreateOrUpdateModelVersion("foo", -1, Data2, false)
+				_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionInfoArgs{
+					VersionNumber: -1,
+					Data:          Data2,
+					Archive:       false,
+					Metadata:      versionMetadata,
+				})
 				assert.NoError(t, err)
 
 				modelVersion2, err := b.RetrieveModelVersionInfo("foo", -1)
@@ -361,28 +458,51 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 				b := createBackend()
 				defer b.Destroy()
 
-				err := b.CreateModel("foo")
+				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
+					ModelID:  "foo",
+					Metadata: modelMetadata,
+				})
 				assert.NoError(t, err)
 
-				_, err = b.CreateOrUpdateModelVersion("foo", -1, Data1, false)
+				_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionInfoArgs{
+					VersionNumber: -1,
+					Data:          Data1,
+					Archive:       false,
+					Metadata:      versionMetadata,
+				})
 				assert.NoError(t, err)
 				versions, err := b.ListModelVersionInfos("foo", -1, -1)
 				assert.NoError(t, err)
 				assert.Len(t, versions, 1)
 
-				_, err = b.CreateOrUpdateModelVersion("foo", 12, Data2, false)
+				_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionInfoArgs{
+					VersionNumber: 12,
+					Data:          Data2,
+					Archive:       false,
+					Metadata:      versionMetadata,
+				})
 				assert.NoError(t, err)
 				versions, err = b.ListModelVersionInfos("foo", -1, -1)
 				assert.NoError(t, err)
 				assert.Len(t, versions, 2)
 
-				_, err = b.CreateOrUpdateModelVersion("foo", 3, Data1, false)
+				_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionInfoArgs{
+					VersionNumber: 3,
+					Data:          Data1,
+					Archive:       false,
+					Metadata:      versionMetadata,
+				})
 				assert.NoError(t, err)
 				versions, err = b.ListModelVersionInfos("foo", -1, -1)
 				assert.NoError(t, err)
 				assert.Len(t, versions, 3)
 
-				_, err = b.CreateOrUpdateModelVersion("foo", -1, Data2, false)
+				_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionInfoArgs{
+					VersionNumber: -1,
+					Data:          Data2,
+					Archive:       false,
+					Metadata:      versionMetadata,
+				})
 				assert.NoError(t, err)
 				versions, err = b.ListModelVersionInfos("foo", -1, -1)
 				assert.NoError(t, err)
@@ -431,11 +551,19 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 				b := createBackend()
 				defer b.Destroy()
 
-				err := b.CreateModel("foo")
+				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
+					ModelID:  "foo",
+					Metadata: modelMetadata,
+				})
 				assert.NoError(t, err)
 
 				for i := 0; i < 20; i++ {
-					_, err := b.CreateOrUpdateModelVersion("foo", -1, Data1, false)
+					_, err := b.CreateOrUpdateModelVersion("foo", backend.VersionInfoArgs{
+						VersionNumber: -1,
+						Data:          Data1,
+						Archive:       false,
+						Metadata:      versionMetadata,
+					})
 					assert.NoError(t, err)
 				}
 

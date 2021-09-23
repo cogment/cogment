@@ -47,24 +47,28 @@ func createPbModelVersionInfo(modelVersionInfo backend.VersionInfo) grpcapi.Mode
 	}
 }
 
-func (s *server) CreateModel(ctx context.Context, req *grpcapi.CreateModelRequest) (*grpcapi.CreateModelReply, error) {
-	log.Printf("CreateModel(req={ModelId: %q})\n", req.ModelId)
+func createBackendModelInfo(modelInfo *grpcapi.ModelInfo) backend.ModelInfo {
+	return backend.ModelInfo{
+		ModelID:  modelInfo.ModelId,
+		Metadata: modelInfo.Metadata,
+	}
+}
 
-	modelInfo := createPbModelInfo(req.ModelId)
+func (s *server) CreateOrUpdateModel(ctx context.Context, req *grpcapi.CreateOrUpdateModelRequest) (*grpcapi.CreateOrUpdateModelReply, error) {
+	log.Printf("CreateOrUpdateModel(req={ModelId: %q})\n", req.ModelInfo.ModelId)
 
-	err := s.backend.CreateModel(modelInfo.ModelId)
+	modelInfo := createBackendModelInfo(req.ModelInfo)
+
+	newModelInfo, err := s.backend.CreateOrUpdateModel(modelInfo)
 	if err != nil {
-		if _, ok := err.(*backend.ModelAlreadyExistsError); ok {
-			return nil, status.Errorf(codes.AlreadyExists, "%s", err)
-		}
-		return nil, status.Errorf(codes.Internal, "unexpected error while creating model %q: %s", modelInfo.ModelId, err)
+		return nil, status.Errorf(codes.Internal, "unexpected error while creating model %q: %s", modelInfo.ModelID, err)
 	}
 
-	return &grpcapi.CreateModelReply{Model: &modelInfo}, nil
+	return &grpcapi.CreateOrUpdateModelReply{ModelInfo: &grpcapi.ModelInfo{ModelId: newModelInfo.ModelID, Metadata: newModelInfo.Metadata}}, nil
 }
 
 func (s *server) DeleteModel(ctx context.Context, req *grpcapi.DeleteModelRequest) (*grpcapi.DeleteModelReply, error) {
-	log.Printf("CreateModel(req={ModelId: %q})\n", req.ModelId)
+	log.Printf("CreateOrUpdateModel(req={ModelId: %q})\n", req.ModelId)
 
 	modelInfo := createPbModelInfo(req.ModelId)
 
@@ -79,8 +83,8 @@ func (s *server) DeleteModel(ctx context.Context, req *grpcapi.DeleteModelReques
 	return &grpcapi.DeleteModelReply{Model: &modelInfo}, nil
 }
 
-func (s *server) CreateModelVersion(inStream grpcapi.ModelRegistry_CreateModelVersionServer) error {
-	log.Printf("CreateModelVersion(stream=...)\n")
+func (s *server) CreateOrUpdateModelVersion(inStream grpcapi.ModelRegistry_CreateOrUpdateModelVersionServer) error {
+	log.Printf("CreateOrUpdateModelVersion(stream=...)\n")
 
 	firstChunk, err := inStream.Recv()
 	if err == io.EOF {
@@ -95,6 +99,7 @@ func (s *server) CreateModelVersion(inStream grpcapi.ModelRegistry_CreateModelVe
 
 	modelID := firstChunk.ModelId
 	archive := firstChunk.Archive
+	metadata := firstChunk.Metadata
 	modelData := firstChunk.DataChunk
 	lastChunk := firstChunk.LastChunk
 
@@ -118,16 +123,18 @@ func (s *server) CreateModelVersion(inStream grpcapi.ModelRegistry_CreateModelVe
 		lastChunk = chunk.LastChunk
 	}
 
-	versionInfo, err := s.backend.CreateOrUpdateModelVersion(modelID, -1, modelData, archive)
+	versionInfo, err := s.backend.CreateOrUpdateModelVersion(modelID, backend.VersionInfoArgs{
+		VersionNumber: -1,
+		Data:          modelData,
+		Archive:       archive,
+		Metadata:      metadata,
+	})
 	if err != nil {
-		if _, ok := err.(*backend.ModelAlreadyExistsError); ok {
-			return status.Errorf(codes.NotFound, "%s", err)
-		}
 		return status.Errorf(codes.Internal, "unexpected error while creating a version for model %q: %s", modelID, err)
 	}
 
 	pbVersionInfo := createPbModelVersionInfo(versionInfo)
-	return inStream.SendAndClose(&grpcapi.CreateModelVersionReply{VersionInfo: &pbVersionInfo})
+	return inStream.SendAndClose(&grpcapi.CreateOrUpdateModelVersionReply{VersionInfo: &pbVersionInfo})
 }
 
 func (s *server) ListModelVersions(ctx context.Context, req *grpcapi.ListModelVersionsRequest) (*grpcapi.ListModelVersionsReply, error) {

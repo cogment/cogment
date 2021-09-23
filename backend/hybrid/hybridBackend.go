@@ -62,11 +62,10 @@ func (b *hybridBackend) sync() error {
 }
 
 func (b *hybridBackend) syncModel(modelID string) error {
-	err := b.transient.CreateModel(modelID)
+	_, err := b.transient.CreateOrUpdateModel(backend.ModelInfo{ModelID: modelID})
 	if err != nil {
-		if _, ok := err.(*backend.ModelAlreadyExistsError); !ok {
-			return fmt.Errorf("Error while syncing model %q from archive to transient: %w", modelID, err)
-		}
+		return fmt.Errorf("Error while syncing model %q from archive to transient: %w", modelID, err)
+
 	}
 	modelVersionInfos, err := b.archive.ListModelVersionInfos(modelID, -1, -1)
 	if err != nil {
@@ -77,7 +76,12 @@ func (b *hybridBackend) syncModel(modelID string) error {
 		if err != nil {
 			return fmt.Errorf("Error while syncing model %q from archive to transient: %w", modelID, err)
 		}
-		_, err = b.transient.CreateOrUpdateModelVersion(modelID, modelVersionInfo.Number, modelVersionData, modelVersionInfo.Archive)
+		_, err = b.transient.CreateOrUpdateModelVersion(modelID, backend.VersionInfoArgs{
+			VersionNumber: modelVersionInfo.Number,
+			Data:          modelVersionData,
+			Archive:       modelVersionInfo.Archive,
+			Metadata:      modelVersionInfo.Metadata,
+		})
 		if err != nil {
 			return fmt.Errorf("Error while syncing model %q from archive to transient: %w", modelID, err)
 		}
@@ -86,22 +90,17 @@ func (b *hybridBackend) syncModel(modelID string) error {
 }
 
 // CreateModel creates a model with a given unique id in the backend
-func (b *hybridBackend) CreateModel(modelID string) error {
-	err := b.transient.CreateModel(modelID)
+func (b *hybridBackend) CreateOrUpdateModel(modelInfo backend.ModelInfo) (backend.ModelInfo, error) {
+	newModelInfo, err := b.transient.CreateOrUpdateModel(modelInfo)
 	if err != nil {
-		return err
+		return backend.ModelInfo{}, err
 	}
-	err = b.archive.CreateModel(modelID)
+	newModelInfo, err = b.archive.CreateOrUpdateModel(modelInfo)
 	if err != nil {
-		if _, ok := err.(*backend.ModelAlreadyExistsError); !ok {
-			// Error while replicating model to the archive storage
-			// Rollbacking
-			// Explicitely ignoring error here, there's nothing we can do about it.
-			_ = b.transient.DeleteModel(modelID)
-		}
-		return err
+		err = b.transient.DeleteModel(newModelInfo.ModelID)
+		return backend.ModelInfo{}, err
 	}
-	return nil
+	return newModelInfo, nil
 }
 
 // HasModel check if a model exists
@@ -136,30 +135,32 @@ func (b *hybridBackend) ListModels(offset int, limit int) ([]string, error) {
 }
 
 // CreateOrUpdateModelVersion creates and store a new version for a model and returns its info, including the version number
-func (b *hybridBackend) CreateOrUpdateModelVersion(modelID string, versionNumber int, data []byte, archive bool) (backend.VersionInfo, error) {
+func (b *hybridBackend) CreateOrUpdateModelVersion(modelID string, versionInfoArgs backend.VersionInfoArgs) (backend.VersionInfo, error) {
 	existingVersionInfo := backend.VersionInfo{}
 	existingVersionInfoFound := false
-	if versionNumber > 0 {
-		versionInfo, err := b.RetrieveModelVersionInfo(modelID, versionNumber)
+	if versionInfoArgs.VersionNumber > 0 {
+		versionInfo, err := b.RetrieveModelVersionInfo(modelID, versionInfoArgs.VersionNumber)
 		if err == nil {
 			existingVersionInfoFound = true
 			existingVersionInfo = versionInfo
 		}
 	}
-	versionInfo, err := b.transient.CreateOrUpdateModelVersion(modelID, versionNumber, data, archive)
+	versionInfo, err := b.transient.CreateOrUpdateModelVersion(modelID, versionInfoArgs)
 	if err != nil {
 		return backend.VersionInfo{}, err
 	}
-	if archive {
-		_, err := b.archive.CreateOrUpdateModelVersion(modelID, versionInfo.Number, data, archive)
+	//Sync version numbers
+	versionInfoArgs.VersionNumber = versionInfo.Number
+	if versionInfoArgs.Archive {
+		_, err := b.archive.CreateOrUpdateModelVersion(modelID, versionInfoArgs)
 		if err != nil {
 			// Rollbacking
 			// explicitely ignoring error here, there's nothing we can do about it.
-			_ = b.transient.DeleteModelVersion(modelID, versionNumber)
+			_ = b.transient.DeleteModelVersion(modelID, versionInfoArgs.VersionNumber)
 			return backend.VersionInfo{}, err
 		}
 	}
-	if existingVersionInfoFound && !archive && existingVersionInfo.Archive {
+	if existingVersionInfoFound && !versionInfoArgs.Archive && existingVersionInfo.Archive {
 		// Delete this model that is no longer in the archive
 		// explicitely ignoring error here, there's nothing we can do about it.
 		_ = b.archive.DeleteModelVersion(modelID, existingVersionInfo.Number)
@@ -177,6 +178,12 @@ func (b *hybridBackend) RetrieveModelVersionData(modelID string, versionNumber i
 func (b *hybridBackend) RetrieveModelVersionInfo(modelID string, versionNumber int) (backend.VersionInfo, error) {
 	// Transient is kept in sync from the archive, so it should have everything
 	return b.transient.RetrieveModelVersionInfo(modelID, versionNumber)
+}
+
+// RetrieveModelVersionInfo retrieves a given model version info
+func (b *hybridBackend) RetrieveModelInfo(modelID string) (backend.ModelInfo, error) {
+	// Transient is kept in sync from the archive, so it should have everything
+	return b.transient.RetrieveModelInfo(modelID)
 }
 
 // DeleteModelVersion deletes a given model version

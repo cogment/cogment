@@ -15,6 +15,7 @@
 package db
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -32,6 +33,7 @@ import (
 
 type dbModel struct {
 	ModelID   string `gorm:"primarykey"`
+	Metadata  []byte
 	CreatedAt time.Time
 	Versions  []dbVersion `gorm:"foreignKey:ModelID;reference:ModelID"`
 }
@@ -39,14 +41,55 @@ type dbModel struct {
 type dbVersion struct {
 	CreatedAt time.Time
 	ModelID   string `gorm:"primarykey"`
-	Number    int    `gorm:"primarykey"`
+	Metadata  []byte
+	Number    int `gorm:"primarykey"`
 	Archive   bool
 	Hash      string
 	Data      []byte
 }
 
+type dbVersionInfo struct {
+	CreatedAt time.Time
+	ModelID   string `gorm:"primarykey"`
+	Metadata  []byte
+	Number    int `gorm:"primarykey"`
+	Archive   bool
+	Hash      string
+}
+
 type dbBackend struct {
 	db *gorm.DB
+}
+
+func backendVersionInfoFromDB(versionInfo dbVersionInfo) (backend.VersionInfo, error) {
+
+	versionMetadata := &map[string]string{}
+	err := json.Unmarshal(versionInfo.Metadata, versionMetadata)
+	if err != nil {
+		return backend.VersionInfo{}, err
+	}
+
+	return backend.VersionInfo{
+		ModelID:   versionInfo.ModelID,
+		CreatedAt: versionInfo.CreatedAt,
+		Number:    versionInfo.Number,
+		Archive:   versionInfo.Archive,
+		Hash:      versionInfo.Hash,
+		Metadata:  *versionMetadata,
+	}, nil
+}
+
+func backendModelInfoFromDB(ModelInfo dbModel) (backend.ModelInfo, error) {
+	modelMetadata := &map[string]string{}
+	err := json.Unmarshal(ModelInfo.Metadata, modelMetadata)
+	if err != nil {
+		return backend.ModelInfo{}, err
+	}
+
+	return backend.ModelInfo{
+		ModelID:  ModelInfo.ModelID,
+		Metadata: *modelMetadata,
+	}, nil
 }
 
 // CreateBackend creates a new backend with memory storage in a SQLite Database
@@ -84,30 +127,27 @@ func (b *dbBackend) Destroy() {
 }
 
 // CreateModel creates a model with a given unique id in the backend
-func (b *dbBackend) CreateModel(modelID string) error {
-	model := dbModel{ModelID: modelID}
+func (b *dbBackend) CreateOrUpdateModel(modelInfo backend.ModelInfo) (backend.ModelInfo, error) {
+
+	serializedMetadata, err := json.Marshal(modelInfo.Metadata)
+
+	if err != nil {
+		return backend.ModelInfo{}, err
+	}
+
+	model := dbModel{ModelID: modelInfo.ModelID, Metadata: serializedMetadata}
 	tx := b.db.Begin()
 
-	// Check if there's already a model with the same id
-	var modelCount int64
-	if err := tx.Model(&model).Where(&model).Count(&modelCount).Error; err != nil {
+	if err := tx.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "model_id"}},                  // key column
+		DoUpdates: clause.AssignmentColumns([]string{"metadata"}), // column needed to be updated
+	}).Create(&model).Error; err != nil {
 		tx.Rollback()
-		return err
-	}
-
-	if modelCount > 0 {
-		tx.Rollback()
-		return &backend.ModelAlreadyExistsError{ModelID: modelID}
-	}
-
-	// Create the model
-	if err := tx.Create(&model).Error; err != nil {
-		tx.Rollback()
-		return err
+		return backend.ModelInfo{}, err
 	}
 
 	tx.Commit()
-	return nil
+	return modelInfo, nil
 }
 
 // HasModel check if a model exists
@@ -160,7 +200,7 @@ func (b *dbBackend) ListModels(offset int, limit int) ([]string, error) {
 }
 
 // CreateOrUpdateModelVersion creates and store a new version for a model and returns its info, including the version number
-func (b *dbBackend) CreateOrUpdateModelVersion(modelID string, versionNumber int, data []byte, archive bool) (backend.VersionInfo, error) {
+func (b *dbBackend) CreateOrUpdateModelVersion(modelID string, versionInfoArgs backend.VersionInfoArgs) (backend.VersionInfo, error) {
 	tx := b.db.Begin()
 
 	if err := tx.First(&dbModel{}, "model_id=?", modelID).Error; err != nil {
@@ -172,12 +212,19 @@ func (b *dbBackend) CreateOrUpdateModelVersion(modelID string, versionNumber int
 		return backend.VersionInfo{}, err
 	}
 
+	serializedMetadata, err := json.Marshal(versionInfoArgs.Metadata)
+
+	if err != nil {
+		return backend.VersionInfo{}, err
+	}
+
 	version := dbVersion{
-		ModelID: modelID,
-		Number:  versionNumber,
-		Archive: archive,
-		Data:    data,
-		Hash:    backend.ComputeHash(data),
+		ModelID:  modelID,
+		Number:   versionInfoArgs.VersionNumber,
+		Archive:  versionInfoArgs.Archive,
+		Data:     versionInfoArgs.Data,
+		Hash:     backend.ComputeHash(versionInfoArgs.Data),
+		Metadata: serializedMetadata,
 	}
 
 	if version.Number <= 0 {
@@ -205,12 +252,20 @@ func (b *dbBackend) CreateOrUpdateModelVersion(modelID string, versionNumber int
 	}
 
 	tx.Commit()
+
+	versionMetadata := &map[string]string{}
+	err = json.Unmarshal(version.Metadata, versionMetadata)
+	if err != nil {
+		return backend.VersionInfo{}, err
+	}
+
 	return backend.VersionInfo{
 		ModelID:   version.ModelID,
 		CreatedAt: version.CreatedAt,
 		Archive:   version.Archive,
 		Number:    version.Number,
 		Hash:      version.Hash,
+		Metadata:  *versionMetadata,
 	}, nil
 }
 
@@ -235,6 +290,16 @@ func retrieveModelVersion(db *gorm.DB, modelID string, versionNumber int, dest i
 	return nil
 }
 
+func retrieveModel(db *gorm.DB, modelID string, dest interface{}) error {
+	if err := db.First(dest, "model_id=?", modelID).Error; err != nil {
+		if errors.Is(gorm.ErrRecordNotFound, err) {
+			return &backend.UnknownModelError{ModelID: modelID}
+		}
+		return err
+	}
+	return nil
+}
+
 // RetrieveModelVersionData retrieves a given model version data
 func (b *dbBackend) RetrieveModelVersionData(modelID string, versionNumber int) ([]byte, error) {
 	version := dbVersion{}
@@ -246,11 +311,32 @@ func (b *dbBackend) RetrieveModelVersionData(modelID string, versionNumber int) 
 
 // RetrieveModelVersionInfo retrieves a given model version info
 func (b *dbBackend) RetrieveModelVersionInfo(modelID string, versionNumber int) (backend.VersionInfo, error) {
-	versionInfo := backend.VersionInfo{}
+	versionInfo := dbVersionInfo{}
 	if err := retrieveModelVersion(b.db, modelID, versionNumber, &versionInfo); err != nil {
 		return backend.VersionInfo{}, err
 	}
-	return versionInfo, nil
+
+	versionInfoOut, err := backendVersionInfoFromDB(versionInfo)
+	if err != nil {
+		return backend.VersionInfo{}, err
+	}
+
+	return versionInfoOut, nil
+}
+
+// RetrieveModelVersionInfo retrieves a given model version info
+func (b *dbBackend) RetrieveModelInfo(modelID string) (backend.ModelInfo, error) {
+	modelInfo := dbModel{}
+	if err := retrieveModel(b.db, modelID, &modelInfo); err != nil {
+		return backend.ModelInfo{}, err
+	}
+
+	modelInfoOut, err := backendModelInfoFromDB(modelInfo)
+	if err != nil {
+		return backend.ModelInfo{}, err
+	}
+
+	return modelInfoOut, nil
 }
 
 // DeleteModelVersion deletes a given model version
@@ -274,9 +360,19 @@ func (b *dbBackend) DeleteModelVersion(modelID string, versionNumber int) error 
 
 // ListModelVersionInfos list the versions info of a model from the latest to the earliest from the given offset index, it returns at most the given limit number of versions
 func (b *dbBackend) ListModelVersionInfos(modelID string, offset int, limit int) ([]backend.VersionInfo, error) {
-	versions := []backend.VersionInfo{}
+	versions := []dbVersionInfo{}
 	if err := b.db.Model(&dbVersion{}).Where(&dbVersion{ModelID: modelID}).Limit(limit).Offset(offset).Find(&versions).Error; err != nil {
 		return []backend.VersionInfo{}, err
 	}
-	return versions, nil
+
+	outVersions := []backend.VersionInfo{}
+	for _, version := range versions {
+		outVersion, err := backendVersionInfoFromDB(version)
+		if err != nil {
+			return []backend.VersionInfo{}, err
+		}
+		outVersions = append(outVersions, outVersion)
+	}
+
+	return outVersions, nil
 }

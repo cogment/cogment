@@ -19,38 +19,43 @@ import (
 	"time"
 )
 
+type ModelInfo struct {
+	ModelID  string            `json:"modelId" yaml:"model_id"`
+	Metadata map[string]string `json:"metadata" `
+}
+
 // VersionInfo describes the informations (metadata) for a particular version of a model
 type VersionInfo struct {
-	ModelID   string    `json:"modelId" yaml:"model_id"`
-	CreatedAt time.Time `json:"createdAt" yaml:"created_at"`
-	Number    int       `json:"number"`
-	Archive   bool      `json:"archive"`
-	Hash      string    `json:"hash"`
+	ModelID   string            `json:"modelId" yaml:"model_id"`
+	CreatedAt time.Time         `json:"createdAt" yaml:"created_at"`
+	Number    int               `json:"number"`
+	Archive   bool              `json:"archive"`
+	Hash      string            `json:"hash"`
+	Metadata  map[string]string `json:"metadata"`
+}
+
+type VersionInfoArgs struct {
+	VersionNumber int               `json:"versionNumber" yaml:"version_number"`
+	Data          []byte            `json:"data"`
+	Archive       bool              `json:"archive"`
+	Metadata      map[string]string `json:"metadata"`
 }
 
 // Backend defines the interface for a model registry backend
 type Backend interface {
 	Destroy()
 
-	CreateModel(modelID string) error
+	CreateOrUpdateModel(modelInfo ModelInfo) (ModelInfo, error)
+	RetrieveModelInfo(modelID string) (ModelInfo, error)
 	HasModel(modelID string) (bool, error)
 	DeleteModel(modelID string) error
 	ListModels(offset int, limit int) ([]string, error)
 
-	CreateOrUpdateModelVersion(modelID string, versionNumber int, data []byte, archive bool) (VersionInfo, error)
+	CreateOrUpdateModelVersion(modelID string, versionInfoArgs VersionInfoArgs) (VersionInfo, error)
 	RetrieveModelVersionInfo(modelID string, versionNumber int) (VersionInfo, error)
 	RetrieveModelVersionData(modelID string, versionNumber int) ([]byte, error)
 	DeleteModelVersion(modelID string, versionNumber int) error
 	ListModelVersionInfos(modelID string, offset int, limit int) ([]VersionInfo, error)
-}
-
-// ModelAlreadyExistsError is raised when creating a model that already exists
-type ModelAlreadyExistsError struct {
-	ModelID string
-}
-
-func (e *ModelAlreadyExistsError) Error() string {
-	return fmt.Sprintf("model %q already exists", e.ModelID)
 }
 
 // UnknownModelError is raised when trying to operate on an unknown model

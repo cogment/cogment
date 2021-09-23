@@ -20,6 +20,7 @@ import "google/protobuf/timestamp.proto";
 
 message ModelInfo {
 	string model_id = 1;
+  map<string, string> metadata = 2;
 }
 
 message ModelVersionInfo {
@@ -28,24 +29,27 @@ message ModelVersionInfo {
 	uint32 number = 3;
 	bool archive = 4;
 	string hash = 5;
+  map<string, string> metadata = 6;
 }
 
 service ModelRegistry {
-  rpc CreateModel(CreateModelRequest) returns (CreateModelReply) {}
+  rpc CreateOrUpdateModel(CreateOrUpdateModelRequest) returns (CreateOrUpdateModelReply) {}
+  rpc RetrieveModelInfo(RetrieveModelVersionInfoRequest) returns (RetrieveModelVersionInfoReply) {}
   rpc DeleteModel(DeleteModelRequest) returns (DeleteModelReply) {}
 
-  rpc CreateModelVersion(stream CreateModelVersionRequestChunk) returns (CreateModelVersionReply) {}
+  rpc CreateOrUpdateModelVersion(stream CreateOrUpdateModelVersionRequestChunk) returns (CreateOrUpdateModelVersionReply) {}
   rpc ListModelVersions(ListModelVersionsRequest) returns (ListModelVersionsReply) {}
   rpc RetrieveModelVersionInfo(RetrieveModelVersionInfoRequest) returns (RetrieveModelVersionInfoReply) {}
+  
   rpc RetrieveModelVersionData(RetrieveModelVersionDataRequest) returns (stream RetrieveModelVersionDataReplyChunk) {}
 }
 
-message CreateModelRequest {
-  string model_id = 1;
+message CreateOrUpdateModelRequest {
+  ModelInfo modelInfo = 1;
 }
 
-message CreateModelReply {
-  ModelInfo model = 1;
+message CreateOrUpdateModelReply {
+  ModelInfo modelInfo = 1;
 }
 
 message DeleteModelRequest {
@@ -56,14 +60,15 @@ message DeleteModelReply {
   ModelInfo model = 1;
 }
 
-message CreateModelVersionRequestChunk {
-  string model_id = 1;  // First chunk in the stream must define, if defined in following chunks it will be ignore
-  bool archive = 2;     // Same
-  bytes data_chunk = 3; // All data chunk will be concatened to form the version data
-  bool last_chunk = 4;  // True for the last chunk, false otherwise
+message CreateOrUpdateModelVersionRequestChunk {
+  string model_id = 1;                      // First chunk in the stream must define, if defined in following chunks it will be ignore
+  bool archive = 2;                         // Same
+  map<string, string> metadata = 3; // Same
+  bytes data_chunk = 4;                     // All data chunk will be concatened to form the version data
+  bool last_chunk = 5;                      // True for the last chunk, false otherwise
 }
 
-message CreateModelVersionReply {
+message CreateOrUpdateModelVersionReply {
   ModelVersionInfo version_info = 1;
 }
 
