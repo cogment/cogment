@@ -17,5 +17,8 @@ RUN npx cogment-js-sdk-generate
 # copy generated app
 COPY . ./
 
+# generate code
+RUN npx cogment-js-sdk-generate
+
 # start app
 CMD ["npm", "start"]
