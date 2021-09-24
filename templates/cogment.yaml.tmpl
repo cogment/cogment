@@ -20,10 +20,12 @@ commands:
     {{- if $config.WebClient }}
     cd web-client && npx cogment-js-sdk-generate && cd ../
     {{- end }}
-    cd environment; python -m pip install cogment; python -m cogment.generate; cd ../
-    cd client; python -m pip install cogment; python -m cogment.generate; cd ../
+    python -m ensurepip --upgrade
+    python -m pip install cogment[generate]
+    cd environment; python -m cogment.generate; cd ../
+    cd client; python -m cogment.generate; cd ../
     {{- range .ListServiceActorServices }}
-    cd {{.Name|snakeify}}; python -m pip install cogment; python -m cogment.generate; cd ../
+    cd {{.Name|snakeify}}; python -m cogment.generate; cd ../
     {{- end }}
   
   build: docker-compose build orchestrator metrics dashboard client environment{{ range .ListServiceActorServices }} {{.Name|kebabify}}{{end}}{{ if $config.WebClient }} web-client{{ end }}

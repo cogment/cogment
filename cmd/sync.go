@@ -63,6 +63,7 @@ func contains(s []string, e string) bool {
 // generateCmd represents the generate command
 var syncCmd = &cobra.Command{
 	Use:   "sync [--all | directories...]",
+	Args:  cobra.MinimumNArgs(1),
 	Short: "Sync the cogment project settings and proto files",
 	Long:  "Sync the cogment project settings and proto files to the target component directories, or to all subdirectories",
 	RunE: func(cmd *cobra.Command, args []string) error {
