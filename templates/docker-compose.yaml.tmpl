@@ -49,7 +49,7 @@ services:
     depends_on:
       - orchestrator
 
-{{ if $config.WebClient -}}
+{{ if $config.WebClient }}
   web-client:
     build:
       context: web-client
@@ -76,7 +76,7 @@ services:
       - "9443:8443"
     # volumes:
     #   - ./letsencrypt/config:/etc/letsencrypt:ro
-    environment:
+    # environment:
       # - SERVER_TLS_KEY=/etc/letsencrypt/live/example.com/privkey.pem
       # - SERVER_TLS_CRT=/etc/letsencrypt/live/example.com/fullchain.pem
     depends_on:

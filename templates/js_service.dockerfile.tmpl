@@ -11,8 +11,9 @@ COPY cogment.yaml ./
 COPY *.proto ./
 
 RUN mkdir src
-RUN npm i
+RUN npm i --save-optional
 RUN npx cogment-js-sdk-generate
+RUN npm install
 
 # copy generated app
 COPY . ./

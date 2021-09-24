@@ -3,13 +3,23 @@ import:
     - data.proto
 
 commands:
-  generate: >
-    cogment generate
-    --python_dir environment
-    --python_dir client
-    --python_dir dumb
-    --python_dir smart
-  build: docker-compose build orchestrator metrics dashboard client environment dumb smart
+  sync: >
+    cogment sync
+    environment
+    client
+    dumb
+    smart
+
+  generate: |
+    cogment run sync
+    python -m ensurepip --upgrade
+    python -m pip install cogment[generate]
+    cd environment; python -m cogment.generate; cd ../
+    cd client; python -m cogment.generate; cd ../
+    cd dumb; python -m cogment.generate; cd ../
+    cd smart; python -m cogment.generate; cd ../
+  
+  build: cogment run sync && docker-compose build orchestrator metrics dashboard client environment dumb smart
   dashboard: docker-compose up --build dashboard
   start: docker-compose up orchestrator metrics dashboard environment dumb smart
   stop: docker-compose stop orchestrator metrics dashboard environment dumb smart
