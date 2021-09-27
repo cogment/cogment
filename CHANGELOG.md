@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v1.2.0 - 2021-09-27
+
 ### Added
 
 - Introduce `cogment sync` a command to synchronize the cogment project settings and proto files to the components directories
