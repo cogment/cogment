@@ -5,7 +5,7 @@ components:
     version: v1.0.3
   python:
     package: cogment
-    version: v1.2.0
+    version: v1.3.0
   metrics:
     package: cogment/metrics
     version: v1.2.3

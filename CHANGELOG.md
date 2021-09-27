@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Introduce `cogment sync` a command to synchronize the cogment project settings and proto files to the components directories
 
+### Changed
+
+- Upgrade the version used by `cogment init` of the python sdk to `v1.3.0`
+
 ## v1.1.0 - 2021-09-09
 
 ### Added
