@@ -125,6 +125,7 @@ func TestCreateProjectFiles(t *testing.T) {
 			Python:       helper.VersionInfo{Version: "1.0"},
 			Metrics:      helper.VersionInfo{Version: "2.0"},
 			Dashboard:    helper.VersionInfo{Version: "v1.5-beta"},
+			Javascript:   helper.VersionInfo{Version: "1.25.5"},
 		},
 		ActorClasses: []*api.ActorClass{
 			&api.ActorClass{Name: "master"},

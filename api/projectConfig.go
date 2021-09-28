@@ -180,6 +180,7 @@ type ComponentsConfigurations struct {
 	Python       helper.VersionInfo
 	Metrics      helper.VersionInfo
 	Dashboard    helper.VersionInfo
+	Javascript   helper.VersionInfo
 }
 
 type Environment struct {

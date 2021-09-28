@@ -18,12 +18,12 @@ commands:
   generate: |
     cogment run sync
     {{- if $config.WebClient }}
-    cd web-client && npx cogment-js-sdk generate && cd ../
+    cd web-client && npx cogment-js-sdk-generate && cd ../
     {{- end }}
-    cd environment && pip install cogment && python -m cogment.generate && cd ../
-    cd client && pip install cogment && python -m cogment.generate && cd ../
+    cd environment && python -m pip install cogment && python -m cogment.generate && cd ../
+    cd client && python -m pip install cogment && python -m cogment.generate && cd ../
     {{- range .ListServiceActorServices }}
-    cd {{.Name|snakeify}} && pip install cogment && python -m cogment.generate && cd ../
+    cd {{.Name|snakeify}} && python -m pip install cogment && python -m cogment.generate && cd ../
     {{- end }}
   
   build: docker-compose build orchestrator metrics dashboard client environment{{ range .ListServiceActorServices }} {{.Name|kebabify}}{{end}}{{ if $config.WebClient }} web-client{{ end }}

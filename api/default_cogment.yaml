@@ -6,6 +6,9 @@ components:
   python:
     package: cogment
     version: v1.3.0
+  javascript:
+    package: "@cogment/cogment-js-sdk"
+    version: v1.25.5
   metrics:
     package: cogment/metrics
     version: v1.2.3

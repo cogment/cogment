@@ -35,7 +35,6 @@ import (
 )
 
 var JavascriptDependencies = []string{
-	"@cogment/cogment-js-sdk",
 	"google-protobuf",
 	"grpc-tools",
 	"grpc_tools_node_protoc_ts",
@@ -174,6 +173,7 @@ func createWebClient(config *api.ProjectConfig) error {
 
 	createReactAppCmd := "npm init react-app web-client"
 	npmDependencies := JavascriptDependencies[:]
+	npmDependencies = append(npmDependencies, fmt.Sprintf("%s@%s", config.Components.Javascript.Package, config.Components.Javascript.Version))
 	npmDevDependencies := JavascriptDevDependencies[:]
 
 	if !commandExists("npm") {
