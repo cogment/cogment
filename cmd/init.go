@@ -193,9 +193,8 @@ func createWebClient(config *api.ProjectConfig) error {
 		set -xe
 		%s
 		cd web-client
-		npm install --save %s
+		npm install --save-optional  %s
 		npm install --save-dev %s
-		npm install --save-optional %s
 		npx nps init
 		rm -rf .git
 		exit
