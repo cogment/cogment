@@ -1,2 +1,2 @@
-cogment==1.0
+cogment[generate]==1.0
 
