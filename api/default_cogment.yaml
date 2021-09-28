@@ -4,7 +4,7 @@ components:
     package: cogment/orchestrator
     version: v1.0.3
   python:
-    package: cogment
+    package: cogment[generate]
     version: v1.3.0
   javascript:
     package: "@cogment/cogment-js-sdk"
