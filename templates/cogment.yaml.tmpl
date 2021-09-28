@@ -20,7 +20,6 @@ commands:
     {{- if $config.WebClient }}
     cd web-client && npx cogment-js-sdk-generate && cd ../
     {{- end }}
-    python -m ensurepip --upgrade
     python -m pip install cogment[generate]
     cd environment; python -m cogment.generate; cd ../
     cd client; python -m cogment.generate; cd ../

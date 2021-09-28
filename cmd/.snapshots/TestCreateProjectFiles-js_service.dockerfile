@@ -7,7 +7,13 @@ EXPOSE 3000
 
 # install modules
 COPY package.json package-lock.json ./
-RUN npm install --save-optional
+COPY cogment.yaml ./
+COPY *.proto ./
+
+RUN mkdir src
+RUN npm i --save-optional
+RUN npx cogment-js-sdk-generate
+RUN npm install
 
 # copy generated app
 COPY . ./
