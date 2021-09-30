@@ -15,6 +15,7 @@
 package hybrid
 
 import (
+	"context"
 	"crypto/rand"
 	"fmt"
 	"testing"
@@ -75,7 +76,7 @@ func BenchmarkSyncFsToDb(b *testing.B) {
 		defer fsB.Destroy()
 		assert.NoError(b, err)
 
-		err = Sync(dbB, fsB)
+		err = Sync(context.Background(), dbB, fsB)
 		assert.NoError(b, err)
 	}
 }

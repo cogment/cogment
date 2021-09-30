@@ -15,28 +15,39 @@
 package hybrid
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/cogment/cogment-model-registry/backend"
+	"golang.org/x/sync/errgroup"
 )
 
-func Sync(from backend.Backend, to backend.Backend) error {
+func Sync(ctx context.Context, from backend.Backend, to backend.Backend) error {
 	// Let's import everything from 'from' to 'to'
 	// ATM we don't care about removing what's already in 'from' storage
 	modelIDs, err := from.ListModels(-1, -1)
 	if err != nil {
 		return fmt.Errorf("Error while syncing models: %w", err)
 	}
+	g, ctx := errgroup.WithContext(ctx) // New error group and associated context
 	for _, modelID := range modelIDs {
-		err := SyncModel(from, to, modelID)
-		if err != nil {
-			return fmt.Errorf("Error while syncing models: %w", err)
-		}
+		modelID := modelID // Create a new 'modelID' that gets captured by the goroutine's closure https://golang.org/doc/faq#closures_and_goroutines
+		g.Go(func() error {
+			err := SyncModel(ctx, from, to, modelID)
+			if err != nil {
+				return fmt.Errorf("Error while syncing models: %w", err)
+			}
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return err
 	}
 	return nil
 }
 
-func SyncModel(from backend.Backend, to backend.Backend, modelID string) error {
+func SyncModel(ctx context.Context, from backend.Backend, to backend.Backend, modelID string) error {
 	_, err := to.CreateOrUpdateModel(backend.ModelInfo{ModelID: modelID})
 	if err != nil {
 		return fmt.Errorf("Error while syncing model %q: %w", modelID, err)
@@ -46,20 +57,28 @@ func SyncModel(from backend.Backend, to backend.Backend, modelID string) error {
 	if err != nil {
 		return fmt.Errorf("Error while syncing model %q: %w", modelID, err)
 	}
+	g, _ := errgroup.WithContext(ctx) // New error group and associated context
 	for _, modelVersionInfo := range modelVersionInfos {
-		modelVersionData, err := from.RetrieveModelVersionData(modelID, modelVersionInfo.Number)
-		if err != nil {
-			return fmt.Errorf("Error while syncing model %q: %w", modelID, err)
-		}
-		_, err = to.CreateOrUpdateModelVersion(modelID, backend.VersionInfoArgs{
-			VersionNumber: modelVersionInfo.Number,
-			Data:          modelVersionData,
-			Archive:       modelVersionInfo.Archive,
-			Metadata:      modelVersionInfo.Metadata,
+		modelVersionInfo := modelVersionInfo // Create a new 'modelID' that gets captured
+		g.Go(func() error {
+			modelVersionData, err := from.RetrieveModelVersionData(modelID, modelVersionInfo.Number)
+			if err != nil {
+				return fmt.Errorf("Error while syncing model %q: %w", modelID, err)
+			}
+			_, err = to.CreateOrUpdateModelVersion(modelID, backend.VersionInfoArgs{
+				VersionNumber: modelVersionInfo.Number,
+				Data:          modelVersionData,
+				Archive:       modelVersionInfo.Archive,
+				Metadata:      modelVersionInfo.Metadata,
+			})
+			if err != nil {
+				return fmt.Errorf("Error while syncing model %q: %w", modelID, err)
+			}
+			return nil
 		})
-		if err != nil {
-			return fmt.Errorf("Error while syncing model %q: %w", modelID, err)
-		}
+	}
+	if err := g.Wait(); err != nil {
+		return err
 	}
 	return nil
 }

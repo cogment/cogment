@@ -15,6 +15,8 @@
 package hybrid
 
 import (
+	"context"
+
 	"github.com/cogment/cogment-model-registry/backend"
 )
 
@@ -30,7 +32,7 @@ func CreateBackend(transient backend.Backend, archive backend.Backend) (backend.
 		archive:   archive,
 	}
 
-	err := Sync(b.archive, b.transient)
+	err := Sync(context.Background(), b.archive, b.transient)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +77,7 @@ func (b *hybridBackend) DeleteModel(modelID string) error {
 			// Error while removing model from the archive storage
 			// Rollacking (we can't completely rollback non archived model versions)
 			// Explicitely ignoring errors here, there's nothing we can do about it.
-			_ = SyncModel(b.archive, b.transient, modelID)
+			_ = SyncModel(context.Background(), b.archive, b.transient, modelID)
 		}
 		return err
 	}
@@ -155,7 +157,7 @@ func (b *hybridBackend) DeleteModelVersion(modelID string, versionNumber int) er
 		// Error while removing model version from the archive storage
 		// Rollacking (we can't completely rollback non archived model versions)
 		// explicitely ignoring error here, there's nothing we can do about it.
-		_ = SyncModel(b.archive, b.transient, modelID)
+		_ = SyncModel(context.Background(), b.archive, b.transient, modelID)
 		return err
 	}
 	return nil
