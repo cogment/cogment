@@ -23,10 +23,11 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
+	"github.com/cogment/cogment-model-registry/backend"
 	"github.com/cogment/cogment-model-registry/backend/db"
 	"github.com/cogment/cogment-model-registry/backend/fs"
 	"github.com/cogment/cogment-model-registry/backend/hybrid"
-	"github.com/cogment/cogment-model-registry/grpcserver"
+	"github.com/cogment/cogment-model-registry/grpcservers"
 )
 
 func main() {
@@ -37,24 +38,6 @@ func main() {
 	viper.SetDefault("GRPC_REFLECTION", false)
 	viper.SetEnvPrefix("COGMENT_MODEL_REGISTRY")
 
-	dbBackend, err := db.CreateBackend()
-	if err != nil {
-		log.Fatalf("unable to create the database backend: %v", err)
-	}
-	defer dbBackend.Destroy()
-
-	fsBackend, err := fs.CreateBackend(viper.GetString("ARCHIVE_DIR"))
-	if err != nil {
-		log.Fatalf("unable to create the archive filesystem backend: %v", err)
-	}
-	defer fsBackend.Destroy()
-
-	backend, err := hybrid.CreateBackend(dbBackend, fsBackend)
-	if err != nil {
-		log.Fatalf("unable to create the backend: %v", err)
-	}
-	defer backend.Destroy()
-
 	port := viper.GetInt("PORT")
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
@@ -62,10 +45,35 @@ func main() {
 	}
 	var opts []grpc.ServerOption
 	server := grpc.NewServer(opts...)
-	err = grpcserver.RegisterServer(server, backend, viper.GetInt("SENT_MODEL_VERSION_DATA_CHUNK_SIZE"))
+	modelRegistryServer, err := grpcservers.RegisterModelRegistryServer(server, viper.GetInt("SENT_MODEL_VERSION_DATA_CHUNK_SIZE"))
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
+
+	var dbBackend backend.Backend
+	defer dbBackend.Destroy()
+	var fsBackend backend.Backend
+	defer fsBackend.Destroy()
+	var backend backend.Backend
+	defer backend.Destroy()
+	go func() {
+		dbBackend, err := db.CreateBackend()
+		if err != nil {
+			log.Fatalf("unable to create the database backend: %v", err)
+		}
+
+		fsBackend, err := fs.CreateBackend(viper.GetString("ARCHIVE_DIR"))
+		if err != nil {
+			log.Fatalf("unable to create the archive filesystem backend: %v", err)
+		}
+
+		backend, err := hybrid.CreateBackend(dbBackend, fsBackend)
+		if err != nil {
+			log.Fatalf("unable to create the backend: %v", err)
+		}
+
+		modelRegistryServer.SetBackend(backend)
+	}()
 
 	if viper.GetBool("GRPC_REFLECTION") {
 		reflection.Register(server)

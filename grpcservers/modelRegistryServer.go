@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package grpcserver
+package grpcservers
 
 import (
 	"context"
@@ -27,9 +27,9 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-type server struct {
+type ModelRegistryServer struct {
 	grpcapi.UnimplementedModelRegistryServer
-	backend                       backend.Backend
+	backendPromise                BackendPromise
 	sentModelVersionDataChunkSize int
 }
 
@@ -54,12 +54,21 @@ func createBackendModelInfo(modelInfo *grpcapi.ModelInfo) backend.ModelInfo {
 	}
 }
 
-func (s *server) CreateOrUpdateModel(ctx context.Context, req *grpcapi.CreateOrUpdateModelRequest) (*grpcapi.CreateOrUpdateModelReply, error) {
+func (s *ModelRegistryServer) SetBackend(b backend.Backend) {
+	s.backendPromise.Set(b)
+}
+
+func (s *ModelRegistryServer) CreateOrUpdateModel(ctx context.Context, req *grpcapi.CreateOrUpdateModelRequest) (*grpcapi.CreateOrUpdateModelReply, error) {
 	log.Printf("CreateOrUpdateModel(req={ModelId: %q})\n", req.ModelInfo.ModelId)
 
 	modelInfo := createBackendModelInfo(req.ModelInfo)
 
-	newModelInfo, err := s.backend.CreateOrUpdateModel(modelInfo)
+	b, err := s.backendPromise.Await(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	newModelInfo, err := b.CreateOrUpdateModel(modelInfo)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unexpected error while creating model %q: %s", modelInfo.ModelID, err)
 	}
@@ -67,12 +76,17 @@ func (s *server) CreateOrUpdateModel(ctx context.Context, req *grpcapi.CreateOrU
 	return &grpcapi.CreateOrUpdateModelReply{ModelInfo: &grpcapi.ModelInfo{ModelId: newModelInfo.ModelID, Metadata: newModelInfo.Metadata}}, nil
 }
 
-func (s *server) DeleteModel(ctx context.Context, req *grpcapi.DeleteModelRequest) (*grpcapi.DeleteModelReply, error) {
+func (s *ModelRegistryServer) DeleteModel(ctx context.Context, req *grpcapi.DeleteModelRequest) (*grpcapi.DeleteModelReply, error) {
 	log.Printf("CreateOrUpdateModel(req={ModelId: %q})\n", req.ModelId)
 
 	modelInfo := createPbModelInfo(req.ModelId)
 
-	err := s.backend.DeleteModel(modelInfo.ModelId)
+	b, err := s.backendPromise.Await(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	err = b.DeleteModel(modelInfo.ModelId)
 	if err != nil {
 		if _, ok := err.(*backend.UnknownModelError); ok {
 			return nil, status.Errorf(codes.NotFound, "%s", err)
@@ -83,7 +97,7 @@ func (s *server) DeleteModel(ctx context.Context, req *grpcapi.DeleteModelReques
 	return &grpcapi.DeleteModelReply{Model: &modelInfo}, nil
 }
 
-func (s *server) CreateOrUpdateModelVersion(inStream grpcapi.ModelRegistry_CreateOrUpdateModelVersionServer) error {
+func (s *ModelRegistryServer) CreateOrUpdateModelVersion(inStream grpcapi.ModelRegistry_CreateOrUpdateModelVersionServer) error {
 	log.Printf("CreateOrUpdateModelVersion(stream=...)\n")
 
 	firstChunk, err := inStream.Recv()
@@ -123,7 +137,12 @@ func (s *server) CreateOrUpdateModelVersion(inStream grpcapi.ModelRegistry_Creat
 		lastChunk = chunk.LastChunk
 	}
 
-	versionInfo, err := s.backend.CreateOrUpdateModelVersion(modelID, backend.VersionInfoArgs{
+	b, err := s.backendPromise.Await(inStream.Context())
+	if err != nil {
+		return err
+	}
+
+	versionInfo, err := b.CreateOrUpdateModelVersion(modelID, backend.VersionInfoArgs{
 		VersionNumber: -1,
 		Data:          modelData,
 		Archive:       archive,
@@ -137,7 +156,7 @@ func (s *server) CreateOrUpdateModelVersion(inStream grpcapi.ModelRegistry_Creat
 	return inStream.SendAndClose(&grpcapi.CreateOrUpdateModelVersionReply{VersionInfo: &pbVersionInfo})
 }
 
-func (s *server) ListModelVersions(ctx context.Context, req *grpcapi.ListModelVersionsRequest) (*grpcapi.ListModelVersionsReply, error) {
+func (s *ModelRegistryServer) ListModelVersions(ctx context.Context, req *grpcapi.ListModelVersionsRequest) (*grpcapi.ListModelVersionsReply, error) {
 	log.Printf("ListModelVersions(req={ModelId: %q, PageOffset: %d, PageSize: %d})\n", req.ModelId, req.PageOffset, req.PageSize)
 
 	offset := int(req.PageOffset)
@@ -145,7 +164,12 @@ func (s *server) ListModelVersions(ctx context.Context, req *grpcapi.ListModelVe
 		offset = 0
 	}
 
-	versionInfos, err := s.backend.ListModelVersionInfos(req.ModelId, offset, int(req.PageSize))
+	b, err := s.backendPromise.Await(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	versionInfos, err := b.ListModelVersionInfos(req.ModelId, offset, int(req.PageSize))
 	if err != nil {
 		if _, ok := err.(*backend.UnknownModelError); ok {
 			return nil, status.Errorf(codes.NotFound, "%s", err)
@@ -166,10 +190,15 @@ func (s *server) ListModelVersions(ctx context.Context, req *grpcapi.ListModelVe
 	}, nil
 }
 
-func (s *server) RetrieveModelVersionInfo(ctx context.Context, req *grpcapi.RetrieveModelVersionInfoRequest) (*grpcapi.RetrieveModelVersionInfoReply, error) {
+func (s *ModelRegistryServer) RetrieveModelVersionInfo(ctx context.Context, req *grpcapi.RetrieveModelVersionInfoRequest) (*grpcapi.RetrieveModelVersionInfoReply, error) {
 	log.Printf("RetrieveModelVersionInfo(req={ModelId: %q, Number: %d})\n", req.ModelId, req.Number)
 
-	versionInfo, err := s.backend.RetrieveModelVersionInfo(req.ModelId, int(req.Number))
+	b, err := s.backendPromise.Await(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	versionInfo, err := b.RetrieveModelVersionInfo(req.ModelId, int(req.Number))
 	if err != nil {
 		if _, ok := err.(*backend.UnknownModelError); ok {
 			return nil, status.Errorf(codes.NotFound, "%s", err)
@@ -184,10 +213,15 @@ func (s *server) RetrieveModelVersionInfo(ctx context.Context, req *grpcapi.Retr
 	return &grpcapi.RetrieveModelVersionInfoReply{VersionInfo: &pbVersionInfo}, nil
 }
 
-func (s *server) RetrieveModelVersionData(req *grpcapi.RetrieveModelVersionDataRequest, outStream grpcapi.ModelRegistry_RetrieveModelVersionDataServer) error {
+func (s *ModelRegistryServer) RetrieveModelVersionData(req *grpcapi.RetrieveModelVersionDataRequest, outStream grpcapi.ModelRegistry_RetrieveModelVersionDataServer) error {
 	log.Printf("RetrieveModelVersionData(req={ModelId: %q, Number: %d})\n", req.ModelId, req.Number)
 
-	modelData, err := s.backend.RetrieveModelVersionData(req.ModelId, int(req.Number))
+	b, err := s.backendPromise.Await(outStream.Context())
+	if err != nil {
+		return err
+	}
+
+	modelData, err := b.RetrieveModelVersionData(req.ModelId, int(req.Number))
 	if err != nil {
 		if _, ok := err.(*backend.UnknownModelError); ok {
 			return status.Errorf(codes.NotFound, "%s", err)
@@ -219,12 +253,11 @@ func (s *server) RetrieveModelVersionData(req *grpcapi.RetrieveModelVersionDataR
 	return nil
 }
 
-func RegisterServer(grpcServer grpc.ServiceRegistrar, backend backend.Backend, sentModelVersionDataChunkSize int) error {
-	server := &server{
-		backend:                       backend,
+func RegisterModelRegistryServer(grpcServer grpc.ServiceRegistrar, sentModelVersionDataChunkSize int) (*ModelRegistryServer, error) {
+	server := &ModelRegistryServer{
 		sentModelVersionDataChunkSize: sentModelVersionDataChunkSize,
 	}
 
 	grpcapi.RegisterModelRegistryServer(grpcServer, server)
-	return nil
+	return server, nil
 }

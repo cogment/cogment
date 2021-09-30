@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package grpcserver
+package grpcservers
 
 import (
 	"context"
@@ -56,10 +56,11 @@ func createContext(sentModelVersionDataChunkSize int) (testContext, error) {
 	if err != nil {
 		return testContext{}, err
 	}
-	err = RegisterServer(server, backend, sentModelVersionDataChunkSize)
+	modelRegistryServer, err := RegisterModelRegistryServer(server, sentModelVersionDataChunkSize)
 	if err != nil {
 		return testContext{}, err
 	}
+	modelRegistryServer.SetBackend(backend)
 	go func() {
 		if err := server.Serve(listener); err != nil {
 			log.Fatalf("Server exited with error: %v", err)
