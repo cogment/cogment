@@ -18,39 +18,46 @@ import (
 	"context"
 	"io"
 	"log"
+	"strconv"
+	"time"
 
 	"github.com/cogment/cogment-model-registry/backend"
 	grpcapi "github.com/cogment/cogment-model-registry/grpcapi/cogment/api"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+func timeFromNsTimestamp(timestamp uint64) time.Time {
+	return time.Unix(0, int64(timestamp))
+}
+
+func nsTimestampFromTime(timestamp time.Time) uint64 {
+	return uint64(timestamp.UnixNano())
+}
+
 type ModelRegistryServer struct {
-	grpcapi.UnimplementedModelRegistryServer
+	grpcapi.UnimplementedModelRegistrySPServer
 	backendPromise                BackendPromise
 	sentModelVersionDataChunkSize int
 }
 
-func createPbModelInfo(modelID string) grpcapi.ModelInfo {
-	return grpcapi.ModelInfo{ModelId: modelID}
-}
-
 func createPbModelVersionInfo(modelVersionInfo backend.VersionInfo) grpcapi.ModelVersionInfo {
 	return grpcapi.ModelVersionInfo{
-		ModelId:   modelVersionInfo.ModelID,
-		CreatedAt: timestamppb.New(modelVersionInfo.CreatedAt),
-		Number:    uint32(modelVersionInfo.Number),
-		Archive:   modelVersionInfo.Archive,
-		Hash:      modelVersionInfo.Hash,
+		ModelId:           modelVersionInfo.ModelID,
+		VersionNumber:     uint32(modelVersionInfo.VersionNumber),
+		CreationTimestamp: nsTimestampFromTime(modelVersionInfo.CreationTimestamp),
+		Archived:          modelVersionInfo.Archived,
+		DataHash:          modelVersionInfo.DataHash,
+		DataSize:          uint64(modelVersionInfo.DataSize),
+		UserData:          modelVersionInfo.UserData,
 	}
 }
 
 func createBackendModelInfo(modelInfo *grpcapi.ModelInfo) backend.ModelInfo {
 	return backend.ModelInfo{
 		ModelID:  modelInfo.ModelId,
-		Metadata: modelInfo.Metadata,
+		UserData: modelInfo.UserData,
 	}
 }
 
@@ -68,37 +75,39 @@ func (s *ModelRegistryServer) CreateOrUpdateModel(ctx context.Context, req *grpc
 		return nil, err
 	}
 
-	newModelInfo, err := b.CreateOrUpdateModel(modelInfo)
+	_, err = b.CreateOrUpdateModel(modelInfo)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unexpected error while creating model %q: %s", modelInfo.ModelID, err)
 	}
 
-	return &grpcapi.CreateOrUpdateModelReply{ModelInfo: &grpcapi.ModelInfo{ModelId: newModelInfo.ModelID, Metadata: newModelInfo.Metadata}}, nil
+	return &grpcapi.CreateOrUpdateModelReply{}, nil
 }
 
 func (s *ModelRegistryServer) DeleteModel(ctx context.Context, req *grpcapi.DeleteModelRequest) (*grpcapi.DeleteModelReply, error) {
-	log.Printf("CreateOrUpdateModel(req={ModelId: %q})\n", req.ModelId)
-
-	modelInfo := createPbModelInfo(req.ModelId)
+	log.Printf("DeleteModel(req={ModelId: %q})\n", req.ModelId)
 
 	b, err := s.backendPromise.Await(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	err = b.DeleteModel(modelInfo.ModelId)
+	err = b.DeleteModel(req.ModelId)
 	if err != nil {
 		if _, ok := err.(*backend.UnknownModelError); ok {
 			return nil, status.Errorf(codes.NotFound, "%s", err)
 		}
-		return nil, status.Errorf(codes.Internal, "unexpected error while deleting model %q: %s", modelInfo.ModelId, err)
+		return nil, status.Errorf(codes.Internal, "unexpected error while deleting model %q: %s", req.ModelId, err)
 	}
 
-	return &grpcapi.DeleteModelReply{Model: &modelInfo}, nil
+	return &grpcapi.DeleteModelReply{}, nil
 }
 
-func (s *ModelRegistryServer) CreateOrUpdateModelVersion(inStream grpcapi.ModelRegistry_CreateOrUpdateModelVersionServer) error {
-	log.Printf("CreateOrUpdateModelVersion(stream=...)\n")
+func (s *ModelRegistryServer) RetrieveModels(ctx context.Context, req *grpcapi.RetrieveModelsRequest) (*grpcapi.RetrieveModelsReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RetrieveModels not implemented")
+}
+
+func (s *ModelRegistryServer) CreateVersion(inStream grpcapi.ModelRegistrySP_CreateVersionServer) error {
+	log.Printf("CreateVersion(stream=...)\n")
 
 	firstChunk, err := inStream.Recv()
 	if err == io.EOF {
@@ -107,34 +116,41 @@ func (s *ModelRegistryServer) CreateOrUpdateModelVersion(inStream grpcapi.ModelR
 	if err != nil {
 		return err
 	}
-	if firstChunk.ModelId == "" {
-		return status.Errorf(codes.InvalidArgument, "required `model_id` was not defined in the first request chunk")
+	if firstChunk.GetHeader() == nil {
+		return status.Errorf(codes.InvalidArgument, "first request chunk do not include a Header")
 	}
 
-	modelID := firstChunk.ModelId
-	archive := firstChunk.Archive
-	metadata := firstChunk.Metadata
-	modelData := firstChunk.DataChunk
-	lastChunk := firstChunk.LastChunk
+	receivedVersionInfo := firstChunk.GetHeader().GetVersionInfo()
+
+	modelData := []byte{}
 
 	for {
 		chunk, err := inStream.Recv()
-		if err == io.EOF || lastChunk {
-			if lastChunk && err == io.EOF {
+		if err == io.EOF {
+			receivedDataSize := uint64(len(modelData))
+			if receivedDataSize == receivedVersionInfo.DataSize && err == io.EOF {
 				break
 			}
 			if err == io.EOF {
-				return status.Errorf(codes.InvalidArgument, "no chunk having `last_chunk=True` received")
+				return status.Errorf(codes.InvalidArgument, "stream ended while having not received the expected data, expected %d bytes, received %d bytes", receivedVersionInfo.DataSize, receivedDataSize)
 			}
-			if lastChunk {
-				return status.Errorf(codes.InvalidArgument, "chunk received after `last_chunk=True` received")
+			if receivedDataSize > receivedVersionInfo.DataSize {
+				return status.Errorf(codes.InvalidArgument, "received more data than expected, expected %d bytes, received %d bytes", receivedVersionInfo.DataSize, receivedDataSize)
 			}
 		}
 		if err != nil {
 			return err
 		}
-		modelData = append(modelData, chunk.DataChunk...)
-		lastChunk = chunk.LastChunk
+		if chunk.GetBody() == nil {
+			return status.Errorf(codes.InvalidArgument, "subsequent request chunk do not include a Body")
+		}
+		modelData = append(modelData, chunk.GetBody().DataChunk...)
+	}
+
+	receivedHash := backend.ComputeSHA256Hash(modelData)
+
+	if receivedVersionInfo.DataHash != "" && receivedVersionInfo.DataHash != receivedHash {
+		return status.Errorf(codes.InvalidArgument, "received data did not match the expected hash, expected %q, received %q", receivedVersionInfo.DataHash, receivedHash)
 	}
 
 	b, err := s.backendPromise.Await(inStream.Context())
@@ -142,26 +158,37 @@ func (s *ModelRegistryServer) CreateOrUpdateModelVersion(inStream grpcapi.ModelR
 		return err
 	}
 
-	versionInfo, err := b.CreateOrUpdateModelVersion(modelID, backend.VersionInfoArgs{
-		VersionNumber: -1,
-		Data:          modelData,
-		Archive:       archive,
-		Metadata:      metadata,
+	creationTimestamp := time.Now()
+	if receivedVersionInfo.CreationTimestamp > 0 {
+		creationTimestamp = timeFromNsTimestamp(receivedVersionInfo.CreationTimestamp)
+	}
+
+	versionInfo, err := b.CreateOrUpdateModelVersion(receivedVersionInfo.ModelId, backend.VersionArgs{
+		VersionNumber:     -1,
+		CreationTimestamp: creationTimestamp,
+		Archived:          receivedVersionInfo.Archived,
+		DataHash:          receivedHash,
+		Data:              modelData,
+		UserData:          receivedVersionInfo.UserData,
 	})
 	if err != nil {
-		return status.Errorf(codes.Internal, "unexpected error while creating a version for model %q: %s", modelID, err)
+		return status.Errorf(codes.Internal, "unexpected error while creating a version for model %q: %s", receivedVersionInfo.ModelId, err)
 	}
 
 	pbVersionInfo := createPbModelVersionInfo(versionInfo)
-	return inStream.SendAndClose(&grpcapi.CreateOrUpdateModelVersionReply{VersionInfo: &pbVersionInfo})
+	return inStream.SendAndClose(&grpcapi.CreateVersionReply{VersionInfo: &pbVersionInfo})
 }
 
-func (s *ModelRegistryServer) ListModelVersions(ctx context.Context, req *grpcapi.ListModelVersionsRequest) (*grpcapi.ListModelVersionsReply, error) {
-	log.Printf("ListModelVersions(req={ModelId: %q, PageOffset: %d, PageSize: %d})\n", req.ModelId, req.PageOffset, req.PageSize)
+func (s *ModelRegistryServer) RetrieveVersionInfos(ctx context.Context, req *grpcapi.RetrieveVersionInfosRequest) (*grpcapi.RetrieveVersionInfosReply, error) {
+	log.Printf("RetrieveVersionInfos(req={ModelId: %q, VersionNumbers: %#v, VersionsCount: %d, VersionHandle: %q})\n", req.ModelId, req.VersionNumbers, req.VersionsCount, req.VersionHandle)
 
-	offset := int(req.PageOffset)
-	if offset < 0 {
-		offset = 0
+	offset := 0
+	if req.VersionHandle != "" {
+		var err error
+		offset, err = strconv.Atoi(req.VersionHandle)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "Invalid value for `version_handle` (%q) only empty or values provided by a previous call should be used", req.VersionHandle)
+		}
 	}
 
 	b, err := s.backendPromise.Await(ctx)
@@ -169,59 +196,65 @@ func (s *ModelRegistryServer) ListModelVersions(ctx context.Context, req *grpcap
 		return nil, err
 	}
 
-	versionInfos, err := b.ListModelVersionInfos(req.ModelId, offset, int(req.PageSize))
-	if err != nil {
-		if _, ok := err.(*backend.UnknownModelError); ok {
-			return nil, status.Errorf(codes.NotFound, "%s", err)
+	if len(req.VersionNumbers) == 0 {
+		// Retrieve all version infos
+		versionInfos, err := b.ListModelVersionInfos(req.ModelId, offset, int(req.VersionsCount))
+		if err != nil {
+			if _, ok := err.(*backend.UnknownModelError); ok {
+				return nil, status.Errorf(codes.NotFound, "%s", err)
+			}
+			return nil, status.Errorf(codes.Internal, "unexpected error while deleting model %q: %s", req.ModelId, err)
 		}
-		return nil, status.Errorf(codes.Internal, "unexpected error while deleting model %q: %s", req.ModelId, err)
+
+		pbVersionInfos := []*grpcapi.ModelVersionInfo{}
+
+		for _, versionInfo := range versionInfos {
+			pbVersionInfo := createPbModelVersionInfo(versionInfo)
+			pbVersionInfos = append(pbVersionInfos, &pbVersionInfo)
+		}
+
+		return &grpcapi.RetrieveVersionInfosReply{
+			VersionInfos:      pbVersionInfos,
+			NextVersionHandle: strconv.Itoa(offset + len(pbVersionInfos)),
+		}, nil
 	}
 
 	pbVersionInfos := []*grpcapi.ModelVersionInfo{}
+	versionNumberSlice := req.VersionNumbers[offset:]
+	if req.VersionsCount > 0 {
+		versionNumberSlice = versionNumberSlice[:req.VersionsCount]
+	}
+	for _, versionNumber := range versionNumberSlice {
+		versionInfo, err := b.RetrieveModelVersionInfo(req.ModelId, int(versionNumber))
+		if err != nil {
+			if _, ok := err.(*backend.UnknownModelError); ok {
+				return nil, status.Errorf(codes.NotFound, "%s", err)
+			}
+			if _, ok := err.(*backend.UnknownModelVersionError); ok {
+				return nil, status.Errorf(codes.NotFound, "%s", err)
+			}
+			return nil, status.Errorf(codes.Internal, `unexpected error while retrieving version "%d" for model %q: %s`, versionNumber, req.ModelId, err)
+		}
 
-	for _, versionInfo := range versionInfos {
 		pbVersionInfo := createPbModelVersionInfo(versionInfo)
 		pbVersionInfos = append(pbVersionInfos, &pbVersionInfo)
 	}
 
-	return &grpcapi.ListModelVersionsReply{
-		Versions:       pbVersionInfos,
-		NextPageOffset: int32(offset + len(pbVersionInfos)),
+	return &grpcapi.RetrieveVersionInfosReply{
+		VersionInfos:      pbVersionInfos,
+		NextVersionHandle: strconv.Itoa(offset + len(pbVersionInfos)),
 	}, nil
 }
 
-func (s *ModelRegistryServer) RetrieveModelVersionInfo(ctx context.Context, req *grpcapi.RetrieveModelVersionInfoRequest) (*grpcapi.RetrieveModelVersionInfoReply, error) {
-	log.Printf("RetrieveModelVersionInfo(req={ModelId: %q, Number: %d})\n", req.ModelId, req.Number)
-
-	b, err := s.backendPromise.Await(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	versionInfo, err := b.RetrieveModelVersionInfo(req.ModelId, int(req.Number))
-	if err != nil {
-		if _, ok := err.(*backend.UnknownModelError); ok {
-			return nil, status.Errorf(codes.NotFound, "%s", err)
-		}
-		if _, ok := err.(*backend.UnknownModelVersionError); ok {
-			return nil, status.Errorf(codes.NotFound, "%s", err)
-		}
-		return nil, status.Errorf(codes.Internal, `unexpected error while retrieving version "%d" for model %q: %s`, req.Number, req.ModelId, err)
-	}
-
-	pbVersionInfo := createPbModelVersionInfo(versionInfo)
-	return &grpcapi.RetrieveModelVersionInfoReply{VersionInfo: &pbVersionInfo}, nil
-}
-
-func (s *ModelRegistryServer) RetrieveModelVersionData(req *grpcapi.RetrieveModelVersionDataRequest, outStream grpcapi.ModelRegistry_RetrieveModelVersionDataServer) error {
-	log.Printf("RetrieveModelVersionData(req={ModelId: %q, Number: %d})\n", req.ModelId, req.Number)
+func (s *ModelRegistryServer) RetrieveVersionData(req *grpcapi.RetrieveVersionDataRequest, outStream grpcapi.ModelRegistrySP_RetrieveVersionDataServer) error {
+	log.Printf("RetrieveVersionData(req={ModelId: %q, VersionNumber: %d})\n", req.ModelId, req.VersionNumber)
 
 	b, err := s.backendPromise.Await(outStream.Context())
 	if err != nil {
 		return err
 	}
 
-	modelData, err := b.RetrieveModelVersionData(req.ModelId, int(req.Number))
+	modelData, err := b.RetrieveModelVersionData(req.ModelId, int(req.VersionNumber))
 	if err != nil {
 		if _, ok := err.(*backend.UnknownModelError); ok {
 			return status.Errorf(codes.NotFound, "%s", err)
@@ -229,20 +262,20 @@ func (s *ModelRegistryServer) RetrieveModelVersionData(req *grpcapi.RetrieveMode
 		if _, ok := err.(*backend.UnknownModelVersionError); ok {
 			return status.Errorf(codes.NotFound, "%s", err)
 		}
-		return status.Errorf(codes.Internal, `unexpected error while retrieving version "%d" for model %q: %s`, req.Number, req.ModelId, err)
+		return status.Errorf(codes.Internal, `unexpected error while retrieving version "%d" for model %q: %s`, req.VersionNumber, req.ModelId, err)
 	}
 
 	dataLen := len(modelData)
 	if dataLen == 0 {
-		return outStream.Send(&grpcapi.RetrieveModelVersionDataReplyChunk{LastChunk: true})
+		return outStream.Send(&grpcapi.RetrieveVersionDataReplyChunk{})
 	}
 
 	for i := 0; i < dataLen; i += s.sentModelVersionDataChunkSize {
-		var replyChunk grpcapi.RetrieveModelVersionDataReplyChunk
+		var replyChunk grpcapi.RetrieveVersionDataReplyChunk
 		if i+s.sentModelVersionDataChunkSize >= dataLen {
-			replyChunk = grpcapi.RetrieveModelVersionDataReplyChunk{DataChunk: modelData[i:dataLen], LastChunk: true}
+			replyChunk = grpcapi.RetrieveVersionDataReplyChunk{DataChunk: modelData[i:dataLen]}
 		} else {
-			replyChunk = grpcapi.RetrieveModelVersionDataReplyChunk{DataChunk: modelData[i : i+s.sentModelVersionDataChunkSize], LastChunk: false}
+			replyChunk = grpcapi.RetrieveVersionDataReplyChunk{DataChunk: modelData[i : i+s.sentModelVersionDataChunkSize]}
 		}
 		err := outStream.Send(&replyChunk)
 		if err != nil {
@@ -258,6 +291,6 @@ func RegisterModelRegistryServer(grpcServer grpc.ServiceRegistrar, sentModelVers
 		sentModelVersionDataChunkSize: sentModelVersionDataChunkSize,
 	}
 
-	grpcapi.RegisterModelRegistryServer(grpcServer, server)
+	grpcapi.RegisterModelRegistrySPServer(grpcServer, server)
 	return server, nil
 }

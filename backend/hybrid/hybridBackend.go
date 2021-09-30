@@ -91,35 +91,35 @@ func (b *hybridBackend) ListModels(offset int, limit int) ([]string, error) {
 }
 
 // CreateOrUpdateModelVersion creates and store a new version for a model and returns its info, including the version number
-func (b *hybridBackend) CreateOrUpdateModelVersion(modelID string, versionInfoArgs backend.VersionInfoArgs) (backend.VersionInfo, error) {
+func (b *hybridBackend) CreateOrUpdateModelVersion(modelID string, versionArgs backend.VersionArgs) (backend.VersionInfo, error) {
 	existingVersionInfo := backend.VersionInfo{}
 	existingVersionInfoFound := false
-	if versionInfoArgs.VersionNumber > 0 {
-		versionInfo, err := b.RetrieveModelVersionInfo(modelID, versionInfoArgs.VersionNumber)
+	if versionArgs.VersionNumber > 0 {
+		versionInfo, err := b.RetrieveModelVersionInfo(modelID, versionArgs.VersionNumber)
 		if err == nil {
 			existingVersionInfoFound = true
 			existingVersionInfo = versionInfo
 		}
 	}
-	versionInfo, err := b.transient.CreateOrUpdateModelVersion(modelID, versionInfoArgs)
+	versionInfo, err := b.transient.CreateOrUpdateModelVersion(modelID, versionArgs)
 	if err != nil {
 		return backend.VersionInfo{}, err
 	}
 	//Sync version numbers
-	versionInfoArgs.VersionNumber = versionInfo.Number
-	if versionInfoArgs.Archive {
-		_, err := b.archive.CreateOrUpdateModelVersion(modelID, versionInfoArgs)
+	versionArgs.VersionNumber = versionInfo.VersionNumber
+	if versionArgs.Archived {
+		_, err := b.archive.CreateOrUpdateModelVersion(modelID, versionArgs)
 		if err != nil {
 			// Rollbacking
 			// explicitely ignoring error here, there's nothing we can do about it.
-			_ = b.transient.DeleteModelVersion(modelID, versionInfoArgs.VersionNumber)
+			_ = b.transient.DeleteModelVersion(modelID, versionArgs.VersionNumber)
 			return backend.VersionInfo{}, err
 		}
 	}
-	if existingVersionInfoFound && !versionInfoArgs.Archive && existingVersionInfo.Archive {
+	if existingVersionInfoFound && !versionArgs.Archived && existingVersionInfo.Archived {
 		// Delete this model that is no longer in the archive
 		// explicitely ignoring error here, there's nothing we can do about it.
-		_ = b.archive.DeleteModelVersion(modelID, existingVersionInfo.Number)
+		_ = b.archive.DeleteModelVersion(modelID, existingVersionInfo.VersionNumber)
 	}
 	return versionInfo, nil
 }

@@ -32,29 +32,32 @@ import (
 )
 
 type dbModel struct {
-	ModelID   string `gorm:"primarykey"`
-	Metadata  []byte
-	CreatedAt time.Time
-	Versions  []dbVersion `gorm:"foreignKey:ModelID;reference:ModelID"`
+	ModelID  string `gorm:"primarykey"`
+	UserData []byte
+
+	CreationTimestamp time.Time   `gorm:"autoCreateTime"`
+	Versions          []dbVersion `gorm:"foreignKey:ModelID;reference:ModelID"`
 }
 
 type dbVersion struct {
-	CreatedAt time.Time
-	ModelID   string `gorm:"primarykey"`
-	Metadata  []byte
-	Number    int `gorm:"primarykey"`
-	Archive   bool
-	Hash      string
-	Data      []byte
+	ModelID           string `gorm:"primarykey"`
+	VersionNumber     int    `gorm:"primarykey"`
+	CreationTimestamp time.Time
+	Archived          bool
+	DataHash          string
+	DataSize          int
+	Data              []byte
+	UserData          []byte
 }
 
 type dbVersionInfo struct {
-	CreatedAt time.Time
-	ModelID   string `gorm:"primarykey"`
-	Metadata  []byte
-	Number    int `gorm:"primarykey"`
-	Archive   bool
-	Hash      string
+	ModelID           string    `gorm:"primarykey"`
+	VersionNumber     int       `gorm:"primarykey"`
+	CreationTimestamp time.Time `gorm:"autoCreateTime"`
+	Archived          bool
+	DataHash          string
+	DataSize          int
+	UserData          []byte
 }
 
 type dbBackend struct {
@@ -63,32 +66,33 @@ type dbBackend struct {
 
 func backendVersionInfoFromDB(versionInfo dbVersionInfo) (backend.VersionInfo, error) {
 
-	versionMetadata := &map[string]string{}
-	err := json.Unmarshal(versionInfo.Metadata, versionMetadata)
+	versionUserData := &map[string]string{}
+	err := json.Unmarshal(versionInfo.UserData, versionUserData)
 	if err != nil {
 		return backend.VersionInfo{}, err
 	}
 
 	return backend.VersionInfo{
-		ModelID:   versionInfo.ModelID,
-		CreatedAt: versionInfo.CreatedAt,
-		Number:    versionInfo.Number,
-		Archive:   versionInfo.Archive,
-		Hash:      versionInfo.Hash,
-		Metadata:  *versionMetadata,
+		ModelID:           versionInfo.ModelID,
+		CreationTimestamp: versionInfo.CreationTimestamp,
+		VersionNumber:     versionInfo.VersionNumber,
+		Archived:          versionInfo.Archived,
+		DataHash:          versionInfo.DataHash,
+		DataSize:          versionInfo.DataSize,
+		UserData:          *versionUserData,
 	}, nil
 }
 
 func backendModelInfoFromDB(ModelInfo dbModel) (backend.ModelInfo, error) {
-	modelMetadata := &map[string]string{}
-	err := json.Unmarshal(ModelInfo.Metadata, modelMetadata)
+	modelUserData := &map[string]string{}
+	err := json.Unmarshal(ModelInfo.UserData, modelUserData)
 	if err != nil {
 		return backend.ModelInfo{}, err
 	}
 
 	return backend.ModelInfo{
 		ModelID:  ModelInfo.ModelID,
-		Metadata: *modelMetadata,
+		UserData: *modelUserData,
 	}, nil
 }
 
@@ -129,18 +133,18 @@ func (b *dbBackend) Destroy() {
 // CreateModel creates a model with a given unique id in the backend
 func (b *dbBackend) CreateOrUpdateModel(modelInfo backend.ModelInfo) (backend.ModelInfo, error) {
 
-	serializedMetadata, err := json.Marshal(modelInfo.Metadata)
+	serializedUserData, err := json.Marshal(modelInfo.UserData)
 
 	if err != nil {
 		return backend.ModelInfo{}, err
 	}
 
-	model := dbModel{ModelID: modelInfo.ModelID, Metadata: serializedMetadata}
+	model := dbModel{ModelID: modelInfo.ModelID, UserData: serializedUserData}
 	tx := b.db.Begin()
 
 	if err := tx.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "model_id"}},            // key column
-		DoUpdates: clause.AssignmentColumns([]string{"metadata"}), // column needed to be updated
+		Columns:   []clause.Column{{Name: "model_id"}},             // key column
+		DoUpdates: clause.AssignmentColumns([]string{"user_data"}), // column needed to be updated
 	}).Create(&model).Error; err != nil {
 		tx.Rollback()
 		return backend.ModelInfo{}, err
@@ -186,9 +190,12 @@ func (b *dbBackend) DeleteModel(modelID string) error {
 	return nil
 }
 
-// ListModels list models ordered by id from the given offset index, it returns at most the given limit number of models
+// ListModels list models ordered by id from the given offset index, it returns at most the given limit VersionNumber of models
 func (b *dbBackend) ListModels(offset int, limit int) ([]string, error) {
 	models := []dbModel{}
+	if limit <= 0 {
+		limit = -1
+	}
 	if err := b.db.Order("model_id").Limit(limit).Offset(offset).Find(&models).Error; err != nil {
 		return []string{}, err
 	}
@@ -199,8 +206,8 @@ func (b *dbBackend) ListModels(offset int, limit int) ([]string, error) {
 	return modelIDs, nil
 }
 
-// CreateOrUpdateModelVersion creates and store a new version for a model and returns its info, including the version number
-func (b *dbBackend) CreateOrUpdateModelVersion(modelID string, versionInfoArgs backend.VersionInfoArgs) (backend.VersionInfo, error) {
+// CreateOrUpdateModelVersion creates and store a new version for a model and returns its info, including the version VersionNumber
+func (b *dbBackend) CreateOrUpdateModelVersion(modelID string, versionArgs backend.VersionArgs) (backend.VersionInfo, error) {
 	tx := b.db.Begin()
 
 	if err := tx.First(&dbModel{}, "model_id=?", modelID).Error; err != nil {
@@ -212,35 +219,37 @@ func (b *dbBackend) CreateOrUpdateModelVersion(modelID string, versionInfoArgs b
 		return backend.VersionInfo{}, err
 	}
 
-	serializedMetadata, err := json.Marshal(versionInfoArgs.Metadata)
+	serializedUserData, err := json.Marshal(versionArgs.UserData)
 
 	if err != nil {
 		return backend.VersionInfo{}, err
 	}
 
 	version := dbVersion{
-		ModelID:  modelID,
-		Number:   versionInfoArgs.VersionNumber,
-		Archive:  versionInfoArgs.Archive,
-		Data:     versionInfoArgs.Data,
-		Hash:     backend.ComputeHash(versionInfoArgs.Data),
-		Metadata: serializedMetadata,
+		ModelID:           modelID,
+		VersionNumber:     versionArgs.VersionNumber,
+		CreationTimestamp: versionArgs.CreationTimestamp,
+		Archived:          versionArgs.Archived,
+		Data:              versionArgs.Data,
+		DataHash:          versionArgs.DataHash,
+		DataSize:          len(versionArgs.Data),
+		UserData:          serializedUserData,
 	}
 
-	if version.Number <= 0 {
+	if version.VersionNumber <= 0 {
 		// If versionNumber is 0 or less, we create a new version after the last one
 		latestVersionInfo := dbVersion{ModelID: modelID}
-		if err := tx.Order("number desc").First(&latestVersionInfo).Error; err != nil {
+		if err := tx.Order("version_number desc").First(&latestVersionInfo).Error; err != nil {
 			if errors.Is(gorm.ErrRecordNotFound, err) {
 				// No version yet
-				version.Number = 1
+				version.VersionNumber = 1
 			} else {
 				// Unexpected error
 				tx.Rollback()
 				return backend.VersionInfo{}, err
 			}
 		} else {
-			version.Number = latestVersionInfo.Number + 1
+			version.VersionNumber = latestVersionInfo.VersionNumber + 1
 		}
 	}
 
@@ -253,26 +262,27 @@ func (b *dbBackend) CreateOrUpdateModelVersion(modelID string, versionInfoArgs b
 
 	tx.Commit()
 
-	versionMetadata := &map[string]string{}
-	err = json.Unmarshal(version.Metadata, versionMetadata)
+	versionUserData := &map[string]string{}
+	err = json.Unmarshal(version.UserData, versionUserData)
 	if err != nil {
 		return backend.VersionInfo{}, err
 	}
 
 	return backend.VersionInfo{
-		ModelID:   version.ModelID,
-		CreatedAt: version.CreatedAt,
-		Archive:   version.Archive,
-		Number:    version.Number,
-		Hash:      version.Hash,
-		Metadata:  *versionMetadata,
+		ModelID:           version.ModelID,
+		CreationTimestamp: version.CreationTimestamp,
+		Archived:          version.Archived,
+		VersionNumber:     version.VersionNumber,
+		DataHash:          version.DataHash,
+		DataSize:          version.DataSize,
+		UserData:          *versionUserData,
 	}, nil
 }
 
 func retrieveModelVersion(db *gorm.DB, modelID string, versionNumber int, dest interface{}) error {
 	if versionNumber <= 0 {
 		// Retrieving the latest version
-		if err := db.Model(&dbVersion{}).Where(&dbVersion{ModelID: modelID}).Order("number desc").First(dest).Error; err != nil {
+		if err := db.Model(&dbVersion{}).Where(&dbVersion{ModelID: modelID}).Order("version_number desc").First(dest).Error; err != nil {
 			if errors.Is(gorm.ErrRecordNotFound, err) {
 				return &backend.UnknownModelVersionError{ModelID: modelID, VersionNumber: -1}
 			}
@@ -281,7 +291,7 @@ func retrieveModelVersion(db *gorm.DB, modelID string, versionNumber int, dest i
 		return nil
 	}
 	// Retrieving a specific version
-	if err := db.Model(&dbVersion{}).Where(&dbVersion{ModelID: modelID, Number: versionNumber}).First(dest).Error; err != nil {
+	if err := db.Model(&dbVersion{}).Where(&dbVersion{ModelID: modelID, VersionNumber: versionNumber}).First(dest).Error; err != nil {
 		if errors.Is(gorm.ErrRecordNotFound, err) {
 			return &backend.UnknownModelVersionError{ModelID: modelID, VersionNumber: versionNumber}
 		}
@@ -349,7 +359,7 @@ func (b *dbBackend) DeleteModelVersion(modelID string, versionNumber int) error 
 		return err
 	}
 
-	if err := tx.Where("model_id=?", modelID).Where("number=?", versionNumber).Delete(&dbVersion{}).Error; err != nil {
+	if err := tx.Where("model_id=?", modelID).Where("version_number=?", versionNumber).Delete(&dbVersion{}).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -358,7 +368,7 @@ func (b *dbBackend) DeleteModelVersion(modelID string, versionNumber int) error 
 	return nil
 }
 
-// ListModelVersionInfos list the versions info of a model from the latest to the earliest from the given offset index, it returns at most the given limit number of versions
+// ListModelVersionInfos list the versions info of a model from the latest to the earliest from the given offset index, it returns at most the given limit VersionNumber of versions
 func (b *dbBackend) ListModelVersionInfos(modelID string, offset int, limit int) ([]backend.VersionInfo, error) {
 	versions := []dbVersionInfo{}
 	if err := b.db.Model(&dbVersion{}).Where(&dbVersion{ModelID: modelID}).Limit(limit).Offset(offset).Find(&versions).Error; err != nil {

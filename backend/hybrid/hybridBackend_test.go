@@ -38,15 +38,15 @@ func TestSuiteHybridBackend(t *testing.T) {
 
 func TestInitialSync(t *testing.T) {
 
-	versionMetadata := make(map[string]string)
-	versionMetadata["version_test1"] = "version_test1"
-	versionMetadata["version_test2"] = "version_test2"
-	versionMetadata["version_test3"] = "version_test3"
+	versionUserData := make(map[string]string)
+	versionUserData["version_test1"] = "version_test1"
+	versionUserData["version_test2"] = "version_test2"
+	versionUserData["version_test3"] = "version_test3"
 
-	modelMetadata := make(map[string]string)
-	modelMetadata["model_test1"] = "model_test1"
-	modelMetadata["model_test2"] = "model_test2"
-	modelMetadata["model_test3"] = "model_test3"
+	modelUserData := make(map[string]string)
+	modelUserData["model_test1"] = "model_test1"
+	modelUserData["model_test2"] = "model_test2"
+	modelUserData["model_test3"] = "model_test3"
 
 	archiveB, err := db.CreateBackend()
 	assert.NoError(t, err)
@@ -58,69 +58,69 @@ func TestInitialSync(t *testing.T) {
 
 		_, err = b.CreateOrUpdateModel(backend.ModelInfo{
 			ModelID:  "model1",
-			Metadata: modelMetadata,
+			UserData: modelUserData,
 		})
 		assert.NoError(t, err)
-		_, err = b.CreateOrUpdateModelVersion("model1", backend.VersionInfoArgs{
+		_, err = b.CreateOrUpdateModelVersion("model1", backend.VersionArgs{
 			VersionNumber: -1,
 			Data:          test.Data1,
-			Metadata:      versionMetadata,
-			Archive:       true,
+			UserData:      versionUserData,
+			Archived:      true,
 		})
 		assert.NoError(t, err)
-		_, err = b.CreateOrUpdateModelVersion("model1", backend.VersionInfoArgs{
+		_, err = b.CreateOrUpdateModelVersion("model1", backend.VersionArgs{
 			VersionNumber: -1,
 			Data:          test.Data2,
-			Metadata:      versionMetadata,
-			Archive:       false,
+			UserData:      versionUserData,
+			Archived:      false,
 		})
 		assert.NoError(t, err)
-		_, err = b.CreateOrUpdateModelVersion("model1", backend.VersionInfoArgs{
+		_, err = b.CreateOrUpdateModelVersion("model1", backend.VersionArgs{
 			VersionNumber: -1,
 			Data:          test.Data2,
-			Metadata:      versionMetadata,
-			Archive:       false,
+			UserData:      versionUserData,
+			Archived:      false,
 		})
 		assert.NoError(t, err)
-		_, err = b.CreateOrUpdateModelVersion("model1", backend.VersionInfoArgs{
+		_, err = b.CreateOrUpdateModelVersion("model1", backend.VersionArgs{
 			VersionNumber: -1,
 			Data:          test.Data1,
-			Metadata:      versionMetadata,
-			Archive:       true,
+			UserData:      versionUserData,
+			Archived:      true,
 		})
 		assert.NoError(t, err)
 
 		_, err = b.CreateOrUpdateModel(backend.ModelInfo{
 			ModelID:  "model2",
-			Metadata: modelMetadata,
+			UserData: modelUserData,
 		})
 		assert.NoError(t, err)
-		_, err = b.CreateOrUpdateModelVersion("model2", backend.VersionInfoArgs{
+		_, err = b.CreateOrUpdateModelVersion("model2", backend.VersionArgs{
 			VersionNumber: -1,
 			Data:          test.Data2,
-			Metadata:      versionMetadata,
-			Archive:       false,
+			UserData:      versionUserData,
+			Archived:      false,
 		})
 		assert.NoError(t, err)
-		_, err = b.CreateOrUpdateModelVersion("model2", backend.VersionInfoArgs{
+		_, err = b.CreateOrUpdateModelVersion("model2", backend.VersionArgs{
 			VersionNumber: -1,
 			Data:          test.Data2,
-			Metadata:      versionMetadata,
-			Archive:       false,
+			UserData:      versionUserData,
+			Archived:      false,
 		})
 		assert.NoError(t, err)
-		_, err = b.CreateOrUpdateModelVersion("model2", backend.VersionInfoArgs{
+		_, err = b.CreateOrUpdateModelVersion("model2", backend.VersionArgs{
 			VersionNumber: -1,
 			Data:          test.Data2,
-			Metadata:      versionMetadata,
-			Archive:       false,
+			UserData:      versionUserData,
+			Archived:      false,
 		})
 		assert.NoError(t, err)
-		_, err = b.CreateOrUpdateModelVersion("model2", backend.VersionInfoArgs{
+		_, err = b.CreateOrUpdateModelVersion("model2", backend.VersionArgs{
 			VersionNumber: -1,
 			Data:          test.Data2,
-			Metadata:      versionMetadata,
-			Archive:       false,
+			UserData:      versionUserData,
+			Archived:      false,
 		})
 		assert.NoError(t, err)
 
@@ -131,10 +131,10 @@ func TestInitialSync(t *testing.T) {
 		model1Versions, err := b.ListModelVersionInfos("model1", -1, -1)
 		assert.NoError(t, err)
 		assert.Len(t, model1Versions, 4)
-		assert.Equal(t, model1Versions[0].Number, 1)
-		assert.Equal(t, model1Versions[1].Number, 2)
-		assert.Equal(t, model1Versions[2].Number, 3)
-		assert.Equal(t, model1Versions[3].Number, 4)
+		assert.Equal(t, model1Versions[0].VersionNumber, 1)
+		assert.Equal(t, model1Versions[1].VersionNumber, 2)
+		assert.Equal(t, model1Versions[2].VersionNumber, 3)
+		assert.Equal(t, model1Versions[3].VersionNumber, 4)
 
 		model2Versions, err := b.ListModelVersionInfos("model2", -1, -1)
 		assert.NoError(t, err)
@@ -155,8 +155,8 @@ func TestInitialSync(t *testing.T) {
 		model1Versions, err := b.ListModelVersionInfos("model1", -1, -1)
 		assert.NoError(t, err)
 		assert.Len(t, model1Versions, 2)
-		assert.Equal(t, model1Versions[0].Number, 1)
-		assert.Equal(t, model1Versions[1].Number, 4)
+		assert.Equal(t, model1Versions[0].VersionNumber, 1)
+		assert.Equal(t, model1Versions[1].VersionNumber, 4)
 
 		model2Versions, err := b.ListModelVersionInfos("model2", -1, -1)
 		assert.NoError(t, err)

@@ -21,24 +21,27 @@ import (
 
 type ModelInfo struct {
 	ModelID  string            `json:"modelId" yaml:"model_id"`
-	Metadata map[string]string `json:"metadata" `
+	UserData map[string]string `json:"userData" yaml:"user_data"`
 }
 
 // VersionInfo describes the informations (metadata) for a particular version of a model
 type VersionInfo struct {
-	ModelID   string            `json:"modelId" yaml:"model_id"`
-	CreatedAt time.Time         `json:"createdAt" yaml:"created_at"`
-	Number    int               `json:"number"`
-	Archive   bool              `json:"archive"`
-	Hash      string            `json:"hash"`
-	Metadata  map[string]string `json:"metadata"`
+	ModelID           string            `json:"modelId" yaml:"model_id"`
+	VersionNumber     int               `json:"versionNumber" yaml:"version_number"`
+	CreationTimestamp time.Time         `json:"creationTimestamp" yaml:"creation_timestamp"`
+	Archived          bool              `json:"archived"`
+	DataHash          string            `json:"dataHash" yaml:"data_hash"`
+	DataSize          int               `json:"dataSize" yaml:"data_size"`
+	UserData          map[string]string `json:"userData" yaml:"user_data"`
 }
 
-type VersionInfoArgs struct {
-	VersionNumber int               `json:"versionNumber" yaml:"version_number"`
-	Data          []byte            `json:"data"`
-	Archive       bool              `json:"archive"`
-	Metadata      map[string]string `json:"metadata"`
+type VersionArgs struct {
+	VersionNumber     int
+	CreationTimestamp time.Time
+	Archived          bool
+	DataHash          string
+	Data              []byte
+	UserData          map[string]string
 }
 
 // Backend defines the interface for a model registry backend
@@ -51,7 +54,7 @@ type Backend interface {
 	DeleteModel(modelID string) error
 	ListModels(offset int, limit int) ([]string, error)
 
-	CreateOrUpdateModelVersion(modelID string, versionInfoArgs VersionInfoArgs) (VersionInfo, error)
+	CreateOrUpdateModelVersion(modelID string, versionArgs VersionArgs) (VersionInfo, error)
 	RetrieveModelVersionInfo(modelID string, versionNumber int) (VersionInfo, error)
 	RetrieveModelVersionData(modelID string, versionNumber int) ([]byte, error)
 	DeleteModelVersion(modelID string, versionNumber int) error

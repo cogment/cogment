@@ -23,7 +23,6 @@ import (
 	"path"
 	"regexp"
 	"text/template"
-	"time"
 
 	"github.com/cogment/cogment-model-registry/backend"
 	"gopkg.in/yaml.v2"
@@ -33,9 +32,9 @@ type fsBackend struct {
 	rootDirname string
 }
 
-var versionDataFilenameTemplate = template.Must(template.New("versionDataFilenameTemplate").Parse(`{{ .ModelID }}-v{{ .Number | printf "%06d" }}.data`))
+var versionDataFilenameTemplate = template.Must(template.New("versionDataFilenameTemplate").Parse(`{{ .ModelID }}-v{{ .VersionNumber | printf "%06d" }}.data`))
 
-var versionInfoFilenameTemplate = template.Must(template.New("versionInfoFilenameTemplate").Parse(`{{ .ModelID }}-v{{ .Number | printf "%06d" }}.yaml`))
+var versionInfoFilenameTemplate = template.Must(template.New("versionInfoFilenameTemplate").Parse(`{{ .ModelID }}-v{{ .VersionNumber | printf "%06d" }}.yaml`))
 var modelInfoFilenameTemplate = template.Must(template.New("modelInfoFilenameTemplate").Parse(`{{ .ModelID }}.yaml`))
 var versionInfoFilenameRegexp = regexp.MustCompile("[a-zA-Z][a-zA-Z0-9-_]*-v[0-9]+.yaml")
 
@@ -183,7 +182,7 @@ func filteredReadDir(dirname string, offset int, limit int, filter func(fs.DirEn
 		from = offset
 	}
 	to := len(dirContent)
-	if limit >= 0 {
+	if limit > 0 {
 		to = from + limit
 	}
 	for _, entry := range dirContent {
@@ -247,49 +246,53 @@ func (b *fsBackend) buildVersionDataFilename(versionInfo backend.VersionInfo) st
 }
 
 // CreateModelVersion creates and store a new version for a model and returns its info, including the version number
-func (b *fsBackend) CreateOrUpdateModelVersion(modelID string, versionInfoArgs backend.VersionInfoArgs) (backend.VersionInfo, error) {
+func (b *fsBackend) CreateOrUpdateModelVersion(modelID string, versionArgs backend.VersionArgs) (backend.VersionInfo, error) {
 	var versionInfo backend.VersionInfo
-	if versionInfoArgs.VersionNumber <= 0 {
+	if versionArgs.VersionNumber <= 0 {
 		// Create a new version after the last one
 		latestVersionInfo, err := b.retrieveModelLatestVersionInfo(modelID)
 		if err != nil {
 			return backend.VersionInfo{}, err
 		}
 		versionInfo = backend.VersionInfo{
-			ModelID:   modelID,
-			CreatedAt: time.Now(),
-			Archive:   versionInfoArgs.Archive,
-			Hash:      backend.ComputeHash(versionInfoArgs.Data),
-			Number:    latestVersionInfo.Number + 1,
-			Metadata:  versionInfoArgs.Metadata,
+			ModelID:           modelID,
+			VersionNumber:     latestVersionInfo.VersionNumber + 1,
+			CreationTimestamp: versionArgs.CreationTimestamp,
+			Archived:          versionArgs.Archived,
+			DataHash:          versionArgs.DataHash,
+			DataSize:          len(versionArgs.Data),
+			UserData:          versionArgs.UserData,
 		}
 	} else {
 		// Maybe there is an existing version
-		existingVersionInfo, err := b.RetrieveModelVersionInfo(modelID, versionInfoArgs.VersionNumber)
+		existingVersionInfo, err := b.RetrieveModelVersionInfo(modelID, versionArgs.VersionNumber)
 		if err != nil {
 			if _, ok := err.(*backend.UnknownModelVersionError); !ok {
 				return backend.VersionInfo{}, err
 			}
 			// No version, create a new one
 			versionInfo = backend.VersionInfo{
-				ModelID:   modelID,
-				CreatedAt: time.Now(),
-				Archive:   versionInfoArgs.Archive,
-				Hash:      backend.ComputeHash(versionInfoArgs.Data),
-				Number:    versionInfoArgs.VersionNumber,
-				Metadata:  versionInfoArgs.Metadata,
+				ModelID:           modelID,
+				VersionNumber:     versionArgs.VersionNumber,
+				CreationTimestamp: versionArgs.CreationTimestamp,
+				Archived:          versionArgs.Archived,
+				DataHash:          versionArgs.DataHash,
+				DataSize:          len(versionArgs.Data),
+				UserData:          versionArgs.UserData,
 			}
 		} else {
 			// Update an existing version
 			versionInfo = existingVersionInfo
-			versionInfo.Archive = versionInfoArgs.Archive
-			versionInfo.Hash = backend.ComputeHash(versionInfoArgs.Data)
+			versionInfo.Archived = versionArgs.Archived
+			versionInfo.DataHash = versionArgs.DataHash
+			versionInfo.DataSize = len(versionArgs.Data)
+			versionInfo.UserData = versionArgs.UserData
 		}
 	}
 
 	versionDataFilename := b.buildVersionDataFilename(versionInfo)
 
-	err := os.WriteFile(versionDataFilename, versionInfoArgs.Data, 0640)
+	err := os.WriteFile(versionDataFilename, versionArgs.Data, 0640)
 	if err != nil {
 		return backend.VersionInfo{}, fmt.Errorf("unable to create a version for model %q: %w", modelID, err)
 	}
@@ -319,13 +322,13 @@ func (b *fsBackend) RetrieveModelVersionInfo(modelID string, versionNumber int) 
 		if err != nil {
 			return backend.VersionInfo{}, err
 		}
-		if latestVersionInfo.Number == 0 {
+		if latestVersionInfo.VersionNumber == 0 {
 			return backend.VersionInfo{}, &backend.UnknownModelVersionError{ModelID: modelID, VersionNumber: -1}
 		}
 		return latestVersionInfo, nil
 	}
 	// Retrieve a specific version
-	versionInfoFilename := b.buildVersionInfoFilename(backend.VersionInfo{ModelID: modelID, Number: versionNumber})
+	versionInfoFilename := b.buildVersionInfoFilename(backend.VersionInfo{ModelID: modelID, VersionNumber: versionNumber})
 	_, err := os.Stat(versionInfoFilename)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -361,8 +364,8 @@ func (b *fsBackend) RetrieveModelInfo(modelID string) (backend.ModelInfo, error)
 // RetrieveModelVersion retrieves a given model version data
 func (b *fsBackend) RetrieveModelVersionData(modelID string, versionNumber int) ([]byte, error) {
 	versionInfo := backend.VersionInfo{
-		ModelID: modelID,
-		Number:  versionNumber,
+		ModelID:       modelID,
+		VersionNumber: versionNumber,
 	}
 	if versionNumber <= 0 {
 		// Retrieve the latest version
@@ -371,7 +374,7 @@ func (b *fsBackend) RetrieveModelVersionData(modelID string, versionNumber int) 
 		if err != nil {
 			return []byte{}, err
 		}
-		if latestVersionInfo.Number == 0 {
+		if latestVersionInfo.VersionNumber == 0 {
 			return []byte{}, &backend.UnknownModelVersionError{ModelID: modelID, VersionNumber: -1}
 		}
 		versionInfo = latestVersionInfo
@@ -383,7 +386,7 @@ func (b *fsBackend) RetrieveModelVersionData(modelID string, versionNumber int) 
 		if os.IsNotExist(err) {
 			return []byte{}, &backend.UnknownModelVersionError{ModelID: modelID, VersionNumber: versionNumber}
 		}
-		return []byte{}, fmt.Errorf(`unable to read data for model %q version "%d": %w`, versionInfo.ModelID, versionInfo.Number, err)
+		return []byte{}, fmt.Errorf(`unable to read data for model %q version "%d": %w`, versionInfo.ModelID, versionInfo.VersionNumber, err)
 	}
 	return versionData, nil
 }
@@ -391,8 +394,8 @@ func (b *fsBackend) RetrieveModelVersionData(modelID string, versionNumber int) 
 // DeleteModelVersion deletes a given model version
 func (b *fsBackend) DeleteModelVersion(modelID string, versionNumber int) error {
 	versionInfo := backend.VersionInfo{
-		ModelID: modelID,
-		Number:  versionNumber,
+		ModelID:       modelID,
+		VersionNumber: versionNumber,
 	}
 	versionInfoFilename := b.buildVersionInfoFilename(versionInfo)
 	err := os.Remove(versionInfoFilename)

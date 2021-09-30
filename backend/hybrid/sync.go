@@ -61,15 +61,17 @@ func SyncModel(ctx context.Context, from backend.Backend, to backend.Backend, mo
 	for _, modelVersionInfo := range modelVersionInfos {
 		modelVersionInfo := modelVersionInfo // Create a new 'modelID' that gets captured
 		g.Go(func() error {
-			modelVersionData, err := from.RetrieveModelVersionData(modelID, modelVersionInfo.Number)
+			modelVersionData, err := from.RetrieveModelVersionData(modelID, modelVersionInfo.VersionNumber)
 			if err != nil {
 				return fmt.Errorf("Error while syncing model %q: %w", modelID, err)
 			}
-			_, err = to.CreateOrUpdateModelVersion(modelID, backend.VersionInfoArgs{
-				VersionNumber: modelVersionInfo.Number,
-				Data:          modelVersionData,
-				Archive:       modelVersionInfo.Archive,
-				Metadata:      modelVersionInfo.Metadata,
+			_, err = to.CreateOrUpdateModelVersion(modelID, backend.VersionArgs{
+				VersionNumber:     modelVersionInfo.VersionNumber,
+				CreationTimestamp: modelVersionInfo.CreationTimestamp,
+				Archived:          modelVersionInfo.Archived,
+				DataHash:          modelVersionInfo.DataHash,
+				Data:              modelVersionData,
+				UserData:          modelVersionInfo.UserData,
 			})
 			if err != nil {
 				return fmt.Errorf("Error while syncing model %q: %w", modelID, err)

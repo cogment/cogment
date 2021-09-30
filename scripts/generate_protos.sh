@@ -8,6 +8,9 @@ API_PACKAGE="github.com/cogment/cogment-model-registry/${API_RELATIVE_PATH}"
 
 cd "${MODEL_REGISTRY_DIR}"
 
+PROTOS_DOWNLOAD_TARGET="${PROTOS_RELATIVE_PATH}/cogment/api"
+mkdir -p "${PROTOS_DOWNLOAD_TARGET}"
+
 API_YAML_PATH=".cogment-api.yaml"
 
 # The following will
@@ -19,10 +22,10 @@ IFS=" " read -r -a key_value <<<"${key_value}"
 
 if [[ ${key_value[0]} == "cogment_api_version" ]]; then
   printf "** Downloading version %s of the cogment API\n" "${key_value[1]}"
-  curl --silent -L "https://cogment.github.io/cogment-api/${key_value[1]}/cogment-api-${key_value[1]}.tar.gz" | tar xz -C "${PROTOS_RELATIVE_PATH}/cogment/api"
+  curl --silent -L "https://cogment.github.io/cogment-api/${key_value[1]}/cogment-api-${key_value[1]}.tar.gz" | tar xz -C "${PROTOS_DOWNLOAD_TARGET}"
 elif [[ ${key_value[0]} == "cogment_api_path" ]]; then
   printf "** Copying the cogment API from %s\n" "${key_value[1]}"
-  cp -r "${key_value[1]}"/* "${PROTOS_RELATIVE_PATH}/cogment/api"
+  cp -r "${key_value[1]}"/* "${PROTOS_DOWNLOAD_TARGET}"
 else
   printf "** Unable to retrieve the desired cogment API please create a .cogment-api.yaml defining either 'cogment_api_version' or 'cogment_api_path'\n"
   exit 1

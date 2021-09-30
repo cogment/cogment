@@ -23,96 +23,133 @@ The following environment variables can be used to configure the server:
 
 ## API
 
-The Model Registry exposes a gRPC defined in the [Model Registry API](grpcapi/cogment/api/model_registry.proto) (This will be moved to the Cogment gRPC API in the future).
+The Model Registry exposes a gRPC defined in the [Model Registry API](https://github.com/cogment/cogment-api/blob/main/model_registry.proto)
 
-### Create a model - `cogment.ModelRegistry/CreateModel( .cogment.CreateModelRequest ) returns ( .cogment.CreateModelReply );`
+### Create or update a model - `cogment.ModelRegistrySP/CreateOrUpdateModel( .cogment.CreateOrUpdateModelRequest ) returns ( .cogment.CreateOrUpdateModelReply );`
+
+_This example requires `COGMENT_MODEL_REGISTRY_GRPC_REFLECTION` to be enabled and requires [grpcurl](https://github.com/fullstorydev/grpcurl)_
 
 ```console
-$ echo "{\"model_id\":\"my_model\"}" | grpcurl -plaintext -d @ localhost:9000 cogment.ModelRegistry/CreateModel
+$ echo "{\"model_info\":{\"model_id\":\"my_model\",\"user_data\":{\"type\":\"my_model_type\"}}}" | grpcurl -plaintext -d @ localhost:9000 cogment.ModelRegistrySP/CreateOrUpdateModel
 {
-  "model": {
-    "modelId": "my_model"
-  }
+
 }
 ```
 
-### Create a model version - `cogment.ModelRegistry/CreateModelVersion( stream .cogment.CreateModelVersionRequestChunk ) returns ( .cogment.CreateModelVersionReply );`
+### Delete a model - `cogment.ModelRegistrySP/DeleteModel( .cogment.DeleteModelRequest ) returns ( .cogment.DeleteModelReply );`
+
+_This example requires `COGMENT_MODEL_REGISTRY_GRPC_REFLECTION` to be enabled and requires [grpcurl](https://github.com/fullstorydev/grpcurl)_
 
 ```console
-$ echo "{\
+$ echo "{\"model_id\":\"my_model\"}" | grpcurl -plaintext -d @ localhost:9000 cogment.ModelRegistrySP/DeleteModel
+{
+
+}
+```
+
+### Create a model version - `cogment.ModelRegistrySP/CreateVersion( stream .cogment.CreateVersionRequestChunk ) returns ( .cogment.CreateVersionReply );`
+
+```console
+$ echo "{\"header\":{\"version_info\":{
     \"model_id\":\"my_model\",\
-    \"archive\":true,\
-    \"data_chunk\":\"$(echo chunk_1 | base64)\"\
-  }\
-  {\
-    \"data_chunk\":\"$(echo chunk_2 | base64)\",\
-    \"last_chunk\":true\
-  }" | grpcurl -plaintext -d @ localhost:9000 cogment.ModelRegistry/CreateModelVersion
+    \"archived\":true,\
+    \"data_size\":$(printf chunk_1chunk_2 | wc -c)\
+  }}}\
+  {\"body\":{\
+    \"data_chunk\":\"$(printf chunk_1 | base64)\"\
+  }}\
+  {\"body\":{\
+    \"data_chunk\":\"$(printf chunk_2 | base64)\"\
+  }}" | grpcurl -plaintext -d @ localhost:9000 cogment.ModelRegistrySP/CreateVersion
 {
   "versionInfo": {
     "modelId": "my_model",
-    "createdAt": "2021-08-31T13:46:51.372417Z",
-    "number": 1,
-    "archive": true,
-    "hash": "1FoOg5QHj7ctiXEZkr9rDkfJWrsy//DeUsHEmP7PcgA="
+    "versionNumber": 2,
+    "creationTimestamp": "907957639",
+    "archived": true,
+    "dataHash": "jY0g3VkUK62ILPr2JuaW5g7uQi0EcJVZJu8IYp3yfhI=",
+    "dataSize": "14"
   }
 }
 ```
 
-### List model versions - `cogment.ModelRegistry/ListModelVersions ( .cogment.ListModelVersionsRequest ) returns ( .cogment.ListModelVersionsReply );`
+### Retrieve model versions infos - `cogment.ModelRegistrySP/RetrieveVersionInfos ( .cogment.RetrieveVersionInfosRequest ) returns ( .cogment.RetrieveVersionInfosReply );`
+
+#### List the versions of a model
 
 ```console
-$ echo "{\"model_id\":\"my_model\"}" | grpcurl -plaintext -d @ localhost:9000 cogment.ModelRegistry/ListModelVersions
+$ echo "{\"model_id\":\"my_model\"}" | grpcurl -plaintext -d @ localhost:9000 cogment.ModelRegistrySP/RetrieveVersionInfos
 {
-  "versions": [
+  "versionInfos": [
     {
       "modelId": "my_model",
-      "createdAt": "2021-08-31T13:42:59.399405Z",
-      "number": 1,
-      "archive": true,
-      "hash": "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU="
+      "versionNumber": 1,
+      "creationTimestamp": "1633119005107454620",
+      "archived": true,
+      "dataHash": "jY0g3VkUK62ILPr2JuaW5g7uQi0EcJVZJu8IYp3yfhI=",
+      "dataSize": "14"
     },
     {
       "modelId": "my_model",
-      "createdAt": "2021-08-31T13:45:04.092807Z",
-      "number": 2,
-      "archive": true,
-      "hash": "1FoOg5QHj7ctiXEZkr9rDkfJWrsy//DeUsHEmP7PcgA="
-    },
+      "versionNumber": 2,
+      "creationTimestamp": "1633119625907957639",
+      "archived": true,
+      "dataHash": "jY0g3VkUK62ILPr2JuaW5g7uQi0EcJVZJu8IYp3yfhI=",
+      "dataSize": "14"
+    }
   ],
-  "nextPageOffset": 2
+  "nextVersionHandle": "2"
 }
 ```
 
-### Retrieve given version info - `cogment.ModelRegistry/RetrieveModelVersionInfo ( .cogment.RetrieveModelVersionInfoRequest ) returns ( .cogment.RetrieveModelVersionInfoReply );`
-
+#### Retrieve specific versions of a model
 
 ```console
-$ echo "{\"model_id\":\"my_model\", \"number\":1}" | grpcurl -plaintext -d @ localhost:9000 cogment.ModelRegistry/RetrieveModelVersionInfo
+$ echo "{\"model_id\":\"my_model\", \"version_numbers\":[1]}" | grpcurl -plaintext -d @ localhost:9000 cogment.ModelRegistrySP/RetrieveVersionInfos
 {
-  "versionInfo": {
-    "modelId": "my_model",
-    "createdAt": "2021-08-31T13:42:59.399405Z",
-    "number": 1,
-    "archive": true,
-    "hash": "1FoOg5QHj7ctiXEZkr9rDkfJWrsy//DeUsHEmP7PcgA="
-  }
+  "versionInfos": [
+    {
+      "modelId": "my_model",
+      "versionNumber": 1,
+      "creationTimestamp": "1633119005107454620",
+      "archived": true,
+      "dataHash": "jY0g3VkUK62ILPr2JuaW5g7uQi0EcJVZJu8IYp3yfhI=",
+      "dataSize": "14"
+    }
+  ],
+  "nextVersionHandle": "1"
 }
 ```
 
-To retrieve the latest version, use `number:-1`.
-
-### Retrieve given version data - `cogment.ModelRegistry/RetrieveModelVersionData ( .cogment.RetrieveModelVersionDataRequest ) returns ( stream .cogment.RetrieveModelVersionDataReplyChunk );`
+#### Retrieve the latest version of a model
 
 ```console
-$ echo "{\"model_id\":\"my_model\", \"number\":1}" | grpcurl -plaintext -d @ localhost:9000 cogment.ModelRegistry/RetrieveModelVersionData
+$ echo "{\"model_id\":\"my_model\", \"version_numbers\":[-1]}" | grpcurl -plaintext -d @ localhost:9000 cogment.ModelRegistrySP/RetrieveVersionInfos
 {
-  "dataChunk": "Y2h1bmtfMQpjaHVua18yCg==",
-  "lastChunk": true
+  "versionInfos": [
+    {
+      "modelId": "my_model",
+      "versionNumber": 2,
+      "creationTimestamp": "1633119625907957639",
+      "archived": true,
+      "dataHash": "jY0g3VkUK62ILPr2JuaW5g7uQi0EcJVZJu8IYp3yfhI=",
+      "dataSize": "14"
+    }
+  ],
+  "nextVersionHandle": "1"
 }
 ```
 
-To retrieve the latest version, use `number:-1`.
+### Retrieve given version data - `cogment.ModelRegistrySP/RetrieveVersionData ( .cogment.RetrieveVersionDataRequest ) returns ( stream .cogment.RetrieveVersionDataReplyChunk );`
+
+```console
+$ echo "{\"model_id\":\"my_model\", \"version_number\":1}" | grpcurl -plaintext -d @ localhost:9000 cogment.ModelRegistrySP/RetrieveVersionData
+{
+  "dataChunk": "Y2h1bmtfMWNodW5rXzI="
+}
+```
+
+To retrieve the latest version, use `version_number:-1`.
 
 ## Developers
 
@@ -148,4 +185,20 @@ Build image
 
 ```
 $ ./scripts/build_docker.sh
+```
+
+### Release process
+
+People having maintainers rights of the repository can follow these steps to release a version **MAJOR.MINOR.PATCH**. The versioning scheme follows [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
+
+1. Run `./scripts/create_release_branch.sh` automatically compute and update the version of the package, create the release branch and update the changelog from the commit history,
+2. On the release branch, check and update the changelog if needed
+3. Update `.cogment-api.yaml` (in particular make sure it doesn't rely on the _"latest"_ version)
+4. Make sure everything's fine on CI,
+5. Run `./scripts/tag_release.sh MAJOR.MINOR.PATCH` to create the specific version section in the changelog, merge the release branch in `main`, create the release tag and update the `develop` branch with those.
+
+The rest, publishing the packages to github releases and dockerhub and updating the mirror repositories, is handled directly by the CI.
+
+```
+
 ```

@@ -49,7 +49,7 @@ func populateDirWithModels(dir string, modelsCount uint, versionsPerModelCount u
 			if err != nil {
 				return err
 			}
-			_, err = b.CreateOrUpdateModelVersion(modelID, backend.VersionInfoArgs{
+			_, err = b.CreateOrUpdateModelVersion(modelID, backend.VersionArgs{
 				VersionNumber: -1,
 				Data:          data,
 			})

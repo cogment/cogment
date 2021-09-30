@@ -19,8 +19,7 @@ import (
 	"encoding/base64"
 )
 
-// ComputeHash computes and encode a hash of given raw data
-func ComputeHash(data []byte) string {
+func ComputeSHA256Hash(data []byte) string {
 	rawHash := sha256.Sum256(data)
 	return base64.StdEncoding.EncodeToString(rawHash[:])
 }
