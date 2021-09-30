@@ -15,8 +15,6 @@
 package hybrid
 
 import (
-	"fmt"
-
 	"github.com/cogment/cogment-model-registry/backend"
 )
 
@@ -27,66 +25,22 @@ type hybridBackend struct {
 
 // CreateBackend creates a new backend with that store everything in a transient backend and archive versions in an archive backend
 func CreateBackend(transient backend.Backend, archive backend.Backend) (backend.Backend, error) {
-	backend := hybridBackend{
+	b := hybridBackend{
 		transient: transient,
 		archive:   archive,
 	}
 
-	err := backend.sync()
+	err := Sync(b.archive, b.transient)
 	if err != nil {
 		return nil, err
 	}
-	return &backend, nil
+	return &b, nil
 }
 
 // Destroy terminates the underlying storage
 func (b *hybridBackend) Destroy() {
 	b.transient.Destroy()
 	b.archive.Destroy()
-}
-
-func (b *hybridBackend) sync() error {
-	// Let's import everything from the archive to the transient storage
-	// ATM we don't care about removing what's already in the transient storage
-	modelIDs, err := b.archive.ListModels(-1, -1)
-	if err != nil {
-		return fmt.Errorf("Error while syncing models from archive to transient: %w", err)
-	}
-	for _, modelID := range modelIDs {
-		err := b.syncModel(modelID)
-		if err != nil {
-			return fmt.Errorf("Error while syncing models from archive to transient: %w", err)
-		}
-	}
-	return nil
-}
-
-func (b *hybridBackend) syncModel(modelID string) error {
-	_, err := b.transient.CreateOrUpdateModel(backend.ModelInfo{ModelID: modelID})
-	if err != nil {
-		return fmt.Errorf("Error while syncing model %q from archive to transient: %w", modelID, err)
-
-	}
-	modelVersionInfos, err := b.archive.ListModelVersionInfos(modelID, -1, -1)
-	if err != nil {
-		return fmt.Errorf("Error while syncing model %q from archive to transient: %w", modelID, err)
-	}
-	for _, modelVersionInfo := range modelVersionInfos {
-		modelVersionData, err := b.archive.RetrieveModelVersionData(modelID, modelVersionInfo.Number)
-		if err != nil {
-			return fmt.Errorf("Error while syncing model %q from archive to transient: %w", modelID, err)
-		}
-		_, err = b.transient.CreateOrUpdateModelVersion(modelID, backend.VersionInfoArgs{
-			VersionNumber: modelVersionInfo.Number,
-			Data:          modelVersionData,
-			Archive:       modelVersionInfo.Archive,
-			Metadata:      modelVersionInfo.Metadata,
-		})
-		if err != nil {
-			return fmt.Errorf("Error while syncing model %q from archive to transient: %w", modelID, err)
-		}
-	}
-	return nil
 }
 
 // CreateModel creates a model with a given unique id in the backend
@@ -121,7 +75,7 @@ func (b *hybridBackend) DeleteModel(modelID string) error {
 			// Error while removing model from the archive storage
 			// Rollacking (we can't completely rollback non archived model versions)
 			// Explicitely ignoring errors here, there's nothing we can do about it.
-			_ = b.syncModel(modelID)
+			_ = SyncModel(b.archive, b.transient, modelID)
 		}
 		return err
 	}
@@ -201,7 +155,7 @@ func (b *hybridBackend) DeleteModelVersion(modelID string, versionNumber int) er
 		// Error while removing model version from the archive storage
 		// Rollacking (we can't completely rollback non archived model versions)
 		// explicitely ignoring error here, there's nothing we can do about it.
-		_ = b.syncModel(modelID)
+		_ = SyncModel(b.archive, b.transient, modelID)
 		return err
 	}
 	return nil

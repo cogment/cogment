@@ -139,7 +139,7 @@ func (b *dbBackend) CreateOrUpdateModel(modelInfo backend.ModelInfo) (backend.Mo
 	tx := b.db.Begin()
 
 	if err := tx.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "model_id"}},                  // key column
+		Columns:   []clause.Column{{Name: "model_id"}},            // key column
 		DoUpdates: clause.AssignmentColumns([]string{"metadata"}), // column needed to be updated
 	}).Create(&model).Error; err != nil {
 		tx.Rollback()
