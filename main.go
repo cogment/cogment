@@ -28,6 +28,7 @@ import (
 	"github.com/cogment/cogment-model-registry/backend/fs"
 	"github.com/cogment/cogment-model-registry/backend/hybrid"
 	"github.com/cogment/cogment-model-registry/grpcservers"
+	"github.com/cogment/cogment-model-registry/version"
 )
 
 func main() {
@@ -51,11 +52,9 @@ func main() {
 	}
 
 	var dbBackend backend.Backend
-	defer dbBackend.Destroy()
 	var fsBackend backend.Backend
-	defer fsBackend.Destroy()
 	var backend backend.Backend
-	defer backend.Destroy()
+
 	go func() {
 		dbBackend, err := db.CreateBackend()
 		if err != nil {
@@ -75,12 +74,24 @@ func main() {
 		modelRegistryServer.SetBackend(backend)
 	}()
 
+	defer func() {
+		if backend != nil {
+			backend.Destroy()
+		}
+		if fsBackend != nil {
+			fsBackend.Destroy()
+		}
+		if dbBackend != nil {
+			dbBackend.Destroy()
+		}
+	}()
+
 	if viper.GetBool("GRPC_REFLECTION") {
 		reflection.Register(server)
 		log.Printf("gRPC reflection registered")
 	}
 
-	log.Printf("Cogment Model Registry service starts on port %d...\n", port)
+	log.Printf("Cogment Model Registry v%s service starts on port %d...\n", version.Version, port)
 	err = server.Serve(listener)
 	if err != nil {
 		log.Fatalf("unexpected error while serving grpc services: %v", err)
