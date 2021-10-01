@@ -4,9 +4,6 @@ WORKDIR /service
 
 # Install dependencies
 COPY requirements.txt ./
-
-# Install dependencies
-COPY requirements.txt ./
 RUN pip install -r requirements.txt
 
 COPY cogment.yaml *.proto ./
