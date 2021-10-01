@@ -4,8 +4,6 @@ WORKDIR /service
 
 # Install dependencies
 COPY requirements.txt ./
-COPY cogment.yaml ./
-COPY *.proto ./
 
 # Install dependencies
 COPY requirements.txt ./
