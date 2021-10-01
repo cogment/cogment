@@ -67,7 +67,7 @@ function validate_version() {
 }
 
 function retrieve_package_version() {
-  cat "${ROOT_DIR}/lib/version.txt"
+  sed -n "s/.*Version\ *=\ *\"\(${VERSION_SED_REGEX}\)\"/\1/p" "${ROOT_DIR}/version/version.go"
 }
 
 function update_package_version() {
