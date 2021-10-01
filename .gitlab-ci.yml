@@ -140,6 +140,20 @@ push_docker_latest_to_dockerhub:
   only:
     - main
 
+push_docker_tag_to_gitlab:
+  extends: .base_docker_build
+  stage: publish
+  variables:
+    # Reuse the 'commit-$CI_COMMIT_SHORT_SHA' image built in `build_docker`
+    COGMENT_MODEL_REGISTRY_IMAGE_BUILD_CACHE: $CI_REGISTRY_IMAGE/build:commit-$CI_COMMIT_SHORT_SHA
+    COGMENT_MODEL_REGISTRY_IMAGE_BUILD: $CI_REGISTRY_IMAGE/build:latest
+    COGMENT_MODEL_REGISTRY_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
+  script:
+    - ./scripts/build_docker.sh
+    - docker push $COGMENT_MODEL_REGISTRY_IMAGE
+  only:
+    - /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+(?:-[[:alnum:]]+)?$/
+
 push_docker_tag_to_dockerhub:
   extends: .base_docker_build
   stage: publish
