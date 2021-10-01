@@ -17,4 +17,4 @@ ENV COGMENT_MODEL_REGISTRY_ARCHIVE_DIR=/data
 
 COPY --from=build /app/build/cogment-model-registry /usr/local/bin/cogment-model-registry
 
-ENTRYPOINT ["model-registry"]
+ENTRYPOINT ["cogment-model-registry"]

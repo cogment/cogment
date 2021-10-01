@@ -4,6 +4,7 @@
 # Git and cache folders
 .git
 .cache
+.gitignore
 
 # Build output
 build
@@ -12,3 +13,7 @@ build
 raw_report.txt
 report.xml
 test_failed.txt
+
+# Docker resources
+Dockerfile
+.dockerignore
