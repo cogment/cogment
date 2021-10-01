@@ -47,7 +47,7 @@ imperdiet a, venenatis vitae, justo. Nullam dictum felis eu pede mollis pretium.
 Integer tincidunt.`)
 
 // RunSuite runs the full backend test suite
-func RunSuite(t *testing.T, createBackend func() backend.Backend) {
+func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend func(backend.Backend)) {
 	versionUserData := make(map[string]string)
 	versionUserData["version_test1"] = "version_test1"
 	versionUserData["version_test2"] = "version_test2"
@@ -67,14 +67,14 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 			test: func(t *testing.T) {
 				b := createBackend()
 				assert.NotNil(t, b)
-				b.Destroy()
+				destroyBackend(b)
 			},
 		},
 		{
 			name: "TestCreateModel",
 			test: func(t *testing.T) {
 				b := createBackend()
-				defer b.Destroy()
+				defer destroyBackend(b)
 
 				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
 					ModelID:  "foo",
@@ -94,7 +94,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 			name: "TestHasModel",
 			test: func(t *testing.T) {
 				b := createBackend()
-				defer b.Destroy()
+				defer destroyBackend(b)
 
 				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
 					ModelID:  "foo",
@@ -127,7 +127,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 			name: "TestDelete",
 			test: func(t *testing.T) {
 				b := createBackend()
-				defer b.Destroy()
+				defer destroyBackend(b)
 
 				{
 					_, err := b.CreateOrUpdateModel(backend.ModelInfo{
@@ -177,7 +177,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 			name: "TestListModels",
 			test: func(t *testing.T) {
 				b := createBackend()
-				defer b.Destroy()
+				defer destroyBackend(b)
 
 				models, err := b.ListModels(0, 0)
 				assert.NoError(t, err)
@@ -246,7 +246,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 			name: "TestCreateModelVersion",
 			test: func(t *testing.T) {
 				b := createBackend()
-				defer b.Destroy()
+				defer destroyBackend(b)
 
 				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
 					ModelID:  "foo",
@@ -323,7 +323,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 			name: "TestRetrieveModelVersion",
 			test: func(t *testing.T) {
 				b := createBackend()
-				defer b.Destroy()
+				defer destroyBackend(b)
 
 				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
 					ModelID:  "foo",
@@ -414,7 +414,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 			name: "RetrieveModelVersion - Latest",
 			test: func(t *testing.T) {
 				b := createBackend()
-				defer b.Destroy()
+				defer destroyBackend(b)
 
 				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
 					ModelID:  "foo",
@@ -487,7 +487,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 			name: "DeleteModelVersion",
 			test: func(t *testing.T) {
 				b := createBackend()
-				defer b.Destroy()
+				defer destroyBackend(b)
 
 				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
 					ModelID:  "foo",
@@ -593,7 +593,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 			name: "TestListModelVersions",
 			test: func(t *testing.T) {
 				b := createBackend()
-				defer b.Destroy()
+				defer destroyBackend(b)
 
 				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
 					ModelID:  "foo",

@@ -33,6 +33,11 @@ func TestSuiteHybridBackend(t *testing.T) {
 		b, err := CreateBackend(dbBackend, fsBackend)
 		assert.NoError(t, err)
 		return b
+	}, func(b backend.Backend) {
+		hb := b.(*hybridBackend)
+		hb.archive.Destroy()
+		hb.transient.Destroy()
+		hb.Destroy()
 	})
 }
 

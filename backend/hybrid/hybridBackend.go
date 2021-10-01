@@ -39,10 +39,7 @@ func CreateBackend(transient backend.Backend, archive backend.Backend) (backend.
 	return &b, nil
 }
 
-// Destroy terminates the underlying storage
 func (b *hybridBackend) Destroy() {
-	b.transient.Destroy()
-	b.archive.Destroy()
 }
 
 // CreateModel creates a model with a given unique id in the backend

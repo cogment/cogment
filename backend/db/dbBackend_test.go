@@ -27,5 +27,7 @@ func TestSuiteDbBackend(t *testing.T) {
 		b, err := CreateBackend()
 		assert.NoError(t, err)
 		return b
+	}, func(b backend.Backend) {
+		b.Destroy()
 	})
 }
