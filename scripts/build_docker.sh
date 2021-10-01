@@ -7,12 +7,12 @@
 # - Build the final image
 
 if [[ -z "${COGMENT_MODEL_REGISTRY_IMAGE_BUILD_CACHE}" ]]; then
-  COGMENT_MODEL_REGISTRY_IMAGE_BUILD_CACHE="registry.github.com/cogment/cogment-model-registry/build:latest"
+  COGMENT_MODEL_REGISTRY_IMAGE_BUILD_CACHE="registry.gitlab.com/ai-r/cogment-model-registry/build:latest"
   printf "** Using default value '%s' for the docker build image used for cache, set COGMENT_MODEL_REGISTRY_IMAGE_BUILD_CACHE to specify another one\n\n" "${COGMENT_MODEL_REGISTRY_IMAGE_BUILD_CACHE}"
 fi
 
 if [[ -z "${COGMENT_MODEL_REGISTRY_IMAGE_BUILD}" ]]; then
-  COGMENT_MODEL_REGISTRY_IMAGE_BUILD="registry.github.com/cogment/cogment-model-registry/build:local"
+  COGMENT_MODEL_REGISTRY_IMAGE_BUILD="registry.gitlab.com/ai-r/cogment-model-registry/build:local"
   printf "** Using default value '%s' for the docker build image to build, set COGMENT_MODEL_REGISTRY_IMAGE_BUILD to specify another one\n\n" "${COGMENT_MODEL_REGISTRY_IMAGE_BUILD}"
 fi
 

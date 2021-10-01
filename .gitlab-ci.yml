@@ -30,6 +30,24 @@ stages:
   before_script:
     - apk add bash
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
+    - docker login -u $DOCKER_HUB_USERNAME -p $DOCKER_HUB_TOKEN
+
+.base_gh_ssh_agent:
+  before_script:
+    ## _Inspired by https://docs.gitlab.com/ee/ci/ssh_keys/_
+    ##
+    ## Install ssh-agent if not already installed.
+    - "command -v ssh-agent >/dev/null || ( apt-get update -y && apt-get install openssh-client -y )"
+    ## Run ssh-agent
+    - eval $(ssh-agent -s)
+    ## Add the private key file to ssh-agent
+    - echo "$GH_REPO_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    ## Create the SSH directory and give it the right permissions
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    ## Using the set $SSH_KNOWN_HOSTS to be able to verify remote servers public keys
+    - echo "$SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
 
 shellcheck:
   image: koalaman/shellcheck-alpine:stable
@@ -92,7 +110,7 @@ build_binaries:
     paths:
       - build
 
-push_docker_latest:
+push_docker_latest_to_gitlab:
   extends: .base_docker_build
   stage: publish
   variables:
@@ -107,3 +125,42 @@ push_docker_latest:
   only:
     - main
     - develop
+
+push_docker_latest_to_dockerhub:
+  extends: .base_docker_build
+  stage: publish
+  variables:
+    # Reuse the 'commit-$CI_COMMIT_SHORT_SHA' image built in `build_docker`
+    COGMENT_MODEL_REGISTRY_IMAGE_BUILD_CACHE: $CI_REGISTRY_IMAGE/build:commit-$CI_COMMIT_SHORT_SHA
+    COGMENT_MODEL_REGISTRY_IMAGE_BUILD: $CI_REGISTRY_IMAGE/build:latest
+    COGMENT_MODEL_REGISTRY_IMAGE: cogment/model-registry:latest
+  script:
+    - ./scripts/build_docker.sh
+    - docker push $COGMENT_MODEL_REGISTRY_IMAGE
+  only:
+    - main
+
+push_docker_tag_to_dockerhub:
+  extends: .base_docker_build
+  stage: publish
+  variables:
+    # Reuse the 'commit-$CI_COMMIT_SHORT_SHA' image built in `build_docker`
+    COGMENT_MODEL_REGISTRY_IMAGE_BUILD_CACHE: $CI_REGISTRY_IMAGE/build:commit-$CI_COMMIT_SHORT_SHA
+    COGMENT_MODEL_REGISTRY_IMAGE_BUILD: $CI_REGISTRY_IMAGE/build:latest
+    COGMENT_MODEL_REGISTRY_IMAGE: cogment/model-registry:$CI_COMMIT_TAG
+  script:
+    - ./scripts/build_docker.sh
+    - docker push $COGMENT_MODEL_REGISTRY_IMAGE
+  only:
+    - /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+(?:-[[:alnum:]]+)?$/
+
+publish_branch_to_github:
+  extends: .base_gh_ssh_agent
+  stage: publish
+  script:
+    - git checkout ${CI_COMMIT_BRANCH} # Checkout the branch not the sha1
+    - git remote add downstream git@github.com:cogment/cogment-model-registry.git
+    - git fetch downstream ${CI_COMMIT_BRANCH}
+    - git push --tags downstream ${CI_COMMIT_BRANCH}:${CI_COMMIT_BRANCH}
+  only:
+    - main
