@@ -15,6 +15,7 @@
 package test
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -633,6 +634,90 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend) {
 				assert.Equal(t, 3, versions[0].VersionNumber)
 				assert.Equal(t, 4, versions[1].VersionNumber)
 				assert.Equal(t, 5, versions[2].VersionNumber)
+			},
+		},
+		{
+			name: "TestConcurrentCreateAndRetrieveModelVersions",
+			test: func(t *testing.T) {
+				b := createBackend()
+				defer b.Destroy()
+
+				_, err := b.CreateOrUpdateModel(backend.ModelInfo{ModelID: "foo"})
+				assert.NoError(t, err)
+
+				_, err = b.CreateOrUpdateModel(backend.ModelInfo{ModelID: "bar"})
+				assert.NoError(t, err)
+
+				wg := new(sync.WaitGroup)
+				oneFooCreationDone := make(chan struct{})
+				oneBarCreationDone := make(chan struct{})
+
+				// 5 "foo" creations in parallel
+				for i := 0; i < 5; i++ {
+					wg.Add(1)
+					i := i
+					go func() {
+						defer wg.Done()
+						_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{
+							VersionNumber:     -1,
+							CreationTimestamp: time.Now(),
+							Data:              Data1,
+							DataHash:          backend.ComputeSHA256Hash(Data1),
+							Archived:          i%2 == 0,
+						})
+						assert.NoError(t, err)
+
+						go func() { oneFooCreationDone <- struct{}{} }()
+					}()
+				}
+
+				// 5 "bar" creations in parallel
+				for i := 0; i < 5; i++ {
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
+						_, err = b.CreateOrUpdateModelVersion("bar", backend.VersionArgs{
+							VersionNumber:     -1,
+							CreationTimestamp: time.Now(),
+							Data:              Data2,
+							DataHash:          backend.ComputeSHA256Hash(Data2),
+							Archived:          i%2 == 0,
+						})
+						assert.NoError(t, err)
+
+						go func() { oneBarCreationDone <- struct{}{} }()
+					}()
+				}
+
+				// 5 "foo" retrievals in parallel
+				<-oneFooCreationDone
+				for i := 0; i < 5; i++ {
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
+						fooVersion, err := b.RetrieveModelVersionInfo("foo", -1)
+						assert.NoError(t, err)
+						assert.Equal(t, "foo", fooVersion.ModelID)
+						assert.Equal(t, backend.ComputeSHA256Hash(Data1), fooVersion.DataHash)
+						assert.Equal(t, len(Data1), fooVersion.DataSize)
+					}()
+				}
+
+				// 5 "bar" retrievals in parallel
+				<-oneBarCreationDone
+				for i := 0; i < 5; i++ {
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
+						barVersion, err := b.RetrieveModelVersionInfo("bar", -1)
+						assert.NoError(t, err)
+						assert.Equal(t, "bar", barVersion.ModelID)
+						assert.Equal(t, backend.ComputeSHA256Hash(Data2), barVersion.DataHash)
+						assert.Equal(t, len(Data2), barVersion.DataSize)
+					}()
+				}
+
+				wg.Wait()
 			},
 		},
 	}

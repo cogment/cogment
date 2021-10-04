@@ -20,14 +20,14 @@ fix-lint:
 	golangci-lint run --fix
 
 test: generate-protos
-	go test -v ./...
+	go test -timeout 30s -v ./...
 
 benchmark: generate-protos
 	go test -v ./... -run xxx -bench . -test.benchtime 2s
 
 test-with-report: generate-protos
 	rm -f test_failed.txt
-	go test -v ./... 2>&1 > raw_report.txt || echo test_failed > test_failed.txt
+	go test -timeout 30s -v ./... 2>&1 > raw_report.txt || echo test_failed > test_failed.txt
 	go run github.com/jstemmer/go-junit-report < raw_report.txt > report.xml
 	@test ! -f test_failed.txt
 
