@@ -111,10 +111,17 @@ func CreateBackend() (backend.Backend, error) {
 		return nil, fmt.Errorf("Error while creating a temp directory for the database: %w", err)
 	}
 
-	db, err := gorm.Open(sqlite.Open(path.Join(dbDir, "sqlite.db")), &gorm.Config{Logger: newLogger})
+	// Setting cache=shared following the guidelines from https://github.com/mattn/go-sqlite3#faq
+	db, err := gorm.Open(sqlite.Open(path.Join(dbDir, "sqlite.db")+"?cache=shared"), &gorm.Config{Logger: newLogger})
 	if err != nil {
 		return nil, fmt.Errorf("Error while connecting to database: %w", err)
 	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("Unexpected error while accessing the low level SQL DB driver: %w", err)
+	}
+	sqlDB.SetMaxOpenConns(1) // Following the guidelines from https://github.com/mattn/go-sqlite3#faq
 
 	err = db.AutoMigrate(&dbModel{}, &dbVersion{})
 	if err != nil {
