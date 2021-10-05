@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v0.2.0 - 2021-10-05
+
 ### Fixed
 
 - Fix `database is locked` errors during the initial sync by configuring SQLite for concurrent access.
