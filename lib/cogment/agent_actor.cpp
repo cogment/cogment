@@ -62,7 +62,10 @@ ServiceActor::ServiceActor(Trial* owner, const std::string& in_actor_name, const
 ServiceActor::~ServiceActor() {
   SPDLOG_TRACE("~ServiceActor(): [{}] [{}]", trial()->id(), actor_name());
 
-  m_stream->Finish();
+  if (m_stream_valid) {
+    m_stream->Finish();
+  }
+
   if (!m_init_completed) {
     m_init_prom.set_value();
   }
@@ -81,15 +84,18 @@ void ServiceActor::write_to_stream(cogmentAPI::ActorRunTrialInput&& data) {
 }
 
 void ServiceActor::trial_ended(std::string_view details) {
+  const std::lock_guard<std::mutex> lg(m_writing);
+
   cogmentAPI::ActorRunTrialInput data;
   data.set_state(cogmentAPI::CommunicationState::END);
   if (details.size() > 0) {
     data.set_details(details.data(), details.size());
   }
-  m_stream->Write(data);
+  m_stream->Write(std::move(data));
   SPDLOG_DEBUG("Trial [{}] - Actor [{}] 'END' sent", trial()->id(), actor_name());
 
   m_stream->WritesDone();
+  m_stream->Finish();
   m_stream_valid = false;
 }
 
@@ -111,6 +117,7 @@ void ServiceActor::process_incoming_data(cogmentAPI::ActorRunTrialOutput&& data)
     SPDLOG_DEBUG("Trial [{}] - Service actor [{}] init complete", trial()->id(), actor_name());
     break;
   }
+
   case cogmentAPI::ActorRunTrialOutput::kAction: {
     if (state == cogmentAPI::CommunicationState::NORMAL) {
       trial()->actor_acted(actor_name(), data.action());
@@ -120,6 +127,7 @@ void ServiceActor::process_incoming_data(cogmentAPI::ActorRunTrialOutput&& data)
     }
     break;
   }
+
   case cogmentAPI::ActorRunTrialOutput::kReward: {
     if (state == cogmentAPI::CommunicationState::NORMAL) {
       trial()->reward_received(data.reward(), actor_name());
@@ -129,6 +137,7 @@ void ServiceActor::process_incoming_data(cogmentAPI::ActorRunTrialOutput&& data)
     }
     break;
   }
+
   case cogmentAPI::ActorRunTrialOutput::kMessage: {
     if (state == cogmentAPI::CommunicationState::NORMAL) {
       trial()->message_received(data.message(), actor_name());
@@ -138,14 +147,17 @@ void ServiceActor::process_incoming_data(cogmentAPI::ActorRunTrialOutput&& data)
     }
     break;
   }
+
   case cogmentAPI::ActorRunTrialOutput::kDetails: {
     process_incoming_state(state, &data.details());
     break;
   }
+
   case cogmentAPI::ActorRunTrialOutput::DATA_NOT_SET: {
     process_incoming_state(state, nullptr);
     break;
   }
+
   default: {
     throw MakeException<std::invalid_argument>("Unknown communication data [%d]", static_cast<int>(data_case));
     break;

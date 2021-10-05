@@ -16,7 +16,6 @@
 #define AOM_ORCHESTRATOR_CLIENT_ACTOR_H
 
 #include "cogment/actor.h"
-#include "cogment/stub_pool.h"
 #include "grpc++/grpc++.h"
 
 #include <optional>

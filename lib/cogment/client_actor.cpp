@@ -18,6 +18,7 @@
 
 #include "cogment/client_actor.h"
 #include "cogment/trial.h"
+#include "cogment/utils.h"
 
 #include "spdlog/spdlog.h"
 
@@ -148,12 +149,14 @@ void ClientActor::write_to_stream(cogmentAPI::ActorRunTrialInput&& data) {
 }
 
 void ClientActor::trial_ended(std::string_view details) {
+  const std::lock_guard<std::mutex> lg(m_writing);
+
   cogmentAPI::ActorRunTrialInput data;
   data.set_state(cogmentAPI::CommunicationState::END);
   if (!details.empty()) {
     data.set_details(details.data(), details.size());
   }
-  write_to_stream(std::move(data));
+  m_stream->Write(std::move(data));
   SPDLOG_DEBUG("Trial [{}] - Actor [{}] 'END' sent", trial()->id(), actor_name());
 
   finish_stream();
@@ -222,7 +225,6 @@ grpc::Status ClientActor::run(StreamType* stream) {
   });
 
   m_finished_fut.get();  // Cannot be "wait()" because of "finish_stream()"
-  m_stream_valid = false;
   return m_incoming_stream_status;
 }
 
@@ -231,6 +233,7 @@ grpc::Status ClientActor::run(StreamType* stream) {
 void ClientActor::finish_stream() {
   const std::lock_guard<std::mutex> lg(m_finishing_mutex);
 
+  m_stream_valid = false;
   try {
     if (m_finished_fut.valid()) {  // To try to prevent exceptions most of the time
       m_finished_prom.set_value();
@@ -249,6 +252,7 @@ void ClientActor::process_incoming_data(cogmentAPI::ActorRunTrialOutput&& data) 
     throw MakeException("Trial [%s] - Actor [%s] unexpectedly repeated init data");
     break;
   }
+
   case cogmentAPI::ActorRunTrialOutput::kAction: {
     if (state == cogmentAPI::CommunicationState::NORMAL) {
       trial()->actor_acted(actor_name(), data.action());
@@ -258,6 +262,7 @@ void ClientActor::process_incoming_data(cogmentAPI::ActorRunTrialOutput&& data) 
     }
     break;
   }
+
   case cogmentAPI::ActorRunTrialOutput::kReward: {
     if (state == cogmentAPI::CommunicationState::NORMAL) {
       trial()->reward_received(data.reward(), actor_name());
@@ -267,6 +272,7 @@ void ClientActor::process_incoming_data(cogmentAPI::ActorRunTrialOutput&& data) 
     }
     break;
   }
+
   case cogmentAPI::ActorRunTrialOutput::kMessage: {
     if (state == cogmentAPI::CommunicationState::NORMAL) {
       trial()->message_received(data.message(), actor_name());
@@ -276,14 +282,17 @@ void ClientActor::process_incoming_data(cogmentAPI::ActorRunTrialOutput&& data) 
     }
     break;
   }
+
   case cogmentAPI::ActorRunTrialOutput::kDetails: {
     process_incoming_state(state, &data.details());
     break;
   }
+
   case cogmentAPI::ActorRunTrialOutput::DATA_NOT_SET: {
     process_incoming_state(state, nullptr);
     break;
   }
+
   default: {
     throw MakeException<std::invalid_argument>("Unknown communication data [%d]", static_cast<int>(data_case));
     break;

@@ -15,18 +15,14 @@
 #ifndef COGMENT_ORCHESTRATOR_TRIAL_H
 #define COGMENT_ORCHESTRATOR_TRIAL_H
 
-#include "cogment/actor.h"
-#include "cogment/datalog.h"
-#include "cogment/utils.h"
-
 #include "cogment/api/environment.grpc.pb.h"
 #include "cogment/api/orchestrator.pb.h"
-
-#include "cogment/stub_pool.h"
+#include "cogment/api/datalog.pb.h"
 
 #include <prometheus/summary.h>
 
 #include <atomic>
+#include <memory>
 #include <chrono>
 #include <deque>
 #include <mutex>
@@ -36,6 +32,8 @@
 
 namespace cogment {
 class Orchestrator;
+class Environment;
+class Actor;
 class ClientActor;
 class DatalogService;
 
@@ -94,6 +92,7 @@ public:
   // Marks the trial as being active.
   void refresh_activity();
 
+  void env_observed(const std::string& env_name, cogmentAPI::ObservationSet&& obs, bool last);
   void actor_acted(const std::string& actor_name, const cogmentAPI::Action& action);
   void reward_received(const cogmentAPI::Reward& reward, const std::string& source);
   void message_received(const cogmentAPI::Message& message, const std::string& source);
@@ -103,20 +102,18 @@ public:
 
 private:
   void prepare_actors();
-  cogmentAPI::EnvStartRequest prepare_environment();
+  void prepare_environment();
   cogmentAPI::DatalogSample& make_new_sample();
   cogmentAPI::DatalogSample* get_last_sample();
   void flush_samples();
   void set_state(InternalState state);
   void advance_tick();
   void new_obs(cogmentAPI::ObservationSet&& new_obs);
-  void next_step(cogmentAPI::EnvActionReply&& reply);
-  void dispatch_observations();
+  void dispatch_observations(bool last);
   void cycle_buffer();
-  void run_environment();
-  cogmentAPI::EnvActionRequest make_action_request();
+  cogmentAPI::ActionSet make_action_set();
   void dispatch_env_messages();
-  void send_env_end();
+  bool finalize_env();
   void finalize_actors();
   std::vector<Actor*> get_all_actors(const std::string& name);
   bool for_actors(const std::string& pattern, const std::function<void(Actor*)>& func);
@@ -126,11 +123,9 @@ private:
   uint64_t m_tick_start_timestamp;
 
   std::mutex m_state_lock;
-  std::mutex m_actor_lock;
   std::mutex m_sample_lock;
   std::mutex m_reward_lock;
   std::mutex m_sample_message_lock;
-  std::mutex m_env_message_lock;
   std::shared_mutex m_terminating_lock;
 
   const std::string m_id;
@@ -138,24 +133,18 @@ private:
 
   cogmentAPI::TrialParams m_params;
 
-  std::shared_ptr<cogment::StubPool<cogmentAPI::EnvironmentSP>::Entry> m_env_entry;
-
   InternalState m_state;
   bool m_env_last_obs;
   uint64_t m_tick_id;
   const uint64_t m_start_timestamp;
   uint64_t m_end_timestamp;
 
+  std::unique_ptr<Environment> m_env;
   std::vector<std::unique_ptr<Actor>> m_actors;
-  std::vector<cogmentAPI::Message> m_env_message_accumulator;
   std::unordered_map<std::string, uint32_t> m_actor_indexes;
   std::chrono::time_point<std::chrono::steady_clock> m_last_activity;
 
-  std::unique_ptr<grpc::ClientReaderWriter<cogmentAPI::EnvActionRequest, cogmentAPI::EnvActionReply>> m_env_stream;
-  grpc::ClientContext m_env_stream_context;
-  std::thread m_env_incoming_thread;
-
-  std::uint32_t m_gathered_actions_count;
+  std::atomic_uint m_gathered_actions_count;
 
   std::deque<cogmentAPI::DatalogSample> m_step_data;
   std::unique_ptr<DatalogService> m_datalog;

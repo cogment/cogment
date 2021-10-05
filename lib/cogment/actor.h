@@ -18,8 +18,6 @@
 #include "cogment/api/agent.grpc.pb.h"
 #include "cogment/api/orchestrator.pb.h"
 
-#include "cogment/utils.h"
-
 #include "grpc++/grpc++.h"
 
 #include "yaml-cpp/yaml.h"
@@ -50,6 +48,8 @@ public:
   virtual bool is_active() const = 0;
   virtual void trial_ended(std::string_view details) = 0;
 
+  std::future<void> last_ack() { return m_last_ack_prom.get_future(); }
+
   Trial* trial() const { return m_trial; }
   const std::string& actor_name() const { return m_actor_name; }
   const ActorClass* actor_class() const { return m_actor_class; }
@@ -61,8 +61,6 @@ public:
 
   void dispatch_tick(cogmentAPI::Observation&& obs, bool final_tick);
 
-  std::future<void> last_ack() { return m_last_ack_prom.get_future(); }
-
 protected:
   virtual void dispatch_observation(cogmentAPI::Observation&& obs) = 0;
   virtual void dispatch_final_data(cogmentAPI::ActorPeriodData&& data) = 0;
@@ -73,10 +71,10 @@ protected:
   void last_sent() { m_last_sent = true; }
 
 private:
-  Trial* m_trial;
-  std::string m_actor_name;
+  Trial* const m_trial;
+  const std::string m_actor_name;
   const ActorClass* m_actor_class;
-  std::string m_impl;
+  const std::string m_impl;
   std::optional<std::string> m_config_data;
 
   std::mutex m_lock;

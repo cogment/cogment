@@ -18,11 +18,13 @@
 
 #include "cogment/trial.h"
 #include "cogment/orchestrator.h"
-
+#include "cogment/environment.h"
+#include "cogment/actor.h"
 #include "cogment/agent_actor.h"
 #include "cogment/client_actor.h"
 #include "cogment/datalog.h"
 #include "cogment/utils.h"
+#include "cogment/stub_pool.h"
 
 #include "spdlog/spdlog.h"
 
@@ -40,7 +42,7 @@ namespace cogment {
 constexpr int64_t AUTO_TICK_ID = -1;     // The actual tick ID will be determined by the Orchestrator
 constexpr int64_t NO_DATA_TICK_ID = -2;  // When we have received no data (different from default/empty data)
 constexpr uint64_t MAX_TICK_ID = static_cast<uint64_t>(std::numeric_limits<int64_t>::max());
-const std::string ENVIRONMENT_ACTOR_NAME("env");
+const std::string ENVIRONMENT_NAME("env");
 
 const char* get_trial_state_string(Trial::InternalState state) {
   switch (state) {
@@ -95,7 +97,6 @@ Trial::Trial(Orchestrator* orch, std::unique_ptr<DatalogService> log, const std:
     m_datalog(std::move(log)) {
   SPDLOG_TRACE("Trial [{}] - Constructor", m_id);
 
-  m_env_stream_context.AddMetadata("trial-id", m_id);
   set_state(InternalState::initializing);
   refresh_activity();
 }
@@ -107,14 +108,9 @@ Trial::~Trial() {
     spdlog::error("Trial [{}] - Internal error: Trying to destroy trial before it is ended", m_id);
   }
 
-  // Destroy actors while this trial instance still exists
+  // Destroy components while this trial instance still exists
+  m_env.reset();
   m_actors.clear();
-
-  if (m_env_stream != nullptr) {
-    m_env_stream->WritesDone();
-    m_env_stream->Finish();
-    m_env_incoming_thread.join();
-  }
 }
 
 const std::unique_ptr<Actor>& Trial::actor(const std::string& name) const {
@@ -235,23 +231,15 @@ void Trial::prepare_actors() {
   }
 }
 
-cogmentAPI::EnvStartRequest Trial::prepare_environment() {
-  cogmentAPI::EnvStartRequest env_start_req;
-  env_start_req.set_tick_id(m_tick_id);
-  env_start_req.set_impl_name(m_params.environment().implementation());
+void Trial::prepare_environment() {
+  auto stub_entry = m_orchestrator->env_pool()->get_stub_entry(m_params.environment().endpoint());
+
+  std::optional<std::string> config;
   if (m_params.environment().has_config()) {
-    *env_start_req.mutable_config() = m_params.environment().config();
+    config = m_params.environment().config().content();
   }
 
-  for (const auto& actor_info : m_params.actors()) {
-    auto& actor_class = m_orchestrator->get_trial_spec().get_actor_class(actor_info.actor_class());
-    auto actor_in_trial = env_start_req.add_actors_in_trial();
-    actor_in_trial->set_actor_class(actor_class.name);
-    actor_in_trial->set_name(actor_info.name());
-  }
-
-  SPDLOG_DEBUG("Trial [{}] - Start environment request: {}", m_id, env_start_req.DebugString());
-  return env_start_req;
+  m_env = std::make_unique<Environment>(this, ENVIRONMENT_NAME, m_params.environment().implementation(), stub_entry, config);
 }
 
 void Trial::start(cogmentAPI::TrialParams params) {
@@ -267,44 +255,21 @@ void Trial::start(cogmentAPI::TrialParams params) {
 
   m_datalog->start(m_id, m_params);
 
-  m_env_entry = m_orchestrator->env_pool()->get_stub_entry(m_params.environment().endpoint());
-
   prepare_actors();
+  prepare_environment();
 
   make_new_sample();  // First sample
 
   set_state(InternalState::pending);
 
+  auto env_ready = m_env->init();
   std::vector<std::future<void>> actors_ready;
   for (const auto& actor : m_actors) {
     actors_ready.push_back(actor->init());
   }
 
   auto self = shared_from_this();
-
-  std::promise<cogmentAPI::EnvStartReply> env_ready_promise;
-  auto env_ready = env_ready_promise.get_future();
-  auto env_thr = std::thread([self, prom=std::move(env_ready_promise)]() mutable {
-    try {
-      auto request = self->prepare_environment();
-      cogmentAPI::EnvStartReply response;
-      grpc::ClientContext context;
-      context.AddMetadata("trial-id", self->m_id);
-      auto status = self->m_env_entry->get_stub().OnStart(&context, request, &response);
-      if (!status.ok()) {
-        prom.set_exception(std::make_exception_ptr(MakeException("Failed to start environment for trial [%s]", 
-                                                                 self->m_id.c_str())));
-      } else {
-        prom.set_value(std::move(response));
-      }
-    }
-    catch (...) {
-      prom.set_exception(std::current_exception());
-    }
-  });
-  env_thr.detach();
-
-  auto start_thr = std::thread([self, actors=std::move(actors_ready), env=std::move(env_ready)]() mutable {
+  std::thread([self, actors=std::move(actors_ready), env=std::move(env_ready)]() mutable {
     try {
       for (size_t index = 0 ; index < actors.size() ; index++) {
         SPDLOG_TRACE("Trial [{}] - Waiting on actor [{}]...", self->m_id, self->m_actors[index]->actor_name());
@@ -312,15 +277,14 @@ void Trial::start(cogmentAPI::TrialParams params) {
       }
       SPDLOG_TRACE("Trial [{}] - All actors started", self->m_id);
 
-      auto env_rep = env.get();
-      SPDLOG_TRACE("Trial [{}] - Environment started", self->m_id);
+      auto first_obs = env.get();
+      SPDLOG_TRACE("Trial [{}] - Environment [{}] started", self->m_id, self->m_env->name());
 
-      self->new_obs(std::move(*env_rep.mutable_observation_set()));
+      self->new_obs(std::move(first_obs));
       self->set_state(InternalState::running);
-      self->run_environment();
 
       // Send the initial state
-      self->dispatch_observations();
+      self->dispatch_observations(false);
     }
     catch(const std::exception& exc) {
       spdlog::error("Trial [{}] - Failed to start [{}]", self->m_id, exc.what());
@@ -328,8 +292,7 @@ void Trial::start(cogmentAPI::TrialParams params) {
     catch(...) {
       spdlog::error("Trial [{}] - Failed to start on unknown exception", self->m_id);
     }
-  });
-  start_thr.detach();
+  }).detach();
 
   spdlog::debug("Trial [{}] - Configured", m_id);
 }
@@ -394,11 +357,8 @@ void Trial::message_received(const cogmentAPI::Message& message, const std::stri
 
   // Message is not dispatched as we receive it. It is accumulated, and sent once
   // per update.
-  if (message.receiver_name() == ENVIRONMENT_ACTOR_NAME) {
-    const std::lock_guard<std::mutex> lg(m_env_message_lock);
-    m_env_message_accumulator.emplace_back(message);
-    m_env_message_accumulator.back().set_tick_id(m_tick_id);
-    m_env_message_accumulator.back().set_sender_name(sender);
+  if (message.receiver_name() == ENVIRONMENT_NAME) {
+    m_env->dispatch_message(message, sender, m_tick_id);
   }
   else {
     bool valid_name = for_actors(message.receiver_name(), [this, &message, &sender](auto actor) {
@@ -460,26 +420,10 @@ bool Trial::for_actors(const std::string& pattern, const std::function<void(Acto
   return false;
 }
 
-void Trial::next_step(cogmentAPI::EnvActionReply&& reply) {
-  // Rewards and messages are for last step here
-  for (auto&& rew : reply.rewards()) {
-    reward_received(rew, ENVIRONMENT_ACTOR_NAME);
-  }
-  for (auto&& msg : reply.messages()) {
-    message_received(msg, ENVIRONMENT_ACTOR_NAME);
-  }
-
-  advance_tick();
-
-  make_new_sample();
-  new_obs(std::move(*reply.mutable_observation_set()));
-}
-
-void Trial::dispatch_observations() {
+void Trial::dispatch_observations(bool last) {
   if (m_state == InternalState::ended) {
     return;
   }
-  const bool ending = (m_state == InternalState::terminating);
 
   auto sample = get_last_sample();
   if (sample == nullptr) {
@@ -494,13 +438,9 @@ void Trial::dispatch_observations() {
     obs.set_tick_id(m_tick_id);
     obs.set_timestamp(observations.timestamp());
     *obs.mutable_data() = observations.observations(obs_index);
-    actor->dispatch_tick(std::move(obs), ending);
+    actor->dispatch_tick(std::move(obs), last);
 
     ++actor_index;
-  }
-
-  if (ending) {
-    set_state(InternalState::ended);
   }
 }
 
@@ -523,185 +463,169 @@ void Trial::cycle_buffer() {
   }
 }
 
-void Trial::run_environment() {
-  auto self = shared_from_this();
-
-  m_env_stream = m_env_entry->get_stub().OnAction(&m_env_stream_context);
-
-  // Launch the main update stream
-  m_env_incoming_thread = std::thread([this]() {
-    try {
-      cogmentAPI::EnvActionReply data;
-      while(m_env_stream->Read(&data)) {
-        SPDLOG_TRACE("Trial [{}] - Received new observation set", m_id);
-        
-        if (m_state == InternalState::ended) {
-          return;
-        }
-
-        m_env_last_obs = data.final_update();
-        next_step(std::move(data));
-
-        if (!m_env_last_obs) {
-          dispatch_observations();
-          cycle_buffer();
-        }
-        else {
-          spdlog::info("Trial [{}] - Environment has ended the trial", m_id);
-          finish();
-          break;
-        }
-      }
-      SPDLOG_TRACE("Trial [{}] - Finished reading environment stream", m_id);
-    }
-    catch(const std::exception& exc) {
-      spdlog::error("Trial [{}] - Environment: Error reading stream [{}]", m_id, exc.what());
-    }
-    catch(...) {
-      spdlog::error("Trial [{}] - Environment: Unknown exception reading stream", m_id);
-    }
-  });
-}
-
-cogmentAPI::EnvActionRequest Trial::make_action_request() {
+cogmentAPI::ActionSet Trial::make_action_set() {
   // TODO: Look into merging data formats so we don't have to copy all actions every time
-  cogmentAPI::EnvActionRequest req;
-  auto action_set = req.mutable_action_set();
+  cogmentAPI::ActionSet action_set;
 
-  action_set->set_tick_id(m_tick_id);
+  action_set.set_tick_id(m_tick_id);
 
   const std::lock_guard<std::mutex> lg(m_sample_lock);
   auto& sample = m_step_data.back();
   for (auto& act : sample.actions()) {
     if (act.tick_id() == AUTO_TICK_ID || act.tick_id() == static_cast<int64_t>(m_tick_id)) {
-      action_set->add_actions(act.content());
+      action_set.add_actions(act.content());
     }
     else {
       // The registered action is not for this tick
 
       // TODO: Synchronize with `actor_acted` about past/future actions
-      action_set->add_actions();
+      action_set.add_actions();  // Add default action
     }
   }
 
-  return req;
+  return action_set;
 }
 
-void Trial::send_env_end() {
+bool Trial::finalize_env() {
   static constexpr auto timeout = std::chrono::seconds(60);
 
   try {
+    SPDLOG_DEBUG("Trial [{}] - Sending last actions to environment [{}]", m_id, m_env->name());
     // Send the actions we have so far (may be a partial set)
-    auto req = make_action_request();
+    m_env->dispatch_actions(make_action_set(), true);
 
-    grpc::ClientContext context;
-    context.AddMetadata("trial-id", m_id);
-    context.set_deadline(std::chrono::system_clock::now() + timeout);
-    cogmentAPI::EnvActionReply response;
-    auto status = m_env_entry->get_stub().OnEnd(&context, req, &response);
-    if (status.ok()) {
-      next_step(std::move(response));
-      dispatch_observations();
-      return;
-    } 
+    SPDLOG_DEBUG("Trial [{}] - Waiting (max 60 sec) for environment [{}] to acknowledge 'LAST'", m_id, m_env->name());
+    auto fut = m_env->last_ack();
+    if (!fut.valid()) {
+      throw std::future_error(std::future_errc::no_state);
+    }
 
-    spdlog::error("Trial [{}] environment did not end normally [{}]", m_id, status.error_message());
+    auto status = fut.wait_for(timeout);
+    switch(status) {
+    case std::future_status::deferred:
+      throw MakeException("Deferred last data"); 
+    case std::future_status::ready:
+      break;
+    case std::future_status::timeout:
+      throw MakeException("Last data wait timed out"); 
+    }
+
+    dispatch_observations(true);
+    return true;
   }
   catch(const std::exception& exc) {
-    spdlog::error("Trial [{}] - Environment end failed [{}]", m_id, exc.what());
+    spdlog::error("Trial [{}] - Environment [{}] last ack failed [{}]", m_id, m_env->name(), exc.what());
   }
   catch(...) {
-    spdlog::error("Trial [{}] - Environment end failed with unknown exception", m_id);
+    spdlog::error("Trial [{}] - Environment [{}] last ack failed", m_id, m_env->name());
   }
 
-  set_state(InternalState::ended);  // To enable garbage collection on this trial
+  return false;
 }
 
 void Trial::finalize_actors() {
   static constexpr auto timeout = std::chrono::seconds(60);
 
-  try {
-    SPDLOG_DEBUG("Trial [{}] - Waiting (max 60 sec per actor) for all actors to acknowledge 'LAST'", m_id);
-    for (const auto& actor : m_actors) {
-      try {  // We don't want one actor to prevent the end to be sent to all other actors
-        auto fut = actor->last_ack();
-        if (!fut.valid()) {
-          throw std::future_error(std::future_errc::no_state);
-        }
+  SPDLOG_DEBUG("Trial [{}] - Waiting (max 60 sec per actor) for all actors to acknowledge 'LAST'", m_id);
+  for (const auto& actor : m_actors) {
+    try {  // We don't want one actor to prevent the end to be sent to all other actors
+      auto fut = actor->last_ack();
+      if (!fut.valid()) {
+        throw std::future_error(std::future_errc::no_state);
+      }
 
-        auto status = fut.wait_for(timeout);
-        switch(status) {
-        case std::future_status::deferred:
-          throw MakeException("Deferred last data"); 
-        case std::future_status::ready:
-          break;
-        case std::future_status::timeout:
-          throw MakeException("Last data wait timed out"); 
-        }
-      }
-      catch(const std::exception& exc) {
-        spdlog::error("Trial [{}] - Actor [{}] last ack failed [{}]", m_id, actor->actor_name(), exc.what());
-      }
-      catch(...) {
-        spdlog::error("Trial [{}] - Actor [{}] last ack failed", m_id, actor->actor_name());
+      auto status = fut.wait_for(timeout);
+      switch(status) {
+      case std::future_status::deferred:
+        throw MakeException("Deferred last data"); 
+      case std::future_status::ready:
+        break;
+      case std::future_status::timeout:
+        throw MakeException("Last data wait timed out"); 
       }
     }
-
-    SPDLOG_DEBUG("Trial [{}] - Notifying all actors that the trial has ended", m_id);
-    for (const auto& actor : m_actors) {
-      actor->trial_ended("");
+    catch(const std::exception& exc) {
+      spdlog::error("Trial [{}] - Actor [{}] last ack failed [{}]", m_id, actor->actor_name(), exc.what());
     }
-  }
-  catch(const std::exception& exc) {
-    spdlog::error("Trial [{}] - Actors end failed [{}]", m_id, exc.what());
-  }
-  catch(...) {
-    spdlog::error("Trial [{}] - Actors end failed", m_id);
+    catch(...) {
+      spdlog::error("Trial [{}] - Actor [{}] last ack failed", m_id, actor->actor_name());
+    }
   }
 }
 
 void Trial::finish() {
   SPDLOG_TRACE("Trial [{}] - finish()", m_id);
-  {
-    const std::lock_guard<std::shared_mutex> lg(m_terminating_lock);
 
-    if (m_state >= InternalState::terminating) {
-      return;
-    }
-    if (m_state != InternalState::running) {
-      spdlog::error("Trial [{}] cannot finish in current state: [{}]", m_id.c_str(),
-                    get_trial_state_string(m_state));
-      return;
-    }
+  const std::lock_guard<std::shared_mutex> lg(m_terminating_lock);
 
+  if (m_state == InternalState::running) {
     set_state(InternalState::terminating);
   }
-
-  dispatch_env_messages();
+  else if (m_state >= InternalState::terminating) {
+    SPDLOG_DEBUG("Trial [{}] - Finish called but already terminating", m_id);
+    return;
+  }
+  else {
+    spdlog::error("Trial [{}] cannot finish in current state: [{}]", m_id, get_trial_state_string(m_state));
+    return;
+  }
 
   auto self = shared_from_this();
-
-  auto env_thr = std::thread([self]() {
-    if (self->m_env_last_obs) {
-      try {
-        self->dispatch_observations();
-      }
-      catch(const std::exception& exc) {
-        spdlog::error("Trial [{}] - Last observation dispatch failed [{}]", self->m_id, exc.what());
-      }
-      catch(...) {
-        spdlog::error("Trial [{}] - Last observation dispatch failed", self->m_id);
-      }
-    } 
-    else {
-      self->send_env_end();
+  std::thread([self]() {
+    bool env_finalize_success = self->finalize_env();
+    if (env_finalize_success) {
+      self->finalize_actors();
     }
 
-    // TODO: handle case when the actors may not have received 'LAST' because of errors before
+    try {
+      std::string details;
+      if (!env_finalize_success) {
+        spdlog::warn("Trial [{}] - Force ending all actors", self->m_id);
+        details = "Environment failed to end properly";
+      }
 
-    self->finalize_actors();
-  });
-  env_thr.detach();
+      SPDLOG_DEBUG("Trial [{}] - Notifying all that the trial has ended", self->m_id);
+      self->m_env->trial_ended(details);
+      for (const auto& actor : self->m_actors) {
+        actor->trial_ended(details);
+      }
+    }
+    catch(const std::exception& exc) {
+      spdlog::error("Trial [{}] - Component end failed [{}]", self->m_id, exc.what());
+    }
+    catch(...) {
+      spdlog::error("Trial [{}] - component end failed", self->m_id);
+    }
+
+    self->set_state(InternalState::ended);
+  }).detach();
+}
+
+void Trial::env_observed(const std::string& env_name, cogmentAPI::ObservationSet&& obs, bool last) {
+  std::shared_lock<std::shared_mutex> terminating_guard(m_terminating_lock);
+
+  if (m_state < InternalState::pending) {
+    spdlog::warn("Trial [{}] - Environemnt [{}] too early to receive observations.", m_id, env_name);
+    return;
+  }
+  if (m_state == InternalState::ended) {
+    spdlog::info("Trial [{}] - Environment [{}] observations arrived after end of trial. Data will be dropped [{}].", m_id, env_name, last);
+    return;
+  }
+
+  advance_tick();
+  make_new_sample();
+  new_obs(std::move(obs));
+
+  if (!last) {
+    dispatch_observations(false);
+    cycle_buffer();
+  }
+  else if (m_state != InternalState::terminating) {
+    terminating_guard.unlock();
+    spdlog::info("Trial [{}] - Environment has ended the trial", m_id);
+    finish();
+  }
 }
 
 void Trial::actor_acted(const std::string& actor_name, const cogmentAPI::Action& action) {
@@ -711,7 +635,7 @@ void Trial::actor_acted(const std::string& actor_name, const cogmentAPI::Action&
     spdlog::warn("Too early for trial [{}] to receive actions from [{}].", m_id, actor_name);
     return;
   }
-  if (m_state >= InternalState::terminating) {
+  if (m_state == InternalState::ended) {
     spdlog::info("An action from [{}] arrived after end of trial [{}].  Action will be dropped.", actor_name, m_id);
     return;
   }
@@ -743,22 +667,14 @@ void Trial::actor_acted(const std::string& actor_name, const cogmentAPI::Action&
   SPDLOG_TRACE("Trial [{}] - Received action from actor [{}] for tick [{}].", m_id, actor_name, m_tick_id);
   *sample_action = action;
 
-  bool all_actions_received = false;
-  {
-    const std::lock_guard<std::mutex> lg(m_actor_lock);
-    m_gathered_actions_count++;
-    all_actions_received = (m_gathered_actions_count == m_actors.size());
-  }
-
-  if (all_actions_received) {
-    SPDLOG_TRACE("Trial [{}] -All actions received for tick [{}]", m_id, m_tick_id);
+  const auto new_count = ++m_gathered_actions_count;
+  if (new_count == m_actors.size()) {
+    SPDLOG_TRACE("Trial [{}] - All actions received for tick [{}]", m_id, m_tick_id);
 
     const auto max_steps = m_params.max_steps();
     if (max_steps == 0 || m_tick_id < max_steps) {
-      if (m_env_stream) {
-        dispatch_env_messages();
-
-        m_env_stream->Write(make_action_request());
+      if (m_env->started()) {
+        m_env->dispatch_actions(make_action_set(), false);
 
         // We put this here to try to be outside the first and last tick (i.e. overhead)
         if (m_metrics.tick_duration != nullptr) {
@@ -776,7 +692,7 @@ void Trial::actor_acted(const std::string& actor_name, const cogmentAPI::Action&
         spdlog::error("Environment for trial [{}] not ready for first action set", m_id);
       }
     }
-    else {
+    else if (m_state != InternalState::terminating) {
       spdlog::info("Trial [{}] - Terminating on configured maximum number of steps [{}]", m_id, max_steps);
       terminating_guard.unlock();
       finish();
@@ -946,28 +862,6 @@ void Trial::set_info(cogmentAPI::TrialInfo* info, bool with_observations, bool w
       trial_actor->set_name(actor->actor_name());
     }
   }
-}
-
-void Trial::dispatch_env_messages() {
-  const std::lock_guard<std::mutex> lg(m_env_message_lock);
-
-  cogmentAPI::EnvMessageRequest req;
-  for (auto& message : m_env_message_accumulator) {
-    auto msg = req.add_messages();
-    *msg = std::move(message);
-  }
-
-  if (!m_env_message_accumulator.empty()) {
-    grpc::ClientContext context;
-    context.AddMetadata("trial-id", m_id);
-    cogmentAPI::EnvMessageReply response;
-    auto status = m_env_entry->get_stub().OnMessage(&context, req, &response);
-    if (!status.ok()) {
-      spdlog::error("Trial [{}] - Failed to send a message to environment", m_id);
-    }
-  }
-
-  m_env_message_accumulator.clear();
 }
 
 }  // namespace cogment

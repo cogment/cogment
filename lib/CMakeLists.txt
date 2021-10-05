@@ -126,6 +126,7 @@ add_library(orchestrator_lib
   cogment/trial_spec.cpp
   cogment/trial.cpp
   cogment/utils.cpp
+  cogment/environment.cpp
 
   cogment/services/actor_service.cpp
   cogment/services/trial_lifecycle_service.cpp

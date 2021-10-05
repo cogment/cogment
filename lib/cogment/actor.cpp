@@ -18,6 +18,7 @@
 
 #include "cogment/actor.h"
 
+#include "cogment/utils.h"
 #include "cogment/config_file.h"
 #include "cogment/trial.h"
 #include "spdlog/spdlog.h"
@@ -88,6 +89,7 @@ void Actor::add_immediate_reward_src(const cogmentAPI::RewardSource& source, con
   src_acc.back().set_sender_name(sender);
 }
 
+// TODO: Send message immediately
 void Actor::add_immediate_message(const cogmentAPI::Message& message, const std::string& sender, uint64_t tick_id) {
   const std::lock_guard<std::mutex> lg(m_lock);
   m_message_accumulator.emplace_back(message);
@@ -145,6 +147,7 @@ void Actor::process_incoming_state(cogmentAPI::CommunicationState in_state, cons
         throw MakeException<std::invalid_argument>("Unknown communication state");
       }
       break;
+
     case cogmentAPI::CommunicationState::NORMAL:
       if (details != nullptr) {
         spdlog::info("Trial [{}] - Actor [{}] Communication details received [{}]", trial()->id(), actor_name(), *details);
@@ -152,6 +155,7 @@ void Actor::process_incoming_state(cogmentAPI::CommunicationState in_state, cons
         spdlog::warn("Trial [{}] - Actor [{}] No data in normal communication received", trial()->id(), actor_name());
       }
       break;
+
     case cogmentAPI::CommunicationState::HEARTBEAT:
       SPDLOG_TRACE("Trial [{}] - Actor [{}] 'HEARTBEAT' received", trial()->id(), actor_name());
       if (details != nullptr) {
@@ -159,6 +163,7 @@ void Actor::process_incoming_state(cogmentAPI::CommunicationState in_state, cons
       }
       // TODO : manage heartbeats
       break;
+
     case cogmentAPI::CommunicationState::LAST:
       if (details != nullptr) {
         spdlog::error("Trial [{}] - Actor [{}] Unexpected communication state (LAST) received [{}]", trial()->id(), actor_name(), *details);
@@ -166,6 +171,7 @@ void Actor::process_incoming_state(cogmentAPI::CommunicationState in_state, cons
         spdlog::error("Trial [{}] - Actor [{}] Unexpected communication state (LAST) received", trial()->id(), actor_name());
       }
       break;
+
     case cogmentAPI::CommunicationState::LAST_ACK:
       SPDLOG_DEBUG("Trial [{}] - Actor [{}] 'LAST_ACK' received", trial()->id(), actor_name());
       if (!m_last_sent) {
@@ -179,6 +185,7 @@ void Actor::process_incoming_state(cogmentAPI::CommunicationState in_state, cons
       //       This could be used to indicate that the actor has finished interacting with the trial.
       m_last_ack_prom.set_value();
       break;
+
     case cogmentAPI::CommunicationState::END:
       // TODO: Decide what to do about "END" received from actors
       if (details != nullptr) {
