@@ -88,32 +88,44 @@ grpc::Status ClientActor::run_an_actor(std::weak_ptr<Trial> trial_weak, StreamTy
   catch(const std::exception& exc) {
     auto trial = trial_weak.lock();
     if (trial != nullptr) {
-      throw MakeException("Trial [%s] - %s", trial->id().c_str(), exc.what());
+      return MakeErrorStatus("Trial [%s] - Init data failure [%s]", trial->id().c_str(), exc.what());
     }
     else {
+      return MakeErrorStatus("Init data failure [%s]", exc.what());
       throw;
     }
   }
-
-  auto trial = trial_weak.lock();
-  if (valid && trial != nullptr) {
-    std::string actor_name;
-    const auto slot_case = init_data.slot_selection_case();
-    if (slot_case == cogmentAPI::ActorInitialOutput::kActorName) {
-      actor_name = init_data.actor_name();
-    }
-    std::string actor_class;
-    if (slot_case == cogmentAPI::ActorInitialOutput::kActorClass) {
-      actor_class = init_data.actor_class();
-    }
-    auto actor = trial->get_join_candidate(actor_name, actor_class);
-    init_data.Clear();
-    trial.reset();
-
-    return actor->run(stream);  // Blocking
+  catch(...) {
+    return MakeErrorStatus("Init data failure");
   }
-  else {
-    return grpc::Status::OK;
+
+  try {
+    auto trial = trial_weak.lock();
+    if (valid && trial != nullptr) {
+      std::string actor_name;
+      const auto slot_case = init_data.slot_selection_case();
+      if (slot_case == cogmentAPI::ActorInitialOutput::kActorName) {
+        actor_name = init_data.actor_name();
+      }
+      std::string actor_class;
+      if (slot_case == cogmentAPI::ActorInitialOutput::kActorClass) {
+        actor_class = init_data.actor_class();
+      }
+      auto actor = trial->get_join_candidate(actor_name, actor_class);
+      init_data.Clear();
+      trial.reset();
+
+      return actor->run(stream);  // Blocking
+    }
+    else {
+      return grpc::Status::OK;
+    }
+  }
+  catch(const std::exception& exc) {
+    return MakeErrorStatus("Error while running [%s]", exc.what());
+  }
+  catch(...) {
+    return MakeErrorStatus("Unknown error while running");
   }
 }
 
@@ -151,12 +163,20 @@ void ClientActor::write_to_stream(cogmentAPI::ActorRunTrialInput&& data) {
 void ClientActor::trial_ended(std::string_view details) {
   const std::lock_guard<std::mutex> lg(m_writing);
 
+  if (!m_stream_valid) {
+    SPDLOG_DEBUG("Trial [{}] - Actor [{}] stream has ended: cannot end it again", trial()->id(), actor_name());
+    return;
+  }
+
   cogmentAPI::ActorRunTrialInput data;
   data.set_state(cogmentAPI::CommunicationState::END);
   if (!details.empty()) {
     data.set_details(details.data(), details.size());
   }
-  m_stream->Write(std::move(data));
+
+  grpc::WriteOptions options;
+  options.set_last_message();
+  m_stream->Write(std::move(data), options);
   SPDLOG_DEBUG("Trial [{}] - Actor [{}] 'END' sent", trial()->id(), actor_name());
 
   finish_stream();
@@ -178,7 +198,7 @@ grpc::Status ClientActor::run(StreamType* stream) {
   {
     const std::lock_guard<std::mutex> lg(m_active_mutex);
     if (m_stream != nullptr) {
-      throw MakeException("Trial [%s] - Actor [%s] already running", trial()->id().c_str(), actor_name().c_str());
+      return MakeErrorStatus("Trial [%s] - Actor [%s] already running", trial()->id().c_str(), actor_name().c_str());
     }
     m_stream = stream;
     m_stream_valid = true;
@@ -206,20 +226,28 @@ grpc::Status ClientActor::run(StreamType* stream) {
 
       cogmentAPI::ActorRunTrialOutput data;
       while(m_stream->Read(&data)) {
-        process_incoming_data(std::move(data));
-        if (!m_stream_valid) {
-          break;
+        try {
+          process_incoming_data(std::move(data));
+          if (!m_stream_valid) {
+            break;
+          }
+        }
+        catch(const std::exception& exc) {
+          m_incoming_stream_status = MakeErrorStatus("Trial [%s] - Actor [%s] error processing incoming data [%s]",
+                                                    trial()->id().c_str(), actor_name().c_str(), exc.what());
+        }
+        catch(...) {
+          m_incoming_stream_status = MakeErrorStatus("Trial [%s] - Actor [%s] error processing incoming data",
+                                                    trial()->id().c_str(), actor_name().c_str());
         }
       }
-      SPDLOG_TRACE("Trial [{}] - Client actor [{}] finished reading stream (valid [{}])", trial()->id(), actor_name(), m_stream_valid);
+      SPDLOG_TRACE("Trial [{}] - Actor [{}] finished reading stream (valid [{}])", trial()->id(), actor_name(), m_stream_valid);
     }
     catch(const std::exception& exc) {
-      m_incoming_stream_status = MakeErrorStatus("Trial [%s] - Client actor [%s] error reading run stream [%s]", 
-                                                 trial()->id().c_str(), actor_name().c_str(), exc.what());
+      spdlog::error("Trial [{}] - Actor [{}]: Error reading run stream [{}]", trial()->id(), actor_name(), exc.what());
     }
     catch(...) {
-      m_incoming_stream_status = MakeErrorStatus("Trial [%s] - Client actor [%s] unknown exception reading run stream", 
-                                                 trial()->id().c_str(), actor_name().c_str());
+      spdlog::error("Trial [{}] - Actor [{}]: Error reading run stream", trial()->id(), actor_name());
     }
     finish_stream();
   });

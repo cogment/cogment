@@ -17,6 +17,9 @@
 
 #include <cstdarg>
 #include <cstdio>
+#include <queue>
+#include <mutex>
+#include <condition_variable>
 #include "grpc++/grpc++.h"
 #include "spdlog/spdlog.h"
 
@@ -65,5 +68,42 @@ std::vector<std::string_view> FromMetadata(const Container& metadata, std::strin
 
   return result;
 }
+
+// A minimal thread-safe queue
+template <typename T>
+class ThrQueue {
+public:
+  T pop() {
+    std::unique_lock ul(m_lock);
+
+    if (m_data.empty()) {
+      m_cond.wait(ul, [this]() {
+        return !m_data.empty();
+      });
+    }
+
+    T val(std::move(m_data.front()));
+    m_data.pop();
+    return val;
+  }
+
+  void push(T&& val) {
+    std::unique_lock ul(m_lock);
+
+    m_data.push(std::move(val));
+    ul.unlock();
+    m_cond.notify_one();
+  }
+
+  size_t size() const {
+    std::unique_lock ul(m_lock);
+    return m_data.size();
+  }
+
+private:
+  std::queue<T> m_data;
+  mutable std::mutex m_lock;
+  std::condition_variable m_cond;
+};
 
 #endif

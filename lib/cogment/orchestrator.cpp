@@ -111,16 +111,11 @@ Orchestrator::~Orchestrator() {
 std::shared_ptr<Trial> Orchestrator::start_trial(cogmentAPI::TrialParams params, const std::string& user_id) {
   spdlog::info("New trial requested by user [{}]", user_id);
 
-  m_garbage_collection_countdown--;
-  if (m_garbage_collection_countdown == 0) {
-    const auto start = Timestamp();
-    m_garbage_collection_countdown.store(settings::garbage_collection_frequency.get());
+  try {
     m_perform_garbage_collection();
-
-    if (m_gc_metrics != nullptr) {
-      const auto duration = Timestamp() - start;
-      m_gc_metrics->Observe(static_cast<double>(duration) * NANOS_INV);
-    }
+  }
+  catch(...) {
+    spdlog::error("Error performing trial garbage collection");
   }
 
   // TODO: The whole datalog management needs to be refactored
@@ -171,8 +166,15 @@ cogmentAPI::PreTrialContext Orchestrator::m_perform_pre_hooks(cogmentAPI::PreTri
 // TODO: Add a timer to do garbage collection after 60 seconds (or whatever) since the last call
 //       in order to prevent old, ended or stale trials from lingering if no new trials are started.
 void Orchestrator::m_perform_garbage_collection() {
-  spdlog::debug("Performing garbage collection of ended and stale trials");
+  m_garbage_collection_countdown--;
+  if (m_garbage_collection_countdown != 0) {
+    return;
+  }
+  m_garbage_collection_countdown.store(settings::garbage_collection_frequency.get());
 
+  const auto start = Timestamp();
+
+  spdlog::debug("Performing garbage collection of ended and stale trials");
   std::vector<Trial*> stale_trials;
   {
     const std::lock_guard lg(m_trials_mutex);
@@ -198,10 +200,13 @@ void Orchestrator::m_perform_garbage_collection() {
   // Terminate may be long, so we don't want to lock the list during that time.
   // We don't go as far as with the deleted trials because stale trials should be rare.
   for (auto trial : stale_trials) {
-    spdlog::warn("Trial [{}] - Terminating because inactive for too long", trial->id());
-    trial->finish();
+    trial->terminate("The trial was inactive for too long");
   }
 
+  if (m_gc_metrics != nullptr) {
+    const auto duration = Timestamp() - start;
+    m_gc_metrics->Observe(static_cast<double>(duration) * NANOS_INV);
+  }
   SPDLOG_TRACE("Garbage collection done");
 }
 

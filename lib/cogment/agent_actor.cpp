@@ -86,6 +86,11 @@ void ServiceActor::write_to_stream(cogmentAPI::ActorRunTrialInput&& data) {
 void ServiceActor::trial_ended(std::string_view details) {
   const std::lock_guard<std::mutex> lg(m_writing);
 
+  if (!m_stream_valid) {
+    SPDLOG_DEBUG("Trial [{}] - Actor [{}] stream has ended: cannot end it again", trial()->id(), actor_name());
+    return;
+  }
+
   cogmentAPI::ActorRunTrialInput data;
   data.set_state(cogmentAPI::CommunicationState::END);
   if (details.size() > 0) {

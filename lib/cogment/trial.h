@@ -76,15 +76,13 @@ public:
   const std::unique_ptr<Actor>& actor(const std::string& name) const;
 
   // Initializes the trial
-  void start(cogmentAPI::TrialParams params);
+  void start(cogmentAPI::TrialParams&& params);
   const cogmentAPI::TrialParams& params() const { return m_params; }
 
   ClientActor* get_join_candidate(const std::string& actor_name, const std::string& actor_class) const;
 
-  // Ends the trial. finish() will hold a shared_ptr to the trial until
-  // termination is complete, so it's safe to let go of the trial once
-  // this has been called.
-  void finish();
+  void request_end();
+  void terminate(const std::string& details);
 
   // Primarily used to determine garbage collection elligibility.
   bool is_stale() const;
@@ -115,6 +113,7 @@ private:
   void dispatch_env_messages();
   bool finalize_env();
   void finalize_actors();
+  void finish();
   std::vector<Actor*> get_all_actors(const std::string& name);
   bool for_actors(const std::string& pattern, const std::function<void(Actor*)>& func);
 
@@ -135,6 +134,7 @@ private:
 
   InternalState m_state;
   bool m_env_last_obs;
+  bool m_end_requested;
   uint64_t m_tick_id;
   const uint64_t m_start_timestamp;
   uint64_t m_end_timestamp;

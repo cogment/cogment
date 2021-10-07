@@ -90,6 +90,7 @@ Trial::Trial(Orchestrator* orch, std::unique_ptr<DatalogService> log, const std:
     m_user_id(user_id),
     m_state(InternalState::unknown),
     m_env_last_obs(false),
+    m_end_requested(false),
     m_tick_id(0),
     m_start_timestamp(Timestamp()),
     m_end_timestamp(0),
@@ -242,7 +243,7 @@ void Trial::prepare_environment() {
   m_env = std::make_unique<Environment>(this, ENVIRONMENT_NAME, m_params.environment().implementation(), stub_entry, config);
 }
 
-void Trial::start(cogmentAPI::TrialParams params) {
+void Trial::start(cogmentAPI::TrialParams&& params) {
   SPDLOG_TRACE("Trial [{}] - Starting", m_id);
 
   if (m_state != InternalState::initializing) {
@@ -262,22 +263,23 @@ void Trial::start(cogmentAPI::TrialParams params) {
 
   set_state(InternalState::pending);
 
-  auto env_ready = m_env->init();
-  std::vector<std::future<void>> actors_ready;
-  for (const auto& actor : m_actors) {
-    actors_ready.push_back(actor->init());
-  }
-
   auto self = shared_from_this();
-  std::thread([self, actors=std::move(actors_ready), env=std::move(env_ready)]() mutable {
+  std::thread([self]() {
     try {
-      for (size_t index = 0 ; index < actors.size() ; index++) {
+      auto env_ready = self->m_env->init();
+
+      std::vector<std::future<void>> actors_ready;
+      for (const auto& actor : self->m_actors) {
+        actors_ready.push_back(actor->init());
+      }
+
+      for (size_t index = 0 ; index < actors_ready.size() ; index++) {
         SPDLOG_TRACE("Trial [{}] - Waiting on actor [{}]...", self->m_id, self->m_actors[index]->actor_name());
-        actors[index].wait();
+        actors_ready[index].wait();
       }
       SPDLOG_TRACE("Trial [{}] - All actors started", self->m_id);
 
-      auto first_obs = env.get();
+      auto first_obs = env_ready.get();
       SPDLOG_TRACE("Trial [{}] - Environment [{}] started", self->m_id, self->m_env->name());
 
       self->new_obs(std::move(first_obs));
@@ -491,7 +493,8 @@ bool Trial::finalize_env() {
 
   try {
     SPDLOG_DEBUG("Trial [{}] - Sending last actions to environment [{}]", m_id, m_env->name());
-    // Send the actions we have so far (may be a partial set)
+
+    // Send the actions we have so far (may be a partial set) if not received 'LAST'
     m_env->dispatch_actions(make_action_set(), true);
 
     SPDLOG_DEBUG("Trial [{}] - Waiting (max 60 sec) for environment [{}] to acknowledge 'LAST'", m_id, m_env->name());
@@ -524,9 +527,9 @@ bool Trial::finalize_env() {
 }
 
 void Trial::finalize_actors() {
-  static constexpr auto timeout = std::chrono::seconds(60);
+  SPDLOG_DEBUG("Trial [{}] - Waiting (max 30 sec per actor) for all actors to acknowledge 'LAST'", m_id);
+  static constexpr auto timeout = std::chrono::seconds(30);
 
-  SPDLOG_DEBUG("Trial [{}] - Waiting (max 60 sec per actor) for all actors to acknowledge 'LAST'", m_id);
   for (const auto& actor : m_actors) {
     try {  // We don't want one actor to prevent the end to be sent to all other actors
       auto fut = actor->last_ack();
@@ -601,8 +604,55 @@ void Trial::finish() {
   }).detach();
 }
 
+void Trial::request_end() {
+  spdlog::info("Trial [{}] - End externally requested", m_id);
+  m_end_requested = true;
+}
+
+void Trial::terminate(const std::string& details) {
+  SPDLOG_TRACE("Trial [{}] - terminate()", m_id);
+
+  const std::lock_guard<std::shared_mutex> lg(m_terminating_lock);
+
+  // Debatable if we want to let an ongoing ending trial finish, or we want to force it to end still.
+  // The use case of lots of unresponsive actors could be a reason to force a quick end and not wait.
+  if (m_state >= InternalState::terminating) {
+    if (m_state == InternalState::terminating) {
+      SPDLOG_DEBUG("Trial [{}] - Will not force termination: already ongoing [{}]", m_id, details);
+    }
+    return;
+  }
+
+  try {
+    set_state(InternalState::terminating);
+    spdlog::warn("Trial [{}] - Being forced to end [{}]", m_id, details);
+
+    try {
+      m_env->trial_ended(details);
+    }
+    catch(...) {
+      spdlog::error("Trial [{}] - Environment [{}] termination failed", m_id, m_env->name());
+    }
+
+    for (const auto& actor : m_actors) {
+      try {
+        actor->trial_ended(details);
+      }
+      catch(...) {
+        spdlog::error("Trial [{}] - Actor [{}] termination failed", m_id, actor->actor_name());
+      }
+    }
+
+    set_state(InternalState::ended);
+  }
+  catch(...) {
+    spdlog::error("Trial [{}] - Termination error", m_id);
+  }
+}
+
 void Trial::env_observed(const std::string& env_name, cogmentAPI::ObservationSet&& obs, bool last) {
   std::shared_lock<std::shared_mutex> terminating_guard(m_terminating_lock);
+  refresh_activity();
 
   if (m_state < InternalState::pending) {
     spdlog::warn("Trial [{}] - Environemnt [{}] too early to receive observations.", m_id, env_name);
@@ -630,41 +680,41 @@ void Trial::env_observed(const std::string& env_name, cogmentAPI::ObservationSet
 
 void Trial::actor_acted(const std::string& actor_name, const cogmentAPI::Action& action) {
   std::shared_lock<std::shared_mutex> terminating_guard(m_terminating_lock);
+  refresh_activity();
 
   if (m_state < InternalState::pending) {
-    spdlog::warn("Too early for trial [{}] to receive actions from [{}].", m_id, actor_name);
+    spdlog::warn("Trial [{}] - Actor [{}] too early in trial to receive action.", m_id, actor_name);
     return;
   }
   if (m_state == InternalState::ended) {
-    spdlog::info("An action from [{}] arrived after end of trial [{}].  Action will be dropped.", actor_name, m_id);
+    spdlog::info("Trial [{}] - Actor [{}] action arrived after end of trial. Data will be dropped.", m_id, actor_name);
     return;
   }
 
   const auto itor = m_actor_indexes.find(actor_name);
   if (itor == m_actor_indexes.end()) {
-    spdlog::error("Unknown actor [{}] for action received in trial [{}].", actor_name, m_id);
+    spdlog::error("Trial [{}] - Unknown actor [{}] for action received.", m_id, actor_name);
     return;
   }
   const auto actor_index = itor->second;
 
   auto sample = get_last_sample();
   if (sample == nullptr) {
-    spdlog::warn("No sample to accept action from [{}] in trial [{}]. Trial may be finished.", actor_name, m_id);
+    spdlog::warn("Trial [{}] - Actor [{}] no sample for action received. Trial may have ended.", m_id, actor_name);
     return;
   }
   auto sample_action = sample->mutable_actions(actor_index);
   if (sample_action->tick_id() != NO_DATA_TICK_ID) {
-    spdlog::warn("Multiple actions from [{}] for same step: only the first one will be used.", actor_name);
+    spdlog::warn("Trial [{}] - Actor [{}] multiple actions received for same step. Only the first one will be used.", m_id, actor_name);
     return;
   }
 
   // TODO: Determine what we want to do in case of actions in the past or future
   if (action.tick_id() != AUTO_TICK_ID && action.tick_id() != static_cast<int64_t>(m_tick_id)) {
-    spdlog::warn("Invalid action tick from [{}]: [{}] vs [{}].  Default action will be used.", actor_name,
-                 action.tick_id(), m_tick_id);
+    spdlog::warn("Trial [{}] - Actor [{}] invalid action step: [{}] vs [{}]. Default will be used.", m_id, actor_name, action.tick_id(), m_tick_id);
   }
 
-  SPDLOG_TRACE("Trial [{}] - Received action from actor [{}] for tick [{}].", m_id, actor_name, m_tick_id);
+  SPDLOG_TRACE("Trial [{}] - Actor [{}] received action for tick [{}].", m_id, actor_name, m_tick_id);
   *sample_action = action;
 
   const auto new_count = ++m_gathered_actions_count;
@@ -672,7 +722,7 @@ void Trial::actor_acted(const std::string& actor_name, const cogmentAPI::Action&
     SPDLOG_TRACE("Trial [{}] - All actions received for tick [{}]", m_id, m_tick_id);
 
     const auto max_steps = m_params.max_steps();
-    if (max_steps == 0 || m_tick_id < max_steps) {
+    if ((max_steps == 0 || m_tick_id < max_steps) && !m_end_requested) {
       if (m_env->started()) {
         m_env->dispatch_actions(make_action_set(), false);
 
@@ -689,11 +739,16 @@ void Trial::actor_acted(const std::string& actor_name, const cogmentAPI::Action&
         }
       }
       else {
-        spdlog::error("Environment for trial [{}] not ready for first action set", m_id);
+        spdlog::error("Trial [{}] - Environment [{}] not ready for fist action set.", m_id, m_env->name());
       }
     }
     else if (m_state != InternalState::terminating) {
-      spdlog::info("Trial [{}] - Terminating on configured maximum number of steps [{}]", m_id, max_steps);
+      if (m_end_requested) {
+        spdlog::info("Trial [{}] - Ending on request", m_id);
+      }
+      else {
+        spdlog::info("Trial [{}] - Ending on configured maximum number of steps [{}]", m_id, max_steps);
+      }
       terminating_guard.unlock();
       finish();
     }
@@ -819,7 +874,13 @@ bool Trial::is_stale() const {
   const auto& max_inactivity = m_params.max_inactivity();
 
   const bool stale = (inactivity_period > std::chrono::seconds(max_inactivity));
-  return (max_inactivity > 0 && stale);
+  const bool result = (max_inactivity > 0 && stale);
+
+  if (result && m_state == InternalState::terminating) {
+    spdlog::warn("Trial [{}] - Became stale while ending", m_id);
+  }
+
+  return result;
 }
 
 void Trial::set_info(cogmentAPI::TrialInfo* info, bool with_observations, bool with_actors) {

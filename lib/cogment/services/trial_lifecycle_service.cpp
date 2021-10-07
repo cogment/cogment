@@ -42,11 +42,6 @@ grpc::Status TrialLifecycleService::StartTrial(grpc::ServerContext*, const cogme
     auto trial = m_orchestrator->start_trial(std::move(params), in->user_id());
 
     out->set_trial_id(trial->id());
-    for (const auto& actor : trial->actors()) {
-      auto actor_in_trial = out->add_actors_in_trial();
-      actor_in_trial->set_actor_class(actor->actor_class()->name);
-      actor_in_trial->set_name(actor->actor_name());
-    }
   }
   catch(const std::exception& exc) {
     return MakeErrorStatus("StartTrial failure on exception [%s]", exc.what());
@@ -58,7 +53,7 @@ grpc::Status TrialLifecycleService::StartTrial(grpc::ServerContext*, const cogme
   return grpc::Status::OK;
 }
 
-grpc::Status TrialLifecycleService::TerminateTrial(grpc::ServerContext* ctx, const cogmentAPI::TerminateTrialRequest*, cogmentAPI::TerminateTrialReply* out) {
+grpc::Status TrialLifecycleService::TerminateTrial(grpc::ServerContext* ctx, const cogmentAPI::TerminateTrialRequest* req, cogmentAPI::TerminateTrialReply* out) {
   SPDLOG_TRACE("TerminateTrial()");
 
   try {
@@ -68,8 +63,12 @@ grpc::Status TrialLifecycleService::TerminateTrial(grpc::ServerContext* ctx, con
 
     auto trial = m_orchestrator->get_trial(trial_id);
     if (trial != nullptr) {
-      spdlog::info("Trial [{}] - Termination externally requested", trial_id);
-      trial->finish();
+      if (req->hard_termination()) {
+        trial->terminate("Externally requested");
+      }
+      else {
+        trial->request_end();
+      }
     }
     else {
       return MakeErrorStatus("Trial [%s] does not exist", trial_id.c_str());
