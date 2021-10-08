@@ -55,7 +55,7 @@ Orchestrator::Orchestrator(Trial_spec trial_spec, cogmentAPI::TrialParams defaul
   SPDLOG_TRACE("Orchestrator()");
   m_garbage_collection_countdown.store(settings::garbage_collection_frequency.get());
 
-  m_trial_deletion_thread = std::thread([this]() {
+  thread_pool().push("Orchestrator trial deletion", [this]() {
     while (true) {
       try {  // overkill
         auto trial = m_trials_to_delete.pop();
@@ -105,7 +105,6 @@ Orchestrator::~Orchestrator() {
 
   m_watchtrial_prom.set_value();
   m_trials_to_delete.push({});
-  m_trial_deletion_thread.join();
 }
 
 std::shared_ptr<Trial> Orchestrator::start_trial(cogmentAPI::TrialParams params, const std::string& user_id) {

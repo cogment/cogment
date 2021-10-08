@@ -50,23 +50,17 @@ public:
   void add_prehook(const HookEntryType& prehook);
   void set_log_exporter(const std::string& url) { m_log_url = url; }
 
-  // Lifecycle
   std::shared_ptr<Trial> start_trial(cogmentAPI::TrialParams params, const std::string& user_id);
+  std::shared_ptr<Trial> get_trial(const std::string& trial_id) const;
+  std::vector<std::shared_ptr<Trial>> all_trials() const;
 
-  // Services
   ActorService* actor_service() { return &m_actor_service; }
   TrialLifecycleService* trial_lifecycle_service() { return &m_trial_lifecycle_service; }
 
-  // Lookups
-  std::shared_ptr<Trial> get_trial(const std::string& trial_id) const;
-
-  // Gets all running trials.
-  std::vector<std::shared_ptr<Trial>> all_trials() const;
-
-  // Semi-internal, rpc management related.
   ChannelPool* channel_pool() { return &m_channel_pool; }
   StubPool<cogmentAPI::EnvironmentSP>* env_pool() { return &m_env_stubs; }
   StubPool<cogmentAPI::ServiceActorSP>* agent_pool() { return &m_agent_stubs; }
+  ThreadPool& thread_pool() { return m_thread_pool; }
 
   const cogmentAPI::TrialParams& default_trial_params() const { return m_default_trial_params; }
 
@@ -110,11 +104,12 @@ private:
   std::vector<HandlerFunction> m_trial_watchers;
 
   std::atomic<int> m_garbage_collection_countdown;
-  std::thread m_trial_deletion_thread;
   ThrQueue<std::shared_ptr<Trial>> m_trials_to_delete;
 
   std::promise<void> m_watchtrial_prom;
   std::shared_future<void> m_watchtrial_fut;
+  
+  ThreadPool m_thread_pool;
 };
 
 }  // namespace cogment

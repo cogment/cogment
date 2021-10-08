@@ -57,7 +57,7 @@ private:
 
   StreamType* m_stream;
   bool m_stream_valid;
-  std::thread m_incoming_thread;
+  std::future<void> m_incoming_thread;
 
   std::promise<void> m_ready_prom;
   std::promise<void> m_finished_prom;

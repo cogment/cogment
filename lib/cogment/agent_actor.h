@@ -57,7 +57,7 @@ private:
   std::unique_ptr<StreamType> m_stream;
   bool m_stream_valid;
   grpc::ClientContext m_context;
-  std::thread m_incoming_thread;
+  std::future<void> m_incoming_thread;
 
   bool m_init_completed;
   mutable std::mutex m_writing;

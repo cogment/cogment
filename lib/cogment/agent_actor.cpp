@@ -38,7 +38,7 @@ ServiceActor::ServiceActor(Trial* owner, const std::string& in_actor_name, const
   m_stream = m_stub_entry->get_stub().RunTrial(&m_context);
   m_stream_valid = true;
 
-  m_incoming_thread = std::thread([this]() {
+  m_incoming_thread = trial()->thread_pool().push("Service actor incoming data", [this]() {
     try {
       cogmentAPI::ActorRunTrialOutput data;
       while(m_stream->Read(&data)) {
@@ -70,7 +70,7 @@ ServiceActor::~ServiceActor() {
     m_init_prom.set_value();
   }
 
-  m_incoming_thread.join();
+  m_incoming_thread.wait();
 }
 
 void ServiceActor::write_to_stream(cogmentAPI::ActorRunTrialInput&& data) {

@@ -145,8 +145,8 @@ ClientActor::~ClientActor() {
 
   finish_stream();
 
-  if (m_incoming_thread.joinable()) {
-    m_incoming_thread.join();
+  if (m_incoming_thread.valid()) {
+    m_incoming_thread.wait();
   }
 }
 
@@ -219,7 +219,7 @@ grpc::Status ClientActor::run(StreamType* stream) {
   write_to_stream(std::move(init_response));
 
   // Run
-  m_incoming_thread = std::thread([this]() {
+  m_incoming_thread = trial()->thread_pool().push("Client actor incoming data", [this]() {
     try {
       m_ready_prom.set_value();
       spdlog::debug("Trial [{}] - Actor [{}] is active", trial()->id(), actor_name());

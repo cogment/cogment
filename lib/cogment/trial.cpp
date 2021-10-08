@@ -264,7 +264,7 @@ void Trial::start(cogmentAPI::TrialParams&& params) {
   set_state(InternalState::pending);
 
   auto self = shared_from_this();
-  std::thread([self]() {
+  thread_pool().push("Trial starting", [self]() {
     try {
       auto env_ready = self->m_env->init();
 
@@ -294,7 +294,7 @@ void Trial::start(cogmentAPI::TrialParams&& params) {
     catch(...) {
       spdlog::error("Trial [{}] - Failed to start on unknown exception", self->m_id);
     }
-  }).detach();
+  });
 
   spdlog::debug("Trial [{}] - Configured", m_id);
 }
@@ -574,7 +574,7 @@ void Trial::finish() {
   }
 
   auto self = shared_from_this();
-  std::thread([self]() {
+  thread_pool().push("Trial finishing", [self]() {
     bool env_finalize_success = self->finalize_env();
     if (env_finalize_success) {
       self->finalize_actors();
@@ -601,7 +601,7 @@ void Trial::finish() {
     }
 
     self->set_state(InternalState::ended);
-  }).detach();
+  });
 }
 
 void Trial::request_end() {
@@ -864,6 +864,8 @@ void Trial::set_state(InternalState new_state) {
 }
 
 void Trial::refresh_activity() { m_last_activity = std::chrono::steady_clock::now(); }
+
+ThreadPool& Trial::thread_pool() { return m_orchestrator->thread_pool(); }
 
 bool Trial::is_stale() const {
   if (m_state == InternalState::ended) {

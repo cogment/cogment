@@ -19,6 +19,9 @@
 #include <cstdio>
 #include <queue>
 #include <mutex>
+#include <thread>
+#include <future>
+#include <utility>
 #include <condition_variable>
 #include "grpc++/grpc++.h"
 #include "spdlog/spdlog.h"
@@ -69,7 +72,7 @@ std::vector<std::string_view> FromMetadata(const Container& metadata, std::strin
   return result;
 }
 
-// A minimal thread-safe queue
+// Minimal thread-safe queue
 template <typename T>
 class ThrQueue {
 public:
@@ -90,7 +93,7 @@ public:
   void push(T&& val) {
     std::unique_lock ul(m_lock);
 
-    m_data.push(std::move(val));
+    m_data.emplace(std::forward<T>(val));
     ul.unlock();
     m_cond.notify_one();
   }
@@ -104,6 +107,29 @@ private:
   std::queue<T> m_data;
   mutable std::mutex m_lock;
   std::condition_variable m_cond;
+};
+
+// Minimal thread pool
+class ThreadPool {
+  using FUNC_TYPE = std::function<void()>;
+public:
+  ThreadPool() = default;
+  ThreadPool(const ThreadPool&) = delete;
+  ThreadPool(ThreadPool&& tpool) = delete;
+  void operator=(const ThreadPool&) = delete;
+  void operator=(ThreadPool&& tpool) = delete;
+  ~ThreadPool();
+
+  // The future indicates that the execution is finished
+  std::future<void> push(std::string_view desc, FUNC_TYPE&& func);
+
+private:
+  class ThreadControl;
+  std::shared_ptr<ThreadControl>& add_thread();
+
+  std::vector<std::thread> m_pool;
+  std::vector<std::shared_ptr<ThreadControl>> m_thread_controls;
+  std::mutex m_lock;
 };
 
 #endif
