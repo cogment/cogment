@@ -439,7 +439,7 @@ void Trial::dispatch_observations(bool last) {
     cogmentAPI::Observation obs;
     obs.set_tick_id(m_tick_id);
     obs.set_timestamp(observations.timestamp());
-    *obs.mutable_data() = observations.observations(obs_index);
+    *obs.mutable_content() = observations.observations(obs_index);
     actor->dispatch_tick(std::move(obs), last);
 
     ++actor_index;
@@ -468,6 +468,7 @@ void Trial::cycle_buffer() {
 cogmentAPI::ActionSet Trial::make_action_set() {
   // TODO: Look into merging data formats so we don't have to copy all actions every time
   cogmentAPI::ActionSet action_set;
+  action_set.set_timestamp(Timestamp());
 
   action_set.set_tick_id(m_tick_id);
 
