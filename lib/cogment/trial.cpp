@@ -152,7 +152,23 @@ void Trial::new_obs(cogmentAPI::ObservationSet&& obs) {
   }
 
   auto sample = get_last_sample();
-  *(sample->mutable_observations()) = std::move(obs);
+  if (sample != nullptr) { 
+    *(sample->mutable_observations()) = std::move(obs);
+  }
+  else {
+    spdlog::warn("Trial [{}] - No sample for new observation. Trial may have ended.", m_id);
+    return;
+  }
+}
+
+void Trial::new_special_event(std::string_view desc) {
+  auto sample = get_last_sample();
+  if (sample == nullptr) { 
+    spdlog::debug("Trial [{}] - No sample for special event [{}]. Trial may have ended.", m_id, desc);
+    return;
+  }
+
+  sample->mutable_info()->add_special_events(desc.data(), desc.size());
 }
 
 cogmentAPI::DatalogSample* Trial::get_last_sample() {
@@ -169,7 +185,7 @@ cogmentAPI::DatalogSample& Trial::make_new_sample() {
   const std::lock_guard<std::mutex> lg(m_sample_lock);
 
   if (!m_step_data.empty()) {
-    m_step_data.back().mutable_trial_data()->set_state(get_trial_api_state(m_state));
+    m_step_data.back().mutable_info()->set_state(get_trial_api_state(m_state));
   }
 
   m_step_data.emplace_back();
@@ -183,9 +199,9 @@ cogmentAPI::DatalogSample& Trial::make_new_sample() {
   }
   m_gathered_actions_count = 0;
 
-  auto trial_data = sample.mutable_trial_data();
-  trial_data->set_tick_id(m_tick_id);
-  trial_data->set_timestamp(Timestamp());
+  auto info = sample.mutable_info();
+  info->set_tick_id(m_tick_id);
+  info->set_timestamp(Timestamp());
 
   return sample;
 }
@@ -195,7 +211,7 @@ void Trial::flush_samples() {
   SPDLOG_TRACE("Trial [{}] - Flushing last samples", m_id);
 
   if (!m_step_data.empty()) {
-    m_step_data.back().mutable_trial_data()->set_state(get_trial_api_state(m_state));
+    m_step_data.back().mutable_info()->set_state(get_trial_api_state(m_state));
   }
 
   for (auto& sample : m_step_data) {
@@ -254,7 +270,7 @@ void Trial::start(cogmentAPI::TrialParams&& params) {
   m_params = std::move(params);
   SPDLOG_DEBUG("Trial [{}] - Configuring with parameters: {}", m_id, m_params.DebugString());
 
-  m_datalog->start(m_id, m_params);
+  m_datalog->start(m_id, m_user_id, m_params);
 
   prepare_actors();
   prepare_environment();
@@ -312,6 +328,7 @@ void Trial::reward_received(const cogmentAPI::Reward& reward, const std::string&
     *new_rew = reward;  // TODO: The reward may have a wildcard (or invalid) receiver, do we want that in the sample?
   }
   else {
+    spdlog::warn("Trial [{}] - No sample for reward received from [{}]. Trial may have ended.", m_id, sender);
     return;
   }
 
@@ -348,6 +365,7 @@ void Trial::message_received(const cogmentAPI::Message& message, const std::stri
     *new_msg = message;
   }
   else {
+    spdlog::warn("Trial [{}] - No sample for message received from [{}]. Trial may have ended.", m_id, sender);
     return;
   }
 
@@ -429,8 +447,10 @@ void Trial::dispatch_observations(bool last) {
 
   auto sample = get_last_sample();
   if (sample == nullptr) {
+    spdlog::warn("Trial [{}] - No sample to dispatch an observation. Trial may have ended.", m_id);
     return;
   }
+
   const auto& observations = sample->observations();
 
   std::uint32_t actor_index = 0;
@@ -606,7 +626,8 @@ void Trial::finish() {
 }
 
 void Trial::request_end() {
-  spdlog::info("Trial [{}] - End externally requested", m_id);
+  spdlog::info("Trial [{}] - End requested", m_id);
+  new_special_event("End requested");
   m_end_requested = true;
 }
 
@@ -623,6 +644,8 @@ void Trial::terminate(const std::string& details) {
     }
     return;
   }
+
+  new_special_event("Forced termination: " + details);
 
   try {
     set_state(InternalState::terminating);
@@ -675,6 +698,7 @@ void Trial::env_observed(const std::string& env_name, cogmentAPI::ObservationSet
   else if (m_state != InternalState::terminating) {
     terminating_guard.unlock();
     spdlog::info("Trial [{}] - Environment has ended the trial", m_id);
+    new_special_event("Evironment ended trial");
     finish();
   }
 }
@@ -701,7 +725,7 @@ void Trial::actor_acted(const std::string& actor_name, const cogmentAPI::Action&
 
   auto sample = get_last_sample();
   if (sample == nullptr) {
-    spdlog::warn("Trial [{}] - Actor [{}] no sample for action received. Trial may have ended.", m_id, actor_name);
+    spdlog::warn("Trial [{}] - No sample for action received from [{}]. Trial may have ended.", m_id, actor_name);
     return;
   }
   auto sample_action = sample->mutable_actions(actor_index);
@@ -748,6 +772,7 @@ void Trial::actor_acted(const std::string& actor_name, const cogmentAPI::Action&
         spdlog::info("Trial [{}] - Ending on request", m_id);
       }
       else {
+        new_special_event("Maximum number of steps reached");
         spdlog::info("Trial [{}] - Ending on configured maximum number of steps [{}]", m_id, max_steps);
       }
       terminating_guard.unlock();
@@ -868,7 +893,7 @@ void Trial::refresh_activity() { m_last_activity = std::chrono::steady_clock::no
 
 ThreadPool& Trial::thread_pool() { return m_orchestrator->thread_pool(); }
 
-bool Trial::is_stale() const {
+bool Trial::is_stale() {
   if (m_state == InternalState::ended) {
     return false;
   }
@@ -879,8 +904,11 @@ bool Trial::is_stale() const {
   const bool stale = (inactivity_period > std::chrono::seconds(max_inactivity));
   const bool result = (max_inactivity > 0 && stale);
 
-  if (result && m_state == InternalState::terminating) {
-    spdlog::warn("Trial [{}] - Became stale while ending", m_id);
+  if (result) {
+    new_special_event("Stale trial");
+    if (m_state == InternalState::terminating) {
+      spdlog::warn("Trial [{}] - Became stale while ending", m_id);
+    }
   }
 
   return result;
@@ -913,7 +941,7 @@ void Trial::set_info(cogmentAPI::TrialInfo* info, bool with_observations, bool w
   }
 
   // We want to make sure the tick_id and observation are from the same tick
-  const uint64_t tick = sample->trial_data().tick_id();
+  const uint64_t tick = sample->info().tick_id();
   info->set_tick_id(tick);
   if (with_observations && sample->has_observations()) {
     info->mutable_latest_observation()->CopyFrom(sample->observations());

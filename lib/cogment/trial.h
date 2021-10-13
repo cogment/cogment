@@ -89,7 +89,7 @@ public:
   void terminate(const std::string& details);
 
   // Primarily used to determine garbage collection elligibility.
-  bool is_stale() const;
+  bool is_stale();
 
   // Marks the trial as being active.
   void refresh_activity();
@@ -111,6 +111,7 @@ private:
   void set_state(InternalState state);
   void advance_tick();
   void new_obs(cogmentAPI::ObservationSet&& new_obs);
+  void new_special_event(std::string_view desc);
   void dispatch_observations(bool last);
   void cycle_buffer();
   cogmentAPI::ActionSet make_action_set();

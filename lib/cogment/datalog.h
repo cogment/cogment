@@ -27,13 +27,13 @@ class Trial;
 class DatalogService {
 public:
   virtual ~DatalogService() {}
-  virtual void start(const std::string& trial_id, const cogmentAPI::TrialParams& params) = 0;
+  virtual void start(const std::string& trial_id, const std::string& user_id, const cogmentAPI::TrialParams& params) = 0;
   virtual void add_sample(cogmentAPI::DatalogSample&& data) = 0;
 };
 
 class DatalogServiceNull : public DatalogService {
 public:
-  void start(const std::string& trial_id, const cogmentAPI::TrialParams& params) override {}
+  void start(const std::string& trial_id, const std::string& user_id, const cogmentAPI::TrialParams& params) override {}
   void add_sample(cogmentAPI::DatalogSample&& data) override {}
 };
 
@@ -44,7 +44,7 @@ public:
   DatalogServiceImpl(StubEntryType stub_entry);
   ~DatalogServiceImpl();
 
-  void start(const std::string& trial_id, const cogmentAPI::TrialParams& params) override;
+  void start(const std::string& trial_id, const std::string& user_id, const cogmentAPI::TrialParams& params) override;
   void add_sample(cogmentAPI::DatalogSample&& data) override;
 
 private:
