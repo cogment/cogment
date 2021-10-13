@@ -72,7 +72,7 @@ public:
 
 private:
   void m_perform_garbage_collection();
-  cogmentAPI::PreTrialContext m_perform_pre_hooks(cogmentAPI::PreTrialContext&& param, const std::string& trial_id);
+  cogmentAPI::TrialParams m_perform_pre_hooks(cogmentAPI::TrialParams&& params, const std::string& trial_id, const std::string& user_id);
 
   // Configuration
   Trial_spec m_trial_spec;

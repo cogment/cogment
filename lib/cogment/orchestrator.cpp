@@ -134,13 +134,9 @@ std::shared_ptr<Trial> Orchestrator::start_trial(cogmentAPI::TrialParams params,
     m_trials[new_trial->id()] = new_trial;
   }
 
-  cogmentAPI::PreTrialContext init_param;
-  *init_param.mutable_params() = std::move(params);
-  init_param.set_user_id(user_id);
+  auto final_param = m_perform_pre_hooks(std::move(params), new_trial->id(), user_id);
 
-  auto final_param = m_perform_pre_hooks(std::move(init_param), new_trial->id());
-
-  new_trial->start(std::move(*final_param.mutable_params()));
+  new_trial->start(std::move(final_param));
   spdlog::info("Trial [{}] successfully initialized", new_trial->id());
 
   return new_trial;
@@ -148,18 +144,22 @@ std::shared_ptr<Trial> Orchestrator::start_trial(cogmentAPI::TrialParams params,
 
 void Orchestrator::add_prehook(const HookEntryType& hook) { m_prehooks.push_back(hook); }
 
-cogmentAPI::PreTrialContext Orchestrator::m_perform_pre_hooks(cogmentAPI::PreTrialContext&& data, const std::string& trial_id) {
+cogmentAPI::TrialParams Orchestrator::m_perform_pre_hooks(cogmentAPI::TrialParams&& params, const std::string& trial_id, const std::string& user_id) {
+  cogmentAPI::PreTrialParams pre_param;
+
+  *pre_param.mutable_params() = std::move(params);
   for (auto& hook : m_prehooks) {
     grpc::ClientContext hook_context;
     hook_context.AddMetadata("trial-id", trial_id);
+    hook_context.AddMetadata("user-id", user_id);
 
-    auto status = hook->get_stub().OnPreTrial(&hook_context, data, &data);
+    auto status = hook->get_stub().OnPreTrial(&hook_context, pre_param, &pre_param);
     if (!status.ok()) {
       throw MakeException("Trial [%s] - Prehook failure [%s]", trial_id.c_str(), status.error_message().c_str());
     }
   }
 
-  return std::move(data);
+  return std::move(*pre_param.mutable_params());
 }
 
 // TODO: Add a timer to do garbage collection after 60 seconds (or whatever) since the last call
