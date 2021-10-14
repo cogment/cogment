@@ -40,10 +40,9 @@ public:
   void trial_ended(std::string_view details) override;
 
 protected:
-  void dispatch_observation(cogmentAPI::Observation&& obs) override;
+  void dispatch_observation(cogmentAPI::Observation&& obs, bool last) override;
   void dispatch_reward(cogmentAPI::Reward&& reward) override;
   void dispatch_message(cogmentAPI::Message&& message) override;
-  void dispatch_final_data(cogmentAPI::ActorPeriodData&& data) override;
 
 private:
   void write_to_stream(cogmentAPI::ActorRunTrialInput&& data);

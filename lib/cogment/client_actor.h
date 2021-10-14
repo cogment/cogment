@@ -42,8 +42,7 @@ public:
   static grpc::Status run_an_actor(std::weak_ptr<Trial> trial, StreamType* stream);
 
 protected:
-  void dispatch_observation(cogmentAPI::Observation&& obs) override;
-  void dispatch_final_data(cogmentAPI::ActorPeriodData&& data) override;  // TODO: Refactor this for API2.0
+  void dispatch_observation(cogmentAPI::Observation&& obs, bool last) override;
   void dispatch_reward(cogmentAPI::Reward&& reward) override;
   void dispatch_message(cogmentAPI::Message&& message) override;
 

@@ -328,7 +328,15 @@ void ClientActor::process_incoming_data(cogmentAPI::ActorRunTrialOutput&& data) 
   }
 }
 
-void ClientActor::dispatch_observation(cogmentAPI::Observation&& observation) {
+void ClientActor::dispatch_observation(cogmentAPI::Observation&& observation, bool last) {
+  if (last) {
+    cogmentAPI::ActorRunTrialInput msg;
+    msg.set_state(cogmentAPI::CommunicationState::LAST);
+    write_to_stream(std::move(msg));
+    SPDLOG_DEBUG("Trial [{}] - Actor [{}] 'LAST' sent", trial()->id(), actor_name());
+    last_sent();
+  }
+
   cogmentAPI::ActorRunTrialInput msg;
   msg.set_state(cogmentAPI::CommunicationState::NORMAL);
   *(msg.mutable_observation()) = std::move(observation);
@@ -347,33 +355,6 @@ void ClientActor::dispatch_message(cogmentAPI::Message&& message) {
   msg.set_state(cogmentAPI::CommunicationState::NORMAL);
   *(msg.mutable_message()) = std::move(message);
   write_to_stream(std::move(msg));
-}
-
-void ClientActor::dispatch_final_data(cogmentAPI::ActorPeriodData&& data) {
-  for (auto& rew : *data.mutable_rewards()) {
-    dispatch_reward(std::move(rew));
-  }
-  for (auto& msg : *data.mutable_messages()) {
-    dispatch_message(std::move(msg));
-  }
-
-  // Send 'LAST' only before the last observation to work with SDK auto_ack
-  cogmentAPI::Observation* last_obs = nullptr;
-  for (auto& obs : *data.mutable_observations()) {
-    if (last_obs != nullptr) {
-      dispatch_observation(std::move(*last_obs));
-    }
-    last_obs = &obs;
-  }
-  if (last_obs != nullptr) {
-    cogmentAPI::ActorRunTrialInput msg;
-    msg.set_state(cogmentAPI::CommunicationState::LAST);
-    write_to_stream(std::move(msg));
-    SPDLOG_DEBUG("Trial [{}] - Actor [{}] 'LAST' sent", trial()->id(), actor_name());
-    last_sent();
-
-    dispatch_observation(std::move(*last_obs));
-  }
 }
 
 }  // namespace cogment

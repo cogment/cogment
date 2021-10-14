@@ -62,8 +62,7 @@ public:
   void dispatch_tick(cogmentAPI::Observation&& obs, bool final_tick);
 
 protected:
-  virtual void dispatch_observation(cogmentAPI::Observation&& obs) = 0;
-  virtual void dispatch_final_data(cogmentAPI::ActorPeriodData&& data) = 0;
+  virtual void dispatch_observation(cogmentAPI::Observation&& obs, bool last) = 0;
   virtual void dispatch_reward(cogmentAPI::Reward&& reward) = 0;
   virtual void dispatch_message(cogmentAPI::Message&& message) = 0;
 

@@ -108,35 +108,15 @@ void Actor::dispatch_tick(cogmentAPI::Observation&& obs, bool final_tick) {
   }
 
   try {
-    if (!final_tick) {
-      process_rewards(&reward_acc, m_actor_name, [this](cogmentAPI::Reward&& rew) {
-        dispatch_reward(std::move(rew));
-      });
+    process_rewards(&reward_acc, m_actor_name, [this](cogmentAPI::Reward&& rew) {
+      dispatch_reward(std::move(rew));
+    });
 
-      for (auto& message : msg_acc) {
-        dispatch_message(std::move(message));
-      }
-
-      dispatch_observation(std::move(obs));
+    for (auto& message : msg_acc) {
+      dispatch_message(std::move(message));
     }
-    else {
-      cogmentAPI::ActorPeriodData data;
 
-      process_rewards(&reward_acc, m_actor_name, [&data](cogmentAPI::Reward&& rew) {
-        auto new_reward = data.add_rewards();
-        *new_reward = std::move(rew);
-      });
-
-      for (auto& message : msg_acc) {
-        auto new_msg = data.add_messages();
-        *new_msg = std::move(message);
-      }
-
-      auto new_obs = data.add_observations();
-      *new_obs = std::move(obs);
-
-      dispatch_final_data(std::move(data));
-    }
+    dispatch_observation(std::move(obs), final_tick);
   }
   catch(const std::exception& exc) {
     spdlog::error("Trial [{}] - Actor [{}]: Failed to process outgoing data [{}]", m_trial->id(), m_actor_name, exc.what());
