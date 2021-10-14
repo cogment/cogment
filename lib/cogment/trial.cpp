@@ -28,14 +28,7 @@
 
 #include "spdlog/spdlog.h"
 
-#include "uuid.h"
-
 #include <limits>
-
-namespace {
-uuids::uuid_system_generator g_uuid_generator;
-constexpr double NANOS_INV = 1.0 / 1'000'000'000;
-}  // namespace
 
 namespace cogment {
 
@@ -82,11 +75,11 @@ cogmentAPI::TrialState get_trial_api_state(Trial::InternalState state) {
   throw MakeException<std::out_of_range>("Unknown trial state for api: [%d]", static_cast<int>(state));
 }
 
-Trial::Trial(Orchestrator* orch, std::unique_ptr<DatalogService> log, const std::string& user_id, const Metrics& met) :
+Trial::Trial(Orchestrator* orch, std::unique_ptr<DatalogService> log, const std::string& user_id, const std::string& id, const Metrics& met) :
     m_orchestrator(orch),
     m_metrics(met),
     m_tick_start_timestamp(0),
-    m_id(to_string(g_uuid_generator())),
+    m_id(id),
     m_user_id(user_id),
     m_state(InternalState::unknown),
     m_env_last_obs(false),
@@ -105,7 +98,7 @@ Trial::Trial(Orchestrator* orch, std::unique_ptr<DatalogService> log, const std:
 Trial::~Trial() {
   SPDLOG_TRACE("Trial [{}] - Destructor", m_id);
 
-  if (m_state != InternalState::ended) {
+  if (m_state != InternalState::unknown && m_state != InternalState::ended) {
     spdlog::error("Trial [{}] - Internal error: Trying to destroy trial before it is ended", m_id);
   }
 

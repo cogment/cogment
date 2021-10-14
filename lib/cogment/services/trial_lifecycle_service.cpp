@@ -31,7 +31,7 @@ grpc::Status TrialLifecycleService::StartTrial(grpc::ServerContext*, const cogme
   SPDLOG_TRACE("StartTrial()");
 
   try {
-    SPDLOG_TRACE("StartTrial from [{}]", in->user_id());
+    SPDLOG_TRACE("StartTrial from [{}] with trial id [{}]", in->user_id(), in->trial_id_requested());
     auto params = m_orchestrator->default_trial_params();
 
     // Apply config override if provided
@@ -39,9 +39,15 @@ grpc::Status TrialLifecycleService::StartTrial(grpc::ServerContext*, const cogme
       params.mutable_trial_config()->set_content(in->config().content());
     }
 
-    auto trial = m_orchestrator->start_trial(std::move(params), in->user_id());
+    auto trial = m_orchestrator->start_trial(std::move(params), in->user_id(), in->trial_id_requested());
 
-    out->set_trial_id(trial->id());
+    if (trial != nullptr) {
+      out->set_trial_id(trial->id());
+    }
+    else {
+      spdlog::warn("Start of trial [{}] by user [{}] was refused (was the trial id unique?)", in->trial_id_requested(), in->user_id());
+      out->Clear();
+    }
   }
   catch(const std::exception& exc) {
     return MakeErrorStatus("StartTrial failure on exception [%s]", exc.what());

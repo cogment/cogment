@@ -26,6 +26,9 @@
 #include "grpc++/grpc++.h"
 #include "spdlog/spdlog.h"
 
+constexpr uint64_t NANOS = 1'000'000'000;
+constexpr double NANOS_INV = 1.0 / NANOS;
+
 grpc::Status MakeErrorStatus(const char* format, ...);
 uint64_t Timestamp();
 

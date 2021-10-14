@@ -23,11 +23,13 @@
 #include "slt/settings.h"
 #include "spdlog/spdlog.h"
 
+#include "uuid.h"
+
 #include <exception>
 
 namespace {
-constexpr double NANOS_INV = 1.0 / 1'000'000'000;
-}
+  uuids::uuid_system_generator g_uuid_generator;
+}  // namespace
 
 namespace settings {
 
@@ -107,14 +109,23 @@ Orchestrator::~Orchestrator() {
   m_trials_to_delete.push({});
 }
 
-std::shared_ptr<Trial> Orchestrator::start_trial(cogmentAPI::TrialParams params, const std::string& user_id) {
-  spdlog::info("New trial requested by user [{}]", user_id);
+std::shared_ptr<Trial> Orchestrator::start_trial(cogmentAPI::TrialParams params, const std::string& user_id, std::string trial_id_req) {
+  if (trial_id_req.empty()) {
+    trial_id_req.assign(to_string(g_uuid_generator()));
+  }
+  else {
+    // We pre-check the uniqueness to save some processing.
+    const std::lock_guard lg(m_trials_mutex);
+    if (m_trials.find(trial_id_req) != m_trials.end()) {
+      return nullptr;
+    }
+  }
 
   try {
     m_perform_garbage_collection();
   }
   catch(...) {
-    spdlog::error("Error performing trial garbage collection");
+    spdlog::error("Error performing garbage collection of trials");
   }
 
   // TODO: The whole datalog management needs to be refactored
@@ -126,12 +137,15 @@ std::shared_ptr<Trial> Orchestrator::start_trial(cogmentAPI::TrialParams params,
     auto stub_entry = m_log_stubs.get_stub_entry(m_log_url);
     datalog.reset(new DatalogServiceImpl(stub_entry));
   }
-  auto new_trial = std::make_shared<Trial>(this, std::move(datalog), user_id, Trial::Metrics {m_trials_metrics, m_ticks_metrics});
+  auto new_trial = std::make_shared<Trial>(this, std::move(datalog), user_id, trial_id_req, Trial::Metrics {m_trials_metrics, m_ticks_metrics});
 
   // Register the trial immediately.
   {
     const std::lock_guard lg(m_trials_mutex);
-    m_trials[new_trial->id()] = new_trial;
+    auto [itor, inserted] = m_trials.emplace(new_trial->id(), new_trial);
+    if (!inserted) {
+      return nullptr;
+    }
   }
 
   auto final_param = m_perform_pre_hooks(std::move(params), new_trial->id(), user_id);

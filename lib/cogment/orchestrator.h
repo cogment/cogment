@@ -50,7 +50,7 @@ public:
   void add_prehook(const HookEntryType& prehook);
   void set_log_exporter(const std::string& url) { m_log_url = url; }
 
-  std::shared_ptr<Trial> start_trial(cogmentAPI::TrialParams params, const std::string& user_id);
+  std::shared_ptr<Trial> start_trial(cogmentAPI::TrialParams params, const std::string& user_id, std::string trial_id_req);
   std::shared_ptr<Trial> get_trial(const std::string& trial_id) const;
   std::vector<std::shared_ptr<Trial>> all_trials() const;
 

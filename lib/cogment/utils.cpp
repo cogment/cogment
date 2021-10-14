@@ -30,7 +30,6 @@ uint64_t Timestamp() {
     throw MakeException("Could not get time stamp: %s", strerror(errno));
   }
 
-  static constexpr uint64_t NANOS = 1'000'000'000;
   return (ts.tv_sec * NANOS + ts.tv_nsec);
 }
 

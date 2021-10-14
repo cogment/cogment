@@ -56,7 +56,7 @@ public:
     prometheus::Summary* tick_duration = nullptr;
   };
 
-  Trial(Orchestrator* orch, std::unique_ptr<DatalogService> log, const std::string& user_id, const Metrics& met);
+  Trial(Orchestrator* orch, std::unique_ptr<DatalogService> log, const std::string& user_id, const std::string& id, const Metrics& met);
   ~Trial();
 
   Trial(Trial&&) = delete;
