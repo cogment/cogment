@@ -4,7 +4,7 @@ set -o errexit
 
 ACTIVITY_LOGGER_DIR="$(dirname "${BASH_SOURCE[0]}")/.."
 PROTOS_RELATIVE_PATH="grpcapi"
-API_PACKAGE="github.com/cogment/cogment-activity-logger/${PROTOS_RELATIVE_PATH}/cogment/api"
+API_PACKAGE="github.com/cogment/cogment-trial-datastore/${PROTOS_RELATIVE_PATH}/cogment/api"
 
 cd "${ACTIVITY_LOGGER_DIR}"
 
@@ -34,13 +34,13 @@ protoc --go_out=${PROTOS_RELATIVE_PATH} --go-grpc_out=${PROTOS_RELATIVE_PATH} \
   --go-grpc_opt=paths=source_relative \
   --go_opt=Mcogment/api/common.proto=${API_PACKAGE} \
   --go-grpc_opt=Mcogment/api/common.proto=${API_PACKAGE} \
-  --go_opt=Mcogment/api/environment.proto=${API_PACKAGE} \
-  --go-grpc_opt=Mcogment/api/environment.proto=${API_PACKAGE} \
   --go_opt=Mcogment/api/datalog.proto=${API_PACKAGE} \
   --go-grpc_opt=Mcogment/api/datalog.proto=${API_PACKAGE} \
-  --go_opt=Mcogment/api/activity_logger.proto=${API_PACKAGE} \
-  --go-grpc_opt=Mcogment/api/activity_logger.proto=${API_PACKAGE} \
+  --go_opt=Mcogment/api/environment.proto=${API_PACKAGE} \
+  --go-grpc_opt=Mcogment/api/environment.proto=${API_PACKAGE} \
+  --go_opt=Mcogment/api/trial_datastore.proto=${API_PACKAGE} \
+  --go-grpc_opt=Mcogment/api/trial_datastore.proto=${API_PACKAGE} \
+  cogment/api/common.proto \
   cogment/api/datalog.proto \
   cogment/api/environment.proto \
-  cogment/api/common.proto \
-  cogment/api/activity_logger.proto
+  cogment/api/trial_datastore.proto

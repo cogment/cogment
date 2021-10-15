@@ -15,38 +15,47 @@
 package backend
 
 import (
-	"fmt"
+	"context"
+	"errors"
 
-	grpcapi "github.com/cogment/cogment-activity-logger/grpcapi/cogment/api"
+	grpcapi "github.com/cogment/cogment-trial-datastore/grpcapi/cogment/api"
+	"github.com/cogment/cogment-trial-datastore/utils"
+	"golang.org/x/sync/errgroup"
 )
 
 type trialData struct {
-	status          TrialStatus
-	samplesCount    int
-	params          *grpcapi.TrialParams
-	paramsAvailable chan bool
-	samplesChannel  chan *grpcapi.DatalogSample
+	params  *grpcapi.TrialParams
+	samples utils.ObservableList
+	userID  string
+	deleted bool
 }
 
-func createTrialInfo(trialID string, data *trialData) TrialInfo {
-	return TrialInfo{
+func createTrialInfo(trialID string, data *trialData) *TrialInfo {
+	samplesCount := data.samples.Len()
+	trialInfo := &TrialInfo{
 		TrialID:            trialID,
-		Status:             data.status,
-		SamplesCount:       data.samplesCount,
-		StoredSamplesCount: len(data.samplesChannel),
+		State:              grpcapi.TrialState_UNKNOWN,
+		UserID:             data.userID,
+		SamplesCount:       samplesCount,
+		StoredSamplesCount: samplesCount,
 	}
+	lastSample, hasLastItem := data.samples.Item(samplesCount - 1)
+	if hasLastItem {
+		trialInfo.State = lastSample.(*grpcapi.TrialSample).State
+	}
+	return trialInfo
 }
 
 type memoryBackend struct {
-	capacity uint
 	trials   map[string]*trialData
+	trialIDs utils.ObservableList
 }
 
 // CreateMemoryBackend creates a Backend that will store at most "capacity" samples per trial.
-func CreateMemoryBackend(capacity uint) (Backend, error) {
+func CreateMemoryBackend() (Backend, error) {
 	backend := &memoryBackend{
-		capacity: capacity,
 		trials:   make(map[string]*trialData),
+		trialIDs: utils.CreateObservableList(),
 	}
 
 	return backend, nil
@@ -57,108 +66,222 @@ func (b *memoryBackend) Destroy() {
 	// Nothing
 }
 
-func (b *memoryBackend) retrieveOrCreateTrial(trialID string, create bool) (*trialData, error) {
-	if data, exists := b.trials[trialID]; exists {
-		return data, nil
-	}
-	if !create {
-		return nil, fmt.Errorf("unknown trial %q", trialID)
-	}
-	data := &trialData{
-		status:          TrialNotStarted,
-		samplesCount:    0,
-		params:          nil,
-		paramsAvailable: make(chan bool, 1),
-		samplesChannel:  make(chan *grpcapi.DatalogSample, b.capacity),
-	}
-	b.trials[trialID] = data
-	return data, nil
-}
+func (b *memoryBackend) retrieveOrCreateOrUpdateTrials(ctx context.Context, trialIDs []string, create bool) ([]*trialData, error) {
+	reply := []*trialData{}
+	for _, trialID := range trialIDs {
+		if data, exists := b.trials[trialID]; exists {
+			reply = append(reply, data)
+		} else {
+			if !create {
+				// Rollback
+				_ = b.DeleteTrials(ctx, trialIDs)
+				return []*trialData{}, &UnknownTrialError{TrialID: trialID}
+			}
+			data := &trialData{
+				params:  nil,
+				userID:  "",
+				samples: utils.CreateObservableList(),
+				deleted: false,
+			}
+			b.trials[trialID] = data
+			b.trialIDs.Append(trialID, false)
 
-func (b *memoryBackend) OnTrialStart(trialID string, trialParams *grpcapi.TrialParams) (TrialInfo, error) {
-	data, error := b.retrieveOrCreateTrial(trialID, true)
-	if error != nil {
-		return TrialInfo{}, error
-	}
-	if data.status != TrialNotStarted {
-		return TrialInfo{}, fmt.Errorf("trial %q has already been started", trialID)
-	}
-	data.status = TrialRunning
-	data.params = trialParams
-	data.paramsAvailable <- true
-	close(data.paramsAvailable)
-	return createTrialInfo(trialID, data), nil
-}
-
-func (b *memoryBackend) OnTrialEnd(trialID string) (TrialInfo, error) {
-	data, error := b.retrieveOrCreateTrial(trialID, false)
-	if error != nil {
-		return TrialInfo{}, error
-	}
-	if data.status != TrialRunning {
-		return TrialInfo{}, fmt.Errorf("trial %q is not running", trialID)
-	}
-	data.status = TrialEnded
-	close(data.samplesChannel)
-	return createTrialInfo(trialID, data), nil
-}
-
-func (b *memoryBackend) OnTrialSample(trialID string, sample *grpcapi.DatalogSample) (TrialInfo, error) {
-	data, error := b.retrieveOrCreateTrial(trialID, false)
-	if error != nil {
-		return TrialInfo{}, error
-	}
-	// Discard enough sample to have room for the new one
-	for len(data.samplesChannel) >= cap(data.samplesChannel) {
-		<-data.samplesChannel
-	}
-	data.samplesChannel <- sample
-	data.samplesCount++
-	return createTrialInfo(trialID, data), nil
-}
-
-func (b *memoryBackend) GetTrialInfo(trialID string) (TrialInfo, error) {
-	data, error := b.retrieveOrCreateTrial(trialID, true)
-	if error != nil {
-		return TrialInfo{}, error
-	}
-	return createTrialInfo(trialID, data), nil
-}
-
-func (b *memoryBackend) GetTrialParams(trialID string) (*grpcapi.TrialParams, error) {
-	result := <-b.GetTrialParamsAsync(trialID)
-	return result.Ok, result.Err
-}
-
-func (b *memoryBackend) GetTrialParamsAsync(trialID string) TrialParamsPromise {
-	promise := make(chan TrialParamsResult)
-	go func() {
-		data, error := b.retrieveOrCreateTrial(trialID, true)
-		defer close(promise)
-		if error != nil {
-			promise <- TrialParamsResult{Err: error}
-			return
+			reply = append(reply, data)
 		}
-		for range data.paramsAvailable {
-			// NOTHING
-		}
-		promise <- TrialParamsResult{Ok: data.params}
-	}()
-	return promise
+	}
+
+	return reply, nil
 }
 
-func (b *memoryBackend) ConsumeTrialSamples(trialID string) DatalogSampleStream {
-	stream := make(chan DatalogSampleResult)
-	go func() {
-		data, error := b.retrieveOrCreateTrial(trialID, true)
-		defer close(stream)
-		if error != nil {
-			stream <- DatalogSampleResult{Err: error}
-			return
+func (b *memoryBackend) CreateOrUpdateTrials(ctx context.Context, trialsParams []*TrialParams) error {
+	trialIDs := make([]string, len(trialsParams))
+	for idx, trialParams := range trialsParams {
+		trialIDs[idx] = trialParams.TrialID
+	}
+	trialDatas, err := b.retrieveOrCreateOrUpdateTrials(ctx, trialIDs, true)
+	if err != nil {
+		return err
+	}
+	for idx, trialParams := range trialsParams {
+		trialDatas[idx].params = trialParams.Params
+		trialDatas[idx].userID = trialParams.UserID
+	}
+	return nil
+}
+
+func (b *memoryBackend) preprocessRetrieveTrialsArgs(filter []string, fromTrialIdx int, count int) (filter, int, int) {
+	selectedTrialIDs := createFilterFromStringArray(filter)
+
+	if fromTrialIdx < 0 {
+		fromTrialIdx = 0
+	}
+
+	if count <= 0 {
+		count = b.trialIDs.Len()
+		if !selectedTrialIDs.selectsAll() && count > len(selectedTrialIDs) {
+			count = len(selectedTrialIDs)
 		}
-		for sample := range data.samplesChannel {
-			stream <- DatalogSampleResult{Ok: sample}
+	}
+
+	return selectedTrialIDs, fromTrialIdx, count
+}
+
+func (b *memoryBackend) RetrieveTrials(ctx context.Context, filter []string, fromTrialIdx int, count int) (TrialsInfoResult, error) {
+	selectedTrialIDs, fromTrialIdx, count := b.preprocessRetrieveTrialsArgs(filter, fromTrialIdx, count)
+
+	result := TrialsInfoResult{
+		TrialInfos:   []*TrialInfo{},
+		NextTrialIdx: 0,
+	}
+
+	// List the current trials
+	for trialIdx := fromTrialIdx; trialIdx < b.trialIDs.Len(); trialIdx++ {
+		if len(result.TrialInfos) >= count {
+			break
 		}
-	}()
-	return stream
+		trialIDItem, _ := b.trialIDs.Item(trialIdx)
+		trialID := trialIDItem.(string)
+		data := b.trials[trialID]
+		if data.deleted {
+			continue
+		}
+		if selectedTrialIDs.selects(trialID) {
+			result.TrialInfos = append(result.TrialInfos, createTrialInfo(trialID, data))
+			result.NextTrialIdx = trialIdx + 1
+		}
+	}
+
+	return result, nil
+}
+
+func (b *memoryBackend) ObserveTrials(ctx context.Context, filter []string, fromTrialIdx int, count int, out chan<- TrialsInfoResult) error {
+	selectedTrialIDs, fromTrialIdx, _ := b.preprocessRetrieveTrialsArgs(filter, fromTrialIdx, count)
+	if !selectedTrialIDs.selectsAll() && (count <= 0 || count > len(selectedTrialIDs)) {
+		count = len(selectedTrialIDs)
+	}
+
+	returnedResults := 0
+
+	// Observe the trials
+	trialIdx := fromTrialIdx
+	observer := make(utils.ObservableListObserver)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	g, ctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		defer close(observer)
+		return b.trialIDs.Observe(ctx, fromTrialIdx, observer)
+	})
+	g.Go(func() error {
+		defer cancel()
+		for trialIDItem := range observer {
+			trialID := trialIDItem.(string)
+			data := b.trials[trialID]
+			if !data.deleted && selectedTrialIDs.selects(trialID) {
+				unitResult := TrialsInfoResult{
+					TrialInfos:   []*TrialInfo{createTrialInfo(trialID, data)},
+					NextTrialIdx: trialIdx + 1,
+				}
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case out <- unitResult:
+					returnedResults++
+					if count > 0 && returnedResults >= count {
+						return nil
+					}
+				}
+			}
+			trialIdx++
+		}
+		return nil
+	})
+
+	if err := g.Wait(); err != nil && !errors.Is(err, context.Canceled) {
+		// Ignoring canceled errors as we use those to stop the observation once the target count is reached
+		return err
+	}
+	return nil
+}
+
+func (b *memoryBackend) DeleteTrials(ctx context.Context, trialIDs []string) error {
+	for _, trialID := range trialIDs {
+		if _, exists := b.trials[trialID]; exists {
+			b.trials[trialID] = &trialData{
+				deleted: true,
+			}
+		}
+	}
+	return nil
+}
+
+func (b *memoryBackend) GetTrialParams(ctx context.Context, trialIDs []string) ([]*TrialParams, error) {
+	trialDatas, err := b.retrieveOrCreateOrUpdateTrials(ctx, trialIDs, false)
+	if err != nil {
+		return []*TrialParams{}, err
+	}
+	trialParams := make([]*TrialParams, len(trialIDs))
+	for idx, trialData := range trialDatas {
+		trialParams[idx] = &TrialParams{TrialID: trialIDs[idx], Params: trialData.params}
+	}
+	return trialParams, nil
+}
+
+func (b *memoryBackend) AddSamples(ctx context.Context, samples []*grpcapi.TrialSample) error {
+	trialIDs := make([]string, len(samples))
+	for idx, sample := range samples {
+		trialIDs[idx] = sample.TrialId
+	}
+	trialDatas, err := b.retrieveOrCreateOrUpdateTrials(ctx, trialIDs, false)
+	if err != nil {
+		return err
+	}
+	for idx, sample := range samples {
+		t := trialDatas[idx]
+		t.samples.Append(sample, sample.State == grpcapi.TrialState_ENDED)
+	}
+	return nil
+}
+
+func (b *memoryBackend) ObserveSamples(ctx context.Context, filter TrialSampleFilter, out chan<- *grpcapi.TrialSample) error {
+	trialDatas, err := b.retrieveOrCreateOrUpdateTrials(ctx, filter.TrialIDs, true)
+	if err != nil {
+		return err
+	}
+
+	actorNamesFilter := createFilterFromStringArray(filter.ActorNames)
+	actorClassesFilter := createFilterFromStringArray(filter.ActorClasses)
+	actorImplementationsFilter := createFilterFromStringArray(filter.ActorImplementations)
+	fieldsFilter := createSampleFieldsFilter(filter.Fields)
+
+	g, ctx := errgroup.WithContext(ctx)
+
+	for _, td := range trialDatas {
+		td := td // Create a new 'td' that gets captured by the goroutine's closure https://golang.org/doc/faq#closures_and_goroutines
+		actorFilter := createActorFilter(actorNamesFilter, actorClassesFilter, actorImplementationsFilter, td.params)
+		observer := make(utils.ObservableListObserver)
+		g.Go(func() error {
+			defer close(observer)
+			return td.samples.Observe(ctx, 0, observer)
+		})
+		if actorFilter.selectsAll() && fieldsFilter.selectsAll() {
+			// No filtering done on this trial's samples
+			g.Go(func() error {
+				for sample := range observer {
+					out <- sample.(*grpcapi.TrialSample)
+				}
+				return nil
+			})
+		} else {
+			// Some filtering done on this trial samples
+			g.Go(func() error {
+				for sample := range observer {
+					filteredSample := filterTrialSample(sample.(*grpcapi.TrialSample), actorFilter, fieldsFilter)
+					out <- filteredSample
+				}
+				return nil
+			})
+		}
+	}
+	return g.Wait()
 }

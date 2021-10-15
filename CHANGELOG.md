@@ -7,4 +7,4 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
-Introduce Activity Logger, a simple logger & store for trial activity data.
+Introduce Trial Datastore, a simple logger & store for trial generated data.

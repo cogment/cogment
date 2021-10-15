@@ -6,26 +6,26 @@
 # - Build the "build" stage of the image using the retrieved image for cache
 # - Build the final image
 
-if [[ -z "${COGMENT_ACTIVITY_LOGGER_IMAGE_BUILD_CACHE}" ]]; then
-  COGMENT_ACTIVITY_LOGGER_IMAGE_BUILD_CACHE="registry.gitlab.com/ai-r/cogment-activity-logger/build:latest"
-  printf "** Using default value '%s' for the docker build image used for cache, set COGMENT_ACTIVITY_LOGGER_IMAGE_BUILD_CACHE to specify another one\n\n" "${COGMENT_ACTIVITY_LOGGER_IMAGE_BUILD_CACHE}"
+if [[ -z "${COGMENT_TRIAL_DATASTORE_IMAGE_BUILD_CACHE}" ]]; then
+  COGMENT_TRIAL_DATASTORE_IMAGE_BUILD_CACHE="registry.gitlab.com/ai-r/cogment-trial-datastore/build:latest"
+  printf "** Using default value '%s' for the docker build image used for cache, set COGMENT_TRIAL_DATASTORE_IMAGE_BUILD_CACHE to specify another one\n\n" "${COGMENT_TRIAL_DATASTORE_IMAGE_BUILD_CACHE}"
 fi
 
-if [[ -z "${COGMENT_ACTIVITY_LOGGER_IMAGE_BUILD}" ]]; then
-  COGMENT_ACTIVITY_LOGGER_IMAGE_BUILD="registry.gitlab.com/ai-r/cogment-activity-logger/build:local"
-  printf "** Using default value '%s' for the docker build image to build, set COGMENT_ACTIVITY_LOGGER_IMAGE_BUILD to specify another one\n\n" "${COGMENT_ACTIVITY_LOGGER_IMAGE_BUILD}"
+if [[ -z "${COGMENT_TRIAL_DATASTORE_IMAGE_BUILD}" ]]; then
+  COGMENT_TRIAL_DATASTORE_IMAGE_BUILD="registry.gitlab.com/ai-r/cogment-trial-datastore/build:local"
+  printf "** Using default value '%s' for the docker build image to build, set COGMENT_TRIAL_DATASTORE_IMAGE_BUILD to specify another one\n\n" "${COGMENT_TRIAL_DATASTORE_IMAGE_BUILD}"
 fi
 
-if [[ -z "${COGMENT_ACTIVITY_LOGGER_IMAGE}" ]]; then
-  COGMENT_ACTIVITY_LOGGER_IMAGE="cogment/model-registry:local"
-  printf "** Using default value '%s' for the docker image to build, set COGMENT_ACTIVITY_LOGGER_IMAGE to specify another one\n\n" "${COGMENT_ACTIVITY_LOGGER_IMAGE}"
+if [[ -z "${COGMENT_TRIAL_DATASTORE_IMAGE}" ]]; then
+  COGMENT_TRIAL_DATASTORE_IMAGE="cogment/trial-datastore:local"
+  printf "** Using default value '%s' for the docker image to build, set COGMENT_TRIAL_DATASTORE_IMAGE to specify another one\n\n" "${COGMENT_TRIAL_DATASTORE_IMAGE}"
 fi
 
-if ! docker pull "${COGMENT_ACTIVITY_LOGGER_IMAGE_BUILD_CACHE}"; then
+if ! docker pull "${COGMENT_TRIAL_DATASTORE_IMAGE_BUILD_CACHE}"; then
   printf "** Unable to pull build image for cache, skipping\n\n"
 fi
 
 set -o errexit
 
-docker build --target build --cache-from "${COGMENT_ACTIVITY_LOGGER_IMAGE_BUILD_CACHE}" --tag "${COGMENT_ACTIVITY_LOGGER_IMAGE_BUILD}" .
-docker build --cache-from "${COGMENT_ACTIVITY_LOGGER_IMAGE_BUILD}" --tag "${COGMENT_ACTIVITY_LOGGER_IMAGE}" .
+docker build --target build --cache-from "${COGMENT_TRIAL_DATASTORE_IMAGE_BUILD_CACHE}" --tag "${COGMENT_TRIAL_DATASTORE_IMAGE_BUILD}" .
+docker build --cache-from "${COGMENT_TRIAL_DATASTORE_IMAGE_BUILD}" --tag "${COGMENT_TRIAL_DATASTORE_IMAGE}" .

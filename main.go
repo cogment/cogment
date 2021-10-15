@@ -16,25 +16,34 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net"
 
 	"github.com/spf13/viper"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
 
-	"github.com/cogment/cogment-activity-logger/backend"
-	"github.com/cogment/cogment-activity-logger/grpcservers"
+	"github.com/cogment/cogment-trial-datastore/backend"
+	"github.com/cogment/cogment-trial-datastore/grpcservers"
+	log "github.com/sirupsen/logrus"
 )
 
 func main() {
 	viper.AutomaticEnv()
 	viper.SetDefault("PORT", 9000)
-	viper.SetDefault("TRIAL_SAMPLE_CAPACITY", 1000)
 	viper.SetDefault("GRPC_REFLECTION", false)
-	viper.SetEnvPrefix("COGMENT_ACTIVITY_LOGGER")
+	viper.SetDefault("LOG_LEVEL", "info")
+	viper.SetEnvPrefix("COGMENT_TRIAL_DATASTORE")
 
-	backend, err := backend.CreateMemoryBackend(viper.GetUint("TRIAL_SAMPLE_CAPACITY"))
+	logLevel, err := log.ParseLevel(viper.GetString("LOG_LEVEL"))
+	if err != nil {
+		expectedLevels := make([]string, 0)
+		for _, level := range log.AllLevels {
+			expectedLevels = append(expectedLevels, level.String())
+		}
+		log.Fatalf("invalid log level specified %q expecting one of %v", viper.GetString("LOG_LEVEL"), expectedLevels)
+	}
+	log.Infof("setting up log level to %q", logLevel.String())
+	log.SetLevel(logLevel)
+
+	backend, err := backend.CreateMemoryBackend()
 	if err != nil {
 		log.Fatalf("unable to create the memory backend: %v", err)
 	}
@@ -44,9 +53,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("unable to listen to tcp port %d: %v", port, err)
 	}
-	var opts []grpc.ServerOption
-	server := grpc.NewServer(opts...)
-	err = grpcservers.RegisterActivityLoggerServer(server, backend)
+	server := grpcservers.CreateGrpcServer(viper.GetBool("GRPC_REFLECTION"))
+	err = grpcservers.RegisterTrialDatastoreServer(server, backend)
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
@@ -54,11 +62,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
-	if viper.GetBool("GRPC_REFLECTION") {
-		reflection.Register(server)
-		log.Printf("gRPC reflection registered")
-	}
-	log.Printf("Cogment Activity Logger service starts on port %d...\n", port)
+	log.WithField("port", port).Info("Cogment Trial Datastore service starts..")
 	err = server.Serve(listener)
 	if err != nil {
 		log.Fatalf("unexpected error while serving grpc services: %v", err)

@@ -7,16 +7,16 @@ generate-protos:
 	go generate -tags tools
 
 build: generate-protos
-	go build -o build/cogment-activity-logger
+	go build -o build/cogment-trial-datastore
 
 clean:
 	go clean
 	rm -f build
 
-lint:
+lint: generate-protos
 	golangci-lint run
 
-fix-lint:
+fix-lint: generate-protos
 	golangci-lint run --fix
 
 test: generate-protos

@@ -15,58 +15,66 @@
 package backend
 
 import (
-	grpcapi "github.com/cogment/cogment-activity-logger/grpcapi/cogment/api"
-)
+	"context"
+	"fmt"
 
-// TrialStatus represents the stats of a trial
-type TrialStatus int
-
-const (
-	// TrialNotStarted represents a trial that has yet to start
-	TrialNotStarted TrialStatus = iota
-	// TrialRunning represents a trial that is currently running
-	TrialRunning
-	// TrialEnded represents a trial that has ended
-	TrialEnded
+	grpcapi "github.com/cogment/cogment-trial-datastore/grpcapi/cogment/api"
 )
 
 // TrialInfo represents the storage status of the samples in a trial.
 type TrialInfo struct {
 	TrialID            string
-	Status             TrialStatus
+	UserID             string
+	State              grpcapi.TrialState
 	SamplesCount       int
 	StoredSamplesCount int
 }
 
-// TrialParamsResult represents the result of a query to retrieve trial params
-type TrialParamsResult struct {
-	Ok  *grpcapi.TrialParams
-	Err error
+type TrialsInfoResult struct {
+	TrialInfos   []*TrialInfo
+	NextTrialIdx int
 }
 
-// TrialParamsPromise represents the async result of a query to retrieve trial params
-type TrialParamsPromise <-chan TrialParamsResult
+type TrialsInfoObserver chan TrialsInfoResult
 
-// DatalogSampleResult represents the result of a query to retrieve a sample
-type DatalogSampleResult struct {
-	Ok  *grpcapi.DatalogSample
-	Err error
+// TrialParams represents the params of a trials
+type TrialParams struct {
+	TrialID string
+	UserID  string
+	Params  *grpcapi.TrialParams
 }
 
-// DatalogSampleStream represents a stream of sample results
-type DatalogSampleStream <-chan DatalogSampleResult
+// TrialSampleFilter represents the arguments that can be passed to create or update a trial
+type TrialSampleFilter struct {
+	TrialIDs             []string
+	ActorNames           []string
+	ActorClasses         []string
+	ActorImplementations []string
+	Fields               []grpcapi.TrialSampleField
+}
+
+type TrialSampleObserver chan *grpcapi.TrialSample
 
 // Backend defines the interface for a datalogger backend
 type Backend interface {
 	Destroy()
 
-	OnTrialStart(trialID string, trialParams *grpcapi.TrialParams) (TrialInfo, error)
-	OnTrialEnd(trialID string) (TrialInfo, error)
-	OnTrialSample(trialID string, sample *grpcapi.DatalogSample) (TrialInfo, error)
+	CreateOrUpdateTrials(ctx context.Context, trialsParams []*TrialParams) error
+	RetrieveTrials(ctx context.Context, filter []string, fromTrialIdx int, count int) (TrialsInfoResult, error)
+	ObserveTrials(ctx context.Context, filter []string, fromTrialIdx int, count int, out chan<- TrialsInfoResult) error
+	DeleteTrials(ctx context.Context, trialIDs []string) error
 
-	GetTrialInfo(trialID string) (TrialInfo, error)
-	GetTrialParams(trialID string) (*grpcapi.TrialParams, error)
-	GetTrialParamsAsync(trialID string) TrialParamsPromise
+	GetTrialParams(ctx context.Context, trialIDs []string) ([]*TrialParams, error)
 
-	ConsumeTrialSamples(trialID string) DatalogSampleStream
+	AddSamples(ctx context.Context, samples []*grpcapi.TrialSample) error
+	ObserveSamples(ctx context.Context, filter TrialSampleFilter, out chan<- *grpcapi.TrialSample) error
+}
+
+// UnknownTrialError is raised when trying to operate on an unknown trial
+type UnknownTrialError struct {
+	TrialID string
+}
+
+func (e *UnknownTrialError) Error() string {
+	return fmt.Sprintf("no trial %q found", e.TrialID)
 }

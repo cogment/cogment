@@ -9,9 +9,12 @@ stages:
   variables:
     GOPATH: $CI_PROJECT_DIR/.go
     GOLANGCI_LINT_VERSION: v1.42.0
+    PROTOC_VERSION: 3.18.1
   before_script:
-    - apt-get update -y
-    - apt-get install -y protobuf-compiler
+    - apt-get update -y && apt-get install -y unzip
+    - curl -LO --silent https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip
+    - unzip protoc-${PROTOC_VERSION}-linux-x86_64.zip -d /usr/local
+    - chmod +x /usr/local/bin/protoc
     - mkdir -p .go
     - export PATH=$PATH:$(go env GOPATH)/bin
   cache:
@@ -75,12 +78,12 @@ build_docker:
   extends: .base_docker_build
   stage: build
   variables:
-    COGMENT_ACTIVITY_LOGGER_IMAGE_BUILD_CACHE: $CI_REGISTRY_IMAGE/build:latest
-    COGMENT_ACTIVITY_LOGGER_IMAGE_BUILD: $CI_REGISTRY_IMAGE/build:commit-$CI_COMMIT_SHORT_SHA
-    COGMENT_ACTIVITY_LOGGER_IMAGE: $CI_REGISTRY_IMAGE:commit-$CI_COMMIT_SHORT_SHA
+    COGMENT_TRIAL_DATASTORE_IMAGE_BUILD_CACHE: $CI_REGISTRY_IMAGE/build:latest
+    COGMENT_TRIAL_DATASTORE_IMAGE_BUILD: $CI_REGISTRY_IMAGE/build:commit-$CI_COMMIT_SHORT_SHA
+    COGMENT_TRIAL_DATASTORE_IMAGE: $CI_REGISTRY_IMAGE:commit-$CI_COMMIT_SHORT_SHA
   script:
     - ./scripts/build_docker.sh
-    - docker push $COGMENT_ACTIVITY_LOGGER_IMAGE_BUILD
+    - docker push $COGMENT_TRIAL_DATASTORE_IMAGE_BUILD
 
 build_binaries:
   extends: .base_golang
@@ -97,13 +100,13 @@ push_docker_latest:
   stage: publish
   variables:
     # Reuse the 'commit-$CI_COMMIT_SHORT_SHA' image built in `build_docker`
-    COGMENT_ACTIVITY_LOGGER_IMAGE_BUILD_CACHE: $CI_REGISTRY_IMAGE/build:commit-$CI_COMMIT_SHORT_SHA
-    COGMENT_ACTIVITY_LOGGER_IMAGE_BUILD: $CI_REGISTRY_IMAGE/build:latest
-    COGMENT_ACTIVITY_LOGGER_IMAGE: $CI_REGISTRY_IMAGE:latest
+    COGMENT_TRIAL_DATASTORE_IMAGE_BUILD_CACHE: $CI_REGISTRY_IMAGE/build:commit-$CI_COMMIT_SHORT_SHA
+    COGMENT_TRIAL_DATASTORE_IMAGE_BUILD: $CI_REGISTRY_IMAGE/build:latest
+    COGMENT_TRIAL_DATASTORE_IMAGE: $CI_REGISTRY_IMAGE:latest
   script:
     - ./scripts/build_docker.sh
-    - docker push $COGMENT_ACTIVITY_LOGGER_IMAGE_BUILD
-    - docker push $COGMENT_ACTIVITY_LOGGER_IMAGE
+    - docker push $COGMENT_TRIAL_DATASTORE_IMAGE_BUILD
+    - docker push $COGMENT_TRIAL_DATASTORE_IMAGE
   only:
     - main
     - develop

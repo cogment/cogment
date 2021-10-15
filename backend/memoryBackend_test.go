@@ -15,240 +15,425 @@
 package backend
 
 import (
+	"context"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
-	grpcapi "github.com/cogment/cogment-activity-logger/grpcapi/cogment/api"
+	grpcapi "github.com/cogment/cogment-trial-datastore/grpcapi/cogment/api"
 )
 
 var nextTickID uint64 // = 0
 
-func generateTrialParams() *grpcapi.TrialParams {
-	params := &grpcapi.TrialParams{}
+func generateTrialParams(actorCount int, maxSteps uint32) *grpcapi.TrialParams {
+	params := &grpcapi.TrialParams{
+		Actors:   make([]*grpcapi.ActorParams, actorCount),
+		MaxSteps: maxSteps,
+	}
 	return params
 }
 
-func generateSample() *grpcapi.DatalogSample {
-	sample := &grpcapi.DatalogSample{
-		TrialData: &grpcapi.TrialData{
-			TickId: nextTickID,
-		},
+func generateSample(trialID string, actorCount int, end bool) *grpcapi.TrialSample {
+	sample := &grpcapi.TrialSample{
+		TrialId:      trialID,
+		TickId:       nextTickID,
+		Timestamp:    uint64(time.Now().Unix()),
+		State:        grpcapi.TrialState_RUNNING,
+		ActorSamples: make([]*grpcapi.TrialActorSample, actorCount),
+	}
+	if end {
+		sample.State = grpcapi.TrialState_ENDED
 	}
 	nextTickID++
 	return sample
 }
 
 func TestCreateBackend(t *testing.T) {
-	b, err := CreateMemoryBackend(12)
+	b, err := CreateMemoryBackend()
 	assert.NoError(t, err)
 	defer b.Destroy()
 
 	assert.NotNil(t, b)
 }
 
-func TestOnTrialStart(t *testing.T) {
-	b, err := CreateMemoryBackend(12)
+func TestCreateOrUpdateTrials(t *testing.T) {
+	b, err := CreateMemoryBackend()
 	assert.NoError(t, err)
+	assert.NotNil(t, b)
 	defer b.Destroy()
 
-	assert.NotNil(t, b)
-
-	trialInfo, err := b.OnTrialStart("my-trial", generateTrialParams())
-	assert.NoError(t, err)
-	assert.Equal(t, "my-trial", trialInfo.TrialID)
-	assert.Equal(t, TrialRunning, trialInfo.Status)
-	assert.Equal(t, 0, trialInfo.SamplesCount)
-	assert.Equal(t, 0, trialInfo.StoredSamplesCount)
-
-	_, err = b.OnTrialStart("my-trial", generateTrialParams())
-	assert.Error(t, err)
-}
-
-func TestOnTrialEnd(t *testing.T) {
-	b, err := CreateMemoryBackend(12)
-	assert.NoError(t, err)
-	defer b.Destroy()
-
-	assert.NotNil(t, b)
-
-	_, err = b.OnTrialStart("my-trial", generateTrialParams())
-	assert.NoError(t, err)
-
-	trialInfo, err := b.OnTrialEnd("my-trial")
-	assert.NoError(t, err)
-	assert.Equal(t, "my-trial", trialInfo.TrialID)
-	assert.Equal(t, TrialEnded, trialInfo.Status)
-	assert.Equal(t, 0, trialInfo.SamplesCount)
-	assert.Equal(t, 0, trialInfo.StoredSamplesCount)
-
-	_, err = b.OnTrialEnd("my-trial")
-	assert.Error(t, err)
-
-	_, err = b.OnTrialEnd("another-trial")
-	assert.Error(t, err)
-}
-
-func TestGetTrialInfo(t *testing.T) {
-	b, err := CreateMemoryBackend(12)
-	assert.NoError(t, err)
-	defer b.Destroy()
-
-	assert.NotNil(t, b)
-
-	_, err = b.OnTrialStart("my-trial", generateTrialParams())
-	assert.NoError(t, err)
-
-	trialInfo, err := b.GetTrialInfo("my-trial")
-	assert.NoError(t, err)
-	assert.Equal(t, "my-trial", trialInfo.TrialID)
-	assert.Equal(t, TrialRunning, trialInfo.Status)
-	assert.Equal(t, 0, trialInfo.SamplesCount)
-	assert.Equal(t, 0, trialInfo.StoredSamplesCount)
-
-	_, err = b.OnTrialEnd("my-trial")
-	assert.NoError(t, err)
-
-	trialInfo, err = b.GetTrialInfo("my-trial")
-	assert.NoError(t, err)
-	assert.Equal(t, "my-trial", trialInfo.TrialID)
-	assert.Equal(t, TrialEnded, trialInfo.Status)
-	assert.Equal(t, 0, trialInfo.SamplesCount)
-	assert.Equal(t, 0, trialInfo.StoredSamplesCount)
-
-	trialInfo, err = b.GetTrialInfo("another-trial")
-	assert.NoError(t, err)
-	assert.Equal(t, "another-trial", trialInfo.TrialID)
-	assert.Equal(t, TrialNotStarted, trialInfo.Status)
-	assert.Equal(t, 0, trialInfo.SamplesCount)
-	assert.Equal(t, 0, trialInfo.StoredSamplesCount)
-}
-
-func TestOnTrialSample(t *testing.T) {
-	b, err := CreateMemoryBackend(3)
-	assert.NoError(t, err)
-	defer b.Destroy()
-
-	assert.NotNil(t, b)
-
-	_, err = b.OnTrialStart("my-trial", generateTrialParams())
-	assert.NoError(t, err)
-
-	_, err = b.OnTrialSample("another-trial", generateSample())
-	assert.Error(t, err)
-
-	trialInfo, err := b.OnTrialSample("my-trial", generateSample())
-	assert.NoError(t, err)
-	assert.Equal(t, "my-trial", trialInfo.TrialID)
-	assert.Equal(t, TrialRunning, trialInfo.Status)
-	assert.Equal(t, 1, trialInfo.SamplesCount)
-	assert.Equal(t, 1, trialInfo.StoredSamplesCount)
-
-	secondSample := generateSample()
-	trialInfo, err = b.OnTrialSample("my-trial", secondSample)
-	assert.NoError(t, err)
-	assert.Equal(t, "my-trial", trialInfo.TrialID)
-	assert.Equal(t, TrialRunning, trialInfo.Status)
-	assert.Equal(t, 2, trialInfo.SamplesCount)
-	assert.Equal(t, 2, trialInfo.StoredSamplesCount)
-
-	trialInfo, err = b.OnTrialSample("my-trial", generateSample())
-	assert.NoError(t, err)
-	assert.Equal(t, "my-trial", trialInfo.TrialID)
-	assert.Equal(t, TrialRunning, trialInfo.Status)
-	assert.Equal(t, 3, trialInfo.SamplesCount)
-	assert.Equal(t, 3, trialInfo.StoredSamplesCount)
-
-	trialInfo, err = b.OnTrialSample("my-trial", generateSample())
-	assert.NoError(t, err)
-	assert.Equal(t, "my-trial", trialInfo.TrialID)
-	assert.Equal(t, TrialRunning, trialInfo.Status)
-	assert.Equal(t, 4, trialInfo.SamplesCount)
-	assert.Equal(t, 3, trialInfo.StoredSamplesCount)
-
-	sampleStream := b.ConsumeTrialSamples("my-trial")
-	sampleResult := <-sampleStream
-	assert.NoError(t, sampleResult.Err)
-	assert.Equal(t, secondSample.TrialData.TickId, sampleResult.Ok.TrialData.TickId)
-
-	trialInfo, err = b.GetTrialInfo("my-trial")
-	assert.NoError(t, err)
-	assert.Equal(t, "my-trial", trialInfo.TrialID)
-	assert.Equal(t, TrialRunning, trialInfo.Status)
-	assert.Equal(t, 4, trialInfo.SamplesCount)
-	assert.Equal(t, 1, trialInfo.StoredSamplesCount) // 4 samples produced - 1 discarded for over capacity - 1 consumed - 1 in the SampleStream goroutine
-}
-
-func TestConsumeTrialSamplesAfterTrialEnded(t *testing.T) {
-	b, err := CreateMemoryBackend(20)
-	assert.NoError(t, err)
-	defer b.Destroy()
-
-	assert.NotNil(t, b)
-
-	_, err = b.OnTrialStart("my-trial", generateTrialParams())
-	assert.NoError(t, err)
-
-	for i := 0; i < 5; i++ {
-		trialInfo, err := b.OnTrialSample("my-trial", generateSample())
+	{
+		err = b.CreateOrUpdateTrials(context.Background(), []*TrialParams{
+			{
+				TrialID: "trial-1",
+				Params:  generateTrialParams(2, 100),
+			},
+			{
+				TrialID: "trial-2",
+				Params:  generateTrialParams(4, 150),
+			},
+		})
 		assert.NoError(t, err)
-		assert.Equal(t, "my-trial", trialInfo.TrialID)
-		assert.Equal(t, TrialRunning, trialInfo.Status)
-		assert.Equal(t, i+1, trialInfo.SamplesCount)
-		assert.Equal(t, i+1, trialInfo.StoredSamplesCount)
 	}
 
-	trialInfo, err := b.OnTrialEnd("my-trial")
-	assert.NoError(t, err)
-	assert.Equal(t, "my-trial", trialInfo.TrialID)
-	assert.Equal(t, TrialEnded, trialInfo.Status)
-	assert.Equal(t, 5, trialInfo.SamplesCount)
-	assert.Equal(t, 5, trialInfo.StoredSamplesCount)
+	{
+		r, err := b.RetrieveTrials(context.Background(), []string{}, -1, -1)
+		assert.NoError(t, err)
 
-	sampleStream := b.ConsumeTrialSamples("my-trial")
-	for i := 0; i < 5; i++ {
-		sampleResult, ok := <-sampleStream
-		assert.True(t, ok)
-		assert.NoError(t, sampleResult.Err)
+		assert.Len(t, r.TrialInfos, 2)
+
+		assert.Equal(t, "trial-1", r.TrialInfos[0].TrialID)
+		assert.Equal(t, grpcapi.TrialState_UNKNOWN, r.TrialInfos[0].State)
+		assert.Equal(t, 0, r.TrialInfos[0].SamplesCount)
+		assert.Equal(t, 0, r.TrialInfos[0].StoredSamplesCount)
+
+		assert.Equal(t, "trial-2", r.TrialInfos[1].TrialID)
+		assert.Equal(t, grpcapi.TrialState_UNKNOWN, r.TrialInfos[1].State)
+		assert.Equal(t, 0, r.TrialInfos[1].SamplesCount)
+		assert.Equal(t, 0, r.TrialInfos[1].StoredSamplesCount)
+
+		assert.Equal(t, 2, r.NextTrialIdx)
 	}
-	_, ok := <-sampleStream
-	assert.False(t, ok)
+
+	{
+		err = b.CreateOrUpdateTrials(context.Background(), []*TrialParams{
+			{
+				TrialID: "trial-2",
+				Params:  generateTrialParams(8, 12),
+			},
+			{
+				TrialID: "trial-3",
+				Params:  generateTrialParams(5, 7),
+			},
+		})
+		assert.NoError(t, err)
+	}
+
+	{
+		r, err := b.RetrieveTrials(context.Background(), []string{}, 0, 5)
+		assert.NoError(t, err)
+
+		assert.Len(t, r.TrialInfos, 3)
+
+		assert.Equal(t, "trial-1", r.TrialInfos[0].TrialID)
+		assert.Equal(t, "trial-2", r.TrialInfos[1].TrialID)
+		assert.Equal(t, "trial-3", r.TrialInfos[2].TrialID)
+
+		assert.Equal(t, 3, r.NextTrialIdx)
+	}
 }
 
-func TestConsumeTrialSamplesBeforeTrialStarts(t *testing.T) {
-	b, err := CreateMemoryBackend(20)
+func TestObserveTrials(t *testing.T) {
+	t.Parallel() // This test involves goroutines and `time.Sleep`
+
+	b, err := CreateMemoryBackend()
 	assert.NoError(t, err)
+	assert.NotNil(t, b)
 	defer b.Destroy()
 
-	assert.NotNil(t, b)
+	wg := sync.WaitGroup{}
 
+	wg.Add(1)
 	go func() {
-		sampleStream := b.ConsumeTrialSamples("my-trial")
-		for i := 0; i < 5; i++ {
-			sampleResult, ok := <-sampleStream
-			assert.True(t, ok)
-			assert.NoError(t, sampleResult.Err)
-		}
-		_, ok := <-sampleStream
-		assert.False(t, ok)
+		// Waiting before actually adding the trials
+		defer wg.Done()
+		time.Sleep(100 * time.Millisecond)
+		err = b.CreateOrUpdateTrials(context.Background(), []*TrialParams{
+			{
+				TrialID: "trial-1",
+				Params:  generateTrialParams(2, 100),
+			},
+			{
+				TrialID: "trial-2",
+				Params:  generateTrialParams(4, 150),
+			},
+		})
+		assert.NoError(t, err)
 	}()
 
-	_, err = b.OnTrialStart("my-trial", generateTrialParams())
-	assert.NoError(t, err)
+	wg.Add(1)
+	go func() {
+		// Can I retrieve just trial 2
+		defer wg.Done()
+		observer := make(TrialsInfoObserver)
+		go func() {
+			err := b.ObserveTrials(context.Background(), []string{"trial-2"}, 0, -1, observer)
+			assert.NoError(t, err)
+			close(observer)
+		}()
+		results := []*TrialInfo{}
+		nextTrialIdx := 0
+		for r := range observer {
+			results = append(results, r.TrialInfos...)
+			nextTrialIdx = r.NextTrialIdx
+		}
 
-	for i := 0; i < 5; i++ {
-		trialInfo, err := b.OnTrialSample("my-trial", generateSample())
+		assert.Len(t, results, 1)
+
+		assert.Equal(t, "trial-2", results[0].TrialID)
+
+		assert.Equal(t, 2, nextTrialIdx)
+	}()
+
+	wg.Add(1)
+	go func() {
+		// Can I retrieve trial 2 and trial 1
+		defer wg.Done()
+		observer := make(TrialsInfoObserver)
+		go func() {
+			err := b.ObserveTrials(context.Background(), []string{"trial-2", "trial-1"}, 0, -1, observer)
+			assert.NoError(t, err)
+			close(observer)
+		}()
+		results := []*TrialInfo{}
+		nextTrialIdx := 0
+		for r := range observer {
+			results = append(results, r.TrialInfos...)
+			nextTrialIdx = r.NextTrialIdx
+		}
+
+		assert.Len(t, results, 2)
+
+		assert.Equal(t, "trial-1", results[0].TrialID)
+		assert.Equal(t, "trial-2", results[1].TrialID)
+
+		assert.Equal(t, 2, nextTrialIdx)
+	}()
+
+	wg.Add(1)
+	go func() {
+		// Can I retrieve the 2 first trials
+		defer wg.Done()
+		observer := make(TrialsInfoObserver)
+		go func() {
+			err := b.ObserveTrials(context.Background(), []string{}, 0, 2, observer)
+			assert.NoError(t, err)
+			close(observer)
+		}()
+		results := []*TrialInfo{}
+		nextTrialIdx := 0
+		for r := range observer {
+			results = append(results, r.TrialInfos...)
+			nextTrialIdx = r.NextTrialIdx
+		}
+
+		assert.Len(t, results, 2)
+
+		assert.Equal(t, "trial-1", results[0].TrialID)
+		assert.Equal(t, "trial-2", results[1].TrialID)
+
+		assert.Equal(t, 2, nextTrialIdx)
+	}()
+
+	wg.Wait()
+}
+
+func TestDeleteTrials(t *testing.T) {
+	b, err := CreateMemoryBackend()
+	assert.NoError(t, err)
+	assert.NotNil(t, b)
+	defer b.Destroy()
+
+	{
+		err = b.CreateOrUpdateTrials(context.Background(), []*TrialParams{
+			{
+				TrialID: "A",
+				Params:  generateTrialParams(1, 2),
+			},
+			{
+				TrialID: "B",
+				Params:  generateTrialParams(3, 4),
+			},
+			{
+				TrialID: "C",
+				Params:  generateTrialParams(5, 6),
+			},
+		})
 		assert.NoError(t, err)
-		assert.Equal(t, "my-trial", trialInfo.TrialID)
-		assert.Equal(t, TrialRunning, trialInfo.Status)
-		assert.Equal(t, i+1, trialInfo.SamplesCount)
-		assert.Equal(t, i+1, trialInfo.StoredSamplesCount)
 	}
 
-	trialInfo, err := b.OnTrialEnd("my-trial")
+	{
+		err = b.DeleteTrials(context.Background(), []string{"A", "C"})
+		assert.NoError(t, err)
+	}
+
+	{
+		r, err := b.RetrieveTrials(context.Background(), []string{}, -1, -1)
+		assert.NoError(t, err)
+
+		assert.Len(t, r.TrialInfos, 1)
+
+		assert.Equal(t, "B", r.TrialInfos[0].TrialID)
+
+		assert.Equal(t, 2, r.NextTrialIdx)
+	}
+
+	{
+		err = b.DeleteTrials(context.Background(), []string{"B", "C", "D"})
+		assert.NoError(t, err)
+	}
+
+	{
+		r, err := b.RetrieveTrials(context.Background(), []string{}, -1, -1)
+		assert.NoError(t, err)
+
+		assert.Len(t, r.TrialInfos, 0)
+	}
+}
+
+func TestGetTrialParams(t *testing.T) {
+	b, err := CreateMemoryBackend()
 	assert.NoError(t, err)
-	assert.Equal(t, "my-trial", trialInfo.TrialID)
-	assert.Equal(t, TrialEnded, trialInfo.Status)
-	assert.Equal(t, 5, trialInfo.SamplesCount)
-	assert.Equal(t, 5, trialInfo.StoredSamplesCount)
+	assert.NotNil(t, b)
+	defer b.Destroy()
+
+	{
+		err = b.CreateOrUpdateTrials(context.Background(), []*TrialParams{
+			{
+				TrialID: "A",
+				Params:  generateTrialParams(2, 100),
+			},
+			{
+				TrialID: "B",
+				Params:  generateTrialParams(4, 150),
+			},
+		})
+		assert.NoError(t, err)
+	}
+
+	{
+		r, err := b.RetrieveTrials(context.Background(), []string{}, -1, -1)
+		assert.NoError(t, err)
+
+		assert.Len(t, r.TrialInfos, 2)
+
+		assert.Equal(t, "A", r.TrialInfos[0].TrialID)
+		assert.Equal(t, "B", r.TrialInfos[1].TrialID)
+	}
+
+	{
+		trialsParams, err := b.GetTrialParams(context.Background(), []string{"A", "B"})
+		assert.NoError(t, err)
+
+		assert.Len(t, trialsParams, 2)
+
+		assert.Equal(t, "A", trialsParams[0].TrialID)
+		assert.Len(t, trialsParams[0].Params.Actors, 2)
+		assert.Equal(t, uint32(100), trialsParams[0].Params.MaxSteps)
+		assert.Equal(t, "B", trialsParams[1].TrialID)
+		assert.Len(t, trialsParams[1].Params.Actors, 4)
+		assert.Equal(t, uint32(150), trialsParams[1].Params.MaxSteps)
+	}
+}
+
+func TestAddSamples(t *testing.T) {
+	b, err := CreateMemoryBackend()
+	assert.NoError(t, err)
+	assert.NotNil(t, b)
+	defer b.Destroy()
+
+	err = b.CreateOrUpdateTrials(context.Background(), []*TrialParams{{
+		TrialID: "my-trial",
+		Params:  generateTrialParams(12, 100),
+	}})
+	assert.NoError(t, err)
+
+	firstSample := generateSample("my-trial", 12, false)
+	secondSample := generateSample("my-trial", 12, false)
+	err = b.AddSamples(context.Background(), []*grpcapi.TrialSample{firstSample, secondSample, generateSample("my-trial", 12, false)})
+	assert.NoError(t, err)
+
+	r, err := b.RetrieveTrials(context.Background(), []string{"my-trial"}, -1, -1)
+	assert.NoError(t, err)
+
+	assert.Len(t, r.TrialInfos, 1)
+
+	assert.Equal(t, "my-trial", r.TrialInfos[0].TrialID)
+	assert.Equal(t, grpcapi.TrialState_RUNNING, r.TrialInfos[0].State)
+	assert.Equal(t, 3, r.TrialInfos[0].SamplesCount)
+	assert.Equal(t, 3, r.TrialInfos[0].StoredSamplesCount)
+
+	err = b.AddSamples(context.Background(), []*grpcapi.TrialSample{
+		generateSample("my-trial", 12, false),
+		generateSample("my-trial", 12, false),
+	})
+	assert.NoError(t, err)
+
+	r, err = b.RetrieveTrials(context.Background(), []string{"my-trial"}, -1, -1)
+	assert.NoError(t, err)
+
+	assert.Len(t, r.TrialInfos, 1)
+
+	assert.Equal(t, "my-trial", r.TrialInfos[0].TrialID)
+	assert.Equal(t, grpcapi.TrialState_RUNNING, r.TrialInfos[0].State)
+	assert.Equal(t, 5, r.TrialInfos[0].SamplesCount)
+	assert.Equal(t, 5, r.TrialInfos[0].StoredSamplesCount)
+
+	observer := make(TrialSampleObserver)
+	go func() {
+		err := b.ObserveSamples(context.Background(), TrialSampleFilter{TrialIDs: []string{"my-trial"}}, observer)
+		assert.NoError(t, err)
+		close(observer)
+	}()
+	sampleResult := <-observer
+	assert.Equal(t, "my-trial", sampleResult.TrialId)
+	assert.Equal(t, firstSample.TickId, sampleResult.TickId)
+
+	sampleResult = <-observer
+	assert.Equal(t, "my-trial", sampleResult.TrialId)
+	assert.Equal(t, secondSample.TickId, sampleResult.TickId)
+}
+
+func TestConcurrentAddAndObserveSamples(t *testing.T) {
+	t.Parallel() // This test involves goroutines and `time.Sleep`
+
+	b, err := CreateMemoryBackend()
+	assert.NoError(t, err)
+	assert.NotNil(t, b)
+	defer b.Destroy()
+
+	err = b.CreateOrUpdateTrials(context.Background(), []*TrialParams{{
+		TrialID: "my-trial",
+		Params:  generateTrialParams(12, 100),
+	}})
+	assert.NoError(t, err)
+
+	samples := make([]*grpcapi.TrialSample, 20)
+	for sampleIdx := range samples {
+		samples[sampleIdx] = generateSample("my-trial", 12, sampleIdx == len(samples)-1)
+	}
+
+	wg := sync.WaitGroup{}
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			sampleIdx := 0
+			observer := make(TrialSampleObserver)
+			go func() {
+				err := b.ObserveSamples(context.Background(), TrialSampleFilter{TrialIDs: []string{"my-trial"}}, observer)
+				assert.NoError(t, err)
+				close(observer)
+			}()
+			for sampleResult := range observer {
+				assert.Equal(t, "my-trial", sampleResult.TrialId)
+				assert.Equal(t, samples[sampleIdx].TickId, sampleResult.TickId)
+				assert.Equal(t, samples[sampleIdx].Timestamp, sampleResult.Timestamp)
+				sampleIdx++
+
+				// Simulating different consumption speed
+				time.Sleep(time.Duration(i) * time.Millisecond)
+			}
+			assert.Equal(t, len(samples), sampleIdx)
+		}(i)
+	}
+
+	for _, sample := range samples {
+		time.Sleep(50 * time.Millisecond)
+		err = b.AddSamples(context.Background(), []*grpcapi.TrialSample{sample})
+		assert.NoError(t, err)
+	}
+	wg.Wait()
 }
