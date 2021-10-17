@@ -51,7 +51,7 @@ func generateSample(trialID string, actorCount int, end bool) *grpcapi.TrialSamp
 }
 
 func TestCreateBackend(t *testing.T) {
-	b, err := CreateMemoryBackend()
+	b, err := CreateMemoryBackend(DefaultMaxSampleSize)
 	assert.NoError(t, err)
 	defer b.Destroy()
 
@@ -59,7 +59,7 @@ func TestCreateBackend(t *testing.T) {
 }
 
 func TestCreateOrUpdateTrials(t *testing.T) {
-	b, err := CreateMemoryBackend()
+	b, err := CreateMemoryBackend(DefaultMaxSampleSize)
 	assert.NoError(t, err)
 	assert.NotNil(t, b)
 	defer b.Destroy()
@@ -128,7 +128,7 @@ func TestCreateOrUpdateTrials(t *testing.T) {
 func TestObserveTrials(t *testing.T) {
 	t.Parallel() // This test involves goroutines and `time.Sleep`
 
-	b, err := CreateMemoryBackend()
+	b, err := CreateMemoryBackend(DefaultMaxSampleSize)
 	assert.NoError(t, err)
 	assert.NotNil(t, b)
 	defer b.Destroy()
@@ -231,7 +231,7 @@ func TestObserveTrials(t *testing.T) {
 }
 
 func TestDeleteTrials(t *testing.T) {
-	b, err := CreateMemoryBackend()
+	b, err := CreateMemoryBackend(DefaultMaxSampleSize)
 	assert.NoError(t, err)
 	assert.NotNil(t, b)
 	defer b.Destroy()
@@ -284,7 +284,7 @@ func TestDeleteTrials(t *testing.T) {
 }
 
 func TestGetTrialParams(t *testing.T) {
-	b, err := CreateMemoryBackend()
+	b, err := CreateMemoryBackend(DefaultMaxSampleSize)
 	assert.NoError(t, err)
 	assert.NotNil(t, b)
 	defer b.Destroy()
@@ -329,7 +329,7 @@ func TestGetTrialParams(t *testing.T) {
 }
 
 func TestAddSamples(t *testing.T) {
-	b, err := CreateMemoryBackend()
+	b, err := CreateMemoryBackend(DefaultMaxSampleSize)
 	assert.NoError(t, err)
 	assert.NotNil(t, b)
 	defer b.Destroy()
@@ -389,7 +389,7 @@ func TestAddSamples(t *testing.T) {
 func TestConcurrentAddAndObserveSamples(t *testing.T) {
 	t.Parallel() // This test involves goroutines and `time.Sleep`
 
-	b, err := CreateMemoryBackend()
+	b, err := CreateMemoryBackend(DefaultMaxSampleSize)
 	assert.NoError(t, err)
 	assert.NotNil(t, b)
 	defer b.Destroy()

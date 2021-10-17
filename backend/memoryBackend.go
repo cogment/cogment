@@ -15,19 +15,26 @@
 package backend
 
 import (
+	"container/list"
 	"context"
 	"errors"
+	"log"
+	"sync"
+	"sync/atomic"
 
 	grpcapi "github.com/cogment/cogment-trial-datastore/grpcapi/cogment/api"
 	"github.com/cogment/cogment-trial-datastore/utils"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/proto"
 )
 
 type trialData struct {
-	params  *grpcapi.TrialParams
-	samples utils.ObservableList
-	userID  string
-	deleted bool
+	params        *grpcapi.TrialParams
+	samples       utils.ObservableList
+	userID        string
+	evListElement *list.Element // Element corresponding to this trial in the eviction list, nil means the trial has be evicted
+	deleted       bool
+	samplesSize   uint32
 }
 
 func createTrialInfo(trialID string, data *trialData) *TrialInfo {
@@ -37,25 +44,42 @@ func createTrialInfo(trialID string, data *trialData) *TrialInfo {
 		State:              grpcapi.TrialState_UNKNOWN,
 		UserID:             data.userID,
 		SamplesCount:       samplesCount,
-		StoredSamplesCount: samplesCount,
+		StoredSamplesCount: 0,
 	}
-	lastSample, hasLastItem := data.samples.Item(samplesCount - 1)
+	if data.evListElement != nil {
+		trialInfo.StoredSamplesCount = samplesCount
+	}
+	lastSerializedSample, hasLastItem := data.samples.Item(samplesCount - 1)
 	if hasLastItem {
-		trialInfo.State = lastSample.(*grpcapi.TrialSample).State
+		lastSample := &grpcapi.TrialSample{}
+		if err := proto.Unmarshal(lastSerializedSample.([]byte), lastSample); err != nil {
+			log.Fatalf("Unexpected deserialization error %v", err)
+		}
+		trialInfo.State = lastSample.State
 	}
 	return trialInfo
 }
 
 type memoryBackend struct {
-	trials   map[string]*trialData
-	trialIDs utils.ObservableList
+	trials         map[string]*trialData
+	trialsEvList   *list.List // trial eviction list, front is recently used, back is least recently used
+	trialsMutex    *sync.Mutex
+	trialIDs       utils.ObservableList
+	samplesSize    uint32
+	maxSamplesSize uint32
 }
 
-// CreateMemoryBackend creates a Backend that will store at most "capacity" samples per trial.
-func CreateMemoryBackend() (Backend, error) {
+var DefaultMaxSampleSize uint32 = 1024 * 1024 * 1024 // 1GB
+
+// CreateMemoryBackend creates a Backend that will store at most "maxSamplesSize" bytes of samples
+func CreateMemoryBackend(maxSamplesSize uint32) (Backend, error) {
 	backend := &memoryBackend{
-		trials:   make(map[string]*trialData),
-		trialIDs: utils.CreateObservableList(),
+		trials:         make(map[string]*trialData),
+		trialsMutex:    &sync.Mutex{},
+		trialIDs:       utils.CreateObservableList(),
+		trialsEvList:   list.New(),
+		samplesSize:    0,
+		maxSamplesSize: uint32(maxSamplesSize),
 	}
 
 	return backend, nil
@@ -66,45 +90,46 @@ func (b *memoryBackend) Destroy() {
 	// Nothing
 }
 
-func (b *memoryBackend) retrieveOrCreateOrUpdateTrials(ctx context.Context, trialIDs []string, create bool) ([]*trialData, error) {
+func (b *memoryBackend) retrieveTrialDatas(trialIDs []string) ([]*trialData, error) {
+	b.trialsMutex.Lock()
+	defer b.trialsMutex.Unlock()
 	reply := []*trialData{}
 	for _, trialID := range trialIDs {
 		if data, exists := b.trials[trialID]; exists {
+			if data.evListElement != nil {
+				b.trialsEvList.MoveToFront(data.evListElement)
+			}
 			reply = append(reply, data)
 		} else {
-			if !create {
-				// Rollback
-				_ = b.DeleteTrials(ctx, trialIDs)
-				return []*trialData{}, &UnknownTrialError{TrialID: trialID}
-			}
-			data := &trialData{
-				params:  nil,
-				userID:  "",
-				samples: utils.CreateObservableList(),
-				deleted: false,
-			}
-			b.trials[trialID] = data
-			b.trialIDs.Append(trialID, false)
-
-			reply = append(reply, data)
+			return []*trialData{}, &UnknownTrialError{TrialID: trialID}
 		}
 	}
-
 	return reply, nil
 }
 
 func (b *memoryBackend) CreateOrUpdateTrials(ctx context.Context, trialsParams []*TrialParams) error {
-	trialIDs := make([]string, len(trialsParams))
-	for idx, trialParams := range trialsParams {
-		trialIDs[idx] = trialParams.TrialID
-	}
-	trialDatas, err := b.retrieveOrCreateOrUpdateTrials(ctx, trialIDs, true)
-	if err != nil {
-		return err
-	}
-	for idx, trialParams := range trialsParams {
-		trialDatas[idx].params = trialParams.Params
-		trialDatas[idx].userID = trialParams.UserID
+	b.trialsMutex.Lock()
+	defer b.trialsMutex.Unlock()
+
+	for _, trialParams := range trialsParams {
+		if data, exists := b.trials[trialParams.TrialID]; exists {
+			if data.evListElement != nil {
+				b.trialsEvList.MoveToFront(data.evListElement)
+			}
+			data.params = trialParams.Params
+			data.userID = trialParams.UserID
+		} else {
+			data := &trialData{
+				params:        trialParams.Params,
+				userID:        trialParams.UserID,
+				samples:       utils.CreateObservableList(),
+				evListElement: b.trialsEvList.PushFront(struct{}{}),
+				deleted:       false,
+				samplesSize:   0,
+			}
+			b.trials[trialParams.TrialID] = data
+			b.trialIDs.Append(trialParams.TrialID, false)
+		}
 	}
 	return nil
 }
@@ -141,12 +166,12 @@ func (b *memoryBackend) RetrieveTrials(ctx context.Context, filter []string, fro
 		}
 		trialIDItem, _ := b.trialIDs.Item(trialIdx)
 		trialID := trialIDItem.(string)
-		data := b.trials[trialID]
-		if data.deleted {
+		data, _ := b.retrieveTrialDatas([]string{trialID})
+		if data[0].deleted {
 			continue
 		}
 		if selectedTrialIDs.selects(trialID) {
-			result.TrialInfos = append(result.TrialInfos, createTrialInfo(trialID, data))
+			result.TrialInfos = append(result.TrialInfos, createTrialInfo(trialID, data[0]))
 			result.NextTrialIdx = trialIdx + 1
 		}
 	}
@@ -176,10 +201,10 @@ func (b *memoryBackend) ObserveTrials(ctx context.Context, filter []string, from
 		defer cancel()
 		for trialIDItem := range observer {
 			trialID := trialIDItem.(string)
-			data := b.trials[trialID]
-			if !data.deleted && selectedTrialIDs.selects(trialID) {
+			data, _ := b.retrieveTrialDatas([]string{trialID})
+			if !data[0].deleted && selectedTrialIDs.selects(trialID) {
 				unitResult := TrialsInfoResult{
-					TrialInfos:   []*TrialInfo{createTrialInfo(trialID, data)},
+					TrialInfos:   []*TrialInfo{createTrialInfo(trialID, data[0])},
 					NextTrialIdx: trialIdx + 1,
 				}
 				select {
@@ -205,8 +230,13 @@ func (b *memoryBackend) ObserveTrials(ctx context.Context, filter []string, from
 }
 
 func (b *memoryBackend) DeleteTrials(ctx context.Context, trialIDs []string) error {
+	b.trialsMutex.Lock()
+	defer b.trialsMutex.Unlock()
 	for _, trialID := range trialIDs {
-		if _, exists := b.trials[trialID]; exists {
+		if data, exists := b.trials[trialID]; exists {
+			if data.evListElement != nil {
+				b.trialsEvList.Remove(data.evListElement)
+			}
 			b.trials[trialID] = &trialData{
 				deleted: true,
 			}
@@ -216,7 +246,7 @@ func (b *memoryBackend) DeleteTrials(ctx context.Context, trialIDs []string) err
 }
 
 func (b *memoryBackend) GetTrialParams(ctx context.Context, trialIDs []string) ([]*TrialParams, error) {
-	trialDatas, err := b.retrieveOrCreateOrUpdateTrials(ctx, trialIDs, false)
+	trialDatas, err := b.retrieveTrialDatas(trialIDs)
 	if err != nil {
 		return []*TrialParams{}, err
 	}
@@ -232,19 +262,30 @@ func (b *memoryBackend) AddSamples(ctx context.Context, samples []*grpcapi.Trial
 	for idx, sample := range samples {
 		trialIDs[idx] = sample.TrialId
 	}
-	trialDatas, err := b.retrieveOrCreateOrUpdateTrials(ctx, trialIDs, false)
+	trialDatas, err := b.retrieveTrialDatas(trialIDs)
 	if err != nil {
 		return err
 	}
+	addedSamplesSize := uint32(0)
 	for idx, sample := range samples {
 		t := trialDatas[idx]
-		t.samples.Append(sample, sample.State == grpcapi.TrialState_ENDED)
+		serializedSample, err := proto.Marshal(sample)
+		if err != nil {
+			log.Fatalf("Unexpected serialization error %v", err)
+		}
+		sampleSize := uint32(len(serializedSample))
+		addedSamplesSize += sampleSize
+		t.samplesSize += sampleSize
+		t.samples.Append(serializedSample, sample.State == grpcapi.TrialState_ENDED)
 	}
+
+	atomic.AddUint32(&b.samplesSize, addedSamplesSize)
+	// TODO trigger eviction if needed.
 	return nil
 }
 
 func (b *memoryBackend) ObserveSamples(ctx context.Context, filter TrialSampleFilter, out chan<- *grpcapi.TrialSample) error {
-	trialDatas, err := b.retrieveOrCreateOrUpdateTrials(ctx, filter.TrialIDs, true)
+	trialDatas, err := b.retrieveTrialDatas(filter.TrialIDs)
 	if err != nil {
 		return err
 	}
@@ -267,16 +308,24 @@ func (b *memoryBackend) ObserveSamples(ctx context.Context, filter TrialSampleFi
 		if actorFilter.selectsAll() && fieldsFilter.selectsAll() {
 			// No filtering done on this trial's samples
 			g.Go(func() error {
-				for sample := range observer {
-					out <- sample.(*grpcapi.TrialSample)
+				for serializedSample := range observer {
+					sample := &grpcapi.TrialSample{}
+					if err := proto.Unmarshal(serializedSample.([]byte), sample); err != nil {
+						log.Fatalf("Unexpected deserialization error %v", err)
+					}
+					out <- sample
 				}
 				return nil
 			})
 		} else {
 			// Some filtering done on this trial samples
 			g.Go(func() error {
-				for sample := range observer {
-					filteredSample := filterTrialSample(sample.(*grpcapi.TrialSample), actorFilter, fieldsFilter)
+				for serializedSample := range observer {
+					sample := &grpcapi.TrialSample{}
+					if err := proto.Unmarshal(serializedSample.([]byte), sample); err != nil {
+						log.Fatalf("Unexpected deserialization error %v", err)
+					}
+					filteredSample := filterTrialSample(sample, actorFilter, fieldsFilter)
 					out <- filteredSample
 				}
 				return nil

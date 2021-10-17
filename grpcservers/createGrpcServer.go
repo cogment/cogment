@@ -15,6 +15,8 @@
 package grpcservers
 
 import (
+	"sync"
+
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
 	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
@@ -51,14 +53,19 @@ func offsetLevel(level log.Level, offset int) log.Level {
 	return log.Level(offsetValue)
 }
 
+var replaceInternalGrpcLoggerSingleton sync.Once
+
 func CreateGrpcServer(enableReflection bool) *grpc.Server {
 	globalLogLevel := log.GetLevel()
 
-	// Replacing the internal grpc logger
-	grpcServerLog := log.New()
-	grpcServerLog.SetLevel(offsetLevel(globalLogLevel, -1)) // This is really verbose so we set it one level above the global logger's
-	grpcServerEntry := log.NewEntry(grpcServerLog)
-	grpc_logrus.ReplaceGrpcLogger(grpcServerEntry)
+	replaceInternalGrpcLoggerSingleton.Do(func() {
+		// Replacing the internal grpc logger
+		grpcServerLog := log.New()
+		grpcServerLog.SetLevel(offsetLevel(globalLogLevel, -1)) // This is really verbose so we set it one level above the global logger's
+		grpcServerEntry := log.NewEntry(grpcServerLog)
+		// This should be done only once before any call to `CreateGrpcServer`
+		grpc_logrus.ReplaceGrpcLogger(grpcServerEntry)
+	})
 
 	// Logging calls
 	grpcCallsLog := log.New()

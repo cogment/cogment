@@ -44,7 +44,7 @@ type fixture struct {
 func createFixture() (fixture, error) {
 	listener := bufconn.Listen(1024 * 1024)
 	server := CreateGrpcServer(false)
-	backend, err := backend.CreateMemoryBackend()
+	backend, err := backend.CreateMemoryBackend(backend.DefaultMaxSampleSize)
 	if err != nil {
 		return fixture{}, err
 	}
@@ -139,7 +139,7 @@ func TestListenToTrialConcurrentTrials(t *testing.T) {
 	wg := sync.WaitGroup{}
 	createAndSamplesToTrial := func(trialID string, ticks []uint64, delay time.Duration) {
 		defer wg.Done()
-		err = fxt.backend.CreateOrUpdateTrials(fxt.ctx, []*backend.TrialParams{{TrialID: trialID, UserID: "test", Params: &grpcapi.TrialParams{MaxSteps: 72}}})
+		err := fxt.backend.CreateOrUpdateTrials(fxt.ctx, []*backend.TrialParams{{TrialID: trialID, UserID: "test", Params: &grpcapi.TrialParams{MaxSteps: 72}}})
 		assert.NoError(t, err)
 
 		for tickIdx, tickID := range ticks {
