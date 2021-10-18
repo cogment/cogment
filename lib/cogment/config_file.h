@@ -62,6 +62,7 @@ constexpr const char* p_act_endpoint_key = "endpoint";
 constexpr const char* d_fields_key = "fields";
 constexpr const char* d_fld_exclude_key = "exclude";
 constexpr const char* d_type_key = "type";
+constexpr const char* d_url_key = "url";
 constexpr const char* d_endpoint_key = "endpoint";
 
 }  // namespace cfg_file

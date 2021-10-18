@@ -284,11 +284,21 @@ int main(int argc, const char* argv[]) {
     }
     else if (datalog_type == "grpc") {
       if (cogment_yaml[cfg_file::datalog_key][cfg_file::d_endpoint_key] == nullptr) {
-        spdlog::error("Datalog config 'endpoint' could not be found (was 'url' in v1).");
+        if (cogment_yaml[cfg_file::datalog_key][cfg_file::d_url_key] == nullptr) {
+        spdlog::error("Datalog config 'endpoint' could not be found.");
         return 1;
+        }
+        else {
+          spdlog::warn("Datalog config 'url' is deprecated.  Use 'endpoint'.");
+          auto url = cogment_yaml[cfg_file::datalog_key][cfg_file::d_url_key].as<std::string>();
+          url.insert(0, "grpc://");
+          orchestrator.set_log_exporter(url);
+        }
       }
-      auto url = cogment_yaml[cfg_file::datalog_key][cfg_file::d_endpoint_key].as<std::string>();
-      orchestrator.set_log_exporter(url);
+      else {
+        auto url = cogment_yaml[cfg_file::datalog_key][cfg_file::d_endpoint_key].as<std::string>();
+        orchestrator.set_log_exporter(url);
+      }
     }
     else {
       spdlog::error("Invalid datalog specification [{}]", datalog_type);
