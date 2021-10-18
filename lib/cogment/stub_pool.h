@@ -95,7 +95,7 @@ public:
 
   std::shared_ptr<Entry> get_stub_entry(const std::string& url) {
     if (url.find("grpc://") != 0) {
-      throw MakeException("Bad grpc url: [%s]", url.c_str());
+      throw MakeException("Bad grpc url (must start with 'grpc://'): [%s]", url.c_str());
     }
     std::lock_guard l(m_mtx);
 

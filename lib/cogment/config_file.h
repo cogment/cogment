@@ -47,13 +47,12 @@ constexpr const char* ac_action_key = "action";
 constexpr const char* ac_act_space_key = "space";
 constexpr const char* ac_observation_key = "observation";
 constexpr const char* ac_obs_space_key = "space";
-constexpr const char* ac_obs_delta_key = "delta";
-constexpr const char* ac_obs_delta_fn_key = "delta_apply_fn";
 constexpr const char* ac_config_type_key = "config_type";
 
 // params
 constexpr const char* p_trial_config_key = "trial_config";
 constexpr const char* p_environment_key = "environment";
+constexpr const char* p_env_name_key = "name";
 constexpr const char* p_env_endpoint_key = "endpoint";
 constexpr const char* p_env_config_key = "config";
 constexpr const char* p_actors_key = "actors";
@@ -66,7 +65,7 @@ constexpr const char* p_act_config_key = "config";
 constexpr const char* d_fields_key = "fields";
 constexpr const char* d_fld_exclude_key = "exclude";
 constexpr const char* d_type_key = "type";
-constexpr const char* d_url_key = "url";
+constexpr const char* d_endpoint_key = "endpoint";
 
 }  // namespace cfg_file
 }  // namespace cogment

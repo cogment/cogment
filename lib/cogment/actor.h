@@ -57,7 +57,7 @@ public:
   const std::optional<std::string>& config() const { return m_config_data; }
 
   void add_immediate_reward_src(const cogmentAPI::RewardSource& source, const std::string& sender, uint64_t tick_id);
-  void add_immediate_message(const cogmentAPI::Message& message, const std::string& source, uint64_t tick_id);
+  void send_message(const cogmentAPI::Message& message, const std::string& source, uint64_t tick_id);
 
   void dispatch_tick(cogmentAPI::Observation&& obs, bool final_tick);
 
@@ -77,9 +77,7 @@ private:
   std::optional<std::string> m_config_data;
 
   std::mutex m_lock;
-
   RewAccumulator m_reward_accumulator;
-  std::vector<cogmentAPI::Message> m_message_accumulator;
 
   bool m_last_sent;
   std::promise<void> m_last_ack_prom;
@@ -91,9 +89,6 @@ struct ActorClass {
 
   const google::protobuf::Message* observation_space_prototype = nullptr;
   std::vector<const google::protobuf::FieldDescriptor*> cleared_observation_fields;
-
-  const google::protobuf::Message* observation_delta_prototype = nullptr;
-  std::vector<const google::protobuf::FieldDescriptor*> cleared_delta_fields;
 
   const google::protobuf::Message* action_space_prototype = nullptr;
   std::vector<const google::protobuf::FieldDescriptor*> cleared_action_fields;

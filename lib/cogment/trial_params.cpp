@@ -94,7 +94,6 @@ cogmentAPI::TrialParams load_params(const YAML::Node& yaml, const Trial_spec& sp
 
     auto json_params = yaml_to_json(yaml_params);
     auto status = google::protobuf::util::JsonStringToMessage(json_params, &result);
-
     if (!status.ok()) {
       spdlog::error("Problematic parameters: {}", json_params);
       spdlog::debug("Problematic message type: {}", result.descriptor()->DebugString());

@@ -126,40 +126,6 @@ Trial_spec::Trial_spec(const YAML::Node& root) {
         }
       }
     }
-    if (a_class[cfg_file::ac_observation_key][cfg_file::ac_obs_delta_key] != nullptr) {
-      auto delta = a_class[cfg_file::ac_observation_key][cfg_file::ac_obs_delta_key].as<std::string>();
-      const auto* observation_delta = m_importer->pool()->FindMessageTypeByName(delta);
-      if (observation_delta == nullptr) {
-        throw MakeException("Init failure (5): Failed to lookup message type [%s]", delta.c_str());
-      }
-
-      actor_class.observation_delta_prototype = m_message_factory->GetPrototype(observation_delta);
-      if (root[cfg_file::datalog_key] != nullptr && root[cfg_file::datalog_key][cfg_file::d_fields_key] != nullptr &&
-          root[cfg_file::datalog_key][cfg_file::d_fields_key][cfg_file::d_fld_exclude_key] != nullptr) {
-        for (const auto& f : root[cfg_file::datalog_key][cfg_file::d_fields_key][cfg_file::d_fld_exclude_key]) {
-          auto field_name = f.as<std::string>();
-          if (field_name.find(observation_delta->full_name()) == 0 &&
-              field_name.size() > observation_delta->full_name().size() &&
-              field_name[observation_delta->full_name().size()] == '.') {
-            field_name = field_name.substr(observation_delta->full_name().size() + 1);
-          }
-          else {
-            continue;
-          }
-
-          const auto* x = observation_delta->FindFieldByName(field_name);
-          if (x != nullptr) {
-            actor_class.cleared_delta_fields.push_back(x);
-          }
-        }
-      }
-    }
-    else {
-      actor_class.observation_delta_prototype = actor_class.observation_space_prototype;
-      actor_class.cleared_delta_fields = actor_class.cleared_observation_fields;
-    }
-
-    spdlog::debug("Clearing {} delta fields", actor_class.cleared_delta_fields.size());
 
     auto act_space = a_class[cfg_file::ac_action_key][cfg_file::ac_act_space_key].as<std::string>();
     const auto* action_space = m_importer->pool()->FindMessageTypeByName(act_space);

@@ -219,14 +219,16 @@ int main(int argc, const char* argv[]) {
     client_creds = grpc::SslCredentials(client_opt);
   }
 
-  {  // Create a scope so that all local variables created from this
+  int return_value = 0;
+  try {
+    // Create a scope so that all local variables created from this
     // point on get properly destroyed BEFORE the status is updated.
     YAML::Node cogment_yaml;
     try {
       cogment_yaml = YAML::LoadFile(settings::config_file.get());
     }
-    catch (std::exception& e) {
-      spdlog::error("failed to load [{}]: {}", settings::config_file.get(), e.what());
+    catch (const std::exception& exc) {
+      spdlog::error("Failed to load config file [{}]: {}", settings::config_file.get(), exc.what());
       return 1;
     }
 
@@ -282,8 +284,11 @@ int main(int argc, const char* argv[]) {
       orchestrator.set_log_exporter("");
     }
     else if (datalog_type == "grpc") {
-      auto url = cogment_yaml[cfg_file::datalog_key][cfg_file::d_url_key].as<std::string>();
-      url = "grpc://" + url;  // TODO: Remove this to use a standard url format for the datalog in cogment.yaml
+      if (cogment_yaml[cfg_file::datalog_key][cfg_file::d_endpoint_key] == nullptr) {
+        spdlog::error("Datalog config 'endpoint' could not be found (was 'url' in v1).");
+        return 1;
+      }
+      auto url = cogment_yaml[cfg_file::datalog_key][cfg_file::d_endpoint_key].as<std::string>();
       orchestrator.set_log_exporter(url);
     }
     else {
@@ -338,10 +343,18 @@ int main(int argc, const char* argv[]) {
     sigwait(&sig_set, &sig);  // Blocking
     spdlog::info("Shutting down...");
   }
+  catch(const std::exception& exc) {
+    spdlog::error("Exception in Main: [{}]", exc.what());
+    return_value = 1;
+  }
+  catch(...) {
+    spdlog::error("Exception in Main");
+    return_value = 1;
+  }
 
   if (status_file) {
     *status_file << term_status_string << std::flush;
   }
 
-  return 0;
+  return return_value;
 }

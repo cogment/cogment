@@ -101,7 +101,7 @@ Environment::~Environment() {
 
 bool Environment::process_incoming_state(cogmentAPI::CommunicationState in_state, const std::string* details) {
   switch(in_state) {
-    case cogmentAPI::UNKNOWN_COM_STATE:
+    case cogmentAPI::CommunicationState::UNKNOWN_COM_STATE:
       if (details != nullptr) {
         throw MakeException<std::invalid_argument>("Unknown communication state: [%s]", details->c_str());
       } else {
@@ -339,13 +339,13 @@ void Environment::dispatch_actions(cogmentAPI::ActionSet&& set, bool final_tick)
   }
 }
 
-void Environment::dispatch_message(const cogmentAPI::Message& message, const std::string& sender, uint64_t tick_id) {
+void Environment::send_message(const cogmentAPI::Message& message, const std::string& source, uint64_t tick_id) {
   cogmentAPI::EnvRunTrialInput in;
   in.set_state(cogmentAPI::CommunicationState::NORMAL);
   auto msg = in.mutable_message();
   msg->CopyFrom(message);
   msg->set_tick_id(tick_id);
-  msg->set_sender_name(sender);
+  msg->set_sender_name(source);
   msg->set_receiver_name(m_name);  // Because of wildcard destination
 
   write_to_stream(std::move(in));

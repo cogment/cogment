@@ -90,31 +90,26 @@ void Actor::add_immediate_reward_src(const cogmentAPI::RewardSource& source, con
 }
 
 // TODO: Send message immediately
-void Actor::add_immediate_message(const cogmentAPI::Message& message, const std::string& sender, uint64_t tick_id) {
-  const std::lock_guard<std::mutex> lg(m_lock);
-  m_message_accumulator.emplace_back(message);
-  m_message_accumulator.back().set_tick_id(tick_id);
-  m_message_accumulator.back().set_sender_name(sender);
-  m_message_accumulator.back().set_receiver_name(m_actor_name);  // Because of wildcard messages
+void Actor::send_message(const cogmentAPI::Message& message, const std::string& sender, uint64_t tick_id) {
+  cogmentAPI::Message msg(message);
+  msg.set_tick_id(tick_id);
+  msg.set_sender_name(sender);
+  msg.set_receiver_name(m_actor_name);  // Because of possible wildcards in message receiver
+
+  dispatch_message(std::move(msg));
 }
 
 void Actor::dispatch_tick(cogmentAPI::Observation&& obs, bool final_tick) {
   RewAccumulator reward_acc;
-  std::vector<cogmentAPI::Message> msg_acc;
   {
     const std::lock_guard<std::mutex> lg(m_lock);
     reward_acc.swap(m_reward_accumulator);
-    msg_acc.swap(m_message_accumulator);
   }
 
   try {
     process_rewards(&reward_acc, m_actor_name, [this](cogmentAPI::Reward&& rew) {
       dispatch_reward(std::move(rew));
     });
-
-    for (auto& message : msg_acc) {
-      dispatch_message(std::move(message));
-    }
 
     dispatch_observation(std::move(obs), final_tick);
   }
@@ -128,7 +123,7 @@ void Actor::dispatch_tick(cogmentAPI::Observation&& obs, bool final_tick) {
 
 void Actor::process_incoming_state(cogmentAPI::CommunicationState in_state, const std::string* details) {
   switch(in_state) {
-    case cogmentAPI::UNKNOWN_COM_STATE:
+    case cogmentAPI::CommunicationState::UNKNOWN_COM_STATE:
       if (details != nullptr) {
         throw MakeException<std::invalid_argument>("Unknown communication state: [%s]", details->c_str());
       } else {

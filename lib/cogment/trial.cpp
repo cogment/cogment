@@ -31,11 +31,11 @@
 #include <limits>
 
 namespace cogment {
+const std::string DEFAULT_ENVIRONMENT_NAME("env");
 
 constexpr int64_t AUTO_TICK_ID = -1;     // The actual tick ID will be determined by the Orchestrator
 constexpr int64_t NO_DATA_TICK_ID = -2;  // When we have received no data (different from default/empty data)
 constexpr uint64_t MAX_TICK_ID = static_cast<uint64_t>(std::numeric_limits<int64_t>::max());
-const std::string ENVIRONMENT_NAME("env");
 
 const char* get_trial_state_string(Trial::InternalState state) {
   switch (state) {
@@ -249,7 +249,15 @@ void Trial::prepare_environment() {
     config = m_params.environment().config().content();
   }
 
-  m_env = std::make_unique<Environment>(this, ENVIRONMENT_NAME, m_params.environment().implementation(), stub_entry, config);
+  std::string name;
+  if (!m_params.environment().name().empty()) {
+    name = m_params.environment().name();
+  }
+  else {
+    spdlog::info("Trial [{}] - Environment name set to default [{}]", m_id, DEFAULT_ENVIRONMENT_NAME);
+    name = DEFAULT_ENVIRONMENT_NAME;
+  }
+  m_env = std::make_unique<Environment>(this, name, m_params.environment().implementation(), stub_entry, config);
 }
 
 void Trial::start(cogmentAPI::TrialParams&& params) {
@@ -262,6 +270,22 @@ void Trial::start(cogmentAPI::TrialParams&& params) {
 
   m_params = std::move(params);
   SPDLOG_DEBUG("Trial [{}] - Configuring with parameters: {}", m_id, m_params.DebugString());
+
+  // Naive uniqueness test before we really start the trial
+  std::unordered_set<std::string_view> unique_actors;
+  if (!m_params.environment().name().empty()) {
+    unique_actors.emplace(m_params.environment().name());
+  }
+  else {
+    unique_actors.emplace(DEFAULT_ENVIRONMENT_NAME);
+  }
+  for (const auto& actor_info : m_params.actors()) {
+    auto [itor, inserted] = unique_actors.emplace(actor_info.name());
+    if (!inserted) {
+      throw MakeException("Trial [%s] actors' names are not unique [%s]", m_id.c_str(), actor_info.name().c_str());
+    }
+  }
+  unique_actors.clear();
 
   m_datalog->start(m_id, m_user_id, m_params);
 
@@ -341,7 +365,8 @@ void Trial::reward_received(const cogmentAPI::Reward& reward, const std::string&
   });
 
   if (!valid_name) {
-    spdlog::error("Trial [{}] - Unknown receiver as reward destination [{}]", m_id, reward.receiver_name());
+    spdlog::error("Trial [{}] - Unknown receiver as reward destination [{}] from [{}]", 
+                  m_id, reward.receiver_name(), sender);
   }
 }
 
@@ -368,18 +393,17 @@ void Trial::message_received(const cogmentAPI::Message& message, const std::stri
     return;
   }
 
-  // Message is not dispatched as we receive it. It is accumulated, and sent once
-  // per update.
-  if (message.receiver_name() == ENVIRONMENT_NAME) {
-    m_env->dispatch_message(message, sender, m_tick_id);
+  if (message.receiver_name() == m_env->name()) {
+    m_env->send_message(message, sender, m_tick_id);
   }
   else {
     bool valid_name = for_actors(message.receiver_name(), [this, &message, &sender](auto actor) {
-        actor->add_immediate_message(message, sender, m_tick_id);
+        actor->send_message(message, sender, m_tick_id);
     });
 
     if (!valid_name) {
-      spdlog::error("Trial [{}] - Unknown receiver as message destination [{}]", m_id, message.receiver_name());
+      spdlog::error("Trial [{}] - Unknown receiver as message destination [{}] from [{}]", 
+                    m_id, message.receiver_name(), sender);
     }
   }
 }
@@ -629,7 +653,7 @@ void Trial::terminate(const std::string& details) {
 
   const std::lock_guard<std::shared_mutex> lg(m_terminating_lock);
 
-  // Debatable if we want to let an ongoing ending trial finish, or we want to force it to end still.
+  // Debatable if we want to wait for an ongoing ending trial to finish, or we want to force it to end immediately.
   // The use case of lots of unresponsive actors could be a reason to force a quick end and not wait.
   if (m_state >= InternalState::terminating) {
     if (m_state == InternalState::terminating) {

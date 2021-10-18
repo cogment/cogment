@@ -47,7 +47,7 @@ public:
   bool started() const { return m_start_completed; }
 
   void dispatch_actions(cogmentAPI::ActionSet&& msg, bool final_tick);
-  void dispatch_message(const cogmentAPI::Message& message, const std::string& sender, uint64_t tick_id);
+  void send_message(const cogmentAPI::Message& message, const std::string& source, uint64_t tick_id);
 
 private:
   void send_last();
