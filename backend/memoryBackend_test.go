@@ -437,3 +437,82 @@ func TestConcurrentAddAndObserveSamples(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestTriaEviction(t *testing.T) {
+	// Uncomment to see the log from the trial eviction worker
+	// log.SetLevel(log.DebugLevel)
+	b, err := CreateMemoryBackend(100000) // Should be enough for 2 trials worth of sample data.
+	assert.NoError(t, err)
+	assert.NotNil(t, b)
+	defer b.Destroy()
+
+	// Create trials
+	for _, trialID := range []string{"trial-1", "trial-2", "trial-3"} {
+		err = b.CreateOrUpdateTrials(context.Background(), []*TrialParams{{
+			TrialID: trialID,
+			Params:  generateTrialParams(12, 100),
+		}})
+		assert.NoError(t, err)
+	}
+
+	// Add samples to trial-1
+	trial1SamplesCount := 1000
+	{
+		for i := 0; i < trial1SamplesCount; i++ {
+			err = b.AddSamples(context.Background(), []*grpcapi.TrialSample{generateSample("trial-1", 12, i == trial1SamplesCount-1)})
+			assert.NoError(t, err)
+		}
+
+		time.Sleep(100 * time.Millisecond) // Give time to the trial eviction worker
+
+		r, err := b.RetrieveTrials(context.Background(), []string{"trial-1", "trial-2", "trial-3"}, 0, -1)
+		assert.NoError(t, err)
+		assert.Equal(t, trial1SamplesCount, r.TrialInfos[0].SamplesCount)
+		assert.Equal(t, trial1SamplesCount, r.TrialInfos[0].StoredSamplesCount)
+		assert.Equal(t, 0, r.TrialInfos[1].SamplesCount)
+		assert.Equal(t, 0, r.TrialInfos[1].StoredSamplesCount)
+		assert.Equal(t, 0, r.TrialInfos[2].SamplesCount)
+		assert.Equal(t, 0, r.TrialInfos[2].StoredSamplesCount)
+	}
+
+	// Add samples to trial-2
+	trial2SamplesCount := 1000
+	{
+		for i := 0; i < trial2SamplesCount; i++ {
+			err = b.AddSamples(context.Background(), []*grpcapi.TrialSample{generateSample("trial-2", 12, i == trial2SamplesCount-1)})
+			assert.NoError(t, err)
+		}
+
+		time.Sleep(100 * time.Millisecond) // Give time to the trial eviction worker
+
+		r, err := b.RetrieveTrials(context.Background(), []string{"trial-1", "trial-2", "trial-3"}, 0, -1)
+		assert.NoError(t, err)
+		assert.Equal(t, trial1SamplesCount, r.TrialInfos[0].SamplesCount)
+		assert.Equal(t, trial1SamplesCount, r.TrialInfos[0].StoredSamplesCount)
+		assert.Equal(t, trial2SamplesCount, r.TrialInfos[1].SamplesCount)
+		assert.Equal(t, trial2SamplesCount, r.TrialInfos[1].StoredSamplesCount)
+		assert.Equal(t, 0, r.TrialInfos[2].SamplesCount)
+		assert.Equal(t, 0, r.TrialInfos[2].StoredSamplesCount)
+	}
+
+	// Add samples to trial-3
+	trial3SamplesCount := 1000
+	{
+		for i := 0; i < trial3SamplesCount; i++ {
+			err = b.AddSamples(context.Background(), []*grpcapi.TrialSample{generateSample("trial-3", 12, i == trial3SamplesCount-1)})
+			assert.NoError(t, err)
+		}
+
+		time.Sleep(100 * time.Millisecond) // Give time to the trial eviction worker
+
+		r, err := b.RetrieveTrials(context.Background(), []string{"trial-1", "trial-2", "trial-3"}, 0, -1)
+		assert.NoError(t, err)
+		assert.Equal(t, trial1SamplesCount, r.TrialInfos[0].SamplesCount)
+		assert.Equal(t, 0, r.TrialInfos[0].StoredSamplesCount)
+		assert.Equal(t, trial2SamplesCount, r.TrialInfos[1].SamplesCount)
+		assert.Equal(t, trial2SamplesCount, r.TrialInfos[1].StoredSamplesCount)
+		assert.Equal(t, trial3SamplesCount, r.TrialInfos[2].SamplesCount)
+		assert.Equal(t, trial3SamplesCount, r.TrialInfos[2].StoredSamplesCount)
+	}
+
+}

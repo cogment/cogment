@@ -17,7 +17,8 @@ $ docker run -p 9000:9000 cogment/trial-datastore
 The following environment variables can be used to configure the server:
 
 - `COGMENT_TRIAL_DATASTORE_PORT`: The port to listen on. Defaults to 9000.
-- `COGMENT_TRIAL_DATASTORE_TRIAL_SAMPLE_CAPACITY`: How many samples will be hold in memory per trial. Defaults to 1000.
+- `COGMENT_TRIAL_DATASTORE_LOG_LEVEL`: minimum level for the logger ("trace", "debug", "info", "warn", "error"), defaults to "info".
+- `COGMENT_TRIAL_DATASTORE_MEMORY_STORAGE_MAX_SAMPLE_SIZE`: maximum cumulated size of samples size (in bytes) the memory storage holds before evicting least recently used trials samples, defaults to 1GB.
 - `COGMENT_TRIAL_DATASTORE_GRPC_REFLECTION`: Set to start a [gRPC reflection server](https://github.com/grpc/grpc/blob/master/doc/server-reflection.md). Defaults to `false`.
 
 ## API

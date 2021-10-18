@@ -18,9 +18,11 @@ import (
 	"container/list"
 	"context"
 	"errors"
-	"log"
 	"sync"
 	"sync/atomic"
+	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	grpcapi "github.com/cogment/cogment-trial-datastore/grpcapi/cogment/api"
 	"github.com/cogment/cogment-trial-datastore/utils"
@@ -29,65 +31,140 @@ import (
 )
 
 type trialData struct {
-	params        *grpcapi.TrialParams
-	samples       utils.ObservableList
-	userID        string
-	evListElement *list.Element // Element corresponding to this trial in the eviction list, nil means the trial has be evicted
-	deleted       bool
-	samplesSize   uint32
+	params            *grpcapi.TrialParams
+	userID            string
+	trialState        grpcapi.TrialState
+	samplesCount      int
+	storedSamplesSize uint32
+	storedSamples     utils.ObservableList
+	evListElement     *list.Element // Element corresponding to this trial in the eviction list, nil means the trial has be evicted
+	deleted           bool
 }
 
 func createTrialInfo(trialID string, data *trialData) *TrialInfo {
-	samplesCount := data.samples.Len()
-	trialInfo := &TrialInfo{
+	return &TrialInfo{
 		TrialID:            trialID,
-		State:              grpcapi.TrialState_UNKNOWN,
+		State:              data.trialState,
 		UserID:             data.userID,
-		SamplesCount:       samplesCount,
-		StoredSamplesCount: 0,
+		SamplesCount:       data.samplesCount,
+		StoredSamplesCount: data.storedSamples.Len(),
 	}
-	if data.evListElement != nil {
-		trialInfo.StoredSamplesCount = samplesCount
-	}
-	lastSerializedSample, hasLastItem := data.samples.Item(samplesCount - 1)
-	if hasLastItem {
-		lastSample := &grpcapi.TrialSample{}
-		if err := proto.Unmarshal(lastSerializedSample.([]byte), lastSample); err != nil {
-			log.Fatalf("Unexpected deserialization error %v", err)
-		}
-		trialInfo.State = lastSample.State
-	}
-	return trialInfo
 }
 
 type memoryBackend struct {
-	trials         map[string]*trialData
-	trialsEvList   *list.List // trial eviction list, front is recently used, back is least recently used
-	trialsMutex    *sync.Mutex
-	trialIDs       utils.ObservableList
-	samplesSize    uint32
-	maxSamplesSize uint32
+	trials                map[string]*trialData
+	trialsEvList          *list.List // trial eviction list, front is least recently used, back is recently used
+	trialsMutex           *sync.Mutex
+	trialIDs              utils.ObservableList
+	samplesSize           uint32
+	maxSamplesSize        uint32
+	evictionWorkerTrigger chan struct{}
+	evictionWorkerCancel  context.CancelFunc
 }
 
 var DefaultMaxSampleSize uint32 = 1024 * 1024 * 1024 // 1GB
 
 // CreateMemoryBackend creates a Backend that will store at most "maxSamplesSize" bytes of samples
 func CreateMemoryBackend(maxSamplesSize uint32) (Backend, error) {
+	evictionWorkerContext, evictionWorkerCancel := context.WithCancel(context.Background())
 	backend := &memoryBackend{
-		trials:         make(map[string]*trialData),
-		trialsMutex:    &sync.Mutex{},
-		trialIDs:       utils.CreateObservableList(),
-		trialsEvList:   list.New(),
-		samplesSize:    0,
-		maxSamplesSize: uint32(maxSamplesSize),
+		trials:                make(map[string]*trialData),
+		trialsMutex:           &sync.Mutex{},
+		trialIDs:              utils.CreateObservableList(),
+		trialsEvList:          list.New(),
+		samplesSize:           0,
+		maxSamplesSize:        uint32(maxSamplesSize),
+		evictionWorkerTrigger: make(chan struct{}),
+		evictionWorkerCancel:  evictionWorkerCancel,
 	}
+
+	// Start the eviction worker
+	go backend.evictionWorker(evictionWorkerContext)
 
 	return backend, nil
 }
 
 // Destroy terminates the underlying storage
 func (b *memoryBackend) Destroy() {
-	// Nothing
+	b.evictionWorkerCancel()
+}
+
+func (b *memoryBackend) getSampleSize() uint32 {
+	sampleSize := atomic.LoadUint32(&b.samplesSize)
+	return sampleSize
+}
+
+func (b *memoryBackend) evictLruTrials(ctx context.Context) uint32 {
+	for {
+		doneChannel := make(chan bool)
+		totalReclaimedSampleSize := uint32(0)
+		go func() {
+			if b.getSampleSize() <= b.maxSamplesSize {
+				// Already done
+				doneChannel <- true
+				return
+			}
+			b.trialsMutex.Lock()
+			defer b.trialsMutex.Unlock()
+			front := b.trialsEvList.Front()
+			if front == nil {
+				// No trials
+				doneChannel <- true
+				return
+			}
+			frontTrialID := front.Value.(string)
+			frontData := b.trials[frontTrialID]
+			if !frontData.storedSamples.HasEnded() {
+				// We don't want to evict ongoing trials if the LRU trials is ongoing there's probably nothing to evict
+				doneChannel <- true
+				return
+			}
+			reclaimedSampleSize := frontData.storedSamplesSize
+			totalReclaimedSampleSize += reclaimedSampleSize
+			// Subtract the trial size from the total
+			atomic.AddUint32(&b.samplesSize, ^uint32(reclaimedSampleSize-1))
+			frontData.storedSamples = utils.CreateObservableList()
+			frontData.storedSamplesSize = 0
+			frontData.evListElement = nil
+			b.trialsEvList.Remove(front)
+			doneChannel <- b.getSampleSize() <= b.maxSamplesSize
+		}()
+
+		select {
+		case <-ctx.Done():
+			// Cancelled
+			return totalReclaimedSampleSize
+		case done := <-doneChannel:
+			if done {
+				return totalReclaimedSampleSize
+			}
+		}
+	}
+}
+
+func (b *memoryBackend) evictionWorker(ctx context.Context) {
+	for {
+		doneChannel := make(chan bool)
+		go func() {
+			// Wait until a trial eviction is requested
+			<-b.evictionWorkerTrigger
+			time.Sleep(50 * time.Millisecond) // Wait for further trigger for 50ms
+			for len(b.evictionWorkerTrigger) > 0 {
+				<-b.evictionWorkerTrigger
+			}
+			reclaimedSampleSize := b.evictLruTrials(ctx)
+			log.Debugf("Eviction worker reclaimed %dB from total sample size, now storing %dB of samples", reclaimedSampleSize, b.getSampleSize())
+			doneChannel <- true
+		}()
+
+		select {
+		case <-ctx.Done():
+			// Eviction worker canceled
+			return
+		case <-doneChannel:
+			continue
+		}
+	}
 }
 
 func (b *memoryBackend) retrieveTrialDatas(trialIDs []string) ([]*trialData, error) {
@@ -97,7 +174,7 @@ func (b *memoryBackend) retrieveTrialDatas(trialIDs []string) ([]*trialData, err
 	for _, trialID := range trialIDs {
 		if data, exists := b.trials[trialID]; exists {
 			if data.evListElement != nil {
-				b.trialsEvList.MoveToFront(data.evListElement)
+				b.trialsEvList.MoveToBack(data.evListElement)
 			}
 			reply = append(reply, data)
 		} else {
@@ -114,18 +191,20 @@ func (b *memoryBackend) CreateOrUpdateTrials(ctx context.Context, trialsParams [
 	for _, trialParams := range trialsParams {
 		if data, exists := b.trials[trialParams.TrialID]; exists {
 			if data.evListElement != nil {
-				b.trialsEvList.MoveToFront(data.evListElement)
+				b.trialsEvList.MoveToBack(data.evListElement)
 			}
 			data.params = trialParams.Params
 			data.userID = trialParams.UserID
 		} else {
 			data := &trialData{
-				params:        trialParams.Params,
-				userID:        trialParams.UserID,
-				samples:       utils.CreateObservableList(),
-				evListElement: b.trialsEvList.PushFront(struct{}{}),
-				deleted:       false,
-				samplesSize:   0,
+				params:            trialParams.Params,
+				userID:            trialParams.UserID,
+				trialState:        grpcapi.TrialState_UNKNOWN,
+				samplesCount:      0,
+				storedSamples:     utils.CreateObservableList(),
+				storedSamplesSize: 0,
+				evListElement:     b.trialsEvList.PushFront(trialParams.TrialID),
+				deleted:           false,
 			}
 			b.trials[trialParams.TrialID] = data
 			b.trialIDs.Append(trialParams.TrialID, false)
@@ -237,6 +316,8 @@ func (b *memoryBackend) DeleteTrials(ctx context.Context, trialIDs []string) err
 			if data.evListElement != nil {
 				b.trialsEvList.Remove(data.evListElement)
 			}
+			// Subtract the trial size from the total
+			atomic.AddUint32(&b.samplesSize, ^uint32(data.storedSamplesSize-1))
 			b.trials[trialID] = &trialData{
 				deleted: true,
 			}
@@ -266,7 +347,6 @@ func (b *memoryBackend) AddSamples(ctx context.Context, samples []*grpcapi.Trial
 	if err != nil {
 		return err
 	}
-	addedSamplesSize := uint32(0)
 	for idx, sample := range samples {
 		t := trialDatas[idx]
 		serializedSample, err := proto.Marshal(sample)
@@ -274,13 +354,18 @@ func (b *memoryBackend) AddSamples(ctx context.Context, samples []*grpcapi.Trial
 			log.Fatalf("Unexpected serialization error %v", err)
 		}
 		sampleSize := uint32(len(serializedSample))
-		addedSamplesSize += sampleSize
-		t.samplesSize += sampleSize
-		t.samples.Append(serializedSample, sample.State == grpcapi.TrialState_ENDED)
+		atomic.AddUint32(&b.samplesSize, sampleSize)
+		t.storedSamplesSize += sampleSize
+		t.storedSamples.Append(serializedSample, sample.State == grpcapi.TrialState_ENDED)
+		t.trialState = sample.State
+		t.samplesCount++
 	}
 
-	atomic.AddUint32(&b.samplesSize, addedSamplesSize)
-	// TODO trigger eviction if needed.
+	if b.getSampleSize() > b.maxSamplesSize {
+		go func() {
+			b.evictionWorkerTrigger <- struct{}{}
+		}()
+	}
 	return nil
 }
 
@@ -303,7 +388,7 @@ func (b *memoryBackend) ObserveSamples(ctx context.Context, filter TrialSampleFi
 		observer := make(utils.ObservableListObserver)
 		g.Go(func() error {
 			defer close(observer)
-			return td.samples.Observe(ctx, 0, observer)
+			return td.storedSamples.Observe(ctx, 0, observer)
 		})
 		if actorFilter.selectsAll() && fieldsFilter.selectsAll() {
 			// No filtering done on this trial's samples
