@@ -123,7 +123,6 @@ add_library(orchestrator_lib
   cogment/base64.cpp
   cogment/orchestrator.cpp
   cogment/trial_params.cpp
-  cogment/trial_spec.cpp
   cogment/trial.cpp
   cogment/utils.cpp
   cogment/environment.cpp

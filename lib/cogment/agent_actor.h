@@ -30,7 +30,7 @@ public:
   using StubEntryType = std::shared_ptr<StubPool<cogmentAPI::ServiceActorSP>::Entry>;
   using StreamType = grpc::ClientReaderWriter<cogmentAPI::ActorRunTrialInput, cogmentAPI::ActorRunTrialOutput>;
 
-  ServiceActor(Trial* owner, const std::string& actor_name, const ActorClass* actor_class, const std::string& impl,
+  ServiceActor(Trial* owner, const std::string& actor_name, const std::string& actor_class, const std::string& impl,
         StubEntryType stub_entry, std::optional<std::string> config_data);
 
   ~ServiceActor();

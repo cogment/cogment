@@ -23,7 +23,6 @@
 #include "cogment/stub_pool.h"
 #include "cogment/trial.h"
 #include "cogment/trial_params.h"
-#include "cogment/trial_spec.h"
 #include "cogment/utils.h"
 
 #include <prometheus/registry.h>
@@ -39,7 +38,7 @@ class Orchestrator {
 public:
   using HandlerFunction = std::function<void(const Trial& trial)>;
 
-  Orchestrator(Trial_spec trial_spec, cogmentAPI::TrialParams default_trial_params,
+  Orchestrator(cogmentAPI::TrialParams default_trial_params,
                std::shared_ptr<grpc::ChannelCredentials> creds, prometheus::Registry* metrics_registry);
   ~Orchestrator();
 
@@ -64,8 +63,6 @@ public:
 
   const cogmentAPI::TrialParams& default_trial_params() const { return m_default_trial_params; }
 
-  const Trial_spec& get_trial_spec() const { return m_trial_spec; }
-
   std::shared_future<void> watch_trials(HandlerFunction func);
 
   void notify_watchers(const Trial& trial);
@@ -75,7 +72,6 @@ private:
   cogmentAPI::TrialParams m_perform_pre_hooks(cogmentAPI::TrialParams&& params, const std::string& trial_id, const std::string& user_id);
 
   // Configuration
-  Trial_spec m_trial_spec;
   cogmentAPI::TrialParams m_default_trial_params;
   prometheus::Summary* m_trials_metrics;
   prometheus::Summary* m_ticks_metrics;

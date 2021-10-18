@@ -130,7 +130,7 @@ grpc::Status ClientActor::run_an_actor(std::weak_ptr<Trial> trial_weak, StreamTy
 }
 
 
-ClientActor::ClientActor(Trial* owner, const std::string& actor_name, const ActorClass* actor_class, const std::string& impl,
+ClientActor::ClientActor(Trial* owner, const std::string& actor_name, const std::string& actor_class, const std::string& impl,
                            std::optional<std::string> config_data) :
     Actor(owner, actor_name, actor_class, impl, config_data),
     m_stream(nullptr),
@@ -209,7 +209,7 @@ grpc::Status ClientActor::run(StreamType* stream) {
   init_response.set_state(cogmentAPI::CommunicationState::NORMAL);
   cogmentAPI::ActorInitialInput init_data;
   init_data.set_actor_name(actor_name());
-  init_data.set_actor_class(actor_class()->name);
+  init_data.set_actor_class(actor_class());
   init_data.set_impl_name(impl());
   if (config()) {
     init_data.mutable_config()->set_content(config().value());

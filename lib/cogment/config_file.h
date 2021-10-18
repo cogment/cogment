@@ -50,16 +50,13 @@ constexpr const char* ac_obs_space_key = "space";
 constexpr const char* ac_config_type_key = "config_type";
 
 // params
-constexpr const char* p_trial_config_key = "trial_config";
 constexpr const char* p_environment_key = "environment";
 constexpr const char* p_env_name_key = "name";
 constexpr const char* p_env_endpoint_key = "endpoint";
-constexpr const char* p_env_config_key = "config";
 constexpr const char* p_actors_key = "actors";
 constexpr const char* p_act_name_key = "name";
 constexpr const char* p_act_ac_name_key = "actor_class";
 constexpr const char* p_act_endpoint_key = "endpoint";
-constexpr const char* p_act_config_key = "config";
 
 // datalog
 constexpr const char* d_fields_key = "fields";

@@ -216,14 +216,13 @@ void Trial::flush_samples() {
 void Trial::prepare_actors() {
   for (const auto& actor_info : m_params.actors()) {
     auto url = actor_info.endpoint();
-    const auto& actor_class = m_orchestrator->get_trial_spec().get_actor_class(actor_info.actor_class());
 
     if (url == "client") {
       std::optional<std::string> config;
       if (actor_info.has_config()) {
         config = actor_info.config().content();
       }
-      auto client_actor = std::make_unique<ClientActor>(this, actor_info.name(), &actor_class, actor_info.implementation(), config);
+      auto client_actor = std::make_unique<ClientActor>(this, actor_info.name(), actor_info.actor_class(), actor_info.implementation(), config);
       m_actors.push_back(std::move(client_actor));
     }
     else {
@@ -232,7 +231,7 @@ void Trial::prepare_actors() {
         config = actor_info.config().content();
       }
       auto stub_entry = m_orchestrator->agent_pool()->get_stub_entry(url);
-      auto agent_actor = std::make_unique<ServiceActor>(this, actor_info.name(), &actor_class, actor_info.implementation(),
+      auto agent_actor = std::make_unique<ServiceActor>(this, actor_info.name(), actor_info.actor_class(), actor_info.implementation(),
                                                  stub_entry, config);
       m_actors.push_back(std::move(agent_actor));
     }
@@ -435,7 +434,7 @@ bool Trial::for_actors(const std::string& pattern, const std::function<void(Acto
     if (actor_name == "*") {
       bool at_least_one = false;
       for (const auto& actor : m_actors) {
-        if (actor->actor_class()->name == class_name) {
+        if (actor->actor_class() == class_name) {
           at_least_one = true;
           func(actor.get());
         }
@@ -447,7 +446,7 @@ bool Trial::for_actors(const std::string& pattern, const std::function<void(Acto
     const auto actor_index_itor = m_actor_indexes.find(actor_name);
     if (actor_index_itor != m_actor_indexes.end()) {
       const uint32_t index = actor_index_itor->second;
-      if (m_actors[index]->actor_class()->name == class_name) {
+      if (m_actors[index]->actor_class() == class_name) {
         func(m_actors[index].get());
         return true;
       }
@@ -503,7 +502,6 @@ void Trial::cycle_buffer() {
 }
 
 cogmentAPI::ActionSet Trial::make_action_set() {
-  // TODO: Look into merging data formats so we don't have to copy all actions every time
   cogmentAPI::ActionSet action_set;
   action_set.set_timestamp(Timestamp());
 
@@ -753,7 +751,7 @@ void Trial::actor_acted(const std::string& actor_name, const cogmentAPI::Action&
 
   // TODO: Determine what we want to do in case of actions in the past or future
   if (action.tick_id() != AUTO_TICK_ID && action.tick_id() != static_cast<int64_t>(m_tick_id)) {
-    spdlog::warn("Trial [{}] - Actor [{}] invalid action step: [{}] vs [{}]. Default will be used.", m_id, actor_name, action.tick_id(), m_tick_id);
+    spdlog::warn("Trial [{}] - Actor [{}] invalid action step: [{}] vs [{}]. Default action will be used.", m_id, actor_name, action.tick_id(), m_tick_id);
   }
 
   SPDLOG_TRACE("Trial [{}] - Actor [{}] received action for tick [{}].", m_id, actor_name, m_tick_id);
@@ -809,9 +807,9 @@ ClientActor* Trial::get_join_candidate(const std::string& actor_name, const std:
     auto actor_index = m_actor_indexes.at(actor_name);
     auto& actor = m_actors.at(actor_index);
 
-    if (!actor_class.empty() && actor->actor_class()->name != actor_class) {
+    if (!actor_class.empty() && actor->actor_class() != actor_class) {
       throw MakeException("Trial [%s] - Actor [%s] does not match requested class: [%s] vs [%s]", 
-                          m_id.c_str(), actor_name.c_str(), actor_class.c_str(), actor->actor_class()->name.c_str());
+                          m_id.c_str(), actor_name.c_str(), actor_class.c_str(), actor->actor_class().c_str());
     }
 
     candidate = dynamic_cast<ClientActor*>(actor.get());
@@ -825,7 +823,7 @@ ClientActor* Trial::get_join_candidate(const std::string& actor_name, const std:
   }
   else if (!actor_class.empty()) {
     for (auto& actor : m_actors) {
-      if (!actor->is_active() && actor->actor_class()->name == actor_class) {
+      if (!actor->is_active() && actor->actor_class() == actor_class) {
         auto available_actor = dynamic_cast<ClientActor*>(actor.get());
         if (available_actor != nullptr) {
           candidate = available_actor;
@@ -967,7 +965,7 @@ void Trial::set_info(cogmentAPI::TrialInfo* info, bool with_observations, bool w
   if (with_actors && m_state >= InternalState::pending) {
     for (auto& actor : m_actors) {
       auto trial_actor = info->add_actors_in_trial();
-      trial_actor->set_actor_class(actor->actor_class()->name);
+      trial_actor->set_actor_class(actor->actor_class());
       trial_actor->set_name(actor->actor_name());
     }
   }

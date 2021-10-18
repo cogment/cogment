@@ -255,10 +255,9 @@ int main(int argc, const char* argv[]) {
     }
 
     // ******************* Orchestrator *******************
-    cogment::Trial_spec trial_spec(cogment_yaml);
-    auto params = cogment::load_params(cogment_yaml, trial_spec);
+    auto params = cogment::load_params(cogment_yaml);
 
-    cogment::Orchestrator orchestrator(std::move(trial_spec), std::move(params), client_creds, metrics_registry.get());
+    cogment::Orchestrator orchestrator(std::move(params), client_creds, metrics_registry.get());
 
     // ******************* Networking *******************
     cogment::StubPool<cogmentAPI::TrialHooksSP> hook_stubs(orchestrator.channel_pool());

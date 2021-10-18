@@ -71,7 +71,7 @@ void process_rewards(cogment::Actor::RewAccumulator* rew_acc, const std::string&
 
 namespace cogment {
 
-Actor::Actor(Trial* trial, const std::string& actor_name, const ActorClass* actor_class, const std::string& impl,
+Actor::Actor(Trial* trial, const std::string& actor_name, const std::string& actor_class, const std::string& impl,
                            std::optional<std::string> config_data) :
     m_trial(trial),
     m_actor_name(actor_name),

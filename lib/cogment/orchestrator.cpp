@@ -42,10 +42,9 @@ slt::Setting garbage_collection_frequency = slt::Setting_builder<std::uint32_t>(
 }  // namespace settings
 
 namespace cogment {
-Orchestrator::Orchestrator(Trial_spec trial_spec, cogmentAPI::TrialParams default_trial_params,
+Orchestrator::Orchestrator(cogmentAPI::TrialParams default_trial_params,
                            std::shared_ptr<grpc::ChannelCredentials> creds,
                            prometheus::Registry* metrics_registry) :
-    m_trial_spec(std::move(trial_spec)),
     m_default_trial_params(std::move(default_trial_params)),
     m_channel_pool(creds),
     m_env_stubs(&m_channel_pool),

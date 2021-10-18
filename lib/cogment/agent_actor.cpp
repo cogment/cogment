@@ -23,7 +23,7 @@
 
 namespace cogment {
 
-ServiceActor::ServiceActor(Trial* owner, const std::string& in_actor_name, const ActorClass* actor_class, const std::string& impl,
+ServiceActor::ServiceActor(Trial* owner, const std::string& in_actor_name, const std::string& actor_class, const std::string& impl,
              StubEntryType stub_entry, std::optional<std::string> config_data) :
     Actor(owner, in_actor_name, actor_class, impl, config_data),
     m_stub_entry(std::move(stub_entry)),
@@ -178,7 +178,7 @@ std::future<void> ServiceActor::init() {
 
   cogmentAPI::ActorInitialInput init_input;
   init_input.set_actor_name(actor_name());
-  init_input.set_actor_class(actor_class()->name);
+  init_input.set_actor_class(actor_class());
   init_input.set_impl_name(impl());
   if (config()) {
     init_input.mutable_config()->set_content(config().value());

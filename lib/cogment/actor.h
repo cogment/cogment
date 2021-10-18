@@ -40,7 +40,7 @@ public:
   using SrcAccumulator = std::vector<cogmentAPI::RewardSource>;
   using RewAccumulator = std::map<uint64_t, SrcAccumulator>;
 
-  Actor(Trial* trial, const std::string& actor_name, const ActorClass* actor_class, const std::string& impl,
+  Actor(Trial* trial, const std::string& actor_name, const std::string& actor_class, const std::string& impl,
                            std::optional<std::string> config_data);
   virtual ~Actor();
 
@@ -52,7 +52,7 @@ public:
 
   Trial* trial() const { return m_trial; }
   const std::string& actor_name() const { return m_actor_name; }
-  const ActorClass* actor_class() const { return m_actor_class; }
+  const std::string& actor_class() const { return m_actor_class; }
   const std::string& impl() const { return m_impl; }
   const std::optional<std::string>& config() const { return m_config_data; }
 
@@ -72,7 +72,7 @@ protected:
 private:
   Trial* const m_trial;
   const std::string m_actor_name;
-  const ActorClass* m_actor_class;
+  const std::string m_actor_class;
   const std::string m_impl;
   std::optional<std::string> m_config_data;
 

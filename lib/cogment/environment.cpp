@@ -309,7 +309,7 @@ std::future<cogmentAPI::ObservationSet> Environment::init() {
   for (const auto& actor : m_trial->actors()) {
     auto env_actor = init_data->add_actors_in_trial();
     env_actor->set_name(actor->actor_name());
-    env_actor->set_actor_class(actor->actor_class()->name);
+    env_actor->set_actor_class(actor->actor_class());
   }
 
   write_to_stream(std::move(msg));
