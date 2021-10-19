@@ -72,6 +72,7 @@ public:
   // Trial identification
   const std::string& id() const { return m_id; }
   const std::string& user_id() const { return m_user_id; }
+  const std::string& env_name() const;
 
   ThreadPool& thread_pool();
 

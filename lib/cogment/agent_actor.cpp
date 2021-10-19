@@ -176,14 +176,15 @@ std::future<void> ServiceActor::init() {
   cogmentAPI::ActorRunTrialInput msg;
   msg.set_state(cogmentAPI::CommunicationState::NORMAL);
 
-  cogmentAPI::ActorInitialInput init_input;
-  init_input.set_actor_name(actor_name());
-  init_input.set_actor_class(actor_class());
-  init_input.set_impl_name(impl());
+  cogmentAPI::ActorInitialInput init_data;
+  init_data.set_actor_name(actor_name());
+  init_data.set_actor_class(actor_class());
+  init_data.set_impl_name(impl());
+  init_data.set_env_name(trial()->env_name());
   if (config()) {
-    init_input.mutable_config()->set_content(config().value());
+    init_data.mutable_config()->set_content(config().value());
   }
-  *(msg.mutable_init_input()) = std::move(init_input);
+  *(msg.mutable_init_input()) = std::move(init_data);
   write_to_stream(std::move(msg));
 
   return m_init_prom.get_future();

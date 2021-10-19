@@ -112,6 +112,8 @@ const std::unique_ptr<Actor>& Trial::actor(const std::string& name) const {
   return m_actors[actor_index];
 }
 
+const std::string& Trial::env_name() const { return m_env->name(); }
+
 void Trial::advance_tick() {
   SPDLOG_TRACE("Trial [{}] - Tick [{}] is done", m_id, m_tick_id);
 
@@ -288,8 +290,8 @@ void Trial::start(cogmentAPI::TrialParams&& params) {
 
   m_datalog->start(m_id, m_user_id, m_params);
 
-  prepare_actors();
   prepare_environment();
+  prepare_actors();
 
   make_new_sample();  // First sample
 
@@ -955,6 +957,10 @@ void Trial::set_info(cogmentAPI::TrialInfo* info, bool with_observations, bool w
     return;
   }
 
+  if (m_state >= InternalState::pending) {
+    info->set_env_name(m_env->name());
+  }
+
   // We want to make sure the tick_id and observation are from the same tick
   const uint64_t tick = sample->info().tick_id();
   info->set_tick_id(tick);
@@ -963,6 +969,7 @@ void Trial::set_info(cogmentAPI::TrialInfo* info, bool with_observations, bool w
   }
 
   if (with_actors && m_state >= InternalState::pending) {
+    info->set_env_name(m_env->name());
     for (auto& actor : m_actors) {
       auto trial_actor = info->add_actors_in_trial();
       trial_actor->set_actor_class(actor->actor_class());

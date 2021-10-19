@@ -211,6 +211,7 @@ grpc::Status ClientActor::run(StreamType* stream) {
   init_data.set_actor_name(actor_name());
   init_data.set_actor_class(actor_class());
   init_data.set_impl_name(impl());
+  init_data.set_env_name(trial()->env_name());
   if (config()) {
     init_data.mutable_config()->set_content(config().value());
   }
