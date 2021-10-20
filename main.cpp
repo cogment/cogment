@@ -257,6 +257,35 @@ int main(int argc, const char* argv[]) {
     // ******************* Orchestrator *******************
     auto params = cogment::load_params(cogment_yaml);
 
+    if (cogment_yaml[cfg_file::datalog_key] != nullptr) {
+      if (params.has_datalog()) {
+        spdlog::warn("The datalog settings in 'cogment.yaml' are deprecated. "
+                     "The datalog parameters will be used instead.");
+      }
+      else {
+        spdlog::warn("The datalog settings in 'cogment.yaml' are deprecated. "
+                     "The datalog parameters should be used.");
+
+        auto datalog = params.mutable_datalog();
+        if (cogment_yaml[cfg_file::datalog_key][cfg_file::d_type_key] != nullptr) {
+          datalog->set_type(cogment_yaml[cfg_file::datalog_key][cfg_file::d_type_key].as<std::string>());
+        }
+        else {
+          spdlog::error("Datalog setting 'type' could not be found.");
+          return 1;
+        }
+        if (cogment_yaml[cfg_file::datalog_key][cfg_file::d_url_key] != nullptr) {
+          auto url = cogment_yaml[cfg_file::datalog_key][cfg_file::d_url_key].as<std::string>();
+          url.insert(0, "grpc://");
+          datalog->set_endpoint(url);
+        }
+        else {
+          spdlog::error("Datalog setting 'url' could not be found.");
+          return 1;
+        }
+      }
+    }
+
     cogment::Orchestrator orchestrator(std::move(params), client_creds, metrics_registry.get());
 
     // ******************* Networking *******************
@@ -272,38 +301,6 @@ int main(int argc, const char* argv[]) {
       }
     }
     spdlog::info("[{}] prehooks defined", nb_prehooks);
-
-    std::string datalog_type = "none";
-    if (cogment_yaml[cfg_file::datalog_key] && cogment_yaml[cfg_file::datalog_key][cfg_file::d_type_key]) {
-      datalog_type = cogment_yaml[cfg_file::datalog_key][cfg_file::d_type_key].as<std::string>();
-    }
-
-    std::transform(datalog_type.begin(), datalog_type.end(), datalog_type.begin(), ::tolower);
-    if (datalog_type == "none") {
-      orchestrator.set_log_exporter("");
-    }
-    else if (datalog_type == "grpc") {
-      if (cogment_yaml[cfg_file::datalog_key][cfg_file::d_endpoint_key] == nullptr) {
-        if (cogment_yaml[cfg_file::datalog_key][cfg_file::d_url_key] == nullptr) {
-        spdlog::error("Datalog config 'endpoint' could not be found.");
-        return 1;
-        }
-        else {
-          spdlog::warn("Datalog config 'url' is deprecated.  Use 'endpoint'.");
-          auto url = cogment_yaml[cfg_file::datalog_key][cfg_file::d_url_key].as<std::string>();
-          url.insert(0, "grpc://");
-          orchestrator.set_log_exporter(url);
-        }
-      }
-      else {
-        auto url = cogment_yaml[cfg_file::datalog_key][cfg_file::d_endpoint_key].as<std::string>();
-        orchestrator.set_log_exporter(url);
-      }
-    }
-    else {
-      spdlog::error("Invalid datalog specification [{}]", datalog_type);
-      return 1;
-    }
 
     std::vector<std::unique_ptr<grpc::Server>> servers;
 

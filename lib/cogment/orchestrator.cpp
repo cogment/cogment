@@ -47,9 +47,9 @@ Orchestrator::Orchestrator(cogmentAPI::TrialParams default_trial_params,
                            prometheus::Registry* metrics_registry) :
     m_default_trial_params(std::move(default_trial_params)),
     m_channel_pool(creds),
+    m_log_stubs(&m_channel_pool),
     m_env_stubs(&m_channel_pool),
     m_agent_stubs(&m_channel_pool),
-    m_log_stubs(&m_channel_pool),
     m_actor_service(this),
     m_trial_lifecycle_service(this),
     m_watchtrial_fut(m_watchtrial_prom.get_future()) {
@@ -127,16 +127,7 @@ std::shared_ptr<Trial> Orchestrator::start_trial(cogmentAPI::TrialParams params,
     spdlog::error("Error performing garbage collection of trials");
   }
 
-  // TODO: The whole datalog management needs to be refactored
-  std::unique_ptr<DatalogService> datalog;
-  if (m_log_url.empty()) {
-    datalog.reset(new DatalogServiceNull());
-  }
-  else {
-    auto stub_entry = m_log_stubs.get_stub_entry(m_log_url);
-    datalog.reset(new DatalogServiceImpl(stub_entry));
-  }
-  auto new_trial = std::make_shared<Trial>(this, std::move(datalog), user_id, trial_id_req, Trial::Metrics {m_trials_metrics, m_ticks_metrics});
+  auto new_trial = std::make_shared<Trial>(this, user_id, trial_id_req, Trial::Metrics {m_trials_metrics, m_ticks_metrics});
 
   // Register the trial immediately.
   {

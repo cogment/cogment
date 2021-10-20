@@ -17,11 +17,11 @@
 
 #include "cogment/api/environment.grpc.pb.h"
 #include "cogment/api/orchestrator.pb.h"
-#include "cogment/api/datalog.pb.h"
 
 #include <prometheus/summary.h>
 
 #include "cogment/utils.h"
+#include "cogment/datalog.h"
 
 #include <atomic>
 #include <memory>
@@ -56,7 +56,7 @@ public:
     prometheus::Summary* tick_duration = nullptr;
   };
 
-  Trial(Orchestrator* orch, std::unique_ptr<DatalogService> log, const std::string& user_id, const std::string& id, const Metrics& met);
+  Trial(Orchestrator* orch, const std::string& user_id, const std::string& id, const Metrics& met);
   ~Trial();
 
   Trial(Trial&&) = delete;
@@ -106,8 +106,10 @@ public:
 private:
   void prepare_actors();
   void prepare_environment();
+  void prepare_datalog();
   cogmentAPI::DatalogSample& make_new_sample();
   cogmentAPI::DatalogSample* get_last_sample();
+  void log_sample(cogmentAPI::DatalogSample&& sample);
   void flush_samples();
   void set_state(InternalState state);
   void advance_tick();

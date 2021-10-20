@@ -75,7 +75,7 @@ cogmentAPI::TrialState get_trial_api_state(Trial::InternalState state) {
   throw MakeException<std::out_of_range>("Unknown trial state for api: [%d]", static_cast<int>(state));
 }
 
-Trial::Trial(Orchestrator* orch, std::unique_ptr<DatalogService> log, const std::string& user_id, const std::string& id, const Metrics& met) :
+Trial::Trial(Orchestrator* orch, const std::string& user_id, const std::string& id, const Metrics& met) :
     m_orchestrator(orch),
     m_metrics(met),
     m_tick_start_timestamp(0),
@@ -87,8 +87,7 @@ Trial::Trial(Orchestrator* orch, std::unique_ptr<DatalogService> log, const std:
     m_tick_id(0),
     m_start_timestamp(Timestamp()),
     m_end_timestamp(0),
-    m_gathered_actions_count(0),
-    m_datalog(std::move(log)) {
+    m_gathered_actions_count(0) {
   SPDLOG_TRACE("Trial [{}] - Constructor", m_id);
 
   set_state(InternalState::initializing);
@@ -210,9 +209,44 @@ void Trial::flush_samples() {
   }
 
   for (auto& sample : m_step_data) {
-    m_datalog->add_sample(std::move(sample));
+    log_sample(std::move(sample));
   }
   m_step_data.clear();
+}
+
+// TODO: Clean up, optimize and make it so the warning does not log for EVERY sample
+//       but only once at the start of the trial
+void Trial::log_sample(cogmentAPI::DatalogSample&& sample) {
+  auto& exclude = m_params.datalog().exclude_fields();
+  if (exclude.empty()) {
+    m_datalog->add_sample(std::move(sample));
+  }
+  else {
+    for (auto field : exclude) {
+      std::transform(field.begin(), field.end(), field.begin(), ::tolower);
+
+      if (field == "messages") {
+        sample.clear_messages();
+      }
+      else if (field == "actions") {
+        sample.clear_actions();
+      }
+      else if (field == "observations") {
+        sample.clear_observations();
+      }
+      else if (field == "rewards") {
+        sample.clear_rewards();
+      }
+      else if (field == "info") {
+        sample.clear_info();
+      }
+      else {
+        spdlog::warn("Trial [{}] - Datalog excluded field [{}] is not a sample log field", m_id, field);
+      }
+    }
+    
+    m_datalog->add_sample(std::move(sample));
+  }
 }
 
 void Trial::prepare_actors() {
@@ -261,6 +295,29 @@ void Trial::prepare_environment() {
   m_env = std::make_unique<Environment>(this, name, m_params.environment().implementation(), stub_entry, config);
 }
 
+void Trial::prepare_datalog() {
+  auto type = m_params.datalog().type();
+  std::transform(type.begin(), type.end(), type.begin(), ::tolower);
+
+  if (type.empty() || type == "none") {
+    m_datalog.reset(new DatalogServiceNull());
+  }
+  else {
+    if (type != "grpc") {
+      throw MakeException("Trial [%s] - Parameter Datalog type invalid [%s]", m_id.c_str(), type.c_str());
+    }
+
+    auto& url = m_params.datalog().endpoint();
+    if (url.empty()) {
+      throw MakeException("Trial [%s] - Parameter Datalog endpoint missing for type 'grpc'", m_id.c_str());
+    }
+
+    auto stub_entry = m_orchestrator->log_pool()->get_stub_entry(url);
+    m_datalog.reset(new DatalogServiceImpl(stub_entry));
+  }
+  m_datalog->start(m_id, m_user_id, m_params);
+}
+
 void Trial::start(cogmentAPI::TrialParams&& params) {
   SPDLOG_TRACE("Trial [{}] - Starting", m_id);
 
@@ -288,8 +345,7 @@ void Trial::start(cogmentAPI::TrialParams&& params) {
   }
   unique_actors.clear();
 
-  m_datalog->start(m_id, m_user_id, m_params);
-
+  prepare_datalog();
   prepare_environment();
   prepare_actors();
 
@@ -497,7 +553,7 @@ void Trial::cycle_buffer() {
   // Send overflow to log
   if (m_step_data.size() >= LOG_TRIGGER_SIZE) {
     while (m_step_data.size() >= NB_BUFFERED_SAMPLES) {
-      m_datalog->add_sample(std::move(m_step_data.front()));
+      log_sample(std::move(m_step_data.front()));
       m_step_data.pop_front();
     }
   }

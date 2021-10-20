@@ -16,8 +16,8 @@
 #define COGMENT_ORCHESTRATOR_ORCHESTRATOR_H
 
 #include "cogment/api/hooks.grpc.pb.h"
+#include "cogment/api/datalog.grpc.pb.h"
 #include "cogment/client_actor.h"
-#include "cogment/datalog.h"
 #include "cogment/services/actor_service.h"
 #include "cogment/services/trial_lifecycle_service.h"
 #include "cogment/stub_pool.h"
@@ -47,7 +47,6 @@ public:
   // Initialization
   using HookEntryType = std::shared_ptr<StubPool<cogmentAPI::TrialHooksSP>::Entry>;
   void add_prehook(const HookEntryType& prehook);
-  void set_log_exporter(const std::string& url) { m_log_url = url; }
 
   std::shared_ptr<Trial> start_trial(cogmentAPI::TrialParams params, const std::string& user_id, std::string trial_id_req);
   std::shared_ptr<Trial> get_trial(const std::string& trial_id) const;
@@ -57,6 +56,7 @@ public:
   TrialLifecycleService* trial_lifecycle_service() { return &m_trial_lifecycle_service; }
 
   ChannelPool* channel_pool() { return &m_channel_pool; }
+  StubPool<cogmentAPI::LogExporterSP>* log_pool() { return &m_log_stubs; }
   StubPool<cogmentAPI::EnvironmentSP>* env_pool() { return &m_env_stubs; }
   StubPool<cogmentAPI::ServiceActorSP>* agent_pool() { return &m_agent_stubs; }
   ThreadPool& thread_pool() { return m_thread_pool; }
@@ -84,14 +84,11 @@ private:
   // List of trial pre-hooks to invoke before actually launching trials
   std::vector<HookEntryType> m_prehooks;
 
-  // Send trial data to this destination.
-  std::string m_log_url;
-
   ChannelPool m_channel_pool;
 
+  StubPool<cogmentAPI::LogExporterSP> m_log_stubs;
   StubPool<cogmentAPI::EnvironmentSP> m_env_stubs;
   StubPool<cogmentAPI::ServiceActorSP> m_agent_stubs;
-  StubPool<cogmentAPI::LogExporterSP> m_log_stubs;
 
   ActorService m_actor_service;
   TrialLifecycleService m_trial_lifecycle_service;
