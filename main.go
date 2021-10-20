@@ -22,6 +22,7 @@ import (
 
 	"github.com/cogment/cogment-trial-datastore/backend"
 	"github.com/cogment/cogment-trial-datastore/grpcservers"
+	"github.com/cogment/cogment-trial-datastore/version"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -63,7 +64,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
-	log.WithField("port", port).Info("Cogment Trial Datastore service starts..")
+	log.WithField("port", port).WithField("version", version.Version).Info("Cogment Trial Datastore service starts...\n")
 	err = server.Serve(listener)
 	if err != nil {
 		log.Fatalf("unexpected error while serving grpc services: %v", err)
