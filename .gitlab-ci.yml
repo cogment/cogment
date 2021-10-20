@@ -33,6 +33,7 @@ stages:
   before_script:
     - apk add bash
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
+    - docker login -u $DOCKER_HUB_USERNAME -p $DOCKER_HUB_TOKEN
 
 .base_gh_ssh_agent:
   before_script:
