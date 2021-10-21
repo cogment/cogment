@@ -250,8 +250,16 @@ void Trial::log_sample(cogmentAPI::DatalogSample&& sample) {
 }
 
 void Trial::prepare_actors() {
+  if (m_params.actors().empty()) {
+    throw MakeException("No Actor defined in parameters");
+  }
+
   for (const auto& actor_info : m_params.actors()) {
     auto url = actor_info.endpoint();
+
+    if (url.empty() || actor_info.name().empty() || actor_info.actor_class().empty()) {
+      throw MakeException("Actor not fully defined in parameters");
+    }
 
     if (url == "client") {
       std::optional<std::string> config;
@@ -277,6 +285,10 @@ void Trial::prepare_actors() {
 }
 
 void Trial::prepare_environment() {
+  if (m_params.environment().endpoint().empty()) {
+    throw MakeException("No environment endpoint provided in parameters");
+  }
+
   auto stub_entry = m_orchestrator->env_pool()->get_stub_entry(m_params.environment().endpoint());
 
   std::optional<std::string> config;

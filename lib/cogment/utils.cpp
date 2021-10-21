@@ -33,6 +33,29 @@ uint64_t Timestamp() {
   return (ts.tv_sec * NANOS + ts.tv_nsec);
 }
 
+#endif
+
+// Ignores (i.e. not added to vector) the last empty string
+std::vector<std::string> split(const std::string& in, char separator) {
+  std::vector<std::string> result;
+
+  size_t first = 0;
+  for (size_t pos = 0 ; pos < in.size() ; pos++) {
+    if (in[pos] != separator) {
+      continue;
+    }
+
+    result.emplace_back(in.substr(first, pos - first));
+    first = pos + 1;
+  }
+
+  if (first < in.size()) {
+    result.emplace_back(in.substr(first));
+  }
+
+  return result;
+}
+
 grpc::Status MakeErrorStatus(const char* format, ...) {
   static constexpr std::size_t BUF_SIZE = 256;
 
@@ -141,5 +164,3 @@ std::shared_ptr<ThreadPool::ThreadControl>& ThreadPool::add_thread() {
   spdlog::debug("Nb of threads in pool: [{}]", m_thread_controls.size());
   return thr_control;
 }
-
-#endif

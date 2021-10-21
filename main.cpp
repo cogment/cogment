@@ -21,6 +21,7 @@
 #include "cogment/config_file.h"
 #include "cogment/orchestrator.h"
 #include "cogment/stub_pool.h"
+#include "cogment/utils.h"
 #include "cogment/versions.h"
 
 namespace cfg_file = cogment::cfg_file;
@@ -41,37 +42,63 @@ namespace cfg_file = cogment::cfg_file;
 #include <unistd.h>    // STDERR_FINLENO
 
 namespace settings {
+slt::Setting deprecated_lifecycle_port = slt::Setting_builder<std::string>()
+                                  .with_default("")
+                                  .with_description("DEPRECATED")
+                                  .with_env_variable("TRIAL_LIFECYCLE_PORT");
+
 slt::Setting lifecycle_port = slt::Setting_builder<std::uint16_t>()
                                   .with_default(9000)
                                   .with_description("The port to listen for trial lifecycle on")
-                                  .with_env_variable("TRIAL_LIFECYCLE_PORT")
+                                  .with_env_variable("COGMENT_LIFECYCLE_PORT")
                                   .with_arg("lifecycle_port");
+
+slt::Setting deprecated_actor_port = slt::Setting_builder<std::string>()
+                              .with_default("")
+                              .with_description("DEPRECATED")
+                              .with_env_variable("TRIAL_ACTOR_PORT");
 
 slt::Setting actor_port = slt::Setting_builder<std::uint16_t>()
                               .with_default(9000)
                               .with_description("The port to listen for trial actors on")
-                              .with_env_variable("TRIAL_ACTOR_PORT")
+                              .with_env_variable("COGMENT_ACTOR_PORT")
                               .with_arg("actor_port");
 
-slt::Setting config_file = slt::Setting_builder<std::string>()
-                               .with_default("cogment.yaml")
-                               .with_description("The trial configuration file")
+slt::Setting deprecated_config_file = slt::Setting_builder<std::string>()
+                               .with_default("")
+                               .with_description("DEPRECATED")
                                .with_arg("config");
+
+slt::Setting default_params_file = slt::Setting_builder<std::string>()
+                               .with_default("")
+                               .with_description("Default trial parameters file name")
+                               .with_arg("params");
+
+slt::Setting pre_trial_hooks = slt::Setting_builder<std::string>()
+                                   .with_default("")
+                                   .with_description("Pre-trial hook gRPC endpoints, separated by a comma")
+                                   .with_env_variable("COGMENT_PRE_TRIAL_HOOKS")
+                                   .with_arg("pre_trial_hooks");
+
+slt::Setting deprecated_prometheus_port = slt::Setting_builder<std::string>()
+                                   .with_default("")
+                                   .with_description("DEPRECATED")
+                                   .with_env_variable("PROMETHEUS_PORT");
 
 slt::Setting prometheus_port = slt::Setting_builder<std::uint16_t>()
                                    .with_default(0)
                                    .with_description("The port to broadcast prometheus metrics on")
-                                   .with_env_variable("PROMETHEUS_PORT")
+                                   .with_env_variable("COGMENT_PROMETHEUS_PORT")
                                    .with_arg("prometheus_port");
 
 slt::Setting display_version = slt::Setting_builder<bool>()
                                    .with_default(false)
-                                   .with_description("Display the orchestrator's version and quit")
+                                   .with_description("Display the Orchestrator's version and quit")
                                    .with_arg("version");
 
 slt::Setting status_file = slt::Setting_builder<std::string>()
                                .with_default("")
-                               .with_description("File to store orchestrator status to.")
+                               .with_description("File to store the Orchestrator status to.")
                                .with_arg("status_file");
 
 slt::Setting private_key = slt::Setting_builder<std::string>()
@@ -133,6 +160,12 @@ int main(int argc, const char* argv[]) {
     return 0;
   }
 
+  std::optional<std::ofstream> status_file;
+  if (settings::status_file.get() != "") {
+    status_file = std::ofstream(settings::status_file.get());
+    *status_file << init_status_string << std::flush;
+  }
+
   std::string log_filename = settings::log_file.get();
   if (!log_filename.empty()) {
     std::cout << "Daily log base filename: \"" << log_filename << "\"" << std::endl;
@@ -146,7 +179,7 @@ int main(int argc, const char* argv[]) {
   spdlog::debug("Orchestrator starting with arguments:");
   spdlog::debug("\t--{}={}", settings::lifecycle_port.arg().value_or(""), settings::lifecycle_port.get());
   spdlog::debug("\t--{}={}", settings::actor_port.arg().value_or(""), settings::actor_port.get());
-  spdlog::debug("\t--{}={}", settings::config_file.arg().value_or(""), settings::config_file.get());
+  spdlog::debug("\t--{}={}", settings::default_params_file.arg().value_or(""), settings::default_params_file.get());
   spdlog::debug("\t--{}={}", settings::prometheus_port.arg().value_or(""), settings::prometheus_port.get());
   spdlog::debug("\t--{}={}", settings::display_version.arg().value_or(""), settings::display_version.get());
   spdlog::debug("\t--{}={}", settings::status_file.arg().value_or(""), settings::status_file.get());
@@ -158,12 +191,6 @@ int main(int argc, const char* argv[]) {
 
   ctx.validate_all();
 
-  std::optional<std::ofstream> status_file;
-
-  if (settings::status_file.get() != "") {
-    status_file = std::ofstream(settings::status_file.get());
-    *status_file << init_status_string << std::flush;
-  }
 
   std::shared_ptr<grpc::ServerCredentials> server_creds;
   std::shared_ptr<grpc::ChannelCredentials> client_creds;
@@ -223,25 +250,30 @@ int main(int argc, const char* argv[]) {
   try {
     // Create a scope so that all local variables created from this
     // point on get properly destroyed BEFORE the status is updated.
-    YAML::Node cogment_yaml;
-    try {
-      cogment_yaml = YAML::LoadFile(settings::config_file.get());
-    }
-    catch (const std::exception& exc) {
-      spdlog::error("Failed to load config file [{}]: {}", settings::config_file.get(), exc.what());
-      return 1;
-    }
 
-    spdlog::info("Cogment Orchestrator [{}]", COGMENT_ORCHESTRATOR_VERSION);
-    spdlog::info("Cogment API [{}]", COGMENT_API_VERSION);
+    spdlog::info("Cogment Orchestrator version [{}]", COGMENT_ORCHESTRATOR_VERSION);
+    spdlog::info("Cogment API version [{}]", COGMENT_API_VERSION);
 
     // ******************* Endpoints *******************
+    if (!settings::deprecated_lifecycle_port.get().empty()) {
+      spdlog::warn("Environment variable [{}] is deprecated.  Use [{}].", 
+        settings::deprecated_lifecycle_port.env_var().value(), settings::lifecycle_port.env_var().value());
+    }
     auto lifecycle_endpoint = std::string("0.0.0.0:") + std::to_string(settings::lifecycle_port.get());
+
+    if (!settings::deprecated_actor_port.get().empty()) {
+      spdlog::warn("Environment variable [{}] is deprecated.  Use [{}].", 
+        settings::deprecated_actor_port.env_var().value(), settings::actor_port.env_var().value());
+    }
     auto actor_endpoint = std::string("0.0.0.0:") + std::to_string(settings::actor_port.get());
 
     // ******************* Monitoring *******************
     std::unique_ptr<prometheus::Exposer> metrics_exposer;
     std::shared_ptr<prometheus::Registry> metrics_registry;
+    if (!settings::deprecated_prometheus_port.get().empty()) {
+      spdlog::warn("Environment variable [{}] is deprecated.  Use [{}].", 
+        settings::deprecated_prometheus_port.env_var().value(), settings::prometheus_port.env_var().value());
+    }
     if (settings::prometheus_port.get() > 0) {
       auto prometheus_endpoint = std::string("0.0.0.0:") + std::to_string(settings::prometheus_port.get());
       spdlog::info("Starting prometheus at [{}]", prometheus_endpoint);
@@ -255,33 +287,47 @@ int main(int argc, const char* argv[]) {
     }
 
     // ******************* Orchestrator *******************
-    auto params = cogment::load_params(cogment_yaml);
-
-    if (cogment_yaml[cfg_file::datalog_key] != nullptr) {
-      if (params.has_datalog()) {
-        spdlog::warn("The datalog settings in 'cogment.yaml' are deprecated. "
-                     "The datalog parameters will be used instead.");
+    YAML::Node params_yaml;
+    bool deprecated_config_file_loaded = false;
+    bool params_file_loaded = false;
+    if (!settings::default_params_file.get().empty()) {
+      try {
+        params_yaml = YAML::LoadFile(settings::default_params_file.get());
+        params_file_loaded = true;
       }
-      else {
-        spdlog::warn("The datalog settings in 'cogment.yaml' are deprecated. "
-                     "The datalog parameters should be used.");
+      catch (const std::exception& exc) {
+        spdlog::error("Failed to load default parameters file [{}]: {}", settings::default_params_file.get(), exc.what());
+        return 1;
+      }
+    }
+    else if (!settings::deprecated_config_file.get().empty()) {
+      spdlog::warn("Config file use is deprecated.");
+      try {
+        params_yaml = YAML::LoadFile(settings::deprecated_config_file.get());
+        deprecated_config_file_loaded = true;
+      }
+      catch (const std::exception& exc) {
+        spdlog::error("Failed to load default deprecated config file [{}]: {}", settings::deprecated_config_file.get(), exc.what());
+        return 1;
+      }
+    }
+    else {
+      spdlog::info("No default parameters.");
+    }
+    auto params = cogment::load_params(params_yaml);
 
+    if (deprecated_config_file_loaded) {
+      if (params_yaml[cfg_file::datalog_key] != nullptr) {
         auto datalog = params.mutable_datalog();
-        if (cogment_yaml[cfg_file::datalog_key][cfg_file::d_type_key] != nullptr) {
-          datalog->set_type(cogment_yaml[cfg_file::datalog_key][cfg_file::d_type_key].as<std::string>());
+
+        if (params_yaml[cfg_file::datalog_key][cfg_file::d_type_key] != nullptr) {
+          datalog->set_type(params_yaml[cfg_file::datalog_key][cfg_file::d_type_key].as<std::string>());
         }
-        else {
-          spdlog::error("Datalog setting 'type' could not be found.");
-          return 1;
-        }
-        if (cogment_yaml[cfg_file::datalog_key][cfg_file::d_url_key] != nullptr) {
-          auto url = cogment_yaml[cfg_file::datalog_key][cfg_file::d_url_key].as<std::string>();
+
+        if (params_yaml[cfg_file::datalog_key][cfg_file::d_url_key] != nullptr) {
+          auto url = params_yaml[cfg_file::datalog_key][cfg_file::d_url_key].as<std::string>();
           url.insert(0, "grpc://");
           datalog->set_endpoint(url);
-        }
-        else {
-          spdlog::error("Datalog setting 'url' could not be found.");
-          return 1;
         }
       }
     }
@@ -293,11 +339,30 @@ int main(int argc, const char* argv[]) {
     std::vector<std::shared_ptr<cogment::StubPool<cogmentAPI::TrialHooksSP>::Entry>> hooks;
 
     int nb_prehooks = 0;
-    if (cogment_yaml[cfg_file::trial_key]) {
-      for (auto hook : cogment_yaml[cfg_file::trial_key][cfg_file::t_pre_hooks_key]) {
-        hooks.push_back(hook_stubs.get_stub_entry(hook.as<std::string>()));
+    const auto hooks_urls = split(settings::pre_trial_hooks.get(), ',');
+    if (!hooks_urls.empty()) {
+      if (deprecated_config_file_loaded) {
+        spdlog::warn("Deprecated config file hook definition will be ignored. Using command line or environment variable.");
+      }
+      for (auto& url : hooks_urls) {
+        hooks.push_back(hook_stubs.get_stub_entry(url));
         orchestrator.add_prehook(hooks.back());
         nb_prehooks++;
+      }
+    }
+    else {
+      if (deprecated_config_file_loaded) {
+        for (auto hook : params_yaml[cfg_file::trial_key][cfg_file::t_pre_hooks_key]) {
+          hooks.push_back(hook_stubs.get_stub_entry(hook.as<std::string>()));
+          orchestrator.add_prehook(hooks.back());
+          nb_prehooks++;
+        }
+      }
+      else {
+        if (!params_file_loaded) {
+          spdlog::error("No default parameter file and no hook definition for parameters.");
+          return 1;
+        }
       }
     }
     spdlog::info("[{}] prehooks defined", nb_prehooks);
