@@ -27,7 +27,8 @@ class Trial;
 class DatalogService {
 public:
   virtual ~DatalogService() {}
-  virtual void start(const std::string& trial_id, const std::string& user_id, const cogmentAPI::TrialParams& params) = 0;
+  virtual void start(const std::string& trial_id, const std::string& user_id,
+                     const cogmentAPI::TrialParams& params) = 0;
   virtual void add_sample(cogmentAPI::DatalogSample&& data) = 0;
 };
 
@@ -49,7 +50,8 @@ public:
 
 private:
   StubEntryType m_stub_entry;
-  std::unique_ptr<grpc::ClientReaderWriter<cogmentAPI::LogExporterSampleRequest, cogmentAPI::LogExporterSampleReply>> m_stream;
+  std::unique_ptr<grpc::ClientReaderWriter<cogmentAPI::LogExporterSampleRequest, cogmentAPI::LogExporterSampleReply>>
+      m_stream;
   grpc::ClientContext m_context;
 };
 

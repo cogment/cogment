@@ -146,7 +146,7 @@ void Trial::new_obs(cogmentAPI::ObservationSet&& obs) {
   }
 
   auto sample = get_last_sample();
-  if (sample != nullptr) { 
+  if (sample != nullptr) {
     *(sample->mutable_observations()) = std::move(obs);
   }
   else {
@@ -157,7 +157,7 @@ void Trial::new_obs(cogmentAPI::ObservationSet&& obs) {
 
 void Trial::new_special_event(std::string_view desc) {
   auto sample = get_last_sample();
-  if (sample == nullptr) { 
+  if (sample == nullptr) {
     spdlog::debug("Trial [{}] - No sample for special event [{}]. Trial may have ended.", m_id, desc);
     return;
   }
@@ -244,7 +244,7 @@ void Trial::log_sample(cogmentAPI::DatalogSample&& sample) {
         spdlog::warn("Trial [{}] - Datalog excluded field [{}] is not a sample log field", m_id, field);
       }
     }
-    
+
     m_datalog->add_sample(std::move(sample));
   }
 }
@@ -266,7 +266,8 @@ void Trial::prepare_actors() {
       if (actor_info.has_config()) {
         config = actor_info.config().content();
       }
-      auto client_actor = std::make_unique<ClientActor>(this, actor_info.name(), actor_info.actor_class(), actor_info.implementation(), config);
+      auto client_actor = std::make_unique<ClientActor>(this, actor_info.name(), actor_info.actor_class(),
+                                                        actor_info.implementation(), config);
       m_actors.push_back(std::move(client_actor));
     }
     else {
@@ -275,8 +276,8 @@ void Trial::prepare_actors() {
         config = actor_info.config().content();
       }
       auto stub_entry = m_orchestrator->agent_pool()->get_stub_entry(url);
-      auto agent_actor = std::make_unique<ServiceActor>(this, actor_info.name(), actor_info.actor_class(), actor_info.implementation(),
-                                                 stub_entry, config);
+      auto agent_actor = std::make_unique<ServiceActor>(this, actor_info.name(), actor_info.actor_class(),
+                                                        actor_info.implementation(), stub_entry, config);
       m_actors.push_back(std::move(agent_actor));
     }
 
@@ -375,7 +376,7 @@ void Trial::start(cogmentAPI::TrialParams&& params) {
         actors_ready.push_back(actor->init());
       }
 
-      for (size_t index = 0 ; index < actors_ready.size() ; index++) {
+      for (size_t index = 0; index < actors_ready.size(); index++) {
         SPDLOG_TRACE("Trial [{}] - Waiting on actor [{}]...", self->m_id, self->m_actors[index]->actor_name());
         actors_ready[index].wait();
       }
@@ -390,10 +391,10 @@ void Trial::start(cogmentAPI::TrialParams&& params) {
       // Send the initial state
       self->dispatch_observations(false);
     }
-    catch(const std::exception& exc) {
+    catch (const std::exception& exc) {
       spdlog::error("Trial [{}] - Failed to start [{}]", self->m_id, exc.what());
     }
-    catch(...) {
+    catch (...) {
       spdlog::error("Trial [{}] - Failed to start on unknown exception", self->m_id);
     }
   });
@@ -427,15 +428,15 @@ void Trial::reward_received(const cogmentAPI::Reward& reward, const std::string&
   // Rewards are not dispatched as we receive them. They are accumulated, and sent once
   // per update.
   bool valid_name = for_actors(reward.receiver_name(), [this, &reward, &sender](auto actor) {
-      // Normally we should have only one source when receiving
-      for (const auto& src : reward.sources()) {
-        actor->add_immediate_reward_src(src, sender, m_tick_id);
-      }
+    // Normally we should have only one source when receiving
+    for (const auto& src : reward.sources()) {
+      actor->add_immediate_reward_src(src, sender, m_tick_id);
+    }
   });
 
   if (!valid_name) {
-    spdlog::error("Trial [{}] - Unknown receiver as reward destination [{}] from [{}]", 
-                  m_id, reward.receiver_name(), sender);
+    spdlog::error("Trial [{}] - Unknown receiver as reward destination [{}] from [{}]", m_id, reward.receiver_name(),
+                  sender);
   }
 }
 
@@ -467,12 +468,12 @@ void Trial::message_received(const cogmentAPI::Message& message, const std::stri
   }
   else {
     bool valid_name = for_actors(message.receiver_name(), [this, &message, &sender](auto actor) {
-        actor->send_message(message, sender, m_tick_id);
+      actor->send_message(message, sender, m_tick_id);
     });
 
     if (!valid_name) {
-      spdlog::error("Trial [{}] - Unknown receiver as message destination [{}] from [{}]", 
-                    m_id, message.receiver_name(), sender);
+      spdlog::error("Trial [{}] - Unknown receiver as message destination [{}] from [{}]", m_id,
+                    message.receiver_name(), sender);
     }
   }
 }
@@ -610,22 +611,22 @@ bool Trial::finalize_env() {
     }
 
     auto status = fut.wait_for(timeout);
-    switch(status) {
+    switch (status) {
     case std::future_status::deferred:
-      throw MakeException("Deferred last data"); 
+      throw MakeException("Deferred last data");
     case std::future_status::ready:
       break;
     case std::future_status::timeout:
-      throw MakeException("Last data wait timed out"); 
+      throw MakeException("Last data wait timed out");
     }
 
     dispatch_observations(true);
     return true;
   }
-  catch(const std::exception& exc) {
+  catch (const std::exception& exc) {
     spdlog::error("Trial [{}] - Environment [{}] last ack failed [{}]", m_id, m_env->name(), exc.what());
   }
-  catch(...) {
+  catch (...) {
     spdlog::error("Trial [{}] - Environment [{}] last ack failed", m_id, m_env->name());
   }
 
@@ -644,19 +645,19 @@ void Trial::finalize_actors() {
       }
 
       auto status = fut.wait_for(timeout);
-      switch(status) {
+      switch (status) {
       case std::future_status::deferred:
-        throw MakeException("Deferred last data"); 
+        throw MakeException("Deferred last data");
       case std::future_status::ready:
         break;
       case std::future_status::timeout:
-        throw MakeException("Last data wait timed out"); 
+        throw MakeException("Last data wait timed out");
       }
     }
-    catch(const std::exception& exc) {
+    catch (const std::exception& exc) {
       spdlog::error("Trial [{}] - Actor [{}] last ack failed [{}]", m_id, actor->actor_name(), exc.what());
     }
-    catch(...) {
+    catch (...) {
       spdlog::error("Trial [{}] - Actor [{}] last ack failed", m_id, actor->actor_name());
     }
   }
@@ -699,10 +700,10 @@ void Trial::finish() {
         actor->trial_ended(details);
       }
     }
-    catch(const std::exception& exc) {
+    catch (const std::exception& exc) {
       spdlog::error("Trial [{}] - Component end failed [{}]", self->m_id, exc.what());
     }
-    catch(...) {
+    catch (...) {
       spdlog::error("Trial [{}] - component end failed", self->m_id);
     }
 
@@ -739,7 +740,7 @@ void Trial::terminate(const std::string& details) {
     try {
       m_env->trial_ended(details);
     }
-    catch(...) {
+    catch (...) {
       spdlog::error("Trial [{}] - Environment [{}] termination failed", m_id, m_env->name());
     }
 
@@ -747,14 +748,14 @@ void Trial::terminate(const std::string& details) {
       try {
         actor->trial_ended(details);
       }
-      catch(...) {
+      catch (...) {
         spdlog::error("Trial [{}] - Actor [{}] termination failed", m_id, actor->actor_name());
       }
     }
 
     set_state(InternalState::ended);
   }
-  catch(...) {
+  catch (...) {
     spdlog::error("Trial [{}] - Termination error", m_id);
   }
 }
@@ -768,7 +769,8 @@ void Trial::env_observed(const std::string& env_name, cogmentAPI::ObservationSet
     return;
   }
   if (m_state == InternalState::ended) {
-    spdlog::info("Trial [{}] - Environment [{}] observations arrived after end of trial. Data will be dropped [{}].", m_id, env_name, last);
+    spdlog::info("Trial [{}] - Environment [{}] observations arrived after end of trial. Data will be dropped [{}].",
+                 m_id, env_name, last);
     return;
   }
 
@@ -815,13 +817,15 @@ void Trial::actor_acted(const std::string& actor_name, const cogmentAPI::Action&
   }
   auto sample_action = sample->mutable_actions(actor_index);
   if (sample_action->tick_id() != NO_DATA_TICK_ID) {
-    spdlog::warn("Trial [{}] - Actor [{}] multiple actions received for same step. Only the first one will be used.", m_id, actor_name);
+    spdlog::warn("Trial [{}] - Actor [{}] multiple actions received for same step. Only the first one will be used.",
+                 m_id, actor_name);
     return;
   }
 
   // TODO: Determine what we want to do in case of actions in the past or future
   if (action.tick_id() != AUTO_TICK_ID && action.tick_id() != static_cast<int64_t>(m_tick_id)) {
-    spdlog::warn("Trial [{}] - Actor [{}] invalid action step: [{}] vs [{}]. Default action will be used.", m_id, actor_name, action.tick_id(), m_tick_id);
+    spdlog::warn("Trial [{}] - Actor [{}] invalid action step: [{}] vs [{}]. Default action will be used.", m_id,
+                 actor_name, action.tick_id(), m_tick_id);
   }
 
   SPDLOG_TRACE("Trial [{}] - Actor [{}] received action for tick [{}].", m_id, actor_name, m_tick_id);
@@ -878,8 +882,8 @@ ClientActor* Trial::get_join_candidate(const std::string& actor_name, const std:
     auto& actor = m_actors.at(actor_index);
 
     if (!actor_class.empty() && actor->actor_class() != actor_class) {
-      throw MakeException("Trial [%s] - Actor [%s] does not match requested class: [%s] vs [%s]", 
-                          m_id.c_str(), actor_name.c_str(), actor_class.c_str(), actor->actor_class().c_str());
+      throw MakeException("Trial [%s] - Actor [%s] does not match requested class: [%s] vs [%s]", m_id.c_str(),
+                          actor_name.c_str(), actor_class.c_str(), actor->actor_class().c_str());
     }
 
     candidate = dynamic_cast<ClientActor*>(actor.get());
@@ -907,7 +911,8 @@ ClientActor* Trial::get_join_candidate(const std::string& actor_name, const std:
     }
   }
   else {
-    throw MakeException<std::invalid_argument>("Trial [%s] - Must specify either actor name or actor class", m_id.c_str());
+    throw MakeException<std::invalid_argument>("Trial [%s] - Must specify either actor name or actor class",
+                                               m_id.c_str());
   }
 
   return candidate;

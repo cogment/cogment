@@ -29,7 +29,9 @@ namespace cogment {
 
 ActorService::ActorService(Orchestrator* orch) : m_orchestrator(orch) {}
 
-grpc::Status ActorService::RunTrial(grpc::ServerContext* ctx, grpc::ServerReaderWriter<cogmentAPI::ActorRunTrialInput, cogmentAPI::ActorRunTrialOutput>* stream) {
+grpc::Status ActorService::RunTrial(
+    grpc::ServerContext* ctx,
+    grpc::ServerReaderWriter<cogmentAPI::ActorRunTrialInput, cogmentAPI::ActorRunTrialOutput>* stream) {
   SPDLOG_TRACE("ActorService::RunTrial()");
 
   try {
@@ -46,24 +48,25 @@ grpc::Status ActorService::RunTrial(grpc::ServerContext* ctx, grpc::ServerReader
     trial.reset();
     return ClientActor::run_an_actor(ptr, stream);  // Blocking
   }
-  catch(const std::exception& exc) {
+  catch (const std::exception& exc) {
     return MakeErrorStatus("ActorService::RunTrial failure on exception: %s", exc.what());
   }
-  catch(...) {
+  catch (...) {
     return MakeErrorStatus("ActorService::RunTrial failure on unknown exception");
   }
 }
 
-grpc::Status ActorService::Version(grpc::ServerContext*, const cogmentAPI::VersionRequest*, cogmentAPI::VersionInfo* out) {
+grpc::Status ActorService::Version(grpc::ServerContext*, const cogmentAPI::VersionRequest*,
+                                   cogmentAPI::VersionInfo* out) {
   SPDLOG_TRACE("Version()");
 
   try {
     m_orchestrator->Version(out);
   }
-  catch(const std::exception& exc) {
+  catch (const std::exception& exc) {
     return MakeErrorStatus("Version failure on exception [%s]", exc.what());
   }
-  catch(...) {
+  catch (...) {
     return MakeErrorStatus("Version failure on unknown exception");
   }
 

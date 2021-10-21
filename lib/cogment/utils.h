@@ -50,7 +50,7 @@ EXC MakeException(const char* format, ...) {
     spdlog::error("**Exception generated**: {}", const_buf);
     return EXC(const_buf);
   }
-  catch(...) {
+  catch (...) {
     return EXC("Error creating exception message");
   }
 }
@@ -70,7 +70,7 @@ std::vector<std::string_view> FromMetadata(const Container& metadata, std::strin
   std::vector<std::string_view> result;
 
   auto range = metadata.equal_range(grpc::string_ref(key.data(), key.size()));
-  for (auto itor = range.first ; itor != range.second ; ++itor) {
+  for (auto itor = range.first; itor != range.second; ++itor) {
     result.emplace_back(itor->second.data(), itor->second.size());
   }
 
@@ -117,6 +117,7 @@ private:
 // Minimal thread pool
 class ThreadPool {
   using FUNC_TYPE = std::function<void()>;
+
 public:
   ThreadPool() = default;
   ThreadPool(const ThreadPool&) = delete;

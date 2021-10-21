@@ -34,8 +34,8 @@ public:
   using StubEntryType = std::shared_ptr<StubPool<cogmentAPI::EnvironmentSP>::Entry>;
   using StreamType = grpc::ClientReaderWriter<cogmentAPI::EnvRunTrialInput, cogmentAPI::EnvRunTrialOutput>;
 
-  Environment(Trial* owner, const std::string& name, const std::string& impl,
-        StubEntryType stub_entry, const std::optional<std::string>& config_data);
+  Environment(Trial* owner, const std::string& name, const std::string& impl, StubEntryType stub_entry,
+              const std::optional<std::string>& config_data);
   ~Environment();
 
   std::future<cogmentAPI::ObservationSet> init();
@@ -69,7 +69,8 @@ private:
   std::future<void> m_incoming_thread;
 
   bool m_init_completed;
-  bool m_init_received;;
+  bool m_init_received;
+  ;
   std::promise<cogmentAPI::ObservationSet> m_init_prom;
 
   bool m_last_enabled;

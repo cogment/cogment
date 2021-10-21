@@ -23,8 +23,8 @@
 
 namespace cogment {
 
-ServiceActor::ServiceActor(Trial* owner, const std::string& in_actor_name, const std::string& actor_class, const std::string& impl,
-             StubEntryType stub_entry, std::optional<std::string> config_data) :
+ServiceActor::ServiceActor(Trial* owner, const std::string& in_actor_name, const std::string& actor_class,
+                           const std::string& impl, StubEntryType stub_entry, std::optional<std::string> config_data) :
     Actor(owner, in_actor_name, actor_class, impl, config_data),
     m_stub_entry(std::move(stub_entry)),
     m_stream_valid(false),
@@ -41,19 +41,21 @@ ServiceActor::ServiceActor(Trial* owner, const std::string& in_actor_name, const
   m_incoming_thread = trial()->thread_pool().push("Service actor incoming data", [this]() {
     try {
       cogmentAPI::ActorRunTrialOutput data;
-      while(m_stream->Read(&data)) {
+      while (m_stream->Read(&data)) {
         process_incoming_data(std::move(data));
         if (!m_stream_valid) {
           break;
         }
       }
-      SPDLOG_TRACE("Trial [{}] - Service actor [{}] finished reading stream (valid [{}])", trial()->id(), actor_name(), m_stream_valid);
+      SPDLOG_TRACE("Trial [{}] - Service actor [{}] finished reading stream (valid [{}])", trial()->id(), actor_name(),
+                   m_stream_valid);
     }
     // TODO: Look into a way to cancel the stream immediately here (in case of exception in process_incoming_data)
-    catch(const std::exception& exc) {
-      spdlog::error("Trial [{}] - Service actor [{}]: Error reading stream [{}]", trial()->id(), actor_name(), exc.what());
+    catch (const std::exception& exc) {
+      spdlog::error("Trial [{}] - Service actor [{}]: Error reading stream [{}]", trial()->id(), actor_name(),
+                    exc.what());
     }
-    catch(...) {
+    catch (...) {
       spdlog::error("Trial [{}] - Service actor [{}]: Unknown exception reading stream", trial()->id(), actor_name());
     }
   });
@@ -117,7 +119,8 @@ void ServiceActor::process_incoming_data(cogmentAPI::ActorRunTrialOutput&& data)
       m_init_completed = true;
     }
     else {
-      throw MakeException<std::invalid_argument>("'init_output' received from service actor on non-normal communication");
+      throw MakeException<std::invalid_argument>(
+          "'init_output' received from service actor on non-normal communication");
     }
     SPDLOG_DEBUG("Trial [{}] - Service actor [{}] init complete", trial()->id(), actor_name());
     break;

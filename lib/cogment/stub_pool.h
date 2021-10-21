@@ -77,7 +77,7 @@ public:
   using StubType = typename Service_T::Stub;
 
   // Constructor
-  StubPool(ChannelPool* channel_pool): m_channel_pool(channel_pool) {}
+  StubPool(ChannelPool* channel_pool) : m_channel_pool(channel_pool) {}
 
   class Entry {
   public:

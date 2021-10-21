@@ -30,7 +30,7 @@ bool get_init_data(ClientActor::StreamType* stream, cogmentAPI::ActorInitialOutp
 
   // TODO: Limit the time to wait for init data
   cogmentAPI::ActorRunTrialOutput data;
-  while(stream->Read(&data)) {
+  while (stream->Read(&data)) {
     const auto state = data.state();
     const auto data_case = data.data_case();
 
@@ -76,7 +76,6 @@ bool get_init_data(ClientActor::StreamType* stream, cogmentAPI::ActorInitialOutp
 
 }  // namespace
 
-
 grpc::Status ClientActor::run_an_actor(std::weak_ptr<Trial> trial_weak, StreamType* stream) {
   SPDLOG_TRACE("Client actor run_an_actor");
 
@@ -85,7 +84,7 @@ grpc::Status ClientActor::run_an_actor(std::weak_ptr<Trial> trial_weak, StreamTy
   try {
     valid = get_init_data(stream, &init_data);
   }
-  catch(const std::exception& exc) {
+  catch (const std::exception& exc) {
     auto trial = trial_weak.lock();
     if (trial != nullptr) {
       return MakeErrorStatus("Trial [%s] - Init data failure [%s]", trial->id().c_str(), exc.what());
@@ -95,7 +94,7 @@ grpc::Status ClientActor::run_an_actor(std::weak_ptr<Trial> trial_weak, StreamTy
       throw;
     }
   }
-  catch(...) {
+  catch (...) {
     return MakeErrorStatus("Init data failure");
   }
 
@@ -121,17 +120,16 @@ grpc::Status ClientActor::run_an_actor(std::weak_ptr<Trial> trial_weak, StreamTy
       return grpc::Status::OK;
     }
   }
-  catch(const std::exception& exc) {
+  catch (const std::exception& exc) {
     return MakeErrorStatus("Error while running [%s]", exc.what());
   }
-  catch(...) {
+  catch (...) {
     return MakeErrorStatus("Unknown error while running");
   }
 }
 
-
-ClientActor::ClientActor(Trial* owner, const std::string& actor_name, const std::string& actor_class, const std::string& impl,
-                           std::optional<std::string> config_data) :
+ClientActor::ClientActor(Trial* owner, const std::string& actor_name, const std::string& actor_class,
+                         const std::string& impl, std::optional<std::string> config_data) :
     Actor(owner, actor_name, actor_class, impl, config_data),
     m_stream(nullptr),
     m_stream_valid(false),
@@ -226,28 +224,29 @@ grpc::Status ClientActor::run(StreamType* stream) {
       spdlog::debug("Trial [{}] - Actor [{}] is active", trial()->id(), actor_name());
 
       cogmentAPI::ActorRunTrialOutput data;
-      while(m_stream->Read(&data)) {
+      while (m_stream->Read(&data)) {
         try {
           process_incoming_data(std::move(data));
           if (!m_stream_valid) {
             break;
           }
         }
-        catch(const std::exception& exc) {
+        catch (const std::exception& exc) {
           m_incoming_stream_status = MakeErrorStatus("Trial [%s] - Actor [%s] error processing incoming data [%s]",
-                                                    trial()->id().c_str(), actor_name().c_str(), exc.what());
+                                                     trial()->id().c_str(), actor_name().c_str(), exc.what());
         }
-        catch(...) {
+        catch (...) {
           m_incoming_stream_status = MakeErrorStatus("Trial [%s] - Actor [%s] error processing incoming data",
-                                                    trial()->id().c_str(), actor_name().c_str());
+                                                     trial()->id().c_str(), actor_name().c_str());
         }
       }
-      SPDLOG_TRACE("Trial [{}] - Actor [{}] finished reading stream (valid [{}])", trial()->id(), actor_name(), m_stream_valid);
+      SPDLOG_TRACE("Trial [{}] - Actor [{}] finished reading stream (valid [{}])", trial()->id(), actor_name(),
+                   m_stream_valid);
     }
-    catch(const std::exception& exc) {
+    catch (const std::exception& exc) {
       spdlog::error("Trial [{}] - Actor [{}]: Error reading run stream [{}]", trial()->id(), actor_name(), exc.what());
     }
-    catch(...) {
+    catch (...) {
       spdlog::error("Trial [{}] - Actor [{}]: Error reading run stream", trial()->id(), actor_name());
     }
     finish_stream();
@@ -268,7 +267,8 @@ void ClientActor::finish_stream() {
       m_finished_prom.set_value();
     }
   }
-  catch(...) {}
+  catch (...) {
+  }
 }
 
 void ClientActor::process_incoming_data(cogmentAPI::ActorRunTrialOutput&& data) {

@@ -72,7 +72,7 @@ void process_rewards(cogment::Actor::RewAccumulator* rew_acc, const std::string&
 namespace cogment {
 
 Actor::Actor(Trial* trial, const std::string& actor_name, const std::string& actor_class, const std::string& impl,
-                           std::optional<std::string> config_data) :
+             std::optional<std::string> config_data) :
     m_trial(trial),
     m_actor_name(actor_name),
     m_actor_class(actor_class),
@@ -82,7 +82,8 @@ Actor::Actor(Trial* trial, const std::string& actor_name, const std::string& act
 
 Actor::~Actor() {}
 
-void Actor::add_immediate_reward_src(const cogmentAPI::RewardSource& source, const std::string& sender, uint64_t tick_id) {
+void Actor::add_immediate_reward_src(const cogmentAPI::RewardSource& source, const std::string& sender,
+                                     uint64_t tick_id) {
   const std::lock_guard<std::mutex> lg(m_lock);
   auto& src_acc = m_reward_accumulator[tick_id];
   src_acc.emplace_back(source);
@@ -113,74 +114,87 @@ void Actor::dispatch_tick(cogmentAPI::Observation&& obs, bool final_tick) {
 
     dispatch_observation(std::move(obs), final_tick);
   }
-  catch(const std::exception& exc) {
-    spdlog::error("Trial [{}] - Actor [{}]: Failed to process outgoing data [{}]", m_trial->id(), m_actor_name, exc.what());
+  catch (const std::exception& exc) {
+    spdlog::error("Trial [{}] - Actor [{}]: Failed to process outgoing data [{}]", m_trial->id(), m_actor_name,
+                  exc.what());
   }
-  catch(...) {
+  catch (...) {
     spdlog::error("Trial [{}] - Actor [{}]: Failed to process outgoing data", m_trial->id(), m_actor_name);
   }
 }
 
 void Actor::process_incoming_state(cogmentAPI::CommunicationState in_state, const std::string* details) {
-  switch(in_state) {
-    case cogmentAPI::CommunicationState::UNKNOWN_COM_STATE:
+  switch (in_state) {
+  case cogmentAPI::CommunicationState::UNKNOWN_COM_STATE:
+    if (details != nullptr) {
+      throw MakeException<std::invalid_argument>("Unknown communication state: [%s]", details->c_str());
+    }
+    else {
+      throw MakeException<std::invalid_argument>("Unknown communication state");
+    }
+    break;
+
+  case cogmentAPI::CommunicationState::NORMAL:
+    if (details != nullptr) {
+      spdlog::info("Trial [{}] - Actor [{}] Communication details received [{}]", trial()->id(), actor_name(),
+                   *details);
+    }
+    else {
+      spdlog::warn("Trial [{}] - Actor [{}] No data in normal communication received", trial()->id(), actor_name());
+    }
+    break;
+
+  case cogmentAPI::CommunicationState::HEARTBEAT:
+    SPDLOG_TRACE("Trial [{}] - Actor [{}] 'HEARTBEAT' received", trial()->id(), actor_name());
+    if (details != nullptr) {
+      spdlog::info("Trial [{}] - Actor [{}] Heartbeat requested [{}]", trial()->id(), actor_name(), *details);
+    }
+    // TODO : manage heartbeats
+    break;
+
+  case cogmentAPI::CommunicationState::LAST:
+    if (details != nullptr) {
+      spdlog::error("Trial [{}] - Actor [{}] Unexpected communication state (LAST) received [{}]", trial()->id(),
+                    actor_name(), *details);
+    }
+    else {
+      spdlog::error("Trial [{}] - Actor [{}] Unexpected communication state (LAST) received", trial()->id(),
+                    actor_name());
+    }
+    break;
+
+  case cogmentAPI::CommunicationState::LAST_ACK:
+    SPDLOG_DEBUG("Trial [{}] - Actor [{}] 'LAST_ACK' received", trial()->id(), actor_name());
+    if (!m_last_sent) {
       if (details != nullptr) {
-        throw MakeException<std::invalid_argument>("Unknown communication state: [%s]", details->c_str());
-      } else {
-        throw MakeException<std::invalid_argument>("Unknown communication state");
+        spdlog::error("Trial [{}] - Actor [{}] Unexpected communication state (LAST_ACK) received [{}]", trial()->id(),
+                      actor_name(), *details);
       }
-      break;
-
-    case cogmentAPI::CommunicationState::NORMAL:
-      if (details != nullptr) {
-        spdlog::info("Trial [{}] - Actor [{}] Communication details received [{}]", trial()->id(), actor_name(), *details);
-      } else {
-        spdlog::warn("Trial [{}] - Actor [{}] No data in normal communication received", trial()->id(), actor_name());
+      else {
+        spdlog::error("Trial [{}] - Actor [{}] Unexpected communication state (LAST_ACK) received", trial()->id(),
+                      actor_name());
       }
-      break;
+    }
+    // TODO: Should we accept even if the "LAST" was not sent?
+    //       This could be used to indicate that the actor has finished interacting with the trial.
+    m_last_ack_prom.set_value();
+    break;
 
-    case cogmentAPI::CommunicationState::HEARTBEAT:
-      SPDLOG_TRACE("Trial [{}] - Actor [{}] 'HEARTBEAT' received", trial()->id(), actor_name());
-      if (details != nullptr) {
-        spdlog::info("Trial [{}] - Actor [{}] Heartbeat requested [{}]", trial()->id(), actor_name(), *details);
-      }
-      // TODO : manage heartbeats
-      break;
+  case cogmentAPI::CommunicationState::END:
+    // TODO: Decide what to do about "END" received from actors
+    if (details != nullptr) {
+      spdlog::error("Trial [{}] - Actor [{}] Unexpected communication state (END) received [{}]", trial()->id(),
+                    actor_name(), *details);
+    }
+    else {
+      spdlog::error("Trial [{}] - Actor [{}] Unexpected communication state (END) received", trial()->id(),
+                    actor_name());
+    }
+    break;
 
-    case cogmentAPI::CommunicationState::LAST:
-      if (details != nullptr) {
-        spdlog::error("Trial [{}] - Actor [{}] Unexpected communication state (LAST) received [{}]", trial()->id(), actor_name(), *details);
-      } else {
-        spdlog::error("Trial [{}] - Actor [{}] Unexpected communication state (LAST) received", trial()->id(), actor_name());
-      }
-      break;
-
-    case cogmentAPI::CommunicationState::LAST_ACK:
-      SPDLOG_DEBUG("Trial [{}] - Actor [{}] 'LAST_ACK' received", trial()->id(), actor_name());
-      if (!m_last_sent) {
-        if (details != nullptr) {
-          spdlog::error("Trial [{}] - Actor [{}] Unexpected communication state (LAST_ACK) received [{}]", trial()->id(), actor_name(), *details);
-        } else {
-          spdlog::error("Trial [{}] - Actor [{}] Unexpected communication state (LAST_ACK) received", trial()->id(), actor_name());
-        }
-      }
-      // TODO: Should we accept even if the "LAST" was not sent?
-      //       This could be used to indicate that the actor has finished interacting with the trial.
-      m_last_ack_prom.set_value();
-      break;
-
-    case cogmentAPI::CommunicationState::END:
-      // TODO: Decide what to do about "END" received from actors
-      if (details != nullptr) {
-        spdlog::error("Trial [{}] - Actor [{}] Unexpected communication state (END) received [{}]", trial()->id(), actor_name(), *details);
-      } else {
-        spdlog::error("Trial [{}] - Actor [{}] Unexpected communication state (END) received", trial()->id(), actor_name());
-      }
-      break;
-
-    default:
-      throw MakeException<std::invalid_argument>("Invalid communication state: [%d]", static_cast<int>(in_state));
-      break;
+  default:
+    throw MakeException<std::invalid_argument>("Invalid communication state: [%d]", static_cast<int>(in_state));
+    break;
   }
 }
 

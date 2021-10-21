@@ -43,9 +43,9 @@ namespace cfg_file = cogment::cfg_file;
 
 namespace settings {
 slt::Setting deprecated_lifecycle_port = slt::Setting_builder<std::string>()
-                                  .with_default("")
-                                  .with_description("DEPRECATED")
-                                  .with_env_variable("TRIAL_LIFECYCLE_PORT");
+                                             .with_default("")
+                                             .with_description("DEPRECATED")
+                                             .with_env_variable("TRIAL_LIFECYCLE_PORT");
 
 slt::Setting lifecycle_port = slt::Setting_builder<std::uint16_t>()
                                   .with_default(9000)
@@ -54,9 +54,9 @@ slt::Setting lifecycle_port = slt::Setting_builder<std::uint16_t>()
                                   .with_arg("lifecycle_port");
 
 slt::Setting deprecated_actor_port = slt::Setting_builder<std::string>()
-                              .with_default("")
-                              .with_description("DEPRECATED")
-                              .with_env_variable("TRIAL_ACTOR_PORT");
+                                         .with_default("")
+                                         .with_description("DEPRECATED")
+                                         .with_env_variable("TRIAL_ACTOR_PORT");
 
 slt::Setting actor_port = slt::Setting_builder<std::uint16_t>()
                               .with_default(9000)
@@ -64,15 +64,13 @@ slt::Setting actor_port = slt::Setting_builder<std::uint16_t>()
                               .with_env_variable("COGMENT_ACTOR_PORT")
                               .with_arg("actor_port");
 
-slt::Setting deprecated_config_file = slt::Setting_builder<std::string>()
-                               .with_default("")
-                               .with_description("DEPRECATED")
-                               .with_arg("config");
+slt::Setting deprecated_config_file =
+    slt::Setting_builder<std::string>().with_default("").with_description("DEPRECATED").with_arg("config");
 
 slt::Setting default_params_file = slt::Setting_builder<std::string>()
-                               .with_default("")
-                               .with_description("Default trial parameters file name")
-                               .with_arg("params");
+                                       .with_default("")
+                                       .with_description("Default trial parameters file name")
+                                       .with_arg("params");
 
 slt::Setting pre_trial_hooks = slt::Setting_builder<std::string>()
                                    .with_default("")
@@ -81,9 +79,9 @@ slt::Setting pre_trial_hooks = slt::Setting_builder<std::string>()
                                    .with_arg("pre_trial_hooks");
 
 slt::Setting deprecated_prometheus_port = slt::Setting_builder<std::string>()
-                                   .with_default("")
-                                   .with_description("DEPRECATED")
-                                   .with_env_variable("PROMETHEUS_PORT");
+                                              .with_default("")
+                                              .with_description("DEPRECATED")
+                                              .with_env_variable("PROMETHEUS_PORT");
 
 slt::Setting prometheus_port = slt::Setting_builder<std::uint16_t>()
                                    .with_default(0)
@@ -191,7 +189,6 @@ int main(int argc, const char* argv[]) {
 
   ctx.validate_all();
 
-
   std::shared_ptr<grpc::ServerCredentials> server_creds;
   std::shared_ptr<grpc::ChannelCredentials> client_creds;
   const bool using_ssl = !(settings::private_key.get().empty() && settings::root_cert.get().empty() &&
@@ -256,14 +253,14 @@ int main(int argc, const char* argv[]) {
 
     // ******************* Endpoints *******************
     if (!settings::deprecated_lifecycle_port.get().empty()) {
-      spdlog::warn("Environment variable [{}] is deprecated.  Use [{}].", 
-        settings::deprecated_lifecycle_port.env_var().value(), settings::lifecycle_port.env_var().value());
+      spdlog::warn("Environment variable [{}] is deprecated.  Use [{}].",
+                   settings::deprecated_lifecycle_port.env_var().value(), settings::lifecycle_port.env_var().value());
     }
     auto lifecycle_endpoint = std::string("0.0.0.0:") + std::to_string(settings::lifecycle_port.get());
 
     if (!settings::deprecated_actor_port.get().empty()) {
-      spdlog::warn("Environment variable [{}] is deprecated.  Use [{}].", 
-        settings::deprecated_actor_port.env_var().value(), settings::actor_port.env_var().value());
+      spdlog::warn("Environment variable [{}] is deprecated.  Use [{}].",
+                   settings::deprecated_actor_port.env_var().value(), settings::actor_port.env_var().value());
     }
     auto actor_endpoint = std::string("0.0.0.0:") + std::to_string(settings::actor_port.get());
 
@@ -271,8 +268,8 @@ int main(int argc, const char* argv[]) {
     std::unique_ptr<prometheus::Exposer> metrics_exposer;
     std::shared_ptr<prometheus::Registry> metrics_registry;
     if (!settings::deprecated_prometheus_port.get().empty()) {
-      spdlog::warn("Environment variable [{}] is deprecated.  Use [{}].", 
-        settings::deprecated_prometheus_port.env_var().value(), settings::prometheus_port.env_var().value());
+      spdlog::warn("Environment variable [{}] is deprecated.  Use [{}].",
+                   settings::deprecated_prometheus_port.env_var().value(), settings::prometheus_port.env_var().value());
     }
     if (settings::prometheus_port.get() > 0) {
       auto prometheus_endpoint = std::string("0.0.0.0:") + std::to_string(settings::prometheus_port.get());
@@ -296,7 +293,8 @@ int main(int argc, const char* argv[]) {
         params_file_loaded = true;
       }
       catch (const std::exception& exc) {
-        spdlog::error("Failed to load default parameters file [{}]: {}", settings::default_params_file.get(), exc.what());
+        spdlog::error("Failed to load default parameters file [{}]: {}", settings::default_params_file.get(),
+                      exc.what());
         return 1;
       }
     }
@@ -307,7 +305,8 @@ int main(int argc, const char* argv[]) {
         deprecated_config_file_loaded = true;
       }
       catch (const std::exception& exc) {
-        spdlog::error("Failed to load default deprecated config file [{}]: {}", settings::deprecated_config_file.get(), exc.what());
+        spdlog::error("Failed to load default deprecated config file [{}]: {}", settings::deprecated_config_file.get(),
+                      exc.what());
         return 1;
       }
     }
@@ -342,7 +341,8 @@ int main(int argc, const char* argv[]) {
     const auto hooks_urls = split(settings::pre_trial_hooks.get(), ',');
     if (!hooks_urls.empty()) {
       if (deprecated_config_file_loaded) {
-        spdlog::warn("Deprecated config file hook definition will be ignored. Using command line or environment variable.");
+        spdlog::warn(
+            "Deprecated config file hook definition will be ignored. Using command line or environment variable.");
       }
       for (auto& url : hooks_urls) {
         hooks.push_back(hook_stubs.get_stub_entry(url));
@@ -414,11 +414,11 @@ int main(int argc, const char* argv[]) {
     sigwait(&sig_set, &sig);  // Blocking
     spdlog::info("Shutting down...");
   }
-  catch(const std::exception& exc) {
+  catch (const std::exception& exc) {
     spdlog::error("Exception in Main: [{}]", exc.what());
     return_value = 1;
   }
-  catch(...) {
+  catch (...) {
     spdlog::error("Exception in Main");
     return_value = 1;
   }

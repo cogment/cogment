@@ -41,7 +41,7 @@ public:
   using RewAccumulator = std::map<uint64_t, SrcAccumulator>;
 
   Actor(Trial* trial, const std::string& actor_name, const std::string& actor_class, const std::string& impl,
-                           std::optional<std::string> config_data);
+        std::optional<std::string> config_data);
   virtual ~Actor();
 
   virtual std::future<void> init() = 0;

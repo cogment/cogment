@@ -38,8 +38,8 @@ class Orchestrator {
 public:
   using HandlerFunction = std::function<void(const Trial& trial)>;
 
-  Orchestrator(cogmentAPI::TrialParams default_trial_params,
-               std::shared_ptr<grpc::ChannelCredentials> creds, prometheus::Registry* metrics_registry);
+  Orchestrator(cogmentAPI::TrialParams default_trial_params, std::shared_ptr<grpc::ChannelCredentials> creds,
+               prometheus::Registry* metrics_registry);
   ~Orchestrator();
 
   void Version(cogmentAPI::VersionInfo* out);
@@ -48,7 +48,8 @@ public:
   using HookEntryType = std::shared_ptr<StubPool<cogmentAPI::TrialHooksSP>::Entry>;
   void add_prehook(const HookEntryType& prehook);
 
-  std::shared_ptr<Trial> start_trial(cogmentAPI::TrialParams params, const std::string& user_id, std::string trial_id_req);
+  std::shared_ptr<Trial> start_trial(cogmentAPI::TrialParams params, const std::string& user_id,
+                                     std::string trial_id_req);
   std::shared_ptr<Trial> get_trial(const std::string& trial_id) const;
   std::vector<std::shared_ptr<Trial>> all_trials() const;
 
@@ -69,7 +70,8 @@ public:
 
 private:
   void m_perform_garbage_collection();
-  cogmentAPI::TrialParams m_perform_pre_hooks(cogmentAPI::TrialParams&& params, const std::string& trial_id, const std::string& user_id);
+  cogmentAPI::TrialParams m_perform_pre_hooks(cogmentAPI::TrialParams&& params, const std::string& trial_id,
+                                              const std::string& user_id);
 
   // Configuration
   cogmentAPI::TrialParams m_default_trial_params;
@@ -101,7 +103,7 @@ private:
 
   std::promise<void> m_watchtrial_prom;
   std::shared_future<void> m_watchtrial_fut;
-  
+
   ThreadPool m_thread_pool;
 };
 

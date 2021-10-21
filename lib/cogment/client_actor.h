@@ -31,7 +31,7 @@ public:
   using StreamType = grpc::ServerReaderWriter<cogmentAPI::ActorRunTrialInput, cogmentAPI::ActorRunTrialOutput>;
 
   ClientActor(Trial* owner, const std::string& actor_name, const std::string& actor_class, const std::string& impl,
-               std::optional<std::string> config_data);
+              std::optional<std::string> config_data);
 
   ~ClientActor();
 

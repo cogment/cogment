@@ -40,7 +40,7 @@ std::vector<std::string> split(const std::string& in, char separator) {
   std::vector<std::string> result;
 
   size_t first = 0;
-  for (size_t pos = 0 ; pos < in.size() ; pos++) {
+  for (size_t pos = 0; pos < in.size(); pos++) {
     if (in[pos] != separator) {
       continue;
     }
@@ -70,7 +70,7 @@ grpc::Status MakeErrorStatus(const char* format, ...) {
     spdlog::error("gRPC error returned: {}", const_buf);
     return grpc::Status(grpc::StatusCode::UNKNOWN, const_buf);
   }
-  catch(...) {
+  catch (...) {
     return grpc::Status::CANCELLED;  // Not ideal, but the only predefined status other than OK
   }
 }
@@ -91,21 +91,21 @@ public:
 
     m_running = true;
     m_prom = std::promise<void>();
-    m_description.assign(desc.data(), desc.size()); 
+    m_description.assign(desc.data(), desc.size());
     m_funcs.push(std::move(func));
     return m_prom.get_future();
   }
 
   void run() {
-    while(true) {
+    while (true) {
       auto func = m_funcs.pop();
       try {
         func();
       }
-      catch(const std::exception& exc) {
+      catch (const std::exception& exc) {
         spdlog::error("Threaded function [{}] failed [{}]", m_description, exc.what());
       }
-      catch(...) {
+      catch (...) {
         spdlog::error("Threaded function [{}] failed", m_description);
       }
       m_prom.set_value();
@@ -152,10 +152,10 @@ std::shared_ptr<ThreadPool::ThreadControl>& ThreadPool::add_thread() {
     try {
       thr_control->run();
     }
-    catch(const std::exception& exc) {
+    catch (const std::exception& exc) {
       spdlog::debug("Error in pooled thread [{}]", exc.what());
     }
-    catch(...) {
+    catch (...) {
       spdlog::debug("Error in pooled thread");
     }
     thr_control->cancel();

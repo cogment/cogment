@@ -22,13 +22,12 @@
 #include "cogment/utils.h"
 #include "cogment/config_file.h"
 
-
 #include "spdlog/spdlog.h"
 
 namespace cogment {
 
-Environment::Environment(Trial* owner, const std::string& name, const std::string& impl,
-             StubEntryType stub_entry, const std::optional<std::string>& config_data) :
+Environment::Environment(Trial* owner, const std::string& name, const std::string& impl, StubEntryType stub_entry,
+                         const std::optional<std::string>& config_data) :
     m_stub_entry(std::move(stub_entry)),
     m_stream_valid(false),
     m_trial(owner),
@@ -51,7 +50,7 @@ Environment::Environment(Trial* owner, const std::string& name, const std::strin
   m_incoming_thread = m_trial->thread_pool().push("Environment incoming data", [this]() {
     try {
       cogmentAPI::EnvRunTrialOutput data;
-      while(m_stream->Read(&data)) {
+      while (m_stream->Read(&data)) {
         try {
           if (!process_incoming_data(std::move(data))) {
             break;
@@ -60,22 +59,24 @@ Environment::Environment(Trial* owner, const std::string& name, const std::strin
             break;
           }
         }
-        catch(const std::exception& exc) {
-          spdlog::error("Trial [{}] - Environment [{}]: Failed to process incoming data [{}]", m_trial->id(), m_name, exc.what());
+        catch (const std::exception& exc) {
+          spdlog::error("Trial [{}] - Environment [{}]: Failed to process incoming data [{}]", m_trial->id(), m_name,
+                        exc.what());
           break;
         }
-        catch(...) {
+        catch (...) {
           spdlog::error("Trial [{}] - Environment [{}]: Failed to process incoming data", m_trial->id(), m_name);
           break;
         }
       }
-      SPDLOG_TRACE("Trial [{}] - Environment [{}] finished reading stream (valid [{}])", m_trial->id(), m_name, m_stream_valid);
+      SPDLOG_TRACE("Trial [{}] - Environment [{}] finished reading stream (valid [{}])", m_trial->id(), m_name,
+                   m_stream_valid);
     }
     // TODO: Look into a way to cancel the stream immediately here (in case of exception in process_incoming_data)
-    catch(const std::exception& exc) {
+    catch (const std::exception& exc) {
       spdlog::error("Trial [{}] - Environment [{}]: Error reading stream [{}]", m_trial->id(), m_name, exc.what());
     }
-    catch(...) {
+    catch (...) {
       spdlog::error("Trial [{}] - Environment [{}]: Error reading stream", m_trial->id(), m_name);
     }
   });
@@ -100,78 +101,89 @@ Environment::~Environment() {
 }
 
 bool Environment::process_incoming_state(cogmentAPI::CommunicationState in_state, const std::string* details) {
-  switch(in_state) {
-    case cogmentAPI::CommunicationState::UNKNOWN_COM_STATE:
-      if (details != nullptr) {
-        throw MakeException<std::invalid_argument>("Unknown communication state: [%s]", details->c_str());
-      } else {
-        throw MakeException<std::invalid_argument>("Unknown communication state");
-      }
-      break;
+  switch (in_state) {
+  case cogmentAPI::CommunicationState::UNKNOWN_COM_STATE:
+    if (details != nullptr) {
+      throw MakeException<std::invalid_argument>("Unknown communication state: [%s]", details->c_str());
+    }
+    else {
+      throw MakeException<std::invalid_argument>("Unknown communication state");
+    }
+    break;
 
-    case cogmentAPI::CommunicationState::NORMAL:
-      if (details != nullptr) {
-        spdlog::info("Trial [{}] - Environment [{}] Communication details received [{}]", m_trial->id(), m_name, *details);
-      } else {
-        spdlog::warn("Trial [{}] - Environment [{}] No data in normal communication received", m_trial->id(), m_name);
-      }
-      break;
+  case cogmentAPI::CommunicationState::NORMAL:
+    if (details != nullptr) {
+      spdlog::info("Trial [{}] - Environment [{}] Communication details received [{}]", m_trial->id(), m_name,
+                   *details);
+    }
+    else {
+      spdlog::warn("Trial [{}] - Environment [{}] No data in normal communication received", m_trial->id(), m_name);
+    }
+    break;
 
-    case cogmentAPI::CommunicationState::HEARTBEAT:
-      SPDLOG_TRACE("Trial [{}] - Environment [{}] 'HEARTBEAT' received", m_trial->id(), m_name);
-      if (details != nullptr) {
-        spdlog::info("Trial [{}] - Environment [{}] Heartbeat requested [{}]", m_trial->id(), m_name, *details);
-      }
-      // TODO : manage heartbeats
-      break;
+  case cogmentAPI::CommunicationState::HEARTBEAT:
+    SPDLOG_TRACE("Trial [{}] - Environment [{}] 'HEARTBEAT' received", m_trial->id(), m_name);
+    if (details != nullptr) {
+      spdlog::info("Trial [{}] - Environment [{}] Heartbeat requested [{}]", m_trial->id(), m_name, *details);
+    }
+    // TODO : manage heartbeats
+    break;
 
-    case cogmentAPI::CommunicationState::LAST:
-      if (!m_last_enabled) {
-        m_last_enabled = true;
-        if (details == nullptr) {
-          SPDLOG_TRACE("Trial [{}] - Environment [{}] 'LAST' received", m_trial->id(), m_name);
-        }
-        else {
-          spdlog::info("Trial [{}] - Environment [{}] 'LAST' received [{}]", m_trial->id(), m_name, *details);
-        }
+  case cogmentAPI::CommunicationState::LAST:
+    if (!m_last_enabled) {
+      m_last_enabled = true;
+      if (details == nullptr) {
+        SPDLOG_TRACE("Trial [{}] - Environment [{}] 'LAST' received", m_trial->id(), m_name);
       }
       else {
-        // This may happen normally if the Orchestrator sends LAST at the same time as the environment sends it
-        if (details != nullptr) {
-          spdlog::info("Trial [{}] - Environment [{}] Received redundant 'LAST' communication state [{}]", m_trial->id(), m_name, *details);
-        } else {
-          spdlog::debug("Trial [{}] - Environment [{}] Received redundant 'LAST' communication state", m_trial->id(), m_name);
-        }
+        spdlog::info("Trial [{}] - Environment [{}] 'LAST' received [{}]", m_trial->id(), m_name, *details);
       }
-      break;
-
-    case cogmentAPI::CommunicationState::LAST_ACK:
-      SPDLOG_DEBUG("Trial [{}] - Environment [{}] 'LAST_ACK' received", m_trial->id(), m_name);
-      if (!m_last_enabled) {
-        if (details != nullptr) {
-          spdlog::error("Trial [{}] - Environment [{}] Unexpected communication state (LAST_ACK) received [{}]", m_trial->id(), m_name, *details);
-        } else {
-          spdlog::error("Trial [{}] - Environment [{}] Unexpected communication state (LAST_ACK) received", m_trial->id(), m_name);
-        }
-      }
-      m_last_ack_received = true;
-      m_last_ack_prom.set_value();
-      return false;
-      break;
-
-    case cogmentAPI::CommunicationState::END:
-      // TODO: Decide what to do about "END" received from environment
+    }
+    else {
+      // This may happen normally if the Orchestrator sends LAST at the same time as the environment sends it
       if (details != nullptr) {
-        spdlog::warn("Trial [{}] - Environment [{}] Communication state (END) received [{}]", m_trial->id(), m_name, *details);
-      } else {
-        spdlog::warn("Trial [{}] - Environment [{}] Communication state (END) received", m_trial->id(), m_name);
+        spdlog::info("Trial [{}] - Environment [{}] Received redundant 'LAST' communication state [{}]", m_trial->id(),
+                     m_name, *details);
       }
-      return false;
-      break;
+      else {
+        spdlog::debug("Trial [{}] - Environment [{}] Received redundant 'LAST' communication state", m_trial->id(),
+                      m_name);
+      }
+    }
+    break;
 
-    default:
-      throw MakeException<std::invalid_argument>("Invalid communication state: [%d]", static_cast<int>(in_state));
-      break;
+  case cogmentAPI::CommunicationState::LAST_ACK:
+    SPDLOG_DEBUG("Trial [{}] - Environment [{}] 'LAST_ACK' received", m_trial->id(), m_name);
+    if (!m_last_enabled) {
+      if (details != nullptr) {
+        spdlog::error("Trial [{}] - Environment [{}] Unexpected communication state (LAST_ACK) received [{}]",
+                      m_trial->id(), m_name, *details);
+      }
+      else {
+        spdlog::error("Trial [{}] - Environment [{}] Unexpected communication state (LAST_ACK) received", m_trial->id(),
+                      m_name);
+      }
+    }
+    m_last_ack_received = true;
+    m_last_ack_prom.set_value();
+    return false;
+    break;
+
+  case cogmentAPI::CommunicationState::END:
+    // TODO: Decide what to do about "END" received from environment
+    if (details != nullptr) {
+      spdlog::warn("Trial [{}] - Environment [{}] Communication state (END) received [{}]", m_trial->id(), m_name,
+                   *details);
+    }
+    else {
+      spdlog::warn("Trial [{}] - Environment [{}] Communication state (END) received", m_trial->id(), m_name);
+    }
+    return false;
+    break;
+
+  default:
+    throw MakeException<std::invalid_argument>("Invalid communication state: [%d]", static_cast<int>(in_state));
+    break;
   }
 
   return true;
@@ -214,7 +226,8 @@ bool Environment::process_incoming_data(cogmentAPI::EnvRunTrialOutput&& data) {
       }
     }
     else {
-      throw MakeException<std::invalid_argument>("'observation_set' received on from environment on non-normal communication");
+      throw MakeException<std::invalid_argument>(
+          "'observation_set' received on from environment on non-normal communication");
     }
     break;
   }

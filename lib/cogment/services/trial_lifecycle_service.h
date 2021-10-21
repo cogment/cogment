@@ -20,15 +20,20 @@
 namespace cogment {
 class Orchestrator;
 
-class TrialLifecycleService final: public cogmentAPI::TrialLifecycleSP::Service {
+class TrialLifecycleService final : public cogmentAPI::TrialLifecycleSP::Service {
 public:
   TrialLifecycleService(Orchestrator* orch);
 
-  grpc::Status StartTrial(grpc::ServerContext* ctx, const cogmentAPI::TrialStartRequest* in, cogmentAPI::TrialStartReply* out) override;
-  grpc::Status TerminateTrial(grpc::ServerContext* ctx, const cogmentAPI::TerminateTrialRequest* in, cogmentAPI::TerminateTrialReply* out) override;
-  grpc::Status GetTrialInfo(grpc::ServerContext* ctx, const cogmentAPI::TrialInfoRequest* in, cogmentAPI::TrialInfoReply* out) override;
-  grpc::Status WatchTrials(grpc::ServerContext* ctx, const cogmentAPI::TrialListRequest* in, grpc::ServerWriter<cogmentAPI::TrialListEntry>* out) override;
-  grpc::Status Version(grpc::ServerContext* ctx, const cogmentAPI::VersionRequest* in, cogmentAPI::VersionInfo* out) override;
+  grpc::Status StartTrial(grpc::ServerContext* ctx, const cogmentAPI::TrialStartRequest* in,
+                          cogmentAPI::TrialStartReply* out) override;
+  grpc::Status TerminateTrial(grpc::ServerContext* ctx, const cogmentAPI::TerminateTrialRequest* in,
+                              cogmentAPI::TerminateTrialReply* out) override;
+  grpc::Status GetTrialInfo(grpc::ServerContext* ctx, const cogmentAPI::TrialInfoRequest* in,
+                            cogmentAPI::TrialInfoReply* out) override;
+  grpc::Status WatchTrials(grpc::ServerContext* ctx, const cogmentAPI::TrialListRequest* in,
+                           grpc::ServerWriter<cogmentAPI::TrialListEntry>* out) override;
+  grpc::Status Version(grpc::ServerContext* ctx, const cogmentAPI::VersionRequest* in,
+                       cogmentAPI::VersionInfo* out) override;
 
 private:
   Orchestrator* m_orchestrator;

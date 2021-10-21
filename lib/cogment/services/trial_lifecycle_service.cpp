@@ -27,7 +27,8 @@ namespace cogment {
 
 TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : m_orchestrator(orch) {}
 
-grpc::Status TrialLifecycleService::StartTrial(grpc::ServerContext*, const cogmentAPI::TrialStartRequest* in, cogmentAPI::TrialStartReply* out) {
+grpc::Status TrialLifecycleService::StartTrial(grpc::ServerContext*, const cogmentAPI::TrialStartRequest* in,
+                                               cogmentAPI::TrialStartReply* out) {
   SPDLOG_TRACE("StartTrial()");
 
   try {
@@ -45,21 +46,24 @@ grpc::Status TrialLifecycleService::StartTrial(grpc::ServerContext*, const cogme
       out->set_trial_id(trial->id());
     }
     else {
-      spdlog::warn("Start of trial [{}] by user [{}] was refused (was the trial id unique?)", in->trial_id_requested(), in->user_id());
+      spdlog::warn("Start of trial [{}] by user [{}] was refused (was the trial id unique?)", in->trial_id_requested(),
+                   in->user_id());
       out->Clear();
     }
   }
-  catch(const std::exception& exc) {
+  catch (const std::exception& exc) {
     return MakeErrorStatus("StartTrial failure on exception [%s]", exc.what());
   }
-  catch(...) {
+  catch (...) {
     return MakeErrorStatus("StartTrial failure on unknown exception");
   }
 
   return grpc::Status::OK;
 }
 
-grpc::Status TrialLifecycleService::TerminateTrial(grpc::ServerContext* ctx, const cogmentAPI::TerminateTrialRequest* req, cogmentAPI::TerminateTrialReply* out) {
+grpc::Status TrialLifecycleService::TerminateTrial(grpc::ServerContext* ctx,
+                                                   const cogmentAPI::TerminateTrialRequest* req,
+                                                   cogmentAPI::TerminateTrialReply* out) {
   SPDLOG_TRACE("TerminateTrial()");
 
   try {
@@ -82,17 +86,18 @@ grpc::Status TrialLifecycleService::TerminateTrial(grpc::ServerContext* ctx, con
 
     out->Clear();
   }
-  catch(const std::exception& exc) {
+  catch (const std::exception& exc) {
     return MakeErrorStatus("TerminateTrial failure on exception [%s]", exc.what());
   }
-  catch(...) {
+  catch (...) {
     return MakeErrorStatus("TerminateTrial failure on unknown exception");
   }
 
   return grpc::Status::OK;
 }
 
-grpc::Status TrialLifecycleService::GetTrialInfo(grpc::ServerContext* ctx, const cogmentAPI::TrialInfoRequest* in, cogmentAPI::TrialInfoReply* out) {
+grpc::Status TrialLifecycleService::GetTrialInfo(grpc::ServerContext* ctx, const cogmentAPI::TrialInfoRequest* in,
+                                                 cogmentAPI::TrialInfoReply* out) {
   SPDLOG_TRACE("GetTrialInfo()");
 
   try {
@@ -118,17 +123,18 @@ grpc::Status TrialLifecycleService::GetTrialInfo(grpc::ServerContext* ctx, const
       }
     }
   }
-  catch(const std::exception& exc) {
+  catch (const std::exception& exc) {
     return MakeErrorStatus("GetTrialInfo failure on exception [%s]", exc.what());
   }
-  catch(...) {
+  catch (...) {
     return MakeErrorStatus("GetTrialInfo failure on unknown exception");
   }
 
   return grpc::Status::OK;
 }
 
-grpc::Status TrialLifecycleService::WatchTrials(grpc::ServerContext*, const cogmentAPI::TrialListRequest* in, grpc::ServerWriter<cogmentAPI::TrialListEntry>* out) {
+grpc::Status TrialLifecycleService::WatchTrials(grpc::ServerContext*, const cogmentAPI::TrialListRequest* in,
+                                                grpc::ServerWriter<cogmentAPI::TrialListEntry>* out) {
   SPDLOG_TRACE("WatchTrials()");
 
   try {
@@ -159,26 +165,27 @@ grpc::Status TrialLifecycleService::WatchTrials(grpc::ServerContext*, const cogm
     auto fut = m_orchestrator->watch_trials(std::move(handler));
     fut.wait();
   }
-  catch(const std::exception& exc) {
+  catch (const std::exception& exc) {
     return MakeErrorStatus("WatchTrials failure on exception [%s]", exc.what());
   }
-  catch(...) {
+  catch (...) {
     return MakeErrorStatus("WatchTrials failure on unknown exception");
   }
 
   return grpc::Status::OK;
 }
 
-grpc::Status TrialLifecycleService::Version(grpc::ServerContext*, const cogmentAPI::VersionRequest*, cogmentAPI::VersionInfo* out) {
+grpc::Status TrialLifecycleService::Version(grpc::ServerContext*, const cogmentAPI::VersionRequest*,
+                                            cogmentAPI::VersionInfo* out) {
   SPDLOG_TRACE("Version()");
 
   try {
     m_orchestrator->Version(out);
   }
-  catch(const std::exception& exc) {
+  catch (const std::exception& exc) {
     return MakeErrorStatus("Version failure on exception [%s]", exc.what());
   }
-  catch(...) {
+  catch (...) {
     return MakeErrorStatus("Version failure on unknown exception");
   }
 

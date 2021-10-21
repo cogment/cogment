@@ -24,8 +24,11 @@ class ActorService final : public cogmentAPI::ClientActorSP::Service {
 public:
   ActorService(Orchestrator* orch);
 
-  grpc::Status RunTrial(grpc::ServerContext* ctx, grpc::ServerReaderWriter<cogmentAPI::ActorRunTrialInput, cogmentAPI::ActorRunTrialOutput>* stream) override;
-  grpc::Status Version(grpc::ServerContext* ctx, const cogmentAPI::VersionRequest* in, cogmentAPI::VersionInfo* out) override;
+  grpc::Status RunTrial(
+      grpc::ServerContext* ctx,
+      grpc::ServerReaderWriter<cogmentAPI::ActorRunTrialInput, cogmentAPI::ActorRunTrialOutput>* stream) override;
+  grpc::Status Version(grpc::ServerContext* ctx, const cogmentAPI::VersionRequest* in,
+                       cogmentAPI::VersionInfo* out) override;
 
 private:
   Orchestrator* m_orchestrator;

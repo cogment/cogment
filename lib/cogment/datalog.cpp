@@ -32,7 +32,8 @@ DatalogServiceImpl::~DatalogServiceImpl() {
   m_stream->Finish();
 }
 
-void DatalogServiceImpl::start(const std::string& trial_id, const std::string& user_id, const cogmentAPI::TrialParams& params) {
+void DatalogServiceImpl::start(const std::string& trial_id, const std::string& user_id,
+                               const cogmentAPI::TrialParams& params) {
   if (m_stream != nullptr) {
     throw MakeException("DatalogService already started");
   }
@@ -57,4 +58,4 @@ void DatalogServiceImpl::add_sample(cogmentAPI::DatalogSample&& data) {
   }
 }
 
-} // namespace
+}  // namespace cogment

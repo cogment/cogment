@@ -42,14 +42,7 @@ class DatalogService;
 // TODO: Make Trial independent of orchestrator (to remove any chance of circular reference)
 class Trial : public std::enable_shared_from_this<Trial> {
 public:
-  enum class InternalState {
-     unknown,
-     initializing,
-     pending,
-     running,
-     terminating,
-     ended
-  };
+  enum class InternalState { unknown, initializing, pending, running, terminating, ended };
 
   struct Metrics {
     prometheus::Summary* trial_duration = nullptr;

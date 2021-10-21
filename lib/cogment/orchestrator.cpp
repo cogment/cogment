@@ -28,7 +28,7 @@
 #include <exception>
 
 namespace {
-  uuids::uuid_system_generator g_uuid_generator;
+uuids::uuid_system_generator g_uuid_generator;
 }  // namespace
 
 namespace settings {
@@ -43,8 +43,7 @@ slt::Setting garbage_collection_frequency = slt::Setting_builder<std::uint32_t>(
 
 namespace cogment {
 Orchestrator::Orchestrator(cogmentAPI::TrialParams default_trial_params,
-                           std::shared_ptr<grpc::ChannelCredentials> creds,
-                           prometheus::Registry* metrics_registry) :
+                           std::shared_ptr<grpc::ChannelCredentials> creds, prometheus::Registry* metrics_registry) :
     m_default_trial_params(std::move(default_trial_params)),
     m_channel_pool(creds),
     m_log_stubs(&m_channel_pool),
@@ -108,7 +107,8 @@ Orchestrator::~Orchestrator() {
   m_trials_to_delete.push({});
 }
 
-std::shared_ptr<Trial> Orchestrator::start_trial(cogmentAPI::TrialParams params, const std::string& user_id, std::string trial_id_req) {
+std::shared_ptr<Trial> Orchestrator::start_trial(cogmentAPI::TrialParams params, const std::string& user_id,
+                                                 std::string trial_id_req) {
   if (trial_id_req.empty()) {
     trial_id_req.assign(to_string(g_uuid_generator()));
   }
@@ -123,11 +123,12 @@ std::shared_ptr<Trial> Orchestrator::start_trial(cogmentAPI::TrialParams params,
   try {
     m_perform_garbage_collection();
   }
-  catch(...) {
+  catch (...) {
     spdlog::error("Error performing garbage collection of trials");
   }
 
-  auto new_trial = std::make_shared<Trial>(this, user_id, trial_id_req, Trial::Metrics {m_trials_metrics, m_ticks_metrics});
+  auto new_trial =
+      std::make_shared<Trial>(this, user_id, trial_id_req, Trial::Metrics {m_trials_metrics, m_ticks_metrics});
 
   // Register the trial immediately.
   {
@@ -148,7 +149,8 @@ std::shared_ptr<Trial> Orchestrator::start_trial(cogmentAPI::TrialParams params,
 
 void Orchestrator::add_prehook(const HookEntryType& hook) { m_prehooks.push_back(hook); }
 
-cogmentAPI::TrialParams Orchestrator::m_perform_pre_hooks(cogmentAPI::TrialParams&& params, const std::string& trial_id, const std::string& user_id) {
+cogmentAPI::TrialParams Orchestrator::m_perform_pre_hooks(cogmentAPI::TrialParams&& params, const std::string& trial_id,
+                                                          const std::string& user_id) {
   cogmentAPI::PreTrialParams hook_param;
 
   *hook_param.mutable_params() = std::move(params);
