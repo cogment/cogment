@@ -34,23 +34,23 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 )
 
-type fixture struct {
+type trialDatastoreServerTestFixture struct {
 	backend    backend.Backend
 	ctx        context.Context
 	client     grpcapi.TrialDatastoreSPClient
 	connection *grpc.ClientConn
 }
 
-func createFixture() (fixture, error) {
+func createTrialDatastoreServerTestFixture() (trialDatastoreServerTestFixture, error) {
 	listener := bufconn.Listen(1024 * 1024)
 	server := CreateGrpcServer(false)
 	backend, err := backend.CreateMemoryBackend(backend.DefaultMaxSampleSize)
 	if err != nil {
-		return fixture{}, err
+		return trialDatastoreServerTestFixture{}, err
 	}
 	err = RegisterTrialDatastoreServer(server, backend)
 	if err != nil {
-		return fixture{}, err
+		return trialDatastoreServerTestFixture{}, err
 	}
 	go func() {
 		if err := server.Serve(listener); err != nil {
@@ -66,10 +66,10 @@ func createFixture() (fixture, error) {
 
 	connection, err := grpc.DialContext(ctx, "bufnet", grpc.WithContextDialer(bufDialer), grpc.WithInsecure())
 	if err != nil {
-		return fixture{}, err
+		return trialDatastoreServerTestFixture{}, err
 	}
 
-	return fixture{
+	return trialDatastoreServerTestFixture{
 		backend:    backend,
 		ctx:        ctx,
 		client:     grpcapi.NewTrialDatastoreSPClient(connection),
@@ -77,13 +77,13 @@ func createFixture() (fixture, error) {
 	}, nil
 }
 
-func (fxt *fixture) destroy() {
+func (fxt *trialDatastoreServerTestFixture) destroy() {
 	fxt.connection.Close()
 	fxt.backend.Destroy()
 }
 
 func TestListenToTrialSequential(t *testing.T) {
-	fxt, err := createFixture()
+	fxt, err := createTrialDatastoreServerTestFixture()
 	assert.NoError(t, err)
 	defer fxt.destroy()
 
@@ -132,7 +132,7 @@ func TestListenToTrialSequential(t *testing.T) {
 }
 
 func TestListenToTrialConcurrentTrials(t *testing.T) {
-	fxt, err := createFixture()
+	fxt, err := createTrialDatastoreServerTestFixture()
 	assert.NoError(t, err)
 	defer fxt.destroy()
 
@@ -201,7 +201,7 @@ func TestListenToTrialConcurrentTrials(t *testing.T) {
 	wg.Wait()
 }
 
-func createTrials(t *testing.T, fxt *fixture, trialCount int) {
+func createTrials(t *testing.T, fxt *trialDatastoreServerTestFixture, trialCount int) {
 	for i := 0; i < trialCount; i++ {
 		ctx := metadata.AppendToOutgoingContext(fxt.ctx, "trial-id", fmt.Sprintf("trial%d", i))
 		_, err := fxt.client.AddTrial(ctx, &grpcapi.AddTrialRequest{
@@ -216,7 +216,7 @@ func createTrials(t *testing.T, fxt *fixture, trialCount int) {
 }
 
 func TestAddAndListTrials(t *testing.T) {
-	fxt, err := createFixture()
+	fxt, err := createTrialDatastoreServerTestFixture()
 	assert.NoError(t, err)
 	defer fxt.destroy()
 
@@ -237,7 +237,7 @@ func TestAddAndListTrials(t *testing.T) {
 }
 
 func TestAddAndListTrialsPaginated(t *testing.T) {
-	fxt, err := createFixture()
+	fxt, err := createTrialDatastoreServerTestFixture()
 	assert.NoError(t, err)
 	defer fxt.destroy()
 
@@ -269,7 +269,7 @@ func TestAddAndListTrialsPaginated(t *testing.T) {
 }
 
 func TestAddAndListTrialsSelectedAndPaginated(t *testing.T) {
-	fxt, err := createFixture()
+	fxt, err := createTrialDatastoreServerTestFixture()
 	assert.NoError(t, err)
 	defer fxt.destroy()
 
@@ -303,7 +303,7 @@ func TestAddAndListTrialsSelectedAndPaginated(t *testing.T) {
 }
 
 func TestAddAndListTrialsSelectedAndPaginatedAsync(t *testing.T) {
-	fxt, err := createFixture()
+	fxt, err := createTrialDatastoreServerTestFixture()
 	assert.NoError(t, err)
 	defer fxt.destroy()
 
@@ -345,7 +345,7 @@ func TestAddAndListTrialsSelectedAndPaginatedAsync(t *testing.T) {
 }
 
 func TestAddSamplesSimple(t *testing.T) {
-	fxt, err := createFixture()
+	fxt, err := createTrialDatastoreServerTestFixture()
 	assert.NoError(t, err)
 	defer fxt.destroy()
 
@@ -377,7 +377,7 @@ func TestAddSamplesSimple(t *testing.T) {
 }
 
 func TestAddSamplesInconsistentTrialId(t *testing.T) {
-	fxt, err := createFixture()
+	fxt, err := createTrialDatastoreServerTestFixture()
 	assert.NoError(t, err)
 	defer fxt.destroy()
 
@@ -398,7 +398,7 @@ func TestAddSamplesInconsistentTrialId(t *testing.T) {
 }
 
 func TestAddAndRetrieveSamplesConcurrent(t *testing.T) {
-	fxt, err := createFixture()
+	fxt, err := createTrialDatastoreServerTestFixture()
 	assert.NoError(t, err)
 	defer fxt.destroy()
 
@@ -469,7 +469,7 @@ func TestAddAndRetrieveSamplesConcurrent(t *testing.T) {
 }
 
 func TestDeleteTrials(t *testing.T) {
-	fxt, err := createFixture()
+	fxt, err := createTrialDatastoreServerTestFixture()
 	assert.NoError(t, err)
 	defer fxt.destroy()
 
