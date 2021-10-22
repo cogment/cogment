@@ -54,11 +54,13 @@ func trialSampleFromDatalogSample(trialID string, actorIndices map[string]uint32
 		Payloads:     make([][]byte, 0),
 	}
 	// Initializing the actor samples
-	for actorIdx, actorSample := range sample.ActorSamples {
-		actorSample.Actor = uint32(actorIdx)
+	for actorIdx := range sample.ActorSamples {
+		sample.ActorSamples[actorIdx] = &grpcapi.StoredTrialActorSample{
+			Actor: uint32(actorIdx),
+		}
 	}
 	// Deal with the observations
-	{
+	if datalogSample.Observations != nil {
 		payloadIdxFromObsIdx := make([]uint32, len(datalogSample.Observations.Observations))
 		for obsIdx, obsData := range datalogSample.Observations.Observations {
 			if !obsData.Snapshot {
@@ -169,6 +171,13 @@ func (s *logExporterServer) OnLogSample(stream grpcapi.LogExporter_OnLogSampleSe
 	if err != nil {
 		return status.Errorf(codes.Internal, "LogExporterServer.OnLogSample: internal error %q", err)
 	}
+
+	// Acknowledge the handling of the first "params" message
+	err = stream.Send(&grpcapi.LogExporterSampleReply{})
+	if err != nil {
+		return err
+	}
+
 	for actorIdx, actorConfig := range trialParams.GetActors() {
 		actorIndices[actorConfig.Name] = uint32(actorIdx)
 	}
@@ -176,7 +185,7 @@ func (s *logExporterServer) OnLogSample(stream grpcapi.LogExporter_OnLogSampleSe
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
-			return stream.Send(&grpcapi.LogExporterSampleReply{})
+			return nil
 		}
 		if err != nil {
 			return err
@@ -193,6 +202,8 @@ func (s *logExporterServer) OnLogSample(stream grpcapi.LogExporter_OnLogSampleSe
 		if err != nil {
 			return status.Errorf(codes.Internal, "LogExporterServer.OnLogSample: internal error %q", err)
 		}
+
+		// Acknowledge the handling of the following "sample" message
 		err = stream.Send(&grpcapi.LogExporterSampleReply{})
 		if err != nil {
 			return err
