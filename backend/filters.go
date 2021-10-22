@@ -86,16 +86,16 @@ func (f *trialActorFilter) selects(actorIdx int) bool {
 	return isSelected
 }
 
-type sampleFieldsFilter map[grpcapi.TrialSampleField]struct{}
+type sampleFieldsFilter map[grpcapi.StoredTrialSampleField]struct{}
 
-func createSampleFieldsFilter(array []grpcapi.TrialSampleField) sampleFieldsFilter {
+func createSampleFieldsFilter(array []grpcapi.StoredTrialSampleField) sampleFieldsFilter {
 	selectedFields := make(sampleFieldsFilter)
 	for _, selectedField := range array {
-		if selectedField != grpcapi.TrialSampleField_TRIAL_SAMPLE_FIELD_UNKNOWN {
+		if selectedField != grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_UNKNOWN {
 			selectedFields[selectedField] = struct{}{}
 		}
 	}
-	if len(selectedFields) == 0 || len(grpcapi.TrialSampleField_name)-1 == len(selectedFields) {
+	if len(selectedFields) == 0 || len(grpcapi.StoredTrialSampleField_name)-1 == len(selectedFields) {
 		return make(sampleFieldsFilter)
 	}
 	return selectedFields
@@ -105,7 +105,7 @@ func (f *sampleFieldsFilter) selectsAll() bool {
 	return len(*f) == 0
 }
 
-func (f *sampleFieldsFilter) selects(field grpcapi.TrialSampleField) bool {
+func (f *sampleFieldsFilter) selects(field grpcapi.StoredTrialSampleField) bool {
 	if len(*f) == 0 {
 		return true
 	}
@@ -113,47 +113,47 @@ func (f *sampleFieldsFilter) selects(field grpcapi.TrialSampleField) bool {
 	return isSelected
 }
 
-func filterTrialSample(sample *grpcapi.TrialSample, actorsFilter trialActorFilter, fieldsFilter sampleFieldsFilter) *grpcapi.TrialSample {
+func filterTrialSample(sample *grpcapi.StoredTrialSample, actorsFilter trialActorFilter, fieldsFilter sampleFieldsFilter) *grpcapi.StoredTrialSample {
 	if actorsFilter.selectsAll() && fieldsFilter.selectsAll() {
 		return sample
 	}
 
 	// Copy the base
-	filteredSample := grpcapi.TrialSample{
+	filteredSample := grpcapi.StoredTrialSample{
 		UserId:       sample.UserId,
 		TrialId:      sample.TrialId,
 		TickId:       sample.TickId,
 		Timestamp:    sample.Timestamp,
 		State:        sample.State,
-		ActorSamples: make([]*grpcapi.TrialActorSample, 0, len(sample.ActorSamples)),
+		ActorSamples: make([]*grpcapi.StoredTrialActorSample, 0, len(sample.ActorSamples)),
 		Payloads:     make([][]byte, len(sample.Payloads)),
 	}
 
 	// Copy selected fields of selected agents
 	for _, actorSample := range sample.ActorSamples {
 		if actorsFilter.selects(int(actorSample.Actor)) {
-			filteredActorSample := grpcapi.TrialActorSample{
+			filteredActorSample := grpcapi.StoredTrialActorSample{
 				Actor:            actorSample.Actor,
-				ReceivedRewards:  make([]*grpcapi.TrialActorSampleReward, 0, len(actorSample.ReceivedRewards)),
-				SentRewards:      make([]*grpcapi.TrialActorSampleReward, 0, len(actorSample.SentRewards)),
-				ReceivedMessages: make([]*grpcapi.TrialActorSampleMessage, 0, len(actorSample.ReceivedMessages)),
-				SentMessages:     make([]*grpcapi.TrialActorSampleMessage, 0, len(actorSample.SentMessages)),
+				ReceivedRewards:  make([]*grpcapi.StoredTrialActorSampleReward, 0, len(actorSample.ReceivedRewards)),
+				SentRewards:      make([]*grpcapi.StoredTrialActorSampleReward, 0, len(actorSample.SentRewards)),
+				ReceivedMessages: make([]*grpcapi.StoredTrialActorSampleMessage, 0, len(actorSample.ReceivedMessages)),
+				SentMessages:     make([]*grpcapi.StoredTrialActorSampleMessage, 0, len(actorSample.SentMessages)),
 			}
-			if actorSample.Observation != nil && fieldsFilter.selects(grpcapi.TrialSampleField_TRIAL_SAMPLE_FIELD_OBSERVATION) {
+			if actorSample.Observation != nil && fieldsFilter.selects(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_OBSERVATION) {
 				filteredActorSample.Observation = actorSample.Observation
 				filteredSample.Payloads[*actorSample.Observation] = sample.Payloads[*actorSample.Observation]
 			}
 
-			if actorSample.Action != nil && fieldsFilter.selects(grpcapi.TrialSampleField_TRIAL_SAMPLE_FIELD_ACTION) {
+			if actorSample.Action != nil && fieldsFilter.selects(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_ACTION) {
 				filteredActorSample.Action = actorSample.Action
 				filteredSample.Payloads[*actorSample.Action] = sample.Payloads[*actorSample.Action]
 			}
 
-			if fieldsFilter.selects(grpcapi.TrialSampleField_TRIAL_SAMPLE_FIELD_REWARD) {
+			if fieldsFilter.selects(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_REWARD) {
 				filteredActorSample.Reward = actorSample.Reward
 			}
 
-			if fieldsFilter.selects(grpcapi.TrialSampleField_TRIAL_SAMPLE_FIELD_RECEIVED_REWARDS) {
+			if fieldsFilter.selects(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_REWARDS) {
 				for _, reward := range actorSample.ReceivedRewards {
 					filteredActorSample.ReceivedRewards = append(filteredActorSample.ReceivedRewards, reward)
 					if reward.UserData != nil {
@@ -162,7 +162,7 @@ func filterTrialSample(sample *grpcapi.TrialSample, actorsFilter trialActorFilte
 				}
 			}
 
-			if fieldsFilter.selects(grpcapi.TrialSampleField_TRIAL_SAMPLE_FIELD_SENT_REWARDS) {
+			if fieldsFilter.selects(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_REWARDS) {
 				for _, reward := range actorSample.SentRewards {
 					filteredActorSample.SentRewards = append(filteredActorSample.SentRewards, reward)
 					if reward.UserData != nil {
@@ -171,14 +171,14 @@ func filterTrialSample(sample *grpcapi.TrialSample, actorsFilter trialActorFilte
 				}
 			}
 
-			if fieldsFilter.selects(grpcapi.TrialSampleField_TRIAL_SAMPLE_FIELD_RECEIVED_MESSAGES) {
+			if fieldsFilter.selects(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_MESSAGES) {
 				for _, message := range actorSample.ReceivedMessages {
 					filteredActorSample.ReceivedMessages = append(filteredActorSample.ReceivedMessages, message)
 					filteredSample.Payloads[message.Payload] = sample.Payloads[message.Payload]
 				}
 			}
 
-			if fieldsFilter.selects(grpcapi.TrialSampleField_TRIAL_SAMPLE_FIELD_SENT_MESSAGES) {
+			if fieldsFilter.selects(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_MESSAGES) {
 				for _, message := range actorSample.SentMessages {
 					filteredActorSample.SentMessages = append(filteredActorSample.SentMessages, message)
 					filteredSample.Payloads[message.Payload] = sample.Payloads[message.Payload]

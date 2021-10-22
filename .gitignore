@@ -8,3 +8,6 @@ test_failed.txt
 
 # Downloaded / generated GRPC API
 grpcapi
+
+# Backup of "sed-ed" files
+*.bak

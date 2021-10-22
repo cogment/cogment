@@ -92,11 +92,11 @@ func TestListenToTrialSequential(t *testing.T) {
 	{
 		err = fxt.backend.CreateOrUpdateTrials(fxt.ctx, []*backend.TrialParams{{TrialID: trialID, UserID: "foo", Params: &grpcapi.TrialParams{MaxSteps: 72}}})
 		assert.NoError(t, err)
-		err = fxt.backend.AddSamples(fxt.ctx, []*grpcapi.TrialSample{{TrialId: trialID, UserId: "foo", State: grpcapi.TrialState_RUNNING}})
+		err = fxt.backend.AddSamples(fxt.ctx, []*grpcapi.StoredTrialSample{{TrialId: trialID, UserId: "foo", State: grpcapi.TrialState_RUNNING}})
 		assert.NoError(t, err)
-		err = fxt.backend.AddSamples(fxt.ctx, []*grpcapi.TrialSample{{TrialId: trialID, UserId: "bar", State: grpcapi.TrialState_RUNNING}})
+		err = fxt.backend.AddSamples(fxt.ctx, []*grpcapi.StoredTrialSample{{TrialId: trialID, UserId: "bar", State: grpcapi.TrialState_RUNNING}})
 		assert.NoError(t, err)
-		err = fxt.backend.AddSamples(fxt.ctx, []*grpcapi.TrialSample{{TrialId: trialID, UserId: "baz", State: grpcapi.TrialState_ENDED}})
+		err = fxt.backend.AddSamples(fxt.ctx, []*grpcapi.StoredTrialSample{{TrialId: trialID, UserId: "baz", State: grpcapi.TrialState_ENDED}})
 		assert.NoError(t, err)
 	}
 	{
@@ -145,10 +145,10 @@ func TestListenToTrialConcurrentTrials(t *testing.T) {
 		for tickIdx, tickID := range ticks {
 			time.Sleep(delay)
 			if tickIdx < len(ticks)-1 {
-				err = fxt.backend.AddSamples(fxt.ctx, []*grpcapi.TrialSample{{TrialId: trialID, UserId: "test", TickId: tickID, State: grpcapi.TrialState_RUNNING}})
+				err = fxt.backend.AddSamples(fxt.ctx, []*grpcapi.StoredTrialSample{{TrialId: trialID, UserId: "test", TickId: tickID, State: grpcapi.TrialState_RUNNING}})
 				assert.NoError(t, err)
 			} else {
-				err = fxt.backend.AddSamples(fxt.ctx, []*grpcapi.TrialSample{{TrialId: trialID, UserId: "test", TickId: tickID, State: grpcapi.TrialState_ENDED}})
+				err = fxt.backend.AddSamples(fxt.ctx, []*grpcapi.StoredTrialSample{{TrialId: trialID, UserId: "test", TickId: tickID, State: grpcapi.TrialState_ENDED}})
 				assert.NoError(t, err)
 			}
 		}
@@ -356,7 +356,7 @@ func TestAddSamplesSimple(t *testing.T) {
 		stream, err := fxt.client.AddSample(ctx)
 		assert.NoError(t, err)
 		err = stream.Send(&grpcapi.AddSampleRequest{
-			TrialSample: &grpcapi.TrialSample{TrialId: "trial0", UserId: "my_user", State: grpcapi.TrialState_RUNNING},
+			TrialSample: &grpcapi.StoredTrialSample{TrialId: "trial0", UserId: "my_user", State: grpcapi.TrialState_RUNNING},
 		})
 		assert.NoError(t, err)
 		_, err = stream.CloseAndRecv()
@@ -368,7 +368,7 @@ func TestAddSamplesSimple(t *testing.T) {
 		stream, err := fxt.client.AddSample(ctx)
 		assert.NoError(t, err)
 		err = stream.Send(&grpcapi.AddSampleRequest{
-			TrialSample: &grpcapi.TrialSample{UserId: "my_user", State: grpcapi.TrialState_RUNNING},
+			TrialSample: &grpcapi.StoredTrialSample{UserId: "my_user", State: grpcapi.TrialState_RUNNING},
 		})
 		assert.NoError(t, err)
 		_, err = stream.CloseAndRecv()
@@ -387,7 +387,7 @@ func TestAddSamplesInconsistentTrialId(t *testing.T) {
 	stream, err := fxt.client.AddSample(ctx)
 	assert.NoError(t, err)
 	err = stream.Send(&grpcapi.AddSampleRequest{
-		TrialSample: &grpcapi.TrialSample{TrialId: "foo", UserId: "my_user", State: grpcapi.TrialState_RUNNING},
+		TrialSample: &grpcapi.StoredTrialSample{TrialId: "foo", UserId: "my_user", State: grpcapi.TrialState_RUNNING},
 	})
 	assert.NoError(t, err)
 	_, err = stream.CloseAndRecv()
@@ -418,13 +418,13 @@ func TestAddAndRetrieveSamplesConcurrent(t *testing.T) {
 
 			for i := 0; i < 1000; i++ {
 				err = stream.Send(&grpcapi.AddSampleRequest{
-					TrialSample: &grpcapi.TrialSample{UserId: "my_user", State: grpcapi.TrialState_RUNNING, TickId: uint64(i)},
+					TrialSample: &grpcapi.StoredTrialSample{UserId: "my_user", State: grpcapi.TrialState_RUNNING, TickId: uint64(i)},
 				})
 				assert.NoError(t, err)
 			}
 
 			err = stream.Send(&grpcapi.AddSampleRequest{
-				TrialSample: &grpcapi.TrialSample{UserId: "my_user", State: grpcapi.TrialState_ENDED, TickId: uint64(1000)},
+				TrialSample: &grpcapi.StoredTrialSample{UserId: "my_user", State: grpcapi.TrialState_ENDED, TickId: uint64(1000)},
 			})
 			assert.NoError(t, err)
 
@@ -527,7 +527,7 @@ func TestDeleteTrials(t *testing.T) {
 		stream, err := fxt.client.AddSample(ctx)
 		assert.NoError(t, err)
 		err = stream.Send(&grpcapi.AddSampleRequest{
-			TrialSample: &grpcapi.TrialSample{TrialId: "foo", UserId: "my_user", State: grpcapi.TrialState_RUNNING},
+			TrialSample: &grpcapi.StoredTrialSample{TrialId: "foo", UserId: "my_user", State: grpcapi.TrialState_RUNNING},
 		})
 		assert.NoError(t, err)
 		_, err = stream.CloseAndRecv()

@@ -99,11 +99,11 @@ func (s *trialDatastoreServer) RetrieveTrials(ctx context.Context, req *grpcapi.
 		nextTrialHandle := strconv.Itoa(nextPageOffset)
 
 		res := &grpcapi.RetrieveTrialsReply{
-			TrialInfos:      make([]*grpcapi.TrialInfo, len(trialInfos)),
+			TrialInfos:      make([]*grpcapi.StoredTrialInfo, len(trialInfos)),
 			NextTrialHandle: nextTrialHandle,
 		}
 		for trialInfoIdx, trialInfo := range trialInfos {
-			res.TrialInfos[trialInfoIdx] = &grpcapi.TrialInfo{
+			res.TrialInfos[trialInfoIdx] = &grpcapi.StoredTrialInfo{
 				TrialId:      trialInfo.TrialID,
 				UserId:       trialInfo.UserID,
 				LastState:    trialInfo.State,
@@ -179,7 +179,7 @@ func (s *trialDatastoreServer) AddSample(stream grpcapi.TrialDatastoreSP_AddSamp
 		return err
 	}
 
-	samplesChunk := make([]*grpcapi.TrialSample, 0, s.addSampleChunkSize)
+	samplesChunk := make([]*grpcapi.StoredTrialSample, 0, s.addSampleChunkSize)
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {

@@ -42,15 +42,15 @@ func actorIdxFromActorName(actorName string, actorIndices map[string]uint32) int
 	return int32(actorIdx)
 }
 
-func trialSampleFromDatalogSample(trialID string, actorIndices map[string]uint32, datalogSample *grpcapi.DatalogSample) (*grpcapi.TrialSample, error) {
+func trialSampleFromDatalogSample(trialID string, actorIndices map[string]uint32, datalogSample *grpcapi.DatalogSample) (*grpcapi.StoredTrialSample, error) {
 	// Base stuffs
-	sample := grpcapi.TrialSample{
+	sample := grpcapi.StoredTrialSample{
 		UserId:       datalogSample.UserId,
 		TrialId:      trialID,
 		TickId:       datalogSample.TrialData.TickId,
 		Timestamp:    datalogSample.TrialData.Timestamp,
 		State:        datalogSample.TrialData.State,
-		ActorSamples: make([]*grpcapi.TrialActorSample, len(actorIndices)),
+		ActorSamples: make([]*grpcapi.StoredTrialActorSample, len(actorIndices)),
 		Payloads:     make([][]byte, 0),
 	}
 	// Initializing the actor samples
@@ -93,7 +93,7 @@ func trialSampleFromDatalogSample(trialID string, actorIndices map[string]uint32
 				}
 
 				senderActorIdx := actorIdxFromActorName(sourceReward.SenderName, actorIndices)
-				receivedReward := grpcapi.TrialActorSampleReward{
+				receivedReward := grpcapi.StoredTrialActorSampleReward{
 					Sender:     senderActorIdx,
 					Reward:     sourceReward.Value,
 					Confidence: sourceReward.Confidence,
@@ -102,7 +102,7 @@ func trialSampleFromDatalogSample(trialID string, actorIndices map[string]uint32
 				sample.ActorSamples[actorIdx].ReceivedRewards = append(sample.ActorSamples[actorIdx].ReceivedRewards, &receivedReward)
 
 				if senderActorIdx >= 0 {
-					sentReward := grpcapi.TrialActorSampleReward{
+					sentReward := grpcapi.StoredTrialActorSampleReward{
 						Receiver:   int32(actorIdx),
 						Reward:     sourceReward.Value,
 						Confidence: sourceReward.Confidence,
@@ -124,7 +124,7 @@ func trialSampleFromDatalogSample(trialID string, actorIndices map[string]uint32
 			senderActorIdx := actorIdxFromActorName(message.SenderName, actorIndices)
 
 			if receiverActorIdx >= 0 {
-				receivedMessage := grpcapi.TrialActorSampleMessage{
+				receivedMessage := grpcapi.StoredTrialActorSampleMessage{
 					Sender:  senderActorIdx,
 					Payload: payloadIdx,
 				}
@@ -132,7 +132,7 @@ func trialSampleFromDatalogSample(trialID string, actorIndices map[string]uint32
 			}
 
 			if senderActorIdx >= 0 {
-				sentMessage := grpcapi.TrialActorSampleMessage{
+				sentMessage := grpcapi.StoredTrialActorSampleMessage{
 					Receiver: receiverActorIdx,
 					Payload:  payloadIdx,
 				}
@@ -189,7 +189,7 @@ func (s *logExporterServer) OnLogSample(stream grpcapi.LogExporter_OnLogSampleSe
 		if err != nil {
 			return status.Errorf(codes.Internal, "LogExporterServer.OnLogSample: internal error %q", err)
 		}
-		err = s.backend.AddSamples(ctx, []*grpcapi.TrialSample{trialSample})
+		err = s.backend.AddSamples(ctx, []*grpcapi.StoredTrialSample{trialSample})
 		if err != nil {
 			return status.Errorf(codes.Internal, "LogExporterServer.OnLogSample: internal error %q", err)
 		}

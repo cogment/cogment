@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Fixed
+
+- Fix naming collision in cogment gRPC API
+
 ## v0.1.0 - 2021-10-20
 
 Introduce Trial Datastore, a simple logger & store for trial generated data.

@@ -338,7 +338,7 @@ func (b *memoryBackend) GetTrialParams(ctx context.Context, trialIDs []string) (
 	return trialParams, nil
 }
 
-func (b *memoryBackend) AddSamples(ctx context.Context, samples []*grpcapi.TrialSample) error {
+func (b *memoryBackend) AddSamples(ctx context.Context, samples []*grpcapi.StoredTrialSample) error {
 	trialIDs := make([]string, len(samples))
 	for idx, sample := range samples {
 		trialIDs[idx] = sample.TrialId
@@ -369,7 +369,7 @@ func (b *memoryBackend) AddSamples(ctx context.Context, samples []*grpcapi.Trial
 	return nil
 }
 
-func (b *memoryBackend) ObserveSamples(ctx context.Context, filter TrialSampleFilter, out chan<- *grpcapi.TrialSample) error {
+func (b *memoryBackend) ObserveSamples(ctx context.Context, filter TrialSampleFilter, out chan<- *grpcapi.StoredTrialSample) error {
 	trialDatas, err := b.retrieveTrialDatas(filter.TrialIDs)
 	if err != nil {
 		return err
@@ -394,7 +394,7 @@ func (b *memoryBackend) ObserveSamples(ctx context.Context, filter TrialSampleFi
 			// No filtering done on this trial's samples
 			g.Go(func() error {
 				for serializedSample := range observer {
-					sample := &grpcapi.TrialSample{}
+					sample := &grpcapi.StoredTrialSample{}
 					if err := proto.Unmarshal(serializedSample.([]byte), sample); err != nil {
 						log.Fatalf("Unexpected deserialization error %v", err)
 					}
@@ -406,7 +406,7 @@ func (b *memoryBackend) ObserveSamples(ctx context.Context, filter TrialSampleFi
 			// Some filtering done on this trial samples
 			g.Go(func() error {
 				for serializedSample := range observer {
-					sample := &grpcapi.TrialSample{}
+					sample := &grpcapi.StoredTrialSample{}
 					if err := proto.Unmarshal(serializedSample.([]byte), sample); err != nil {
 						log.Fatalf("Unexpected deserialization error %v", err)
 					}

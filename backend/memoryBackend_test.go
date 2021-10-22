@@ -35,13 +35,13 @@ func generateTrialParams(actorCount int, maxSteps uint32) *grpcapi.TrialParams {
 	return params
 }
 
-func generateSample(trialID string, actorCount int, end bool) *grpcapi.TrialSample {
-	sample := &grpcapi.TrialSample{
+func generateSample(trialID string, actorCount int, end bool) *grpcapi.StoredTrialSample {
+	sample := &grpcapi.StoredTrialSample{
 		TrialId:      trialID,
 		TickId:       nextTickID,
 		Timestamp:    uint64(time.Now().Unix()),
 		State:        grpcapi.TrialState_RUNNING,
-		ActorSamples: make([]*grpcapi.TrialActorSample, actorCount),
+		ActorSamples: make([]*grpcapi.StoredTrialActorSample, actorCount),
 	}
 	if end {
 		sample.State = grpcapi.TrialState_ENDED
@@ -342,7 +342,7 @@ func TestAddSamples(t *testing.T) {
 
 	firstSample := generateSample("my-trial", 12, false)
 	secondSample := generateSample("my-trial", 12, false)
-	err = b.AddSamples(context.Background(), []*grpcapi.TrialSample{firstSample, secondSample, generateSample("my-trial", 12, false)})
+	err = b.AddSamples(context.Background(), []*grpcapi.StoredTrialSample{firstSample, secondSample, generateSample("my-trial", 12, false)})
 	assert.NoError(t, err)
 
 	r, err := b.RetrieveTrials(context.Background(), []string{"my-trial"}, -1, -1)
@@ -355,7 +355,7 @@ func TestAddSamples(t *testing.T) {
 	assert.Equal(t, 3, r.TrialInfos[0].SamplesCount)
 	assert.Equal(t, 3, r.TrialInfos[0].StoredSamplesCount)
 
-	err = b.AddSamples(context.Background(), []*grpcapi.TrialSample{
+	err = b.AddSamples(context.Background(), []*grpcapi.StoredTrialSample{
 		generateSample("my-trial", 12, false),
 		generateSample("my-trial", 12, false),
 	})
@@ -400,7 +400,7 @@ func TestConcurrentAddAndObserveSamples(t *testing.T) {
 	}})
 	assert.NoError(t, err)
 
-	samples := make([]*grpcapi.TrialSample, 20)
+	samples := make([]*grpcapi.StoredTrialSample, 20)
 	for sampleIdx := range samples {
 		samples[sampleIdx] = generateSample("my-trial", 12, sampleIdx == len(samples)-1)
 	}
@@ -432,7 +432,7 @@ func TestConcurrentAddAndObserveSamples(t *testing.T) {
 
 	for _, sample := range samples {
 		time.Sleep(50 * time.Millisecond)
-		err = b.AddSamples(context.Background(), []*grpcapi.TrialSample{sample})
+		err = b.AddSamples(context.Background(), []*grpcapi.StoredTrialSample{sample})
 		assert.NoError(t, err)
 	}
 	wg.Wait()
@@ -459,7 +459,7 @@ func TestTriaEviction(t *testing.T) {
 	trial1SamplesCount := 1000
 	{
 		for i := 0; i < trial1SamplesCount; i++ {
-			err = b.AddSamples(context.Background(), []*grpcapi.TrialSample{generateSample("trial-1", 12, i == trial1SamplesCount-1)})
+			err = b.AddSamples(context.Background(), []*grpcapi.StoredTrialSample{generateSample("trial-1", 12, i == trial1SamplesCount-1)})
 			assert.NoError(t, err)
 		}
 
@@ -479,7 +479,7 @@ func TestTriaEviction(t *testing.T) {
 	trial2SamplesCount := 1000
 	{
 		for i := 0; i < trial2SamplesCount; i++ {
-			err = b.AddSamples(context.Background(), []*grpcapi.TrialSample{generateSample("trial-2", 12, i == trial2SamplesCount-1)})
+			err = b.AddSamples(context.Background(), []*grpcapi.StoredTrialSample{generateSample("trial-2", 12, i == trial2SamplesCount-1)})
 			assert.NoError(t, err)
 		}
 
@@ -499,7 +499,7 @@ func TestTriaEviction(t *testing.T) {
 	trial3SamplesCount := 1000
 	{
 		for i := 0; i < trial3SamplesCount; i++ {
-			err = b.AddSamples(context.Background(), []*grpcapi.TrialSample{generateSample("trial-3", 12, i == trial3SamplesCount-1)})
+			err = b.AddSamples(context.Background(), []*grpcapi.StoredTrialSample{generateSample("trial-3", 12, i == trial3SamplesCount-1)})
 			assert.NoError(t, err)
 		}
 

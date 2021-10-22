@@ -59,18 +59,18 @@ var trialParams *grpcapi.TrialParams = &grpcapi.TrialParams{
 	},
 }
 
-var trialSample1 *grpcapi.TrialSample = &grpcapi.TrialSample{
+var trialSample1 *grpcapi.StoredTrialSample = &grpcapi.StoredTrialSample{
 	UserId:    "my-user-id",
 	TrialId:   "my-trial",
 	TickId:    12,
 	Timestamp: uint64(time.Now().Unix()),
-	ActorSamples: []*grpcapi.TrialActorSample{
+	ActorSamples: []*grpcapi.StoredTrialActorSample{
 		{
 			Actor:       0,
 			Observation: pointy.Uint32(0),
 			Action:      pointy.Uint32(1),
 			Reward:      pointy.Float32(0.5),
-			ReceivedRewards: []*grpcapi.TrialActorSampleReward{
+			ReceivedRewards: []*grpcapi.StoredTrialActorSampleReward{
 				{
 					Sender:     -1,
 					Reward:     0.5,
@@ -89,7 +89,7 @@ var trialSample1 *grpcapi.TrialSample = &grpcapi.TrialSample{
 			Actor:       1,
 			Observation: pointy.Uint32(0),
 			Action:      pointy.Uint32(3),
-			SentRewards: []*grpcapi.TrialActorSampleReward{
+			SentRewards: []*grpcapi.StoredTrialActorSampleReward{
 				{
 					Receiver:   0,
 					Reward:     0.5,
@@ -97,13 +97,13 @@ var trialSample1 *grpcapi.TrialSample = &grpcapi.TrialSample{
 					UserData:   pointy.Uint32(2),
 				},
 			},
-			ReceivedMessages: []*grpcapi.TrialActorSampleMessage{
+			ReceivedMessages: []*grpcapi.StoredTrialActorSampleMessage{
 				{
 					Sender:  -1,
 					Payload: 4,
 				},
 			},
-			SentMessages: []*grpcapi.TrialActorSampleMessage{
+			SentMessages: []*grpcapi.StoredTrialActorSampleMessage{
 				{
 					Receiver: -1,
 					Payload:  5,
@@ -127,10 +127,10 @@ func TestNoFilters(t *testing.T) {
 }
 
 func TestFieldFiltersFilterOutRewardsAndMessages(t *testing.T) {
-	fieldFilter := createSampleFieldsFilter([]grpcapi.TrialSampleField{
-		grpcapi.TrialSampleField_TRIAL_SAMPLE_FIELD_ACTION,
-		grpcapi.TrialSampleField_TRIAL_SAMPLE_FIELD_OBSERVATION,
-		grpcapi.TrialSampleField_TRIAL_SAMPLE_FIELD_REWARD,
+	fieldFilter := createSampleFieldsFilter([]grpcapi.StoredTrialSampleField{
+		grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_ACTION,
+		grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_OBSERVATION,
+		grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_REWARD,
 	})
 	filteredTrialSample1 := filterTrialSample(trialSample1, make(trialActorFilter), fieldFilter)
 
@@ -161,13 +161,13 @@ func TestFieldFiltersFilterOutRewardsAndMessages(t *testing.T) {
 }
 
 func TestFieldFiltersFilterOutReward(t *testing.T) {
-	fieldFilter := createSampleFieldsFilter([]grpcapi.TrialSampleField{
-		grpcapi.TrialSampleField_TRIAL_SAMPLE_FIELD_ACTION,
-		grpcapi.TrialSampleField_TRIAL_SAMPLE_FIELD_OBSERVATION,
-		grpcapi.TrialSampleField_TRIAL_SAMPLE_FIELD_RECEIVED_REWARDS,
-		grpcapi.TrialSampleField_TRIAL_SAMPLE_FIELD_SENT_REWARDS,
-		grpcapi.TrialSampleField_TRIAL_SAMPLE_FIELD_RECEIVED_MESSAGES,
-		grpcapi.TrialSampleField_TRIAL_SAMPLE_FIELD_SENT_MESSAGES,
+	fieldFilter := createSampleFieldsFilter([]grpcapi.StoredTrialSampleField{
+		grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_ACTION,
+		grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_OBSERVATION,
+		grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_REWARDS,
+		grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_REWARDS,
+		grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_MESSAGES,
+		grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_MESSAGES,
 	})
 	filteredTrialSample1 := filterTrialSample(trialSample1, make(trialActorFilter), fieldFilter)
 

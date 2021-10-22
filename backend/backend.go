@@ -50,10 +50,10 @@ type TrialSampleFilter struct {
 	ActorNames           []string
 	ActorClasses         []string
 	ActorImplementations []string
-	Fields               []grpcapi.TrialSampleField
+	Fields               []grpcapi.StoredTrialSampleField
 }
 
-type TrialSampleObserver chan *grpcapi.TrialSample
+type TrialSampleObserver chan *grpcapi.StoredTrialSample
 
 // Backend defines the interface for a datalogger backend
 type Backend interface {
@@ -66,8 +66,8 @@ type Backend interface {
 
 	GetTrialParams(ctx context.Context, trialIDs []string) ([]*TrialParams, error)
 
-	AddSamples(ctx context.Context, samples []*grpcapi.TrialSample) error
-	ObserveSamples(ctx context.Context, filter TrialSampleFilter, out chan<- *grpcapi.TrialSample) error
+	AddSamples(ctx context.Context, samples []*grpcapi.StoredTrialSample) error
+	ObserveSamples(ctx context.Context, filter TrialSampleFilter, out chan<- *grpcapi.StoredTrialSample) error
 }
 
 // UnknownTrialError is raised when trying to operate on an unknown trial
