@@ -21,40 +21,54 @@
 
 namespace cogment {
 
-DatalogServiceImpl::DatalogServiceImpl(StubEntryType stub_entry) : m_stub_entry(std::move(stub_entry)) {
+DatalogServiceImpl::DatalogServiceImpl(StubEntryType stub_entry) : 
+    m_stub_entry(std::move(stub_entry)),
+    m_stream_valid(false) {
   SPDLOG_TRACE("DatalogServiceImpl");
 }
 
 DatalogServiceImpl::~DatalogServiceImpl() {
   SPDLOG_TRACE("~DatalogServiceImpl()");
 
-  m_stream->WritesDone();
-  m_stream->Finish();
+  if (m_stream_valid) {
+    m_stream->WritesDone();
+    m_stream->Finish();
+  }
 }
 
 void DatalogServiceImpl::start(const std::string& trial_id, const std::string& user_id,
                                const cogmentAPI::TrialParams& params) {
   if (m_stream != nullptr) {
-    throw MakeException("DatalogService already started");
+    throw MakeException("DatalogService already started for [%s] cannot start for [%s]", 
+                        m_trial_id.c_str(), trial_id.c_str());
   }
+  m_trial_id = trial_id;
 
-  m_context.AddMetadata("trial-id", trial_id);
+  m_context.AddMetadata("trial-id", m_trial_id);
   m_context.AddMetadata("user-id", user_id);
   m_stream = m_stub_entry->get_stub().OnLogSample(&m_context);
+  m_stream_valid = (m_stream != nullptr);
 
   cogmentAPI::LogExporterSampleRequest msg;
   *msg.mutable_trial_params() = params;
-  m_stream->Write(msg);
+  if (m_stream_valid) {
+    m_stream_valid = m_stream->Write(msg);
+  }
 }
 
 void DatalogServiceImpl::add_sample(cogmentAPI::DatalogSample&& data) {
-  if (m_stream != nullptr) {
+  if (m_stream_valid) {
     cogmentAPI::LogExporterSampleRequest msg;
     *msg.mutable_sample() = std::move(data);
-    m_stream->Write(msg);
+    m_stream_valid = m_stream->Write(msg);
   }
   else {
-    throw MakeException("DatalogService is not started");
+    if (m_stream != nullptr) {
+      throw MakeException("Trial [%s] - DatalogService stream stopped", m_trial_id.c_str());
+    }
+    else {
+      throw MakeException("Trial [%s] - DatalogService is not started", m_trial_id.c_str());
+    }
   }
 }
 

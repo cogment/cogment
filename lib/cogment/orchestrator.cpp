@@ -50,8 +50,7 @@ Orchestrator::Orchestrator(cogmentAPI::TrialParams default_trial_params,
     m_env_stubs(&m_channel_pool),
     m_agent_stubs(&m_channel_pool),
     m_actor_service(this),
-    m_trial_lifecycle_service(this),
-    m_watchtrial_fut(m_watchtrial_prom.get_future()) {
+    m_trial_lifecycle_service(this) {
   SPDLOG_TRACE("Orchestrator()");
   m_garbage_collection_countdown.store(settings::garbage_collection_frequency.get());
 
@@ -103,7 +102,13 @@ Orchestrator::Orchestrator(cogmentAPI::TrialParams default_trial_params,
 Orchestrator::~Orchestrator() {
   SPDLOG_TRACE("~Orchestrator()");
 
-  m_watchtrial_prom.set_value();
+  {
+    const std::lock_guard lg(m_notification_lock);
+    for (auto& watcher : m_trial_watchers) {
+      watcher.prom.set_value();
+    }
+  }
+
   m_trials_to_delete.push({});
 }
 
@@ -239,26 +244,38 @@ std::vector<std::shared_ptr<Trial>> Orchestrator::all_trials() const {
   return result;
 }
 
-std::shared_future<void> Orchestrator::watch_trials(HandlerFunction func) {
+std::future<void> Orchestrator::watch_trials(HandlerFunction func) {
   SPDLOG_TRACE("Adding new notification function");
 
+  // We have to lock here to make sure the new heandler does not miss a state
   const std::lock_guard lg(m_notification_lock);
 
   // Report current trial states
   for (const auto& trial : all_trials()) {
-    func(*trial.get());
+    if (!func(*trial.get())) {
+      std::promise<void> prom;
+      prom.set_value();
+      return prom.get_future();
+    }
   }
 
-  m_trial_watchers.emplace_back(std::move(func));
+  auto& new_watcher = m_trial_watchers.emplace_back(std::move(func));
 
-  return m_watchtrial_fut;
+  return new_watcher.prom.get_future();
 }
 
 void Orchestrator::notify_watchers(const Trial& trial) {
   const std::lock_guard lg(m_notification_lock);
 
-  for (auto& handler : m_trial_watchers) {
-    handler(trial);
+  auto itor = m_trial_watchers.begin();
+  while (itor != m_trial_watchers.end()) {
+    if (itor->handler(trial)) {
+      ++itor;
+    }
+    else {
+      itor->prom.set_value();
+      itor = m_trial_watchers.erase(itor);
+    }
   }
 }
 

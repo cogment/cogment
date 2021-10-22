@@ -78,7 +78,7 @@ ServiceActor::~ServiceActor() {
 void ServiceActor::write_to_stream(cogmentAPI::ActorRunTrialInput&& data) {
   const std::lock_guard<std::mutex> lg(m_writing);
   if (m_stream_valid) {
-    m_stream->Write(std::move(data));
+    m_stream_valid = m_stream->Write(std::move(data));
   }
   else {
     throw MakeException("Trial [%s] - Actor [%s] stream has closed", trial()->id().c_str(), actor_name().c_str());
@@ -98,11 +98,13 @@ void ServiceActor::trial_ended(std::string_view details) {
   if (details.size() > 0) {
     data.set_details(details.data(), details.size());
   }
-  m_stream->Write(std::move(data));
+  bool closed = m_stream->Write(std::move(data));
   SPDLOG_DEBUG("Trial [{}] - Actor [{}] 'END' sent", trial()->id(), actor_name());
 
-  m_stream->WritesDone();
-  m_stream->Finish();
+  if (!closed) {
+    m_stream->WritesDone();
+    m_stream->Finish();
+  }
   m_stream_valid = false;
 }
 

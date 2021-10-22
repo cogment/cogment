@@ -28,9 +28,11 @@ namespace {
 bool get_init_data(ClientActor::StreamType* stream, cogmentAPI::ActorInitialOutput* out) {
   SPDLOG_TRACE("Client actor get_init_data");
 
+  bool stream_valid = true;
+
   // TODO: Limit the time to wait for init data
   cogmentAPI::ActorRunTrialOutput data;
-  while (stream->Read(&data)) {
+  while (stream_valid && stream->Read(&data)) {
     const auto state = data.state();
     const auto data_case = data.data_case();
 
@@ -49,7 +51,7 @@ bool get_init_data(ClientActor::StreamType* stream, cogmentAPI::ActorInitialOutp
       }
       cogmentAPI::ActorRunTrialInput msg;
       msg.set_state(cogmentAPI::CommunicationState::HEARTBEAT);
-      stream->Write(std::move(msg));
+      stream_valid = stream->Write(std::move(msg));
     }
     else if (state == cogmentAPI::CommunicationState::LAST) {
       throw MakeException("Unexpected reception of communication state (LAST) from client actor");
@@ -151,7 +153,7 @@ ClientActor::~ClientActor() {
 void ClientActor::write_to_stream(cogmentAPI::ActorRunTrialInput&& data) {
   const std::lock_guard<std::mutex> lg(m_writing);
   if (m_stream_valid) {
-    m_stream->Write(std::move(data));
+    m_stream_valid = m_stream->Write(std::move(data));
   }
   else {
     throw MakeException("Trial [%s] - Actor [%s] stream has closed", trial()->id().c_str(), actor_name().c_str());
@@ -174,7 +176,7 @@ void ClientActor::trial_ended(std::string_view details) {
 
   grpc::WriteOptions options;
   options.set_last_message();
-  m_stream->Write(std::move(data), options);
+  m_stream_valid = m_stream->Write(std::move(data), options);
   SPDLOG_DEBUG("Trial [{}] - Actor [{}] 'END' sent", trial()->id(), actor_name());
 
   finish_stream();

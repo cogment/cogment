@@ -53,6 +53,8 @@ private:
   std::unique_ptr<grpc::ClientReaderWriter<cogmentAPI::LogExporterSampleRequest, cogmentAPI::LogExporterSampleReply>>
       m_stream;
   grpc::ClientContext m_context;
+  bool m_stream_valid;
+  std::string m_trial_id;
 };
 
 }  // namespace cogment

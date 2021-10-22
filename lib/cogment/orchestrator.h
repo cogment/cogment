@@ -36,7 +36,7 @@ namespace cogment {
 
 class Orchestrator {
 public:
-  using HandlerFunction = std::function<void(const Trial& trial)>;
+  using HandlerFunction = std::function<bool(const Trial& trial)>;
 
   Orchestrator(cogmentAPI::TrialParams default_trial_params, std::shared_ptr<grpc::ChannelCredentials> creds,
                prometheus::Registry* metrics_registry);
@@ -64,11 +64,16 @@ public:
 
   const cogmentAPI::TrialParams& default_trial_params() const { return m_default_trial_params; }
 
-  std::shared_future<void> watch_trials(HandlerFunction func);
+  std::future<void> watch_trials(HandlerFunction func);
 
   void notify_watchers(const Trial& trial);
 
 private:
+  struct Watcher {
+    Watcher(HandlerFunction&& func): handler(std::move(func)) {}
+    HandlerFunction handler;
+    std::promise<void> prom;
+  };
   void m_perform_garbage_collection();
   cogmentAPI::TrialParams m_perform_pre_hooks(cogmentAPI::TrialParams&& params, const std::string& trial_id,
                                               const std::string& user_id);
@@ -96,13 +101,10 @@ private:
   TrialLifecycleService m_trial_lifecycle_service;
 
   mutable std::mutex m_notification_lock;
-  std::vector<HandlerFunction> m_trial_watchers;
+  std::vector<Watcher> m_trial_watchers;
 
   std::atomic<int> m_garbage_collection_countdown;
   ThrQueue<std::shared_ptr<Trial>> m_trials_to_delete;
-
-  std::promise<void> m_watchtrial_prom;
-  std::shared_future<void> m_watchtrial_fut;
 
   ThreadPool m_thread_pool;
 };

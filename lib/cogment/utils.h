@@ -47,7 +47,7 @@ EXC MakeException(const char* format, ...) {
     va_end(args);
 
     const char* const const_buf = buf;
-    spdlog::error("**Exception generated**: {}", const_buf);
+    spdlog::debug("**Exception generated**: {}", const_buf);
     return EXC(const_buf);
   }
   catch (...) {

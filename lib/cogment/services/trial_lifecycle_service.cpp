@@ -158,8 +158,9 @@ grpc::Status TrialLifecycleService::WatchTrials(grpc::ServerContext*, const cogm
         cogmentAPI::TrialListEntry msg;
         msg.set_trial_id(trial.id());
         msg.set_state(state);
-        out->Write(msg);
+        return out->Write(msg);
       }
+      return true;
     };
 
     auto fut = m_orchestrator->watch_trials(std::move(handler));

@@ -45,7 +45,7 @@ Environment::Environment(Trial* owner, const std::string& name, const std::strin
   // TODO: Move this out of the constructor (maybe in init) and in its own thread to wait
   //       for the stream init without blocking. But then we'll need to synchonize with other parts.
   m_stream = m_stub_entry->get_stub().RunTrial(&m_context);
-  m_stream_valid = true;
+  m_stream_valid = (m_stream != nullptr);
 
   m_incoming_thread = m_trial->thread_pool().push("Environment incoming data", [this]() {
     try {
@@ -278,7 +278,7 @@ bool Environment::process_incoming_data(cogmentAPI::EnvRunTrialOutput&& data) {
 void Environment::write_to_stream(cogmentAPI::EnvRunTrialInput&& data) {
   const std::lock_guard<std::mutex> lg(m_writing);
   if (m_stream_valid) {
-    m_stream->Write(std::move(data));
+    m_stream_valid = m_stream->Write(std::move(data));
   }
   else {
     spdlog::error("Trial [{}] - Environment [{}] stream has ended: cannot write", m_trial->id(), m_name);
@@ -298,11 +298,13 @@ void Environment::trial_ended(std::string_view details) {
   if (!details.empty()) {
     msg.set_details(details.data(), details.size());
   }
-  m_stream->Write(std::move(msg));
+  m_stream_valid = m_stream->Write(std::move(msg));
   SPDLOG_DEBUG("Trial [{}] - Environment [{}] 'END' sent", m_trial->id(), m_name);
 
-  m_stream->WritesDone();
-  m_stream->Finish();
+  if (m_stream_valid) {
+    m_stream->WritesDone();
+    m_stream->Finish();
+  }
   m_stream_valid = false;
 }
 
