@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v0.1.2 - 2021-10-25
+
 ### Fixed
 
 - Fix bad data initialization that would cause a nil pointer dereference when receiving samples through the datalog server
