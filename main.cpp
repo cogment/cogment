@@ -86,7 +86,7 @@ slt::Setting deprecated_prometheus_port = slt::Setting_builder<std::string>()
 slt::Setting prometheus_port = slt::Setting_builder<std::uint16_t>()
                                    .with_default(0)
                                    .with_description("The port to broadcast prometheus metrics on")
-                                   .with_env_variable("COGMENT_PROMETHEUS_PORT")
+                                   .with_env_variable("COGMENT_ORCHESTRATOR_PROMETHEUS_PORT")
                                    .with_arg("prometheus_port");
 
 slt::Setting display_version = slt::Setting_builder<bool>()

@@ -46,10 +46,10 @@ void DatalogServiceImpl::start(const std::string& trial_id, const std::string& u
 
   m_context.AddMetadata("trial-id", m_trial_id);
   m_context.AddMetadata("user-id", user_id);
-  m_stream = m_stub_entry->get_stub().OnLogSample(&m_context);
+  m_stream = m_stub_entry->get_stub().RunTrialDatalog(&m_context);
   m_stream_valid = (m_stream != nullptr);
 
-  cogmentAPI::LogExporterSampleRequest msg;
+  cogmentAPI::RunTrialDatalogInput msg;
   *msg.mutable_trial_params() = params;
   if (m_stream_valid) {
     m_stream_valid = m_stream->Write(msg);
@@ -58,7 +58,7 @@ void DatalogServiceImpl::start(const std::string& trial_id, const std::string& u
 
 void DatalogServiceImpl::add_sample(cogmentAPI::DatalogSample&& data) {
   if (m_stream_valid) {
-    cogmentAPI::LogExporterSampleRequest msg;
+    cogmentAPI::RunTrialDatalogInput msg;
     *msg.mutable_sample() = std::move(data);
     m_stream_valid = m_stream->Write(msg);
   }

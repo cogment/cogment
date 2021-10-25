@@ -57,7 +57,7 @@ public:
   TrialLifecycleService* trial_lifecycle_service() { return &m_trial_lifecycle_service; }
 
   ChannelPool* channel_pool() { return &m_channel_pool; }
-  StubPool<cogmentAPI::LogExporterSP>* log_pool() { return &m_log_stubs; }
+  StubPool<cogmentAPI::DatalogSP>* log_pool() { return &m_log_stubs; }
   StubPool<cogmentAPI::EnvironmentSP>* env_pool() { return &m_env_stubs; }
   StubPool<cogmentAPI::ServiceActorSP>* agent_pool() { return &m_agent_stubs; }
   ThreadPool& thread_pool() { return m_thread_pool; }
@@ -93,7 +93,7 @@ private:
 
   ChannelPool m_channel_pool;
 
-  StubPool<cogmentAPI::LogExporterSP> m_log_stubs;
+  StubPool<cogmentAPI::DatalogSP> m_log_stubs;
   StubPool<cogmentAPI::EnvironmentSP> m_env_stubs;
   StubPool<cogmentAPI::ServiceActorSP> m_agent_stubs;
 

@@ -39,7 +39,7 @@ public:
 };
 
 class DatalogServiceImpl : public DatalogService {
-  using StubEntryType = std::shared_ptr<StubPool<cogmentAPI::LogExporterSP>::Entry>;
+  using StubEntryType = std::shared_ptr<StubPool<cogmentAPI::DatalogSP>::Entry>;
 
 public:
   DatalogServiceImpl(StubEntryType stub_entry);
@@ -50,7 +50,7 @@ public:
 
 private:
   StubEntryType m_stub_entry;
-  std::unique_ptr<grpc::ClientReaderWriter<cogmentAPI::LogExporterSampleRequest, cogmentAPI::LogExporterSampleReply>>
+  std::unique_ptr<grpc::ClientReaderWriter<cogmentAPI::RunTrialDatalogInput, cogmentAPI::RunTrialDatalogOutput>>
       m_stream;
   grpc::ClientContext m_context;
   bool m_stream_valid;
