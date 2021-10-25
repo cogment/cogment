@@ -46,6 +46,7 @@ EXC MakeException(const char* format, ...) {
     std::vsnprintf(buf, BUF_SIZE, format, args);
     va_end(args);
 
+    buf[BUF_SIZE-1] = '\0';  // Safety net
     const char* const const_buf = buf;
     spdlog::debug("**Exception generated**: {}", const_buf);
     return EXC(const_buf);

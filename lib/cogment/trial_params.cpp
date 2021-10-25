@@ -50,7 +50,7 @@ cogmentAPI::TrialParams load_params(const YAML::Node& yaml) {
     if (!status.ok()) {
       spdlog::error("Problematic parameters: {}", json_params);
       spdlog::debug("Problematic message type: {}", result.descriptor()->DebugString());
-      throw MakeException("Problem rebuilding trial params [%s]", status.error_message().as_string().c_str());
+      throw MakeException("Problem rebuilding trial params [%s]", status.ToString().c_str());
     }
   }
 
