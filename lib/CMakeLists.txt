@@ -120,7 +120,6 @@ add_library(orchestrator_lib
   cogment/agent_actor.cpp
   cogment/client_actor.cpp
   cogment/datalog.cpp
-  cogment/base64.cpp
   cogment/orchestrator.cpp
   cogment/trial_params.cpp
   cogment/trial.cpp

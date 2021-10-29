@@ -22,20 +22,20 @@
   #include <string.h>
   #include <time.h>
 
-// This is simpler and much more efficient than the C++ "chrono" way
+// This is simpler and much more efficient than the C++ "std::chrono" way
 uint64_t Timestamp() {
   struct timespec ts;
   int res = clock_gettime(CLOCK_REALTIME, &ts);
-  if (res == -1) {
-    throw MakeException("Could not get time stamp: %s", strerror(errno));
+  if (res != -1) {
+    return (ts.tv_sec * NANOS + ts.tv_nsec);
   }
-
-  return (ts.tv_sec * NANOS + ts.tv_nsec);
+  else {
+    throw MakeException("Could not get time stamp: {}", strerror(errno));
+  }
 }
 
 #endif
 
-// Ignores (i.e. not added to vector) the last empty string
 std::vector<std::string> split(const std::string& in, char separator) {
   std::vector<std::string> result;
 
@@ -56,40 +56,13 @@ std::vector<std::string> split(const std::string& in, char separator) {
   return result;
 }
 
-grpc::Status MakeErrorStatus(const char* format, ...) {
-  static constexpr std::size_t BUF_SIZE = 256;
-
-  try {
-    char buf[BUF_SIZE];
-    va_list args;
-    va_start(args, format);
-    std::vsnprintf(buf, BUF_SIZE, format, args);
-    va_end(args);
-
-    const char* const const_buf = buf;
-    spdlog::error("gRPC error returned: {}", const_buf);
-    return grpc::Status(grpc::StatusCode::UNKNOWN, const_buf);
-  }
-  catch (...) {
-    return grpc::Status::CANCELLED;  // Not ideal, but the only predefined status other than OK
-  }
-}
-
 class ThreadPool::ThreadControl {
 public:
-  bool is_available() { return !m_running; }
-
-  void cancel() {
-    m_cancelled = true;
-    m_running = true;  // To prevent any more scheduling
-  }
+  void stop() { m_active = false; }
+  bool is_available() { return (!m_executing_func && m_active); }
 
   std::future<void> set_execution(FUNC_TYPE&& func, std::string_view desc) {
-    if (m_cancelled) {
-      throw MakeException("Cannot run [%.*s] on cancelled thread", static_cast<int>(desc.size()), desc.data());
-    }
-
-    m_running = true;
+    m_executing_func = true;
     m_prom = std::promise<void>();
     m_description.assign(desc.data(), desc.size());
     m_funcs.push(std::move(func));
@@ -97,32 +70,48 @@ public:
   }
 
   void run() {
-    while (true) {
-      auto func = m_funcs.pop();
-      try {
-        func();
+    m_active = true;
+
+    try {
+      while (m_active) {
+        auto func = m_funcs.pop();
+        try {
+          func();
+        }
+        catch (const std::exception& exc) {
+          spdlog::error("Threaded function [{}] failed [{}]", m_description, exc.what());
+        }
+        catch (...) {
+          spdlog::error("Threaded function [{}] failed", m_description);
+        }
+        m_prom.set_value();
+        m_executing_func = false;
       }
-      catch (const std::exception& exc) {
-        spdlog::error("Threaded function [{}] failed [{}]", m_description, exc.what());
-      }
-      catch (...) {
-        spdlog::error("Threaded function [{}] failed", m_description);
-      }
-      m_prom.set_value();
-      m_running = false;
     }
+    catch (const std::exception& exc) {
+      spdlog::error("Pooled thread failure: {}", exc.what());
+    }
+    catch (...) {
+      spdlog::error("Pooled thread failure");
+    }
+
+    m_active = false;
+    m_executing_func = false;
   }
 
 private:
   ThrQueue<FUNC_TYPE> m_funcs;
-  bool m_running = false;
-  bool m_cancelled = false;
+  bool m_active = false;
+  bool m_executing_func = false;
   std::promise<void> m_prom;
   std::string m_description;
 };
 
 ThreadPool::~ThreadPool() {
-  for (auto& thr : m_pool) {
+  for (auto& ctrl : m_thread_controls) {
+    ctrl->stop();
+  }
+  for (auto& thr : m_thread_pool) {
     thr.detach();
   }
 }
@@ -130,7 +119,7 @@ ThreadPool::~ThreadPool() {
 std::future<void> ThreadPool::push(std::string_view desc, FUNC_TYPE&& func) {
   if (!func) {
     std::string str_desc(desc);
-    throw MakeException("Invalid function for thread pool [%s]", str_desc.c_str());
+    throw MakeException("Invalid function for thread pool [{}]", str_desc);
   }
 
   const std::lock_guard<std::mutex> lg(m_lock);
@@ -148,17 +137,8 @@ std::future<void> ThreadPool::push(std::string_view desc, FUNC_TYPE&& func) {
 std::shared_ptr<ThreadPool::ThreadControl>& ThreadPool::add_thread() {
   m_thread_controls.emplace_back(std::make_shared<ThreadControl>());
   auto& thr_control = m_thread_controls.back();
-  m_pool.emplace_back([thr_control]() {
-    try {
-      thr_control->run();
-    }
-    catch (const std::exception& exc) {
-      spdlog::debug("Error in pooled thread [{}]", exc.what());
-    }
-    catch (...) {
-      spdlog::debug("Error in pooled thread");
-    }
-    thr_control->cancel();
+  m_thread_pool.emplace_back([thr_control]() {
+    thr_control->run();
   });
 
   spdlog::debug("Nb of threads in pool: [{}]", m_thread_controls.size());

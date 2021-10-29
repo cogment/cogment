@@ -17,9 +17,7 @@
 #endif
 
 #include "cogment/services/actor_service.h"
-
 #include "cogment/orchestrator.h"
-#include "cogment/versions.h"
 
 #include "spdlog/spdlog.h"
 
@@ -29,9 +27,7 @@ namespace cogment {
 
 ActorService::ActorService(Orchestrator* orch) : m_orchestrator(orch) {}
 
-grpc::Status ActorService::RunTrial(
-    grpc::ServerContext* ctx,
-    grpc::ServerReaderWriter<cogmentAPI::ActorRunTrialInput, cogmentAPI::ActorRunTrialOutput>* stream) {
+grpc::Status ActorService::RunTrial(grpc::ServerContext* ctx, ServerStream::StreamType* stream) {
   SPDLOG_TRACE("ActorService::RunTrial()");
 
   try {
@@ -41,33 +37,33 @@ grpc::Status ActorService::RunTrial(
 
     auto trial = m_orchestrator->get_trial(trial_id);
     if (trial == nullptr) {
-      throw MakeException("Trial [%s] - Unknown trial for actor to join", trial_id.c_str());
+      throw MakeException("Unknown trial for actor to join");
     }
 
-    std::weak_ptr<Trial> ptr(trial);
-    trial.reset();
-    return ClientActor::run_an_actor(ptr, stream);  // Blocking
+    ClientActor::run_an_actor(std::move(trial), stream);  // Blocking
   }
   catch (const std::exception& exc) {
-    return MakeErrorStatus("ActorService::RunTrial failure on exception: %s", exc.what());
+    return MakeErrorStatus("ClientActorSP::RunTrial failure: {}", exc.what());
   }
   catch (...) {
-    return MakeErrorStatus("ActorService::RunTrial failure on unknown exception");
+    return MakeErrorStatus("ClientActorSP::RunTrial failure");
   }
+
+  return grpc::Status::OK;
 }
 
 grpc::Status ActorService::Version(grpc::ServerContext*, const cogmentAPI::VersionRequest*,
                                    cogmentAPI::VersionInfo* out) {
-  SPDLOG_TRACE("Version()");
+  SPDLOG_TRACE("ActorService::Version()");
 
   try {
     m_orchestrator->Version(out);
   }
   catch (const std::exception& exc) {
-    return MakeErrorStatus("Version failure on exception [%s]", exc.what());
+    return MakeErrorStatus("ClientActorSP::Version failure: {}", exc.what());
   }
   catch (...) {
-    return MakeErrorStatus("Version failure on unknown exception");
+    return MakeErrorStatus("ClientActorSP::Version failure");
   }
 
   return grpc::Status::OK;

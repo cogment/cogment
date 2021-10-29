@@ -1,5 +1,4 @@
-#FROM cogment/orchestrator-build-env:v1.1.3-debug as debugbuild
-FROM local/orchestrator-build-env:debug as debugbuild
+FROM cogment/orchestrator-build-env:v2.0.0-debug as debugbuild
 
 WORKDIR /workspace
 COPY . .
@@ -9,8 +8,7 @@ RUN mkdir build_dbg && cd build_dbg      \
   && make -j$(nproc)                   \
   && make install
 
-#FROM cogment/orchestrator-build-env:v1.1.3 as build
-FROM local/orchestrator-build-env:latest as build
+FROM cogment/orchestrator-build-env:v2.0.0 as build
 
 WORKDIR /workspace
 COPY . .
@@ -28,6 +26,6 @@ COPY --from=build      /usr/local/bin/orchestrator     /usr/local/bin/
 
 WORKDIR /app
 
-ENTRYPOINT ["orchestrator_dbg"]
+ENTRYPOINT ["orchestrator"]
 CMD ["--config=/app/cogment.yaml"]
 

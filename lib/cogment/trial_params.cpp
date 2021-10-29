@@ -17,11 +17,10 @@
 #endif
 
 #include "cogment/trial_params.h"
-#include "cogment/base64.h"
 #include "cogment/config_file.h"
 #include "cogment/utils.h"
 
-#include <google/protobuf/util/json_util.h>
+#include "google/protobuf/util/json_util.h"
 #include "spdlog/spdlog.h"
 
 namespace cogment {
@@ -50,7 +49,7 @@ cogmentAPI::TrialParams load_params(const YAML::Node& yaml) {
     if (!status.ok()) {
       spdlog::error("Problematic parameters: {}", json_params);
       spdlog::debug("Problematic message type: {}", result.descriptor()->DebugString());
-      throw MakeException("Problem rebuilding trial params [%s]", status.ToString().c_str());
+      throw MakeException("Problem rebuilding trial params [{}]", status.ToString());
     }
   }
 

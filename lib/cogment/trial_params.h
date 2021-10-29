@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef AOM_ORCHESTRATOR_TRIAL_PARAMS_H
-#define AOM_ORCHESTRATOR_TRIAL_PARAMS_H
+#ifndef COGMENT_ORCHESTRATOR_TRIAL_PARAMS_H
+#define COGMENT_ORCHESTRATOR_TRIAL_PARAMS_H
 
 #include "cogment/api/common.pb.h"
+
 #include "yaml-cpp/yaml.h"
 
 namespace cogment {

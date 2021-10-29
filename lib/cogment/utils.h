@@ -12,8 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef COGMENT_UTILS_H_INCLUDED
-#define COGMENT_UTILS_H_INCLUDED
+#ifndef COGMENT_ORCHESTRATOR_UTILS_H
+#define COGMENT_ORCHESTRATOR_UTILS_H
+
+#include "grpc++/grpc++.h"
+#include "spdlog/spdlog.h"
 
 #include <cstdarg>
 #include <cstdio>
@@ -23,49 +26,53 @@
 #include <future>
 #include <utility>
 #include <condition_variable>
-#include "grpc++/grpc++.h"
-#include "spdlog/spdlog.h"
 
 constexpr uint64_t NANOS = 1'000'000'000;
 constexpr double NANOS_INV = 1.0 / NANOS;
 
+// Ignores (i.e. not added to the vector) the last empty string if there is a trailing separator
 std::vector<std::string> split(const std::string& in, char separator);
 
-grpc::Status MakeErrorStatus(const char* format, ...);
+// Unix epoch time in nanoseconds
 uint64_t Timestamp();
 
-// TODO: Make a specific cogment exception for all internally generated exceptions
-template <class EXC = std::runtime_error>
-EXC MakeException(const char* format, ...) {
-  static constexpr std::size_t BUF_SIZE = 256;
-
+// TODO: Update to use std::format (C++20)
+template <class EXC = std::runtime_error, class... Args>
+EXC MakeException(const char* format, Args&&... args) {
   try {
-    char buf[BUF_SIZE];
-    va_list args;
-    va_start(args, format);
-    std::vsnprintf(buf, BUF_SIZE, format, args);
-    va_end(args);
-
-    buf[BUF_SIZE-1] = '\0';  // Safety net
-    const char* const const_buf = buf;
-    spdlog::debug("**Exception generated**: {}", const_buf);
-    return EXC(const_buf);
+    std::string val = fmt::format(format, std::forward<Args>(args)...);
+    spdlog::debug("**Exception generated**: {}", val);
+    return EXC(val);
   }
   catch (...) {
-    return EXC("Error creating exception message");
+    return EXC("Could not create exception message");
   }
 }
 
-// Return only the first instance if there are more
+// TODO: Update to use std::format (C++20)
+template <class... Args>
+grpc::Status MakeErrorStatus(const char* format, Args&&... args) {
+  try {
+    std::string val = fmt::format(format, std::forward<Args>(args)...);
+    spdlog::error("gRPC failed status returned: {}", val);
+    return grpc::Status(grpc::StatusCode::UNKNOWN, val);
+  }
+  catch (...) {
+    return grpc::Status::CANCELLED;  // Not ideal, but the only predefined status other than OK
+  }
+}
+
+// Return only the first instance of the key if there are more
 template <class Container>
 std::string_view OneFromMetadata(const Container& metadata, std::string_view key) {
   auto itor = metadata.find(grpc::string_ref(key.data(), key.size()));
   if (itor == metadata.end()) {
-    throw MakeException("No [%.*s] key in metadata", static_cast<int>(key.size()), key.data());
+    throw MakeException("No [{}] key in metadata", key);
   }
   return std::string_view(itor->second.data(), itor->second.size());
 }
 
+// Return all instances of the key
 template <class Container>
 std::vector<std::string_view> FromMetadata(const Container& metadata, std::string_view key) {
   std::vector<std::string_view> result;
@@ -121,20 +128,21 @@ class ThreadPool {
 
 public:
   ThreadPool() = default;
+  ~ThreadPool();
+
   ThreadPool(const ThreadPool&) = delete;
   ThreadPool(ThreadPool&& tpool) = delete;
   void operator=(const ThreadPool&) = delete;
   void operator=(ThreadPool&& tpool) = delete;
-  ~ThreadPool();
 
-  // The future indicates that the execution is finished
+  // The future indicates that the execution of the function is finished
   std::future<void> push(std::string_view desc, FUNC_TYPE&& func);
 
 private:
   class ThreadControl;
   std::shared_ptr<ThreadControl>& add_thread();
 
-  std::vector<std::thread> m_pool;
+  std::vector<std::thread> m_thread_pool;
   std::vector<std::shared_ptr<ThreadControl>> m_thread_controls;
   std::mutex m_lock;
 };

@@ -22,39 +22,29 @@
 
 #include "slt/settings.h"
 #include "spdlog/spdlog.h"
-
 #include "uuid.h"
-
-#include <exception>
 
 namespace {
 uuids::uuid_system_generator g_uuid_generator;
 }  // namespace
 
-namespace settings {
-
-constexpr std::uint32_t default_garbage_collection_frequency = 10;
-
-slt::Setting garbage_collection_frequency = slt::Setting_builder<std::uint32_t>()
-                                                .with_default(default_garbage_collection_frequency)
-                                                .with_description("Number of trials between garbage collection runs")
-                                                .with_arg("gb_freq");
-}  // namespace settings
-
 namespace cogment {
-Orchestrator::Orchestrator(cogmentAPI::TrialParams default_trial_params,
+Orchestrator::Orchestrator(cogmentAPI::TrialParams default_trial_params, uint32_t gc_frequency,
                            std::shared_ptr<grpc::ChannelCredentials> creds, prometheus::Registry* metrics_registry) :
     m_default_trial_params(std::move(default_trial_params)),
+    m_gc_frequency(gc_frequency),
     m_channel_pool(creds),
+    m_hook_stubs(&m_channel_pool),
     m_log_stubs(&m_channel_pool),
     m_env_stubs(&m_channel_pool),
     m_agent_stubs(&m_channel_pool),
-    m_actor_service(this),
-    m_trial_lifecycle_service(this) {
+    m_gc_countdown(gc_frequency) {
   SPDLOG_TRACE("Orchestrator()");
-  m_garbage_collection_countdown.store(settings::garbage_collection_frequency.get());
 
-  thread_pool().push("Orchestrator trial deletion", [this]() {
+  // TODO: Transform this into a "garbage collection" thread so the gc could
+  //       also be triggered by time, in order to prevent old ended
+  //       or stale trials from lingering if no new trials are started.
+  m_delete_thread_fut = thread_pool().push("Orchestrator trial deletion", [this]() {
     while (true) {
       try {  // overkill
         auto trial = m_trials_to_delete.pop();
@@ -110,6 +100,7 @@ Orchestrator::~Orchestrator() {
   }
 
   m_trials_to_delete.push({});
+  m_delete_thread_fut.wait();
 }
 
 std::shared_ptr<Trial> Orchestrator::start_trial(cogmentAPI::TrialParams params, const std::string& user_id,
@@ -126,16 +117,15 @@ std::shared_ptr<Trial> Orchestrator::start_trial(cogmentAPI::TrialParams params,
   }
 
   try {
-    m_perform_garbage_collection();
+    m_perform_trial_gc();
   }
   catch (...) {
-    spdlog::error("Error performing garbage collection of trials");
+    spdlog::error("Failure to perform garbage collection of trials");
   }
 
-  auto new_trial =
-      std::make_shared<Trial>(this, user_id, trial_id_req, Trial::Metrics {m_trials_metrics, m_ticks_metrics});
+  auto new_trial = Trial::make(this, user_id, trial_id_req, Trial::Metrics {m_trials_metrics, m_ticks_metrics});
 
-  // Register the trial immediately.
+  // Register the trial
   {
     const std::lock_guard lg(m_trials_mutex);
     auto [itor, inserted] = m_trials.emplace(new_trial->id(), new_trial);
@@ -152,7 +142,7 @@ std::shared_ptr<Trial> Orchestrator::start_trial(cogmentAPI::TrialParams params,
   return new_trial;
 }
 
-void Orchestrator::add_prehook(const HookEntryType& hook) { m_prehooks.push_back(hook); }
+void Orchestrator::add_prehook(const std::string& url) { m_prehooks.push_back(m_hook_stubs.get_stub_entry(url)); }
 
 cogmentAPI::TrialParams Orchestrator::m_perform_pre_hooks(cogmentAPI::TrialParams&& params, const std::string& trial_id,
                                                           const std::string& user_id) {
@@ -166,21 +156,19 @@ cogmentAPI::TrialParams Orchestrator::m_perform_pre_hooks(cogmentAPI::TrialParam
 
     auto status = hook->get_stub().OnPreTrial(&hook_context, hook_param, &hook_param);
     if (!status.ok()) {
-      throw MakeException("Trial [%s] - Prehook failure [%s]", trial_id.c_str(), status.error_message().c_str());
+      throw MakeException("Prehook failure [{}]", status.error_message());
     }
   }
 
   return std::move(*hook_param.mutable_params());
 }
 
-// TODO: Add a timer to do garbage collection after 60 seconds (or whatever) since the last call
-//       in order to prevent old, ended or stale trials from lingering if no new trials are started.
-void Orchestrator::m_perform_garbage_collection() {
-  m_garbage_collection_countdown--;
-  if (m_garbage_collection_countdown != 0) {
+void Orchestrator::m_perform_trial_gc() {
+  m_gc_countdown--;
+  if (m_gc_countdown != 0) {
     return;
   }
-  m_garbage_collection_countdown.store(settings::garbage_collection_frequency.get());
+  m_gc_countdown.store(m_gc_frequency);
 
   const auto start = Timestamp();
 
@@ -208,7 +196,8 @@ void Orchestrator::m_perform_garbage_collection() {
   }
 
   // Terminate may be long, so we don't want to lock the list during that time.
-  // We don't go as far as with the deleted trials because stale trials should be rare.
+  // We don't go as far as with the deleted trials (i.e. terminating in a different thread)
+  // because stale trials should be rare.
   for (auto trial : stale_trials) {
     trial->terminate("The trial was inactive for too long");
   }

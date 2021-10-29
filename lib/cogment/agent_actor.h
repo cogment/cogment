@@ -12,54 +12,50 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef AOM_ORCHESTRATOR_AGENT_ACTOR_H
-#define AOM_ORCHESTRATOR_AGENT_ACTOR_H
+#ifndef COGMENT_ORCHESTRATOR_AGENT_ACTOR_H
+#define COGMENT_ORCHESTRATOR_AGENT_ACTOR_H
 
 #include "cogment/actor.h"
 #include "cogment/stub_pool.h"
 
-#include <optional>
+#include "cogment/api/agent.grpc.pb.h"
+#include "cogment/api/common.pb.h"
 
 namespace cogment {
 
-class Trial;
-
-// TODO: See what common aspects (with 'ClientActor') could be moved to 'Actor'
-class ServiceActor : public Actor {
+class ClientStream : public ActorStream {
 public:
-  using StubEntryType = std::shared_ptr<StubPool<cogmentAPI::ServiceActorSP>::Entry>;
-  using StreamType = grpc::ClientReaderWriter<cogmentAPI::ActorRunTrialInput, cogmentAPI::ActorRunTrialOutput>;
+  using StreamType = grpc::ClientReaderWriter<InputType, OutputType>;
 
-  ServiceActor(Trial* owner, const std::string& actor_name, const std::string& actor_class, const std::string& impl,
-               StubEntryType stub_entry, std::optional<std::string> config_data);
+  ClientStream(std::unique_ptr<StreamType> stream) : m_stream(std::move(stream)) {}
 
-  ~ServiceActor();
-
-  std::future<void> init() override;
-  bool is_active() const override;
-  void trial_ended(std::string_view details) override;
-
-protected:
-  void dispatch_observation(cogmentAPI::Observation&& obs, bool last) override;
-  void dispatch_reward(cogmentAPI::Reward&& reward) override;
-  void dispatch_message(cogmentAPI::Message&& message) override;
+  bool read(OutputType* data) override { return m_stream->Read(data); }
+  bool write(const InputType& data) override { return m_stream->Write(data); }
+  bool write_last(const InputType& data) override {
+    if (m_stream->Write(data)) {
+      return m_stream->WritesDone();
+    }
+    return false;
+  }
+  bool finish() override { return m_stream->Finish().ok(); }
 
 private:
-  void write_to_stream(cogmentAPI::ActorRunTrialInput&& data);
-  void process_incoming_data(cogmentAPI::ActorRunTrialOutput&& data);
-
-  StubEntryType m_stub_entry;
-
-  cogmentAPI::Action m_latest_action;
-
-  std::promise<void> m_init_prom;
   std::unique_ptr<StreamType> m_stream;
-  bool m_stream_valid;
-  grpc::ClientContext m_context;
-  std::future<void> m_incoming_thread;
+};
 
-  bool m_init_completed;
-  mutable std::mutex m_writing;
+class Trial;
+
+class ServiceActor : public Actor {
+  using StubEntryType = std::shared_ptr<StubPool<cogmentAPI::ServiceActorSP>::Entry>;
+
+public:
+  ServiceActor(Trial* owner, const cogmentAPI::ActorParams& params, StubEntryType stub_entry);
+
+  std::future<void> init() override;
+
+private:
+  StubEntryType m_stub_entry;
+  grpc::ClientContext m_context;
 };
 
 }  // namespace cogment

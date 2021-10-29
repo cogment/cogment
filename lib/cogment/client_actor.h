@@ -12,60 +12,43 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef AOM_ORCHESTRATOR_CLIENT_ACTOR_H
-#define AOM_ORCHESTRATOR_CLIENT_ACTOR_H
+#ifndef COGMENT_ORCHESTRATOR_CLIENT_ACTOR_H
+#define COGMENT_ORCHESTRATOR_CLIENT_ACTOR_H
 
 #include "cogment/actor.h"
-#include "grpc++/grpc++.h"
 
-#include <optional>
-#include <thread>
+#include "cogment/api/orchestrator.grpc.pb.h"
 
 namespace cogment {
 
-class Trial;
-
-// TODO: See what common aspects (with 'ServiceActor') could be moved to 'Actor'
-class ClientActor : public Actor {
+class ServerStream : public ActorStream {
 public:
-  using StreamType = grpc::ServerReaderWriter<cogmentAPI::ActorRunTrialInput, cogmentAPI::ActorRunTrialOutput>;
+  using StreamType = grpc::ServerReaderWriter<InputType, OutputType>;
 
-  ClientActor(Trial* owner, const std::string& actor_name, const std::string& actor_class, const std::string& impl,
-              std::optional<std::string> config_data);
+  ServerStream(StreamType* stream) : m_stream(stream) {}
 
-  ~ClientActor();
-
-  std::future<void> init() override;
-  bool is_active() const override;
-  void trial_ended(std::string_view details) override;
-
-  static grpc::Status run_an_actor(std::weak_ptr<Trial> trial, StreamType* stream);
-
-protected:
-  void dispatch_observation(cogmentAPI::Observation&& obs, bool last) override;
-  void dispatch_reward(cogmentAPI::Reward&& reward) override;
-  void dispatch_message(cogmentAPI::Message&& message) override;
+  bool read(OutputType* data) override { return m_stream->Read(data); }
+  bool write(const InputType& data) override { return m_stream->Write(data); }
+  bool write_last(const InputType& data) override {
+    // We could decide to do nothing special here!
+    grpc::WriteOptions options;
+    options.set_last_message();
+    return m_stream->Write(data, options);
+  }
+  bool finish() override { return true; }
 
 private:
-  grpc::Status run(StreamType* stream);
-  void process_incoming_data(cogmentAPI::ActorRunTrialOutput&& data);
-  void finish_stream();
-  void write_to_stream(cogmentAPI::ActorRunTrialInput&& data);
-
-  cogmentAPI::Action m_latest_action;
-
   StreamType* m_stream;
-  bool m_stream_valid;
-  std::future<void> m_incoming_thread;
-
-  std::promise<void> m_ready_prom;
-  std::promise<void> m_finished_prom;
-  std::future<void> m_finished_fut;
-  grpc::Status m_incoming_stream_status;
-
-  std::mutex m_finishing_mutex;
-  mutable std::mutex m_active_mutex;
-  mutable std::mutex m_writing;
 };
+
+class Trial;
+
+class ClientActor : public Actor {
+public:
+  ClientActor(Trial* owner, const cogmentAPI::ActorParams& params);
+
+  static void run_an_actor(std::shared_ptr<Trial>&& trial_requested, ServerStream::StreamType* stream);
+};
+
 }  // namespace cogment
 #endif

@@ -12,15 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef AOM_ORCHESTRATOR_STUB_POOL_H
-#define AOM_ORCHESTRATOR_STUB_POOL_H
+#ifndef COGMENT_ORCHESTRATOR_STUB_POOL_H
+#define COGMENT_ORCHESTRATOR_STUB_POOL_H
+
+#include "cogment/utils.h"
+
+#include "spdlog/spdlog.h"
+#include "grpc++/grpc++.h"
 
 #include <mutex>
 #include <set>
 #include <typeinfo>
-#include "cogment/utils.h"
-#include "spdlog/spdlog.h"
-#include "grpc++/grpc++.h"
 
 namespace cogment {
 
@@ -95,7 +97,7 @@ public:
 
   std::shared_ptr<Entry> get_stub_entry(const std::string& url) {
     if (url.find("grpc://") != 0) {
-      throw MakeException("Bad grpc url (must start with 'grpc://'): [%s]", url.c_str());
+      throw MakeException("Bad grpc url (must start with 'grpc://'): [{}]", url);
     }
     std::lock_guard l(m_mtx);
 

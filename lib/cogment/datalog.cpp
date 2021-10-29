@@ -17,13 +17,24 @@
 #endif
 
 #include "cogment/datalog.h"
+
 #include "spdlog/spdlog.h"
 
 namespace cogment {
+namespace {
 
-DatalogServiceImpl::DatalogServiceImpl(StubEntryType stub_entry) : 
-    m_stub_entry(std::move(stub_entry)),
-    m_stream_valid(false) {
+constexpr size_t OBSERVATIONS_FIELD = 0;
+constexpr size_t ACTIONS_FIELD = 1;
+constexpr size_t REWARDS_FIELD = 2;
+constexpr size_t MESSAGES_FIELD = 3;
+constexpr size_t INFO_FIELD = 4;
+
+constexpr size_t NB_FIELDS = 5;
+
+}  // namespace
+
+DatalogServiceImpl::DatalogServiceImpl(StubEntryType stub_entry) :
+    m_stub_entry(std::move(stub_entry)), m_stream_valid(false) {
   SPDLOG_TRACE("DatalogServiceImpl");
 }
 
@@ -39,10 +50,35 @@ DatalogServiceImpl::~DatalogServiceImpl() {
 void DatalogServiceImpl::start(const std::string& trial_id, const std::string& user_id,
                                const cogmentAPI::TrialParams& params) {
   if (m_stream != nullptr) {
-    throw MakeException("DatalogService already started for [%s] cannot start for [%s]", 
-                        m_trial_id.c_str(), trial_id.c_str());
+    throw MakeException("DatalogService already started for [{}] cannot start for [{}]", m_trial_id, trial_id);
   }
   m_trial_id = trial_id;
+
+  static_assert(NB_BITS >= NB_FIELDS);
+  const auto& exclude = params.datalog().exclude_fields();
+  for (auto field : exclude) {
+    std::transform(field.begin(), field.end(), field.begin(), ::tolower);
+
+    if (field == "observations") {
+      m_exclude_fields.set(OBSERVATIONS_FIELD);
+    }
+    else if (field == "actions") {
+      m_exclude_fields.set(ACTIONS_FIELD);
+    }
+    else if (field == "rewards") {
+      m_exclude_fields.set(REWARDS_FIELD);
+    }
+    else if (field == "messages") {
+      m_exclude_fields.set(MESSAGES_FIELD);
+    }
+    else if (field == "info") {
+      m_exclude_fields.set(INFO_FIELD);
+    }
+    else {
+      spdlog::warn("Trial [{}] - Datalog excluded field [{}] is not a sample log field", m_trial_id, field);
+    }
+  }
+  spdlog::debug("Trial [{}] - Datalog excluded field [{}]", m_trial_id, m_exclude_fields.to_string());
 
   m_context.AddMetadata("trial-id", m_trial_id);
   m_context.AddMetadata("user-id", user_id);
@@ -56,7 +92,7 @@ void DatalogServiceImpl::start(const std::string& trial_id, const std::string& u
   }
 }
 
-void DatalogServiceImpl::add_sample(cogmentAPI::DatalogSample&& data) {
+void DatalogServiceImpl::dispatch_sample(cogmentAPI::DatalogSample&& data) {
   if (m_stream_valid) {
     cogmentAPI::RunTrialDatalogInput msg;
     *msg.mutable_sample() = std::move(data);
@@ -64,11 +100,36 @@ void DatalogServiceImpl::add_sample(cogmentAPI::DatalogSample&& data) {
   }
   else {
     if (m_stream != nullptr) {
-      throw MakeException("Trial [%s] - DatalogService stream stopped", m_trial_id.c_str());
+      throw MakeException("DatalogService stream stopped");
     }
     else {
-      throw MakeException("Trial [%s] - DatalogService is not started", m_trial_id.c_str());
+      throw MakeException("DatalogService is not started");
     }
+  }
+}
+
+void DatalogServiceImpl::add_sample(cogmentAPI::DatalogSample&& sample) {
+  if (m_exclude_fields.none()) {
+    dispatch_sample(std::move(sample));
+  }
+  else {
+    if (m_exclude_fields[OBSERVATIONS_FIELD]) {
+      sample.clear_observations();
+    }
+    if (m_exclude_fields[ACTIONS_FIELD]) {
+      sample.clear_actions();
+    }
+    if (m_exclude_fields[REWARDS_FIELD]) {
+      sample.clear_rewards();
+    }
+    if (m_exclude_fields[MESSAGES_FIELD]) {
+      sample.clear_messages();
+    }
+    if (m_exclude_fields[INFO_FIELD]) {
+      sample.clear_info();
+    }
+
+    dispatch_sample(std::move(sample));
   }
 }
 

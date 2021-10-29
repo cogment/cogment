@@ -29,7 +29,7 @@ TrialLifecycleService::TrialLifecycleService(Orchestrator* orch) : m_orchestrato
 
 grpc::Status TrialLifecycleService::StartTrial(grpc::ServerContext*, const cogmentAPI::TrialStartRequest* in,
                                                cogmentAPI::TrialStartReply* out) {
-  SPDLOG_TRACE("StartTrial()");
+  SPDLOG_TRACE("TrialLifecycleService::StartTrial()");
 
   try {
     SPDLOG_TRACE("StartTrial from [{}] with trial id [{}]", in->user_id(), in->trial_id_requested());
@@ -52,10 +52,10 @@ grpc::Status TrialLifecycleService::StartTrial(grpc::ServerContext*, const cogme
     }
   }
   catch (const std::exception& exc) {
-    return MakeErrorStatus("StartTrial failure on exception [%s]", exc.what());
+    return MakeErrorStatus("TrialLifecycleSP/StartTrial failure: {}", exc.what());
   }
   catch (...) {
-    return MakeErrorStatus("StartTrial failure on unknown exception");
+    return MakeErrorStatus("TrialLifecycleSP/StartTrial failure");
   }
 
   return grpc::Status::OK;
@@ -64,33 +64,35 @@ grpc::Status TrialLifecycleService::StartTrial(grpc::ServerContext*, const cogme
 grpc::Status TrialLifecycleService::TerminateTrial(grpc::ServerContext* ctx,
                                                    const cogmentAPI::TerminateTrialRequest* req,
                                                    cogmentAPI::TerminateTrialReply* out) {
-  SPDLOG_TRACE("TerminateTrial()");
+  SPDLOG_TRACE("TrialLifecycleService::TerminateTrial()");
 
   try {
     auto& metadata = ctx->client_metadata();
-    std::string trial_id(OneFromMetadata(metadata, "trial-id"));
-    SPDLOG_TRACE("TerminateTrial [{}]", trial_id);
-
-    auto trial = m_orchestrator->get_trial(trial_id);
-    if (trial != nullptr) {
-      if (req->hard_termination()) {
-        trial->terminate("Externally requested");
-      }
-      else {
-        trial->request_end();
-      }
+    auto trial_ids = FromMetadata(metadata, "trial-id");
+    if (trial_ids.empty()) {
+      throw MakeException("No 'trial-id' key in metadata");
     }
-    else {
-      return MakeErrorStatus("Trial [%s] does not exist", trial_id.c_str());
+    SPDLOG_TRACE("TerminateTrial for [{}] trials", trial_ids.size());
+
+    for (auto& trial_id : trial_ids) {
+      auto trial = m_orchestrator->get_trial(std::string(trial_id));
+      if (trial != nullptr) {
+        if (req->hard_termination()) {
+          trial->terminate("Externally requested");
+        }
+        else {
+          trial->request_end();
+        }
+      }
     }
 
     out->Clear();
   }
   catch (const std::exception& exc) {
-    return MakeErrorStatus("TerminateTrial failure on exception [%s]", exc.what());
+    return MakeErrorStatus("TrialLifecycleSP/TerminateTrial failure: {}", exc.what());
   }
   catch (...) {
-    return MakeErrorStatus("TerminateTrial failure on unknown exception");
+    return MakeErrorStatus("TrialLifecycleSP/TerminateTrial failure");
   }
 
   return grpc::Status::OK;
@@ -98,17 +100,18 @@ grpc::Status TrialLifecycleService::TerminateTrial(grpc::ServerContext* ctx,
 
 grpc::Status TrialLifecycleService::GetTrialInfo(grpc::ServerContext* ctx, const cogmentAPI::TrialInfoRequest* in,
                                                  cogmentAPI::TrialInfoReply* out) {
-  SPDLOG_TRACE("GetTrialInfo()");
+  SPDLOG_TRACE("TrialLifecycleService::GetTrialInfo()");
 
   try {
     auto& metadata = ctx->client_metadata();
     auto trial_ids = FromMetadata(metadata, "trial-id");
-    SPDLOG_TRACE("GetTrialInfo for [{}] trials", trial_ids.size());
+    SPDLOG_TRACE("GetTrialInfo for [{}] trials (0 == all)", trial_ids.size());
 
     if (!trial_ids.empty()) {
       for (auto& trial_id : trial_ids) {
         auto trial = m_orchestrator->get_trial(std::string(trial_id));
         if (trial != nullptr) {
+          SPDLOG_TRACE("GetTrialInfo for [{}]", trial_id);
           auto trial_info = out->add_trial();
           trial->set_info(trial_info, in->get_latest_observation(), in->get_actor_list());
         }
@@ -124,10 +127,10 @@ grpc::Status TrialLifecycleService::GetTrialInfo(grpc::ServerContext* ctx, const
     }
   }
   catch (const std::exception& exc) {
-    return MakeErrorStatus("GetTrialInfo failure on exception [%s]", exc.what());
+    return MakeErrorStatus("TrialLifecycleSP::GetTrialInfo failure: {}", exc.what());
   }
   catch (...) {
-    return MakeErrorStatus("GetTrialInfo failure on unknown exception");
+    return MakeErrorStatus("TrialLifecycleSP::GetTrialInfo failure");
   }
 
   return grpc::Status::OK;
@@ -135,7 +138,7 @@ grpc::Status TrialLifecycleService::GetTrialInfo(grpc::ServerContext* ctx, const
 
 grpc::Status TrialLifecycleService::WatchTrials(grpc::ServerContext*, const cogmentAPI::TrialListRequest* in,
                                                 grpc::ServerWriter<cogmentAPI::TrialListEntry>* out) {
-  SPDLOG_TRACE("WatchTrials()");
+  SPDLOG_TRACE("TrialLifecycleService::WatchTrials()");
 
   try {
     // Build a bitmask for testing wether or not a trial should be reported.
@@ -150,8 +153,8 @@ grpc::Status TrialLifecycleService::WatchTrials(grpc::ServerContext*, const cogm
       }
     }
 
-    // This will get invoked on each reported trial
-    auto handler = [state_mask, out](const Trial& trial) {
+    // This will get invoked on each state change of a trial
+    auto handler = [state_mask, out](const Trial& trial) -> bool {
       auto state = get_trial_api_state(trial.state());
 
       if (state_mask.test(static_cast<std::size_t>(state))) {
@@ -167,10 +170,10 @@ grpc::Status TrialLifecycleService::WatchTrials(grpc::ServerContext*, const cogm
     fut.wait();
   }
   catch (const std::exception& exc) {
-    return MakeErrorStatus("WatchTrials failure on exception [%s]", exc.what());
+    return MakeErrorStatus("TrialLifecycleSP::WatchTrials failure: {}", exc.what());
   }
   catch (...) {
-    return MakeErrorStatus("WatchTrials failure on unknown exception");
+    return MakeErrorStatus("TrialLifecycleSP::WatchTrials failure");
   }
 
   return grpc::Status::OK;
@@ -178,16 +181,16 @@ grpc::Status TrialLifecycleService::WatchTrials(grpc::ServerContext*, const cogm
 
 grpc::Status TrialLifecycleService::Version(grpc::ServerContext*, const cogmentAPI::VersionRequest*,
                                             cogmentAPI::VersionInfo* out) {
-  SPDLOG_TRACE("Version()");
+  SPDLOG_TRACE("TrialLifecycleService::Version()");
 
   try {
     m_orchestrator->Version(out);
   }
   catch (const std::exception& exc) {
-    return MakeErrorStatus("Version failure on exception [%s]", exc.what());
+    return MakeErrorStatus("TrialLifecycleSP::Version failure: {}", exc.what());
   }
   catch (...) {
-    return MakeErrorStatus("Version failure on unknown exception");
+    return MakeErrorStatus("TrialLifecycleSP::Version failure");
   }
 
   return grpc::Status::OK;

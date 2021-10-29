@@ -15,18 +15,16 @@
 #ifndef COGMENT_ORCHESTRATOR_ACTOR_SERVICE_H
 #define COGMENT_ORCHESTRATOR_ACTOR_SERVICE_H
 
-#include "cogment/api/orchestrator.grpc.pb.h"
+#include "cogment/client_actor.h"
 
 namespace cogment {
 class Orchestrator;
 
-class ActorService final : public cogmentAPI::ClientActorSP::Service {
+class ActorService : public cogmentAPI::ClientActorSP::Service {
 public:
   ActorService(Orchestrator* orch);
 
-  grpc::Status RunTrial(
-      grpc::ServerContext* ctx,
-      grpc::ServerReaderWriter<cogmentAPI::ActorRunTrialInput, cogmentAPI::ActorRunTrialOutput>* stream) override;
+  grpc::Status RunTrial(grpc::ServerContext* ctx, ServerStream::StreamType* stream) override;
   grpc::Status Version(grpc::ServerContext* ctx, const cogmentAPI::VersionRequest* in,
                        cogmentAPI::VersionInfo* out) override;
 

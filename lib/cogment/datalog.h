@@ -12,13 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef ORCHESTRATOR_DATALOG_H
-#define ORCHESTRATOR_DATALOG_H
+#ifndef COGMENT_ORCHESTRATOR_DATALOG_H
+#define COGMENT_ORCHESTRATOR_DATALOG_H
 
 #include "cogment/actor.h"
-#include "cogment/api/datalog.pb.h"
-#include "cogment/api/datalog.grpc.pb.h"
 #include "cogment/stub_pool.h"
+
+#include "cogment/api/datalog.grpc.pb.h"
+#include "cogment/api/common.pb.h"
+
+#include <bitset>
 
 namespace cogment {
 
@@ -49,12 +52,16 @@ public:
   void add_sample(cogmentAPI::DatalogSample&& data) override;
 
 private:
+  static constexpr size_t NB_BITS = 5;
+  void dispatch_sample(cogmentAPI::DatalogSample&& data);
+
   StubEntryType m_stub_entry;
   std::unique_ptr<grpc::ClientReaderWriter<cogmentAPI::RunTrialDatalogInput, cogmentAPI::RunTrialDatalogOutput>>
       m_stream;
   grpc::ClientContext m_context;
   bool m_stream_valid;
   std::string m_trial_id;
+  std::bitset<NB_BITS> m_exclude_fields;
 };
 
 }  // namespace cogment

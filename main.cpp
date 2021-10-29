@@ -16,19 +16,17 @@
   #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
 #endif
 
-#include "grpc++/grpc++.h"
-
 #include "cogment/config_file.h"
 #include "cogment/orchestrator.h"
-#include "cogment/stub_pool.h"
 #include "cogment/utils.h"
 #include "cogment/versions.h"
+#include "cogment/services/actor_service.h"
+#include "cogment/services/trial_lifecycle_service.h"
 
-namespace cfg_file = cogment::cfg_file;
+#include "prometheus/exposer.h"
+#include "prometheus/registry.h"
 
-#include <prometheus/exposer.h>
-#include <prometheus/registry.h>
-
+#include "grpc++/grpc++.h"
 #include "slt/settings.h"
 #include "spdlog/sinks/daily_file_sink.h"
 #include "spdlog/spdlog.h"
@@ -38,8 +36,10 @@ namespace cfg_file = cogment::cfg_file;
 #include <fstream>
 #include <thread>
 
-#include <execinfo.h>  // For backtrace
-#include <unistd.h>    // STDERR_FINLENO
+#include <execinfo.h>  // backtrace
+#include <unistd.h>    // STDERR_FILENO
+
+namespace cfg_file = cogment::cfg_file;
 
 namespace settings {
 slt::Setting deprecated_lifecycle_port = slt::Setting_builder<std::string>()
@@ -70,6 +70,7 @@ slt::Setting deprecated_config_file =
 slt::Setting default_params_file = slt::Setting_builder<std::string>()
                                        .with_default("")
                                        .with_description("Default trial parameters file name")
+                                       .with_env_variable("COGMENT_DEFAULT_PARAMS_FILE")
                                        .with_arg("params");
 
 slt::Setting pre_trial_hooks = slt::Setting_builder<std::string>()
@@ -123,12 +124,18 @@ slt::Setting log_file = slt::Setting_builder<std::string>()
                             .with_default("")
                             .with_description("Set base file for daily log output")
                             .with_arg("log_file");
+
+slt::Setting gc_frequency = slt::Setting_builder<std::uint32_t>()
+                                .with_default(10)
+                                .with_description("Number of trials between garbage collection runs")
+                                .with_arg("gc_frequency");
 }  // namespace settings
 
 namespace {
-const std::string init_status_string = "I";
-const std::string ready_status_string = "R";
-const std::string term_status_string = "T";
+constexpr char INIT_STATUS_STRING = 'I';
+constexpr char READY_STATUS_STRING = 'R';
+constexpr char TERM_STATUS_STRING = 'T';
+constexpr uint32_t DEFAULT_MAX_INACTIVITY = 30;
 
 void sigsegv_handler(int signal) {
   static constexpr size_t BACKTRACE_SIZE = 100;
@@ -158,21 +165,59 @@ int main(int argc, const char* argv[]) {
     return 0;
   }
 
-  std::optional<std::ofstream> status_file;
-  if (settings::status_file.get() != "") {
-    status_file = std::ofstream(settings::status_file.get());
-    *status_file << init_status_string << std::flush;
-  }
+  auto cwd = std::filesystem::current_path().string();
 
   std::string log_filename = settings::log_file.get();
-  if (!log_filename.empty()) {
-    std::cout << "Daily log base filename: \"" << log_filename << "\"" << std::endl;
-    auto logger = spdlog::daily_logger_mt("daily_logger", log_filename, 0, 0);
-    spdlog::set_default_logger(logger);
+  try {
+    if (!log_filename.empty()) {
+      std::cout << "Daily log base filename: \"" << log_filename << "\"" << std::endl;
+      auto logger = spdlog::daily_logger_mt("daily_logger", log_filename, 0, 0);
+      spdlog::set_default_logger(logger);
+    }
+  }
+  catch (const std::exception& exc) {
+    std::cerr << "Failed to set log filename [" << cwd << "] \"" << log_filename << "\": " << exc.what() << std::endl;
+    return -1;
+  }
+  catch (...) {
+    std::cerr << "Failed to set log filename [" << cwd << "] \"" << log_filename << "\"" << std::endl;
+    return -1;
   }
 
-  const auto level_setting = spdlog::level::from_str(settings::log_level.get());
-  spdlog::set_level(level_setting);
+  std::string log_level = settings::log_level.get();
+  std::transform(log_level.begin(), log_level.end(), log_level.begin(), ::tolower);
+  try {
+    if (!log_level.empty()) {
+      const auto level_setting = spdlog::level::from_str(log_level);
+
+      // spdlog returns "off" if an unknown string is given!
+      if (level_setting == spdlog::level::level_enum::off && log_level != "off") {
+        throw MakeException("Unknown setting");
+      }
+
+      spdlog::set_level(level_setting);
+    }
+  }
+  catch (const std::exception& exc) {
+    std::cerr << "Failed to set log level \"" << log_level << "\": " << exc.what() << std::endl;
+    return -1;
+  }
+  catch (...) {
+    std::cerr << "Failed to set log level \"" << log_level << "\": " << std::endl;
+    return -1;
+  }
+
+  std::ofstream status_file;
+  if (!settings::status_file.get().empty()) {
+    status_file = std::ofstream(settings::status_file.get());
+    if (status_file.is_open() && status_file.good()) {
+      status_file << INIT_STATUS_STRING << std::flush;
+    }
+    else {
+      spdlog::error("Failed to open status file [{}] [{}]", cwd, settings::status_file.get());
+      return -1;
+    }
+  }
 
   spdlog::debug("Orchestrator starting with arguments:");
   spdlog::debug("\t--{}={}", settings::lifecycle_port.arg().value_or(""), settings::lifecycle_port.get());
@@ -185,71 +230,62 @@ int main(int argc, const char* argv[]) {
   spdlog::debug("\t--{}={}", settings::root_cert.arg().value_or(""), settings::root_cert.get());
   spdlog::debug("\t--{}={}", settings::trust_chain.arg().value_or(""), settings::trust_chain.get());
   spdlog::debug("\t--{}={}", settings::log_level.arg().value_or(""), settings::log_level.get());
-  spdlog::debug("\t   --> {}", level_setting);
+  spdlog::debug("\t--{}={}", settings::gc_frequency.arg().value_or(""), settings::gc_frequency.get());
 
-  ctx.validate_all();
-
-  std::shared_ptr<grpc::ServerCredentials> server_creds;
-  std::shared_ptr<grpc::ChannelCredentials> client_creds;
-  const bool using_ssl = !(settings::private_key.get().empty() && settings::root_cert.get().empty() &&
-                           settings::trust_chain.get().empty());
-  if (!using_ssl) {
-    spdlog::info("Using unsecured communication");
-    server_creds = grpc::InsecureServerCredentials();
-    client_creds = grpc::InsecureChannelCredentials();
-  }
-  else {
-    spdlog::info("Using secured TLS communication");
-
-    auto private_key_file = std::ifstream(settings::private_key.get());
-    if (!private_key_file.is_open() || !private_key_file.good()) {
-      auto cwd = std::filesystem::current_path().string();
-      spdlog::error("Could not open private key file: [{}/{}]", cwd, settings::private_key.get());
-      return 1;
-    }
-    std::stringstream private_key;
-    private_key << private_key_file.rdbuf();
-
-    auto root_cert_file = std::ifstream(settings::root_cert.get());
-    if (!root_cert_file.is_open() || !root_cert_file.good()) {
-      auto cwd = std::filesystem::current_path().string();
-      spdlog::error("Could not open root certificate file: [{}/{}]", cwd, settings::root_cert.get());
-      return 1;
-    }
-    std::stringstream root_cert;
-    root_cert << root_cert_file.rdbuf();
-
-    auto trust_chain_file = std::ifstream(settings::trust_chain.get());
-    if (!trust_chain_file.is_open() || !trust_chain_file.good()) {
-      auto cwd = std::filesystem::current_path().string();
-      spdlog::error("Could not open certificate trust chain file: [{}/{}]", cwd, settings::trust_chain.get());
-      return 1;
-    }
-    std::stringstream trust_chain;
-    trust_chain << trust_chain_file.rdbuf();
-
-    grpc::SslServerCredentialsOptions server_opt(GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_AND_VERIFY);
-    server_opt.pem_root_certs = root_cert.str();
-    grpc::SslServerCredentialsOptions::PemKeyCertPair server_cert_pair;
-    server_cert_pair.private_key = private_key.str();
-    server_cert_pair.cert_chain = trust_chain.str();
-    server_opt.pem_key_cert_pairs.emplace_back(server_cert_pair);
-    server_creds = grpc::SslServerCredentials(server_opt);
-
-    grpc::SslCredentialsOptions client_opt;
-    client_opt.pem_root_certs = root_cert.str();
-    client_opt.pem_private_key = private_key.str();
-    client_opt.pem_cert_chain = trust_chain.str();
-    client_creds = grpc::SslCredentials(client_opt);
-  }
+  spdlog::info("Cogment Orchestrator version [{}]", COGMENT_ORCHESTRATOR_VERSION);
+  spdlog::info("Cogment API version [{}]", COGMENT_API_VERSION);
 
   int return_value = 0;
   try {
-    // Create a scope so that all local variables created from this
-    // point on get properly destroyed BEFORE the status is updated.
+    ctx.validate_all();
 
-    spdlog::info("Cogment Orchestrator version [{}]", COGMENT_ORCHESTRATOR_VERSION);
-    spdlog::info("Cogment API version [{}]", COGMENT_API_VERSION);
+    std::shared_ptr<grpc::ServerCredentials> server_creds;
+    std::shared_ptr<grpc::ChannelCredentials> client_creds;
+    const bool using_ssl = !(settings::private_key.get().empty() && settings::root_cert.get().empty() &&
+                             settings::trust_chain.get().empty());
+    if (!using_ssl) {
+      spdlog::info("Using unsecured communication");
+      server_creds = grpc::InsecureServerCredentials();
+      client_creds = grpc::InsecureChannelCredentials();
+    }
+    else {
+      spdlog::info("Using secured TLS communication");
+
+      auto private_key_file = std::ifstream(settings::private_key.get());
+      if (!private_key_file.is_open() || !private_key_file.good()) {
+        throw MakeException("Could not open private key file: [{}] [{}]", cwd, settings::private_key.get());
+      }
+      std::stringstream private_key;
+      private_key << private_key_file.rdbuf();
+
+      auto root_cert_file = std::ifstream(settings::root_cert.get());
+      if (!root_cert_file.is_open() || !root_cert_file.good()) {
+        throw MakeException("Could not open root certificate file: [{}] [{}]", cwd, settings::root_cert.get());
+      }
+      std::stringstream root_cert;
+      root_cert << root_cert_file.rdbuf();
+
+      auto trust_chain_file = std::ifstream(settings::trust_chain.get());
+      if (!trust_chain_file.is_open() || !trust_chain_file.good()) {
+        throw MakeException("Could not open certificate trust chain file: [{}] [{}]", cwd, settings::trust_chain.get());
+      }
+      std::stringstream trust_chain;
+      trust_chain << trust_chain_file.rdbuf();
+
+      grpc::SslServerCredentialsOptions server_opt(GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_AND_VERIFY);
+      server_opt.pem_root_certs = root_cert.str();
+      grpc::SslServerCredentialsOptions::PemKeyCertPair server_cert_pair;
+      server_cert_pair.private_key = private_key.str();
+      server_cert_pair.cert_chain = trust_chain.str();
+      server_opt.pem_key_cert_pairs.emplace_back(server_cert_pair);
+      server_creds = grpc::SslServerCredentials(server_opt);
+
+      grpc::SslCredentialsOptions client_opt;
+      client_opt.pem_root_certs = root_cert.str();
+      client_opt.pem_private_key = private_key.str();
+      client_opt.pem_cert_chain = trust_chain.str();
+      client_creds = grpc::SslCredentials(client_opt);
+    }
 
     // ******************* Endpoints *******************
     if (!settings::deprecated_lifecycle_port.get().empty()) {
@@ -293,9 +329,8 @@ int main(int argc, const char* argv[]) {
         params_file_loaded = true;
       }
       catch (const std::exception& exc) {
-        spdlog::error("Failed to load default parameters file [{}]: {}", settings::default_params_file.get(),
-                      exc.what());
-        return 1;
+        throw MakeException("Failed to load default parameters file [{}]: {}", settings::default_params_file.get(),
+                            exc.what());
       }
     }
     else if (!settings::deprecated_config_file.get().empty()) {
@@ -305,9 +340,8 @@ int main(int argc, const char* argv[]) {
         deprecated_config_file_loaded = true;
       }
       catch (const std::exception& exc) {
-        spdlog::error("Failed to load default deprecated config file [{}]: {}", settings::deprecated_config_file.get(),
-                      exc.what());
-        return 1;
+        throw MakeException("Failed to load default deprecated config file [{}]: {}",
+                            settings::deprecated_config_file.get(), exc.what());
       }
     }
     else {
@@ -315,28 +349,36 @@ int main(int argc, const char* argv[]) {
     }
     auto params = cogment::load_params(params_yaml);
 
-    if (deprecated_config_file_loaded) {
+    if (params_file_loaded) {
+      if (params_yaml[cfg_file::params_key] == nullptr ||
+          params_yaml[cfg_file::params_key][cfg_file::p_max_inactivity_key] == nullptr) {
+        params.set_max_inactivity(DEFAULT_MAX_INACTIVITY);
+      }
+    }
+    else if (deprecated_config_file_loaded) {
       if (params_yaml[cfg_file::datalog_key] != nullptr) {
-        auto datalog = params.mutable_datalog();
-
+        std::string type;
         if (params_yaml[cfg_file::datalog_key][cfg_file::d_type_key] != nullptr) {
-          datalog->set_type(params_yaml[cfg_file::datalog_key][cfg_file::d_type_key].as<std::string>());
+          type = params_yaml[cfg_file::datalog_key][cfg_file::d_type_key].as<std::string>();
         }
+        std::transform(type.begin(), type.end(), type.begin(), ::tolower);
 
-        if (params_yaml[cfg_file::datalog_key][cfg_file::d_url_key] != nullptr) {
-          auto url = params_yaml[cfg_file::datalog_key][cfg_file::d_url_key].as<std::string>();
-          url.insert(0, "grpc://");
-          datalog->set_endpoint(url);
+        if (type == "grpc") {
+          auto datalog = params.mutable_datalog();
+
+          if (params_yaml[cfg_file::datalog_key][cfg_file::d_url_key] != nullptr) {
+            auto url = params_yaml[cfg_file::datalog_key][cfg_file::d_url_key].as<std::string>();
+            url.insert(0, "grpc://");
+            datalog->set_endpoint(url);
+          }
         }
       }
     }
 
-    cogment::Orchestrator orchestrator(std::move(params), client_creds, metrics_registry.get());
+    cogment::Orchestrator orchestrator(std::move(params), settings::gc_frequency.get(), client_creds,
+                                       metrics_registry.get());
 
     // ******************* Networking *******************
-    cogment::StubPool<cogmentAPI::TrialHooksSP> hook_stubs(orchestrator.channel_pool());
-    std::vector<std::shared_ptr<cogment::StubPool<cogmentAPI::TrialHooksSP>::Entry>> hooks;
-
     int nb_prehooks = 0;
     const auto hooks_urls = split(settings::pre_trial_hooks.get(), ',');
     if (!hooks_urls.empty()) {
@@ -345,57 +387,52 @@ int main(int argc, const char* argv[]) {
             "Deprecated config file hook definition will be ignored. Using command line or environment variable.");
       }
       for (auto& url : hooks_urls) {
-        hooks.push_back(hook_stubs.get_stub_entry(url));
-        orchestrator.add_prehook(hooks.back());
+        orchestrator.add_prehook(url);
         nb_prehooks++;
       }
     }
     else {
       if (deprecated_config_file_loaded) {
         for (auto hook : params_yaml[cfg_file::trial_key][cfg_file::t_pre_hooks_key]) {
-          hooks.push_back(hook_stubs.get_stub_entry(hook.as<std::string>()));
-          orchestrator.add_prehook(hooks.back());
+          orchestrator.add_prehook(hook.as<std::string>());
           nb_prehooks++;
         }
       }
       else {
         if (!params_file_loaded) {
-          spdlog::error("No default parameter file and no hook definition for parameters.");
-          return 1;
+          throw MakeException("No default parameter file and no hook definition for parameters.");
         }
       }
     }
     spdlog::info("[{}] prehooks defined", nb_prehooks);
 
+    cogment::ActorService actor_service(&orchestrator);
+    cogment::TrialLifecycleService trial_lifecycle_service(&orchestrator);
     std::vector<std::unique_ptr<grpc::Server>> servers;
-
     {
       grpc::ServerBuilder builder;
       builder.AddListeningPort(lifecycle_endpoint, server_creds);
-      builder.RegisterService(orchestrator.trial_lifecycle_service());
+      builder.RegisterService(&trial_lifecycle_service);
 
       // If the lifecycle endpoint is the same as the ClientActorSP, then run them
       // off the same server, otherwise, start a second server.
       if (lifecycle_endpoint == actor_endpoint) {
-        SPDLOG_TRACE("Actor endpoint has same server as Trial Lifecycle");
-        builder.RegisterService(orchestrator.actor_service());
+        builder.RegisterService(&actor_service);
       }
       else {
-        SPDLOG_TRACE("Actor endpoint has a different server than Trial Lifecycle");
         grpc::ServerBuilder actor_builder;
         actor_builder.AddListeningPort(actor_endpoint, server_creds);
-        actor_builder.RegisterService(orchestrator.actor_service());
+        actor_builder.RegisterService(&actor_service);
         servers.emplace_back(actor_builder.BuildAndStart());
       }
 
-      SPDLOG_TRACE("Building main server");
       auto server = builder.BuildAndStart();
-      SPDLOG_TRACE("Main server built");
+      spdlog::debug("Main server started");
       servers.emplace_back(std::move(server));
     }
 
-    if (status_file) {
-      *status_file << ready_status_string << std::flush;
+    if (status_file.is_open() && status_file.good()) {
+      status_file << READY_STATUS_STRING << std::flush;
     }
     spdlog::info("Server listening for lifecycle on [{}]", lifecycle_endpoint);
     spdlog::info("Server listening for Actors on [{}]", actor_endpoint);
@@ -409,22 +446,22 @@ int main(int argc, const char* argv[]) {
     // Prevent normal handling of these signals.
     pthread_sigmask(SIG_BLOCK, &sig_set, nullptr);
 
-    SPDLOG_TRACE("Main done");
+    spdlog::debug("Main done");
     int sig = 0;
     sigwait(&sig_set, &sig);  // Blocking
     spdlog::info("Shutting down...");
   }
   catch (const std::exception& exc) {
     spdlog::error("Exception in Main: [{}]", exc.what());
-    return_value = 1;
+    return_value = -1;
   }
   catch (...) {
     spdlog::error("Exception in Main");
-    return_value = 1;
+    return_value = -1;
   }
 
-  if (status_file) {
-    *status_file << term_status_string << std::flush;
+  if (status_file.is_open() && status_file.good()) {
+    status_file << TERM_STATUS_STRING << std::flush;
   }
 
   return return_value;

@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef AOM_CONFIG_FILE_H
-#define AOM_CONFIG_FILE_H
+#ifndef COGMENT_ORCHESTRATOR_CONFIG_FILE_H
+#define COGMENT_ORCHESTRATOR_CONFIG_FILE_H
 
-#include <optional>
 #include "yaml-cpp/yaml.h"
 
 namespace cogment {
@@ -50,13 +49,21 @@ constexpr const char* ac_obs_space_key = "space";
 constexpr const char* ac_config_type_key = "config_type";
 
 // params
+constexpr const char* p_trial_config_key = "trial_config";
+constexpr const char* p_datalog_key = "datalog";
+constexpr const char* p_log_endpoint_key = "endpoint";
+constexpr const char* p_log_exclude_fields_key = "exclude_fields";
 constexpr const char* p_environment_key = "environment";
 constexpr const char* p_env_name_key = "name";
 constexpr const char* p_env_endpoint_key = "endpoint";
+constexpr const char* p_env_implementation_key = "implementation";
 constexpr const char* p_actors_key = "actors";
 constexpr const char* p_act_name_key = "name";
 constexpr const char* p_act_ac_name_key = "actor_class";
 constexpr const char* p_act_endpoint_key = "endpoint";
+constexpr const char* p_act_implementation_key = "implementation";
+constexpr const char* p_max_steps_key = "max_steps";
+constexpr const char* p_max_inactivity_key = "max_inactivity";
 
 // datalog
 constexpr const char* d_fields_key = "fields";

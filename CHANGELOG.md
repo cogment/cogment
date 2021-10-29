@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Changed
+
+- Update to API 2.0
+- Removal of easygrpc
+- General refactor and cleanup
+
 ## v1.0.3 - 2021-07-30
 
 ### Added

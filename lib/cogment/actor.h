@@ -12,88 +12,99 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef AOM_ORCHESTRATOR_ACTOR_H
-#define AOM_ORCHESTRATOR_ACTOR_H
-
-#include "cogment/api/agent.grpc.pb.h"
-#include "cogment/api/orchestrator.pb.h"
+#ifndef COGMENT_ORCHESTRATOR_ACTOR_H
+#define COGMENT_ORCHESTRATOR_ACTOR_H
 
 #include "grpc++/grpc++.h"
+#include "cogment/api/common.pb.h"
 
-#include "yaml-cpp/yaml.h"
-
-#include <google/protobuf/compiler/importer.h>
-#include <google/protobuf/descriptor.h>
-#include <google/protobuf/dynamic_message.h>
-
-#include <memory>
-#include <vector>
+#include <mutex>
+#include <string>
 #include <future>
 
 namespace cogment {
 
 class Trial;
-struct ActorClass;
+
+// Bare minimum to allow a common stream to represent client and server
+class ActorStream {
+public:
+  using InputType = cogmentAPI::ActorRunTrialInput;
+  using OutputType = cogmentAPI::ActorRunTrialOutput;
+
+  ActorStream() {}
+  virtual ~ActorStream() {}
+
+  virtual bool read(OutputType* data) = 0;
+  virtual bool write(const InputType& data) = 0;
+  virtual bool write_last(const InputType& data) = 0;
+  virtual bool finish() = 0;
+};
 
 class Actor {
-public:
-  using SrcAccumulator = std::vector<cogmentAPI::RewardSource>;
-  using RewAccumulator = std::map<uint64_t, SrcAccumulator>;
+  using TickIdType = uint64_t;
+  using RewardAccumulator = std::map<TickIdType, cogmentAPI::Reward>;
 
-  Actor(Trial* trial, const std::string& actor_name, const std::string& actor_class, const std::string& impl,
-        std::optional<std::string> config_data);
+public:
+  Actor(Trial* owner, const cogmentAPI::ActorParams& params, bool read_init);
   virtual ~Actor();
 
-  virtual std::future<void> init() = 0;
-  virtual bool is_active() const = 0;
-  virtual void trial_ended(std::string_view details) = 0;
+  virtual std::future<void> init();
 
+  bool has_joined() const { return (m_stream != nullptr); }
   std::future<void> last_ack() { return m_last_ack_prom.get_future(); }
 
   Trial* trial() const { return m_trial; }
-  const std::string& actor_name() const { return m_actor_name; }
+  const std::string& actor_name() const { return m_name; }
   const std::string& actor_class() const { return m_actor_class; }
-  const std::string& impl() const { return m_impl; }
-  const std::optional<std::string>& config() const { return m_config_data; }
 
-  void add_immediate_reward_src(const cogmentAPI::RewardSource& source, const std::string& sender, uint64_t tick_id);
-  void send_message(const cogmentAPI::Message& message, const std::string& source, uint64_t tick_id);
+  void add_reward_src(const cogmentAPI::RewardSource& source, TickIdType tick_id);
+  void send_message(const cogmentAPI::Message& message, TickIdType tick_id);
 
   void dispatch_tick(cogmentAPI::Observation&& obs, bool final_tick);
+  void trial_ended(std::string_view details);
 
 protected:
-  virtual void dispatch_observation(cogmentAPI::Observation&& obs, bool last) = 0;
-  virtual void dispatch_reward(cogmentAPI::Reward&& reward) = 0;
-  virtual void dispatch_message(cogmentAPI::Message&& message) = 0;
-
-  void process_incoming_state(cogmentAPI::CommunicationState in_state, const std::string* details);
-  void last_sent() { m_last_sent = true; }
+  static bool read_init_data(ActorStream* stream, cogmentAPI::ActorInitialOutput* out);
+  std::future<void> run(std::unique_ptr<ActorStream> stream);
 
 private:
+  void write_to_stream(ActorStream::InputType&& data);
+  void dispatch_init_data();
+  void dispatch_observation(cogmentAPI::Observation&& obs, bool last);
+  void dispatch_reward(cogmentAPI::Reward&& reward);
+  void dispatch_message(cogmentAPI::Message&& message);
+  void process_incoming_state(cogmentAPI::CommunicationState in_state, const std::string* details);
+  void process_incoming_data(ActorStream::OutputType&& data);
+  void process_incoming_stream();
+  void finish_stream();
+
+  bool m_wait_for_init_data;
+
+  std::unique_ptr<ActorStream> m_stream;
+  bool m_stream_valid;
+  mutable std::mutex m_writing;
+
   Trial* const m_trial;
-  const std::string m_actor_name;
+  const std::string m_name;
   const std::string m_actor_class;
   const std::string m_impl;
-  std::optional<std::string> m_config_data;
+  std::string m_config_data;
 
-  std::mutex m_lock;
-  RewAccumulator m_reward_accumulator;
+  std::mutex m_reward_lock;
+  RewardAccumulator m_reward_accumulator;
+
+  std::future<void> m_incoming_thread;
+
+  bool m_init_completed;
+  std::promise<void> m_init_prom;
 
   bool m_last_sent;
+  bool m_last_ack_received;
   std::promise<void> m_last_ack_prom;
-};
 
-struct ActorClass {
-  std::string name;
-  std::uint32_t index;
-
-  const google::protobuf::Message* observation_space_prototype = nullptr;
-  std::vector<const google::protobuf::FieldDescriptor*> cleared_observation_fields;
-
-  const google::protobuf::Message* action_space_prototype = nullptr;
-  std::vector<const google::protobuf::FieldDescriptor*> cleared_action_fields;
-
-  const google::protobuf::Message* config_prototype = nullptr;
+  std::promise<void> m_finished_prom;
+  std::atomic_bool m_finished;
 };
 
 }  // namespace cogment
