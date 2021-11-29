@@ -9,9 +9,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- Update to API 2.0
-- Removal of easygrpc
-- General refactor and cleanup
+#### Breaking Changes
+
+- Implement [cogment api 2.0.0](https://github.com/cogment/cogment-api/blob/main/CHANGELOG.md#v200---2021-11-12), in particular follow a new streaming model for actors & environments.
+- Rename environment variables `TRIAL_LIFECYCLE_PORT`, `TRIAL_ACTOR_PORT` & `PROMETHEUS_PORT` to `COGMENT_LIFECYCLE_PORT`, `COGMENT_ACTOR_PORT` & `COGMENT_ORCHESTRATOR_PROMETHEUS_PORT`.
+- The `cogment.yaml` file is now optional and needs to be provided with the `--params` command line argument or the `COGMENT_DEFAULT_PARAMS_FILE` environment variable, only the `trial_params` is take into account.
+
+- Add the ability to provide a list of pretrial hook endpoints with the `--pre_trial_hooks` comand line argument or the `COGMENT_PRE_TRIAL_HOOKS` environment variable.
+- Remove dependencies to easygrpc.
+- General refactor and cleanup.
 
 ## v1.0.3 - 2021-07-30
 
