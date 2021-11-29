@@ -42,6 +42,7 @@ var JavascriptDependencies = []string{
 }
 
 var JavascriptDevDependencies = []string{
+	"tmp",
 	"jsdoc",
 	"eslint",
 	"nps",
