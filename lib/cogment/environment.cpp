@@ -31,12 +31,13 @@ Environment::Environment(Trial* owner, const cogmentAPI::EnvironmentParams& para
     m_trial(owner),
     m_name(params.name()),
     m_impl(params.implementation()),
+    m_has_config(params.has_config()),
     m_init_completed(false),
     m_last_sent_received(false),
     m_last_ack_received(false) {
   SPDLOG_TRACE("Environment(): [{}] [{}] [{}]", m_trial->id(), m_name, m_impl);
 
-  if (params.has_config()) {
+  if (m_has_config) {
     m_config_data = params.config().content();
   }
 
@@ -336,7 +337,7 @@ void Environment::dispatch_init_data() {
   init_data->set_name(m_name);
   init_data->set_impl_name(m_impl);
   init_data->set_tick_id(m_trial->tick_id());
-  if (!m_config_data.empty()) {
+  if (m_has_config) {
     init_data->mutable_config()->set_content(m_config_data);
   }
   for (const auto& actor : m_trial->actors()) {

@@ -67,6 +67,7 @@ private:
   const std::string m_name;
   const std::string m_impl;
   std::string m_config_data;
+  bool m_has_config;
 
   bool m_init_completed;
   std::future<void> m_incoming_thread;

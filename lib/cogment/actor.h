@@ -90,6 +90,7 @@ private:
   const std::string m_actor_class;
   const std::string m_impl;
   std::string m_config_data;
+  bool m_has_config;
 
   std::mutex m_reward_lock;
   RewardAccumulator m_reward_accumulator;
