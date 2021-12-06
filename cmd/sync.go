@@ -62,14 +62,24 @@ func contains(s []string, e string) bool {
 
 // generateCmd represents the generate command
 var syncCmd = &cobra.Command{
-	Use:   "sync [--all | directories...]",
+	Use:   "sync --config cogment.yaml [--all | directories...]",
 	Args:  cobra.MinimumNArgs(1),
 	Short: "Sync the cogment project settings and proto files",
 	Long:  "Sync the cogment project settings and proto files to the target component directories, or to all subdirectories",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		config, err := api.CreateProjectConfigFromYaml("cogment.yaml")
+
+		configFile, err := cmd.Flags().GetString("config")
 		if err != nil {
-			return fmt.Errorf("Not a cogment project! %v", err)
+			return fmt.Errorf("Could not get config param! %v", err)
+		}
+
+		if configFile == "" {
+			return fmt.Errorf("No config file specified!")
+		}
+
+		config, err := api.CreateProjectConfigFromYaml(configFile)
+		if err != nil {
+			return fmt.Errorf("Unable to read config file! %v", err)
 		}
 
 		files, err := ioutil.ReadDir(".")
@@ -116,4 +126,5 @@ func init() {
 	rootCmd.AddCommand(syncCmd)
 
 	syncCmd.Flags().BoolP("all", "a", false, "apply to all subdirectories")
+	syncCmd.Flags().StringP("config", "c", "", "config file to sync")
 }
