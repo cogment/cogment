@@ -239,8 +239,10 @@ func createWebClient(config *api.ProjectConfig) error {
 
 	logger.Info("Create web-client structure")
 
+	// Ignore ts files when generating javascript
 	ignore := []string{"**/useActions.ts*"}
 	if config.Typescript {
+		// Ignore js files when generating typescript
 		ignore = []string{"**/useActions.js*"}
 	}
 

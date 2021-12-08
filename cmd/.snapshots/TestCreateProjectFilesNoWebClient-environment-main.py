@@ -34,7 +34,7 @@ async def environment(environment_session):
 async def main():
     print("Environment service starting...")
 
-    context = cogment.Context(cog_settings=cog_settings, user_id="testit")
+    context = cogment.Context(cog_settings=cog_settings, user_id="TestCreateProjectFilesNoWebClient")
 
     context.register_environment(impl=environment)
 

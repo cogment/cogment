@@ -104,43 +104,17 @@ func TestCreateProjectConfigWindows(t *testing.T) {
 	assert.Equal(t, *expectedConfig, *config)
 }
 
-func TestCreateProjectFiles(t *testing.T) {
+func testCreateProjectFiles(t *testing.T, config *api.ProjectConfig) {
+	dir, err := ioutil.TempDir("", config.ProjectName)
+	assert.NoError(t, err)
 
-	dir, err := ioutil.TempDir("", "TestCreateProjectFiles")
-
-	if err != nil {
-		log.Fatal(err)
-	}
 	defer func() {
 		if err := os.RemoveAll(dir); err != nil {
 			log.Fatalf("Failed to clean up temporary init files: %v", err)
 		}
 	}()
 
-	config, err := api.ExtendDefaultProjectConfig(&api.ProjectConfig{
-		ProjectName:       "testit",
-		ProjectConfigPath: path.Join(dir, "cogment.yaml"),
-		Components: api.ComponentsConfigurations{
-			Orchestrator: helper.VersionInfo{Version: "v1.0"},
-			Python:       helper.VersionInfo{Version: "1.0"},
-			Metrics:      helper.VersionInfo{Version: "2.0"},
-			Dashboard:    helper.VersionInfo{Version: "v1.5-beta"},
-			Javascript:   helper.VersionInfo{Version: "1.25.5"},
-		},
-		ActorClasses: []*api.ActorClass{
-			&api.ActorClass{Name: "master"},
-			&api.ActorClass{Name: "smart"},
-			&api.ActorClass{Name: "dumb"},
-		},
-		TrialParams: &api.TrialParams{
-			Actors: []*api.TrialActor{
-				&api.TrialActor{Name: "human", ActorClass: "master", Implementation: "human", Endpoint: "client"},
-				&api.TrialActor{Name: "ai_1", ActorClass: "smart", Implementation: "smart_impl", Endpoint: "grpc://smart:9000"},
-				&api.TrialActor{Name: "ai_2", ActorClass: "dumb", Implementation: "dumb_impl", Endpoint: "grpc://dumb:9000"},
-			},
-		},
-	})
-	assert.NoError(t, err)
+	config.ProjectConfigPath = path.Join(dir, config.ProjectConfigPath)
 
 	err = createProjectFiles(config)
 	assert.NoError(t, err)
@@ -167,6 +141,35 @@ func TestCreateProjectFiles(t *testing.T) {
 	})
 	// Check the generate file lists against the previous snapshot
 	cupaloy.SnapshotT(t, generatedFiles)
+}
+
+func TestCreateProjectFilesNoWebClient(t *testing.T) {
+	config, err := api.ExtendDefaultProjectConfig(&api.ProjectConfig{
+		ProjectName:       "TestCreateProjectFilesNoWebClient",
+		ProjectConfigPath: "cogment.yaml", // Will changed to an absolute path in `testCreateProjectFiles`
+		Components: api.ComponentsConfigurations{
+			Orchestrator: helper.VersionInfo{Version: "v1.0"},
+			Python:       helper.VersionInfo{Version: "1.0"},
+			Metrics:      helper.VersionInfo{Version: "2.0"},
+			Dashboard:    helper.VersionInfo{Version: "v1.5-beta"},
+			Javascript:   helper.VersionInfo{Version: "1.25.5"},
+		},
+		ActorClasses: []*api.ActorClass{
+			&api.ActorClass{Name: "master"},
+			&api.ActorClass{Name: "smart"},
+			&api.ActorClass{Name: "dumb"},
+		},
+		TrialParams: &api.TrialParams{
+			Actors: []*api.TrialActor{
+				&api.TrialActor{Name: "human", ActorClass: "master", Implementation: "human", Endpoint: "client"},
+				&api.TrialActor{Name: "ai_1", ActorClass: "smart", Implementation: "smart_impl", Endpoint: "grpc://smart:9000"},
+				&api.TrialActor{Name: "ai_2", ActorClass: "dumb", Implementation: "dumb_impl", Endpoint: "grpc://dumb:9000"},
+			},
+		},
+	})
+	assert.NoError(t, err)
+
+	testCreateProjectFiles(t, config)
 }
 
 func TestCreateProjectFilesDashes(t *testing.T) {

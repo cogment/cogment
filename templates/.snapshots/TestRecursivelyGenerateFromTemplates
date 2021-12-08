@@ -1,0 +1,6 @@
+([]string) (len=4) {
+  (string) (len=13) ".eslintignore",
+  (string) (len=10) ".gitignore",
+  (string) (len=18) "package-scripts.js",
+  (string) (len=23) "src/hooks/useActions.ts"
+}

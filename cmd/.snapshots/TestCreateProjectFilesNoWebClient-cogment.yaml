@@ -26,30 +26,30 @@ commands:
   client: docker-compose run --rm client
 
 environment:
-  config_type: testit.EnvConfig
+  config_type: testcreateprojectfilesnowebclient.EnvConfig
 
 trial:
-  config_type: testit.TrialConfig
+  config_type: testcreateprojectfilesnowebclient.TrialConfig
 
 # Static configuration
 actor_classes:
   - name: master
     action:
-      space: testit.MasterAction
+      space: testcreateprojectfilesnowebclient.MasterAction
     observation:
-      space: testit.Observation
+      space: testcreateprojectfilesnowebclient.Observation
 
   - name: smart
     action:
-      space: testit.SmartAction
+      space: testcreateprojectfilesnowebclient.SmartAction
     observation:
-      space: testit.Observation
+      space: testcreateprojectfilesnowebclient.Observation
 
   - name: dumb
     action:
-      space: testit.DumbAction
+      space: testcreateprojectfilesnowebclient.DumbAction
     observation:
-      space: testit.Observation
+      space: testcreateprojectfilesnowebclient.Observation
 
 
 # Dynamic configuration (could be changed by a pre-hook)
