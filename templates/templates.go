@@ -15,6 +15,7 @@
 package templates
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -90,6 +91,10 @@ func RecursivelyGenerateFromTemplates(tmplDir string, tmplIgnorePatterns []strin
 		if err != nil {
 			return err
 		}
+
+		fmt.Println("PATHS")
+		fmt.Println(relativePath)
+		fmt.Println(tmplIgnorePatterns)
 
 		isIgnored, err := ignore.Matches(relativePath, tmplIgnorePatterns)
 		if err != nil {
