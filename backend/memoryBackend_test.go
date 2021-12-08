@@ -438,6 +438,58 @@ func TestConcurrentAddAndObserveSamples(t *testing.T) {
 	wg.Wait()
 }
 
+func TestObserveSamplesEmptyTrial(t *testing.T) {
+	b, err := CreateMemoryBackend(DefaultMaxSampleSize)
+	assert.NoError(t, err)
+	assert.NotNil(t, b)
+	defer b.Destroy()
+
+	{
+		err = b.CreateOrUpdateTrials(context.Background(), []*TrialParams{
+			{
+				TrialID: "trial-1",
+				Params:  generateTrialParams(2, 100),
+			},
+		})
+		assert.NoError(t, err)
+	}
+
+	{
+		observer := make(TrialSampleObserver)
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			time.Sleep(1 * time.Second)
+			cancel()
+		}()
+		err := b.ObserveSamples(ctx, TrialSampleFilter{TrialIDs: []string{"trial-1"}}, observer)
+		// Making sure that we don't have a `UnknownTrialError`
+		assert.ErrorIs(t, err, context.Canceled)
+		close(observer)
+	}
+}
+
+func TestObserveSamplesNonExistingTrial(t *testing.T) {
+	b, err := CreateMemoryBackend(DefaultMaxSampleSize)
+	assert.NoError(t, err)
+	assert.NotNil(t, b)
+	defer b.Destroy()
+
+	{
+		observer := make(TrialSampleObserver)
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			time.Sleep(1 * time.Second)
+			cancel()
+		}()
+		err := b.ObserveSamples(ctx, TrialSampleFilter{TrialIDs: []string{"trial-1"}}, observer)
+		// Making sure that we have a `UnknownTrialError`
+		var unknownTrialErr *UnknownTrialError
+		assert.ErrorAs(t, err, &unknownTrialErr)
+		assert.Equal(t, "trial-1", unknownTrialErr.TrialID)
+		close(observer)
+	}
+}
+
 func TestTriaEviction(t *testing.T) {
 	// Uncomment to see the log from the trial eviction worker
 	// log.SetLevel(log.DebugLevel)
