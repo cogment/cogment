@@ -237,14 +237,9 @@ func createWebClient(config *api.ProjectConfig) error {
 
 	logger.Info("Create web-client structure")
 
-	ignore := []string{"**/useActions.ts"}
-	if config.Typescript {
-		ignore = []string{"**/useActions.js"}
-	}
-
 	if err := templates.RecursivelyGenerateFromTemplates(
 		"/templates/web-client",
-		ignore,
+		[]string{},
 		config,
 		webClientRootPath,
 	); err != nil {
