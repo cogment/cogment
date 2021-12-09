@@ -63,7 +63,7 @@ Environment::~Environment() {
 }
 
 void Environment::write_to_stream(cogmentAPI::EnvRunTrialInput&& data) {
-  const std::lock_guard<std::mutex> lg(m_writing);
+  const std::lock_guard lg(m_writing);
   if (m_stream_valid) {
     try {
       m_stream_valid = m_stream->Write(std::move(data));
@@ -372,8 +372,6 @@ void Environment::dispatch_message(cogmentAPI::Message&& message) {
 }
 
 void Environment::trial_ended(std::string_view details) {
-  const std::lock_guard<std::mutex> lg(m_writing);
-
   if (!m_stream_valid) {
     SPDLOG_DEBUG("Trial [{}] - Environment [{}] stream has ended: cannot end it again", m_trial->id(), m_name);
     return;
@@ -385,17 +383,10 @@ void Environment::trial_ended(std::string_view details) {
     msg.set_details(details.data(), details.size());
   }
 
-  if (m_stream_valid) {
-    try {
-      m_stream_valid = m_stream->Write(std::move(msg));
-    }
-    catch (...) {
-      m_stream_valid = false;
-      throw;
-    }
-  }
+  write_to_stream(std::move(msg));
   SPDLOG_DEBUG("Trial [{}] - Environment [{}] 'END' sent", m_trial->id(), m_name);
 
+  const std::lock_guard lg(m_writing);
   if (m_stream_valid) {
     try {
       m_stream_valid = m_stream->WritesDone();

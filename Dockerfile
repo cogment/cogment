@@ -27,5 +27,4 @@ COPY --from=build      /usr/local/bin/orchestrator     /usr/local/bin/
 WORKDIR /app
 
 ENTRYPOINT ["orchestrator"]
-CMD ["--config=/app/cogment.yaml"]
 

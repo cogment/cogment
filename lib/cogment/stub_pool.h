@@ -52,7 +52,7 @@ public:
   }
 
   std::shared_ptr<grpc::Channel> get_channel(const std::string& url) {
-    std::lock_guard l(m_mtx);
+    const std::lock_guard lg(m_map_lock);
 
     auto& found = m_channels[url];
     auto result = found.lock();
@@ -66,7 +66,7 @@ public:
     return result;
   }
 
-  std::mutex m_mtx;
+  std::mutex m_map_lock;
   std::unordered_map<std::string, std::weak_ptr<grpc::Channel>> m_channels;
 
 private:
@@ -96,10 +96,11 @@ public:
   };
 
   std::shared_ptr<Entry> get_stub_entry(const std::string& url) {
+    const std::lock_guard lg(m_map_lock);
+
     if (url.find("grpc://") != 0) {
       throw MakeException("Bad grpc url (must start with 'grpc://'): [{}]", url);
     }
-    std::lock_guard l(m_mtx);
 
     auto real_url = url.substr(7);
     auto& found = m_entries[real_url];
@@ -118,7 +119,7 @@ public:
   }
 
 private:
-  std::mutex m_mtx;
+  std::mutex m_map_lock;
   ChannelPool* m_channel_pool;
   std::unordered_map<std::string, std::weak_ptr<Entry>> m_entries;
 };

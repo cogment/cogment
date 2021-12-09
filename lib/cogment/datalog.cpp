@@ -42,6 +42,7 @@ DatalogServiceImpl::~DatalogServiceImpl() {
   SPDLOG_TRACE("~DatalogServiceImpl()");
 
   if (m_stream_valid) {
+    m_stream_valid = false;
     m_stream->WritesDone();
     m_stream->Finish();
   }
@@ -83,11 +84,10 @@ void DatalogServiceImpl::start(const std::string& trial_id, const std::string& u
   m_context.AddMetadata("trial-id", m_trial_id);
   m_context.AddMetadata("user-id", user_id);
   m_stream = m_stub_entry->get_stub().RunTrialDatalog(&m_context);
-  m_stream_valid = (m_stream != nullptr);
 
-  cogmentAPI::RunTrialDatalogInput msg;
-  *msg.mutable_trial_params() = params;
-  if (m_stream_valid) {
+  if (m_stream != nullptr) {
+    cogmentAPI::RunTrialDatalogInput msg;
+    *msg.mutable_trial_params() = params;
     m_stream_valid = m_stream->Write(msg);
   }
 }

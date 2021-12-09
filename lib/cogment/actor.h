@@ -16,6 +16,8 @@
 #define COGMENT_ORCHESTRATOR_ACTOR_H
 
 #include "grpc++/grpc++.h"
+#include "spdlog/spdlog.h"
+
 #include "cogment/api/common.pb.h"
 
 #include <mutex>
@@ -41,6 +43,29 @@ public:
   virtual bool finish() = 0;
 };
 
+// This class is to try to compensate/workaround limitations and bugs in gRPC
+class ManagedStream {
+public:
+  ManagedStream() : m_stream_valid(false), m_last_writen(false) {}
+  void operator=(std::unique_ptr<ActorStream> stream);
+
+  ActorStream* actor_stream_ptr() { return m_stream.get(); }
+  bool has_stream() const { return (m_stream != nullptr); }
+  bool is_valid() const { return m_stream_valid; }
+
+  bool read(ActorStream::OutputType* data);
+  bool write(const ActorStream::InputType& data);
+  bool write_last(const ActorStream::InputType& data);
+  void finish();
+
+private:
+  std::unique_ptr<ActorStream> m_stream;
+  std::mutex m_writing;
+  std::mutex m_reading;
+  std::atomic_bool m_stream_valid;
+  std::atomic_bool m_last_writen;
+};
+
 class Actor {
   using TickIdType = uint64_t;
   using RewardAccumulator = std::map<TickIdType, cogmentAPI::Reward>;
@@ -51,7 +76,7 @@ public:
 
   virtual std::future<void> init();
 
-  bool has_joined() const { return (m_stream != nullptr); }
+  bool has_joined() const { return m_stream.has_stream(); }
   std::future<void> last_ack() { return m_last_ack_prom.get_future(); }
 
   Trial* trial() const { return m_trial; }
@@ -81,9 +106,7 @@ private:
 
   bool m_wait_for_init_data;
 
-  std::unique_ptr<ActorStream> m_stream;
-  bool m_stream_valid;
-  mutable std::mutex m_writing;
+  ManagedStream m_stream;
 
   Trial* const m_trial;
   const std::string m_name;

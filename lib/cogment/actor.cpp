@@ -47,6 +47,94 @@ float compute_reward_value(const cogmentAPI::Reward& reward) {
 
 namespace cogment {
 
+void ManagedStream::operator=(std::unique_ptr<ActorStream> stream) {
+  // Testing the locks is very hard due to spurious false return of try_lock.
+  // In our use case, this following test is good enough.
+  if (has_stream()) {
+    throw MakeException("Cannot overwrite an established managed stream");
+  }
+  m_stream = std::move(stream);
+  m_stream_valid = true;
+}
+
+bool ManagedStream::read(ActorStream::OutputType* data) {
+  const std::lock_guard lg(m_reading);
+  if (m_stream_valid) {
+    try {
+      // We never want to set m_stream_valid to "true", so we use an "if" statement
+      if (!m_stream->read(data)) {
+        m_stream_valid = false;
+      }
+    }
+    catch (...) {
+      spdlog::error("gRPC failure reading");
+      m_stream_valid = false;
+    }
+  }
+  return m_stream_valid;
+}
+
+bool ManagedStream::write(const ActorStream::InputType& data) {
+  const std::lock_guard lg(m_writing);
+  if (m_stream_valid) {
+    if (!m_last_writen) {
+      try {
+        // We never want to set m_stream_valid to "true", so we use an "if" statement
+        if (!m_stream->write(data)) {
+          m_stream_valid = false;
+        }
+      }
+      catch (...) {
+        spdlog::error("gRPC failure writing");
+        m_stream_valid = false;
+      }
+    }
+    else {
+      spdlog::warn("Trying to write after last writen");
+    }
+  }
+
+  return m_stream_valid;
+}
+
+bool ManagedStream::write_last(const ActorStream::InputType& data) {
+  const std::lock_guard lg(m_writing);
+  if (m_stream_valid) {
+    if (!m_last_writen) {
+      try {
+        if (m_stream->write_last(data)) {
+          m_last_writen = true;
+        }
+        else {
+          m_stream_valid = false;
+        }
+      }
+      catch (...) {
+        spdlog::error("gRPC failure writing last data");
+        m_stream_valid = false;
+      }
+    }
+    else {
+      spdlog::warn("Trying to write last data after last writen");
+    }
+  }
+
+  return m_stream_valid;
+}
+
+void ManagedStream::finish() {
+  const std::lock_guard lg(m_writing);
+  if (m_stream_valid) {
+    m_stream_valid = false;
+    try {
+      m_stream->finish();
+    }
+    catch (...) {
+      spdlog::error("gRPC failure finishing");
+    }
+  }
+}
+
 // Static
 bool Actor::read_init_data(ActorStream* stream, cogmentAPI::ActorInitialOutput* out) {
   SPDLOG_TRACE("Actor read_init_data");
@@ -108,7 +196,6 @@ bool Actor::read_init_data(ActorStream* stream, cogmentAPI::ActorInitialOutput* 
 
 Actor::Actor(Trial* owner, const cogmentAPI::ActorParams& params, bool read_init) :
     m_wait_for_init_data(read_init),
-    m_stream_valid(false),
     m_trial(owner),
     m_name(params.name()),
     m_actor_class(params.actor_class()),
@@ -143,23 +230,13 @@ Actor::~Actor() {
 }
 
 void Actor::write_to_stream(ActorStream::InputType&& data) {
-  const std::lock_guard<std::mutex> lg(m_writing);
-  if (m_stream_valid) {
-    try {
-      m_stream_valid = m_stream->write(std::move(data));
-    }
-    catch (...) {
-      m_stream_valid = false;
-      throw;
-    }
-  }
-  else {
+  if (!m_stream.write(std::move(data))) {
     throw MakeException("Actor stream has closed");
   }
 }
 
 void Actor::add_reward_src(const cogmentAPI::RewardSource& source, TickIdType tick_id) {
-  const std::lock_guard<std::mutex> lg(m_reward_lock);
+  const std::lock_guard lg(m_reward_lock);
   auto& rew = m_reward_accumulator[tick_id];
   auto new_src = rew.add_sources();
   *new_src = source;
@@ -176,7 +253,7 @@ void Actor::send_message(const cogmentAPI::Message& message, TickIdType tick_id)
 void Actor::dispatch_tick(cogmentAPI::Observation&& obs, bool final_tick) {
   RewardAccumulator reward_acc;
   {
-    const std::lock_guard<std::mutex> lg(m_reward_lock);
+    const std::lock_guard lg(m_reward_lock);
     reward_acc.swap(m_reward_accumulator);
   }
 
@@ -334,7 +411,7 @@ void Actor::process_incoming_data(ActorStream::OutputType&& data) {
 }
 
 void Actor::process_incoming_stream() {
-  for (ActorStream::OutputType data; m_stream_valid && m_stream->read(&data); data.Clear()) {
+  for (ActorStream::OutputType data; m_stream.read(&data); data.Clear()) {
     try {
       process_incoming_data(std::move(data));
     }
@@ -346,33 +423,36 @@ void Actor::process_incoming_stream() {
     }
   }
 
-  SPDLOG_DEBUG("Trial [{}] - Actor [{}] finished reading stream (valid [{}])", m_trial->id(), m_name, m_stream_valid);
+  SPDLOG_DEBUG("Trial [{}] - Actor [{}] finished reading stream", m_trial->id(), m_name);
 }
 
 std::future<void> Actor::run(std::unique_ptr<ActorStream> stream) {
   SPDLOG_TRACE("Trial [{}] - Actor [{}] run", m_trial->id(), m_name);
 
-  if (m_stream != nullptr) {
+  if (m_stream.has_stream()) {
     throw MakeException("Actor already running");
   }
   m_stream = std::move(stream);
-  m_stream_valid = true;
 
   dispatch_init_data();
 
   m_incoming_thread = m_trial->thread_pool().push("Actor incoming data", [this]() {
     try {
-      if (m_wait_for_init_data && m_stream_valid) {
-        m_stream_valid = read_init_data(m_stream.get(), nullptr);
+      bool init_success;
+      if (m_wait_for_init_data) {
+        init_success = m_stream.is_valid() && read_init_data(m_stream.actor_stream_ptr(), nullptr);
+      }
+      else {
+        init_success = true;
       }
 
-      if (m_stream_valid) {
+      if (init_success) {
         m_init_prom.set_value();
         m_init_completed = true;
         spdlog::debug("Trial [{}] - Actor [{}] init complete", m_trial->id(), m_name);
-      }
 
-      process_incoming_stream();
+        process_incoming_stream();
+      }
     }
     catch (const std::exception& exc) {
       spdlog::error("Trial [{}] - Actor [{}] failed to process stream [{}]", m_trial->id(), m_name, exc.what());
@@ -438,9 +518,7 @@ void Actor::dispatch_init_data() {
 }
 
 void Actor::trial_ended(std::string_view details) {
-  const std::lock_guard<std::mutex> lg(m_writing);
-
-  if (!m_stream_valid) {
+  if (!m_stream.is_valid()) {
     SPDLOG_DEBUG("Trial [{}] - Actor [{}] stream has ended: cannot end it again", m_trial->id(), m_name);
     return;
   }
@@ -451,22 +529,14 @@ void Actor::trial_ended(std::string_view details) {
     data.set_details(details.data(), details.size());
   }
 
-  try {
-    m_stream_valid = m_stream->write_last(std::move(data));
-  }
-  catch (...) {
-    m_stream_valid = false;
-    throw;
-  }
+  m_stream.write_last(std::move(data));
   SPDLOG_DEBUG("Trial [{}] - Actor [{}] 'END' sent", m_trial->id(), m_name);
 
   finish_stream();
 }
 
 void Actor::finish_stream() {
-  // m_stream->finish();  // This seems to cause a crash in grpc (in agent actor)
-
-  m_stream_valid = false;
+  m_stream.finish();
 
   if (!m_finished.exchange(true)) {
     m_finished_prom.set_value();

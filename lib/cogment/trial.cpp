@@ -100,7 +100,7 @@ Trial::~Trial() {
   SPDLOG_TRACE("Trial [{}] - Destructor", m_id);
 
   if (m_state != InternalState::unknown && m_state != InternalState::ended) {
-    spdlog::error("Trial [{}] - Internal failure: Trying to destroy trial before it is ended", m_id);
+    spdlog::error("Trial [{}] - Destroying trial before it is ended [{}]", m_id, get_trial_state_string(m_state));
   }
 
   // Destroy components while this trial instance still exists
@@ -175,7 +175,7 @@ void Trial::new_special_event(std::string_view desc) {
 }
 
 cogmentAPI::DatalogSample* Trial::get_last_sample() {
-  const std::lock_guard<std::mutex> lg(m_sample_lock);
+  const std::lock_guard lg(m_sample_lock);
   if (!m_step_data.empty()) {
     return &(m_step_data.back());
   }
@@ -185,7 +185,7 @@ cogmentAPI::DatalogSample* Trial::get_last_sample() {
 }
 
 cogmentAPI::DatalogSample& Trial::make_new_sample() {
-  const std::lock_guard<std::mutex> lg(m_sample_lock);
+  const std::lock_guard lg(m_sample_lock);
 
   const uint64_t tick_start = Timestamp();
 
@@ -212,22 +212,28 @@ cogmentAPI::DatalogSample& Trial::make_new_sample() {
 }
 
 void Trial::flush_samples() {
-  const std::lock_guard<std::mutex> lg(m_sample_lock);
   SPDLOG_TRACE("Trial [{}] - Flushing last samples", m_id);
+  const std::lock_guard lg(m_sample_lock);
 
   if (!m_step_data.empty()) {
     m_step_data.back().mutable_info()->set_state(get_trial_api_state(m_state));
   }
 
-  for (auto& sample : m_step_data) {
-    m_datalog->add_sample(std::move(sample));
+  if (m_datalog != nullptr) {
+    for (auto& sample : m_step_data) {
+      m_datalog->add_sample(std::move(sample));
+    }
   }
+
   m_step_data.clear();
 }
 
 void Trial::prepare_actors() {
   if (m_params.actors().empty()) {
     throw MakeException("No Actor defined in parameters");
+  }
+  if (m_env == nullptr) {
+    throw MakeException("Environment not ready for actors");
   }
 
   for (const auto& actor_info : m_params.actors()) {
@@ -339,7 +345,7 @@ void Trial::start(cogmentAPI::TrialParams&& params) {
       spdlog::error("Trial [{}] - Failed to start [{}]", self->m_id, exc.what());
     }
     catch (...) {
-      spdlog::error("Trial [{}] - Failed to start on unknown exception", self->m_id);
+      spdlog::error("Trial [{}] - Failed to start for unknown reason", self->m_id);
     }
   });
 
@@ -355,7 +361,7 @@ void Trial::reward_received(const std::string& sender, cogmentAPI::Reward&& rewa
   cogmentAPI::Reward* new_rew;
   auto sample = get_last_sample();
   if (sample != nullptr) {
-    const std::lock_guard<std::mutex> lg(m_reward_lock);
+    const std::lock_guard lg(m_reward_lock);
     new_rew = sample->add_rewards();
     *new_rew = reward;  // TODO: The reward may have a wildcard (or invalid) receiver, do we want that in the sample?
   }
@@ -395,7 +401,7 @@ void Trial::message_received(const std::string& sender, cogmentAPI::Message&& me
   cogmentAPI::Message* new_msg;
   auto sample = get_last_sample();
   if (sample != nullptr) {
-    const std::lock_guard<std::mutex> lg(m_sample_message_lock);
+    const std::lock_guard lg(m_sample_message_lock);
     new_msg = sample->add_messages();
     *new_msg = std::move(message);
     new_msg->set_sender_name(sender);
@@ -503,14 +509,14 @@ void Trial::dispatch_observations(bool last) {
 }
 
 void Trial::cycle_buffer() {
+  const std::lock_guard lg(m_sample_lock);
+
   static constexpr uint64_t MIN_NB_BUFFERED_SAMPLES = 2;  // Because of the way we use the buffer
   static constexpr uint64_t NB_BUFFERED_SAMPLES = 5;      // Could be an external setting
   static constexpr uint64_t LOG_BATCH_SIZE = 1;           // Could be an external setting
   static constexpr uint64_t LOG_TRIGGER_SIZE = NB_BUFFERED_SAMPLES + LOG_BATCH_SIZE - 1;
   static_assert(NB_BUFFERED_SAMPLES >= MIN_NB_BUFFERED_SAMPLES);
   static_assert(LOG_BATCH_SIZE > 0);
-
-  const std::lock_guard<std::mutex> lg(m_sample_lock);
 
   // Send overflow to log
   if (m_step_data.size() >= LOG_TRIGGER_SIZE) {
@@ -527,7 +533,7 @@ cogmentAPI::ActionSet Trial::make_action_set() {
 
   action_set.set_tick_id(m_tick_id);
 
-  const std::lock_guard<std::mutex> lg(m_sample_lock);
+  const std::lock_guard lg(m_sample_lock);
   auto& sample = m_step_data.back();
   for (auto& act : sample.actions()) {
     if (act.tick_id() == AUTO_TICK_ID || act.tick_id() == static_cast<int64_t>(m_tick_id)) {
@@ -664,8 +670,7 @@ void Trial::request_end() {
 
 void Trial::terminate(const std::string& details) {
   SPDLOG_TRACE("Trial [{}] - terminate()", m_id);
-
-  const std::lock_guard<std::shared_mutex> lg(m_terminating_lock);
+  const std::lock_guard lg(m_terminating_lock);
 
   if (m_state == InternalState::ended) {
     return;
@@ -673,16 +678,18 @@ void Trial::terminate(const std::string& details) {
   set_state(InternalState::terminating);
 
   new_special_event("Forced termination: " + details);
-  spdlog::info("Trial [{}] - Being forced to end [{}]", m_id, details);
+  spdlog::info("Trial [{}] - Hard termination requested [{}]", m_id, details);
 
-  try {
-    m_env->trial_ended(details);
-  }
-  catch (const std::exception& exc) {
-    spdlog::error("Trial [{}] - Environment [{}] termination failed [{}]", m_id, m_env->name(), exc.what());
-  }
-  catch (...) {
-    spdlog::error("Trial [{}] - Environment [{}] termination failed", m_id, m_env->name());
+  if (m_env != nullptr) {
+    try {
+      m_env->trial_ended(details);
+    }
+    catch (const std::exception& exc) {
+      spdlog::error("Trial [{}] - Environment [{}] termination failed [{}]", m_id, m_env->name(), exc.what());
+    }
+    catch (...) {
+      spdlog::error("Trial [{}] - Environment [{}] termination failed", m_id, m_env->name());
+    }
   }
 
   for (const auto& actor : m_actors) {
@@ -701,7 +708,7 @@ void Trial::terminate(const std::string& details) {
 }
 
 void Trial::env_observed(const std::string& env_name, cogmentAPI::ObservationSet&& obs, bool last) {
-  std::shared_lock<std::shared_mutex> lg(m_terminating_lock);
+  const std::shared_lock lg(m_terminating_lock);
   refresh_activity();
 
   if (m_state < InternalState::pending) {
@@ -743,7 +750,7 @@ void Trial::env_observed(const std::string& env_name, cogmentAPI::ObservationSet
 }
 
 void Trial::actor_acted(const std::string& actor_name, cogmentAPI::Action&& action) {
-  std::shared_lock<std::shared_mutex> lg(m_terminating_lock);
+  const std::shared_lock lg(m_terminating_lock);
   refresh_activity();
 
   if (m_state < InternalState::pending) {
@@ -805,6 +812,7 @@ void Trial::actor_acted(const std::string& actor_name, cogmentAPI::Action&& acti
       }
     }
     else {
+      // To signal the end to the environment. The end will come with the "last" observations.
       set_state(InternalState::terminating);
 
       if (m_end_requested) {
@@ -868,7 +876,7 @@ ClientActor* Trial::get_join_candidate(const std::string& actor_name, const std:
 }
 
 void Trial::set_state(InternalState new_state) {
-  const std::lock_guard<std::mutex> lg(m_state_lock);
+  const std::lock_guard lg(m_state_lock);
 
   bool invalid_transition = false;
   switch (m_state) {
@@ -974,7 +982,7 @@ void Trial::set_info(cogmentAPI::TrialInfo* info, bool with_observations, bool w
     return;
   }
 
-  if (m_state >= InternalState::pending) {
+  if (m_env != nullptr) {
     info->set_env_name(m_env->name());
   }
 
@@ -986,7 +994,6 @@ void Trial::set_info(cogmentAPI::TrialInfo* info, bool with_observations, bool w
   }
 
   if (with_actors && m_state >= InternalState::pending) {
-    info->set_env_name(m_env->name());
     for (auto& actor : m_actors) {
       auto trial_actor = info->add_actors_in_trial();
       trial_actor->set_actor_class(actor->actor_class());

@@ -28,8 +28,9 @@
 
 #include "grpc++/grpc++.h"
 #include "slt/settings.h"
-#include "spdlog/sinks/daily_file_sink.h"
 #include "spdlog/spdlog.h"
+#include "spdlog/sinks/daily_file_sink.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
 
 #include <csignal>
 #include <filesystem>
@@ -169,9 +170,15 @@ int main(int argc, const char* argv[]) {
 
   std::string log_filename = settings::log_file.get();
   try {
-    if (!log_filename.empty()) {
-      std::cout << "Daily log base filename: \"" << log_filename << "\"" << std::endl;
-      auto logger = spdlog::daily_logger_mt("daily_logger", log_filename, 0, 0);
+    // Replace default unnamed logger with a named one, so we can put back an unnamed logger
+    spdlog::set_default_logger(spdlog::stdout_color_mt("console"));
+
+    if (log_filename.empty()) {
+      spdlog::set_default_logger(spdlog::stdout_color_mt(""));
+    }
+    else {
+      std::cout << "Daily log base filename (date will be added): \"" << log_filename << "\"" << std::endl;
+      auto logger = spdlog::daily_logger_mt("", log_filename, 0, 0);
       spdlog::set_default_logger(logger);
     }
   }
@@ -192,7 +199,7 @@ int main(int argc, const char* argv[]) {
 
       // spdlog returns "off" if an unknown string is given!
       if (level_setting == spdlog::level::level_enum::off && log_level != "off") {
-        throw MakeException("Unknown setting");
+        throw MakeException("Unknown log level setting");
       }
 
       spdlog::set_level(level_setting);
@@ -400,11 +407,11 @@ int main(int argc, const char* argv[]) {
       }
       else {
         if (!params_file_loaded) {
-          throw MakeException("No default parameter file and no hook definition for parameters.");
+          throw MakeException("No default parameter file and no pre-trial hook definition.");
         }
       }
     }
-    spdlog::info("[{}] prehooks defined", nb_prehooks);
+    spdlog::info("[{}] pre-trial hooks defined", nb_prehooks);
 
     cogment::ActorService actor_service(&orchestrator);
     cogment::TrialLifecycleService trial_lifecycle_service(&orchestrator);
@@ -452,11 +459,11 @@ int main(int argc, const char* argv[]) {
     spdlog::info("Shutting down...");
   }
   catch (const std::exception& exc) {
-    spdlog::error("Exception in Main: [{}]", exc.what());
+    spdlog::error("Failure: {}", exc.what());
     return_value = -1;
   }
   catch (...) {
-    spdlog::error("Exception in Main");
+    spdlog::error("Failure");
     return_value = -1;
   }
 

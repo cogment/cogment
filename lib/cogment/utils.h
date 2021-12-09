@@ -90,7 +90,7 @@ template <typename T>
 class ThrQueue {
 public:
   T pop() {
-    std::unique_lock ul(m_lock);
+    std::unique_lock ul(m_queue_lock);
 
     if (m_data.empty()) {
       m_cond.wait(ul, [this]() {
@@ -104,21 +104,16 @@ public:
   }
 
   void push(T&& val) {
-    std::unique_lock ul(m_lock);
+    std::unique_lock ul(m_queue_lock);
 
     m_data.emplace(std::forward<T>(val));
     ul.unlock();
     m_cond.notify_one();
   }
 
-  size_t size() const {
-    std::unique_lock ul(m_lock);
-    return m_data.size();
-  }
-
 private:
   std::queue<T> m_data;
-  mutable std::mutex m_lock;
+  std::mutex m_queue_lock;
   std::condition_variable m_cond;
 };
 
@@ -144,7 +139,7 @@ private:
 
   std::vector<std::thread> m_thread_pool;
   std::vector<std::shared_ptr<ThreadControl>> m_thread_controls;
-  std::mutex m_lock;
+  std::mutex m_push_lock;
 };
 
 #endif

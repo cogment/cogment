@@ -61,7 +61,7 @@ private:
   std::unique_ptr<StreamType> m_stream;
   bool m_stream_valid;
   grpc::ClientContext m_context;
-  mutable std::mutex m_writing;
+  std::mutex m_writing;
 
   Trial* const m_trial;
   const std::string m_name;

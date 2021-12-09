@@ -58,10 +58,18 @@ std::vector<std::string> split(const std::string& in, char separator) {
 
 class ThreadPool::ThreadControl {
 public:
-  void stop() { m_active = false; }
-  bool is_available() { return (!m_executing_func && m_active); }
+  bool is_available() const { return (!m_executing_func && m_active); }
+
+  void stop() {
+    m_active = false;  // To stop once func is done
+    m_funcs.push({});  // To stop if there is no func running
+  }
 
   std::future<void> set_execution(FUNC_TYPE&& func, std::string_view desc) {
+    if (!func) {
+      throw MakeException("Non-callable function for thread pool [{}]", desc);
+    }
+
     m_executing_func = true;
     m_prom = std::promise<void>();
     m_description.assign(desc.data(), desc.size());
@@ -75,6 +83,10 @@ public:
     try {
       while (m_active) {
         auto func = m_funcs.pop();
+        if (!func) {
+          break;
+        }
+
         try {
           func();
         }
@@ -117,12 +129,7 @@ ThreadPool::~ThreadPool() {
 }
 
 std::future<void> ThreadPool::push(std::string_view desc, FUNC_TYPE&& func) {
-  if (!func) {
-    std::string str_desc(desc);
-    throw MakeException("Invalid function for thread pool [{}]", str_desc);
-  }
-
-  const std::lock_guard<std::mutex> lg(m_lock);
+  const std::lock_guard lg(m_push_lock);
 
   for (auto& control : m_thread_controls) {
     if (control->is_available()) {
@@ -139,6 +146,7 @@ std::shared_ptr<ThreadPool::ThreadControl>& ThreadPool::add_thread() {
   auto& thr_control = m_thread_controls.back();
   m_thread_pool.emplace_back([thr_control]() {
     thr_control->run();
+    spdlog::debug("Threadpool thread exiting");
   });
 
   spdlog::debug("Nb of threads in pool: [{}]", m_thread_controls.size());

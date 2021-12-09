@@ -119,6 +119,9 @@ std::shared_ptr<Trial> Orchestrator::start_trial(cogmentAPI::TrialParams params,
   try {
     m_perform_trial_gc();
   }
+  catch (const std::exception& exc) {
+    spdlog::error("Failure to perform garbage collection of trials [{}]", exc.what());
+  }
   catch (...) {
     spdlog::error("Failure to perform garbage collection of trials");
   }
@@ -156,7 +159,7 @@ cogmentAPI::TrialParams Orchestrator::m_perform_pre_hooks(cogmentAPI::TrialParam
 
     auto status = hook->get_stub().OnPreTrial(&hook_context, hook_param, &hook_param);
     if (!status.ok()) {
-      throw MakeException("Prehook failure [{}]", status.error_message());
+      throw MakeException("Pre-trial hook failure [{}]", status.error_message());
     }
   }
 
@@ -173,33 +176,56 @@ void Orchestrator::m_perform_trial_gc() {
   const auto start = Timestamp();
 
   spdlog::debug("Performing garbage collection of ended and stale trials");
-  std::vector<Trial*> stale_trials;
-  {
+  std::vector<std::shared_ptr<Trial>> stale_trials;
+
+  // Extra exception catching in this function to find throwing code of non-std exception
+  try {
     const std::lock_guard lg(m_trials_mutex);
 
     auto itor = m_trials.begin();
     while (itor != m_trials.end()) {
       auto& trial = itor->second;
+      if (trial == nullptr) {
+        throw MakeException("Null trial stored in list");
+      }
 
       if (trial->state() == Trial::InternalState::ended) {
         m_trials_to_delete.push(std::move(trial));
         itor = m_trials.erase(itor);
       }
-      else if (trial->is_stale()) {
-        stale_trials.emplace_back(trial.get());
-        ++itor;
-      }
       else {
-        ++itor;
+        try {
+          if (trial->is_stale()) {
+            stale_trials.emplace_back(trial);
+            ++itor;
+          }
+          else {
+            ++itor;
+          }
+        }
+        catch (...) {
+          spdlog::error("Problem performing garbage collection (1.1)");
+          throw;
+        }
       }
     }
   }
+  catch (...) {
+    spdlog::error("Problem performing garbage collection (1)");
+    throw;
+  }
 
-  // Terminate may be long, so we don't want to lock the list during that time.
-  // We don't go as far as with the deleted trials (i.e. terminating in a different thread)
-  // because stale trials should be rare.
-  for (auto trial : stale_trials) {
-    trial->terminate("The trial was inactive for too long");
+  try {
+    // Terminate may be long, so we don't want to lock the list during that time.
+    // We don't go as far as with the deleted trials (i.e. terminating in a different thread)
+    // because stale trials should be rare.
+    for (auto& trial : stale_trials) {
+      trial->terminate("The trial was inactive for too long");
+    }
+  }
+  catch (...) {
+    spdlog::error("Problem performing garbage collection (2)");
+    throw;
   }
 
   if (m_gc_metrics != nullptr) {
@@ -236,7 +262,7 @@ std::vector<std::shared_ptr<Trial>> Orchestrator::all_trials() const {
 std::future<void> Orchestrator::watch_trials(HandlerFunction func) {
   SPDLOG_TRACE("Adding new notification function");
 
-  // We have to lock here to make sure the new heandler does not miss a state
+  // We have to lock here to make sure the new handler does not miss a state
   const std::lock_guard lg(m_notification_lock);
 
   // Report current trial states
