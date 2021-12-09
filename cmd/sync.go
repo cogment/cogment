@@ -17,20 +17,19 @@ package cmd
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
-	"path"
-	"strings"
+	"path/filepath"
 
-	"github.com/cogment/cogment-cli/api"
 	"github.com/spf13/cobra"
 )
 
-func copy(src, dst string) (int64, error) {
+func copy(src, _dst string) (int64, error) {
 	sourceFileStat, err := os.Stat(src)
 	if err != nil {
 		return 0, err
 	}
+
+	dst := filepath.Join(_dst, filepath.Base(src))
 
 	if !sourceFileStat.Mode().IsRegular() {
 		return 0, fmt.Errorf("%s is not a regular file", src)
@@ -47,75 +46,58 @@ func copy(src, dst string) (int64, error) {
 		return 0, err
 	}
 	defer destination.Close()
+	fmt.Println(dst, src)
 	nBytes, err := io.Copy(destination, source)
 	return nBytes, err
 }
 
-func contains(s []string, e string) bool {
-	for _, a := range s {
-		if a == e {
-			return true
-		}
+func isDir(path string) bool {
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		return false
 	}
-	return false
+	return fileInfo.IsDir()
 }
 
 // generateCmd represents the generate command
 var syncCmd = &cobra.Command{
-	Use:   "sync --config cogment.yaml [--all | directories...]",
-	Args:  cobra.MinimumNArgs(1),
-	Short: "Sync the cogment project settings and proto files",
-	Long:  "Sync the cogment project settings and proto files to the target component directories, or to all subdirectories",
+	Use:   "sync file1 file2 directory1 dicrectory2",
+	Short: "Sync a list of files to a list of directories",
+	Long:  "Sync a list of files to a list of directories, order doesn't matter, supports glob format, as in `cogment sync *.proto client`",
 	RunE: func(cmd *cobra.Command, args []string) error {
 
-		configFile, err := cmd.Flags().GetString("config")
-		if err != nil {
-			return fmt.Errorf("Could not get config param! %v", err)
-		}
-
-		if configFile == "" {
-			return fmt.Errorf("No config file specified!")
-		}
-
-		config, err := api.CreateProjectConfigFromYaml(configFile)
-		if err != nil {
-			return fmt.Errorf("Unable to read config file! %v", err)
-		}
-
-		files, err := ioutil.ReadDir(".")
-		if err != nil {
-			return err
-		}
-
-		protoFiles := config.Import.Proto
+		files := []string{}
 		directories := []string{}
 
-		for _, file := range files {
-			if file.IsDir() && !strings.HasPrefix(file.Name(), ".") {
-				directories = append(directories, file.Name())
+		for _, arg := range args {
+			fileOrDirs, err := filepath.Glob(arg)
+			if err != nil {
+				return err
+			}
+			for _, fileOrDir := range fileOrDirs {
+				isDir := isDir(fileOrDir)
+				if isDir {
+					directories = append(directories, fileOrDir)
+				} else {
+					files = append(files, fileOrDir)
+				}
 			}
 		}
 
-		outputDirectories := args
-
-		all, err := cmd.Flags().GetBool("all")
-		if err != nil {
-			return err
+		if len(files) == 0 {
+			return fmt.Errorf("no files to sync")
+		}
+		if len(directories) == 0 {
+			return fmt.Errorf("no directories to sync")
 		}
 
-		if all {
-			outputDirectories = directories
-		}
-
-		if len(outputDirectories) == 0 {
-			return fmt.Errorf("You must provide at least one directory to sync")
-		}
-
-		for _, directory := range outputDirectories {
-			for _, protoFile := range protoFiles {
-				copy(protoFile, path.Join(directory, protoFile))
+		for _, outputDirectory := range directories {
+			for _, inFile := range files {
+				_, err := copy(inFile, outputDirectory)
+				if err != nil {
+					return fmt.Errorf("Copy fail! %v", err)
+				}
 			}
-			copy("cogment.yaml", path.Join(directory, "cogment.yaml"))
 		}
 
 		return nil
@@ -124,7 +106,4 @@ var syncCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(syncCmd)
-
-	syncCmd.Flags().BoolP("all", "a", false, "apply to all subdirectories")
-	syncCmd.Flags().StringP("config", "c", "", "config file to sync")
 }
