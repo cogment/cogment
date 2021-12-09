@@ -6,10 +6,6 @@ import:
   proto:
     - somedata.proto
     - subdir/otherdata.proto
-  python:
-    - delta
-  javascript:
-    - delta
 
 trial:
   config_type: flames.TrialConfig
@@ -29,20 +25,12 @@ actor_classes:
       space: flames.Human_PlaneAction
     observation:
       space: flames.Observation
-      delta: flames.ObservationDelta
-      delta_apply_fn:
-        python: delta.apply_delta
-        javascript: delta.apply_delta
 
   - id: ai_drone
     action:
       space: flames.Ai_DroneAction
     observation:
       space: flames.Observation
-      delta: flames.ObservationDelta
-      delta_apply_fn:
-        python: delta.apply_delta
-        javascript: delta.apply_delta
 
 trial_params:
   environment:

@@ -27,8 +27,6 @@ export interface ActorClass {
   config?: typeof Message;
   actionSpace: typeof Message;
   observationSpace: typeof Message;
-  observationDelta?: typeof Message;
-  observationDeltaApply?: (x: Message) => Message;
 }
 
 {{- range .ActorClasses}}
@@ -40,10 +38,6 @@ export class {{.Name | pascalify}}ActorClass implements ActorClass {
   actionSpace = {{.Action.Space}};
 {{- with .Observation }}
   observationSpace = {{.Space}};
-  observationDelta = {{if .Delta}}{{.Delta}}{{else}}{{.Space}}{{end}};
-  observationDeltaApply(observationDelta: Message) {
-    return observationDelta;
-  }
 {{- end}}
 }
 {{- end}}

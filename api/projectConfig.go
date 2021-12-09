@@ -200,14 +200,7 @@ type Trial struct {
 }
 
 type Observation struct {
-	Space        string
-	Delta        string
-	DeltaApplyFn *DeltaApplyFn `yaml:"delta_apply_fn"`
-}
-
-type DeltaApplyFn struct {
-	Python     string
-	Javascript string
+	Space string
 }
 
 type ActorClass struct {

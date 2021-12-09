@@ -85,13 +85,12 @@ var generateCmd = &cobra.Command{
 		return err
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		color.Yellow("Command 'generate' is deprecated. Please use cogment sync folder1 folder2 folder3, then generate your language proto files with each respective sdk")
+		color.Yellow("Command 'generate' is deprecated. Please use 'sync' instead.")
 		err := runGenerateCmd(cmd)
 		if err != nil {
 			return err
 		}
 		logger.Info("Files have been generated")
-		color.Yellow("Command 'generate' is deprecated. Please use cogment sync folder1 folder2 folder3, then generate your language proto files with each respective sdk")
 		return nil
 	},
 }
@@ -329,7 +328,7 @@ func generateWebClient(config *api.ProjectConfig, jsOutPaths []string) error {
 
 func compileProtosJs(config *api.ProjectConfig, jsOutPath string) error {
 	params := []string{
-		fmt.Sprintf("--js_out=import_style=commonjs,binary:%s/src", jsOutPath), 
+		fmt.Sprintf("--js_out=import_style=commonjs,binary:%s/src", jsOutPath),
 	}
 
 	if config.Typescript {
@@ -340,10 +339,7 @@ func compileProtosJs(config *api.ProjectConfig, jsOutPath string) error {
 		)
 	}
 
-
-	
-
-	jsProtocBinary := path.Join(jsOutPath, "node_modules/.bin/grpc_tools_node_protoc");
+	jsProtocBinary := path.Join(jsOutPath, "node_modules/.bin/grpc_tools_node_protoc")
 
 	err := runProtoc(jsProtocBinary, path.Dir(config.ProjectConfigPath), config.Import.Proto, params)
 	if err != nil {
@@ -391,9 +387,6 @@ func updateConfigWithMessage(config *api.ProjectConfig) (*api.ProjectConfig, err
 
 		config.ActorClasses[k].Action.Space, err = lookupMessageType(actorClass.Action.Space)
 		config.ActorClasses[k].Observation.Space, err = lookupMessageType(actorClass.Observation.Space)
-		if actorClass.Observation.Delta != "" {
-			config.ActorClasses[k].Observation.Delta, err = lookupMessageType(actorClass.Observation.Delta)
-		}
 	}
 
 	if config.Environment != nil && config.Environment.ConfigType != "" {

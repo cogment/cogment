@@ -18,7 +18,6 @@ from typing import List
 
 import cogment as _cog
 import data_pb2
-import delta
 import subdir.otherdata_pb2
 
 _plane_class = _cog.ActorClass(
@@ -26,8 +25,6 @@ _plane_class = _cog.ActorClass(
     config_type=None,
     action_space=data_pb2.Human_PlaneAction,
     observation_space=data_pb2.Observation,
-    observation_delta=data_pb2.ObservationDelta,
-    observation_delta_apply_fn=delta.apply_delta,
 )
 
 _ai_drone_class = _cog.ActorClass(
@@ -35,8 +32,6 @@ _ai_drone_class = _cog.ActorClass(
     config_type=data_pb2.DroneConfig,
     action_space=data_pb2.Ai_DroneAction,
     observation_space=data_pb2.Observation,
-    observation_delta=data_pb2.ObservationDelta,
-    observation_delta_apply_fn=delta.apply_delta,
 )
 
 
@@ -78,14 +73,6 @@ class plane_ObservationProxy(_cog.env_service.ObservationProxy):
     def snapshot(self, v):
         self._set_snapshot(v)
 
-    @property
-    def delta(self) -> data_pb2.ObservationDelta:
-        return self._get_delta(data_pb2.ObservationDelta)
-
-    @delta.setter
-    def delta(self, v):
-        self._set_delta(v)
-
 
 class ai_drone_ObservationProxy(_cog.env_service.ObservationProxy):
     @property
@@ -95,14 +82,6 @@ class ai_drone_ObservationProxy(_cog.env_service.ObservationProxy):
     @snapshot.setter
     def snapshot(self, v):
         self._set_snapshot(v)
-
-    @property
-    def delta(self) -> data_pb2.ObservationDelta:
-        return self._get_delta(data_pb2.ObservationDelta)
-
-    @delta.setter
-    def delta(self, v):
-        self._set_delta(v)
 
 
 class ObservationsTable:

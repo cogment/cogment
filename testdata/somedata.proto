@@ -65,17 +65,6 @@ message Observation {
   float remaining_forests = 9;
 }
 
-message ObservationDelta {
-  repeated int32 updated_cells_list = 1;
-  repeated CellState new_cell_states = 2;
-
-  ObjectInfo copter = 3;
-  repeated ObjectInfo drones = 4;
-
-  bool done = 5;
-  float remaining_forests = 6;
-}
-
 message Ai_DroneAction {
   repeated foo.Vec2 path = 1;
 }
