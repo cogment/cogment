@@ -76,11 +76,14 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				b := createBackend()
 				defer destroyBackend(b)
 
-				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
+				modelInfo, err := b.CreateOrUpdateModel(backend.ModelInfo{
 					ModelID:  "foo",
 					UserData: modelUserData,
 				})
 				assert.NoError(t, err)
+				assert.Equal(t, "foo", modelInfo.ModelID)
+				assert.Equal(t, 0, modelInfo.LatestVersionNumber)
+				assert.Equal(t, modelUserData, modelInfo.UserData)
 
 				// Create a another one should succeed
 				_, err = b.CreateOrUpdateModel(backend.ModelInfo{
@@ -317,6 +320,10 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				assert.Equal(t, 10, modelVersion10.VersionNumber)
 				assert.Equal(t, backend.ComputeSHA256Hash(Data1), modelVersion10.DataHash)
 				assert.Equal(t, len(Data1), modelVersion10.DataSize)
+
+				modelInfo, err := b.RetrieveModelInfo("foo")
+				assert.NoError(t, err)
+				assert.Equal(t, 23, modelInfo.LatestVersionNumber)
 			},
 		},
 		{
@@ -655,10 +662,10 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				// 5 "foo" creations in parallel
 				for i := 0; i < 5; i++ {
 					wg.Add(1)
-					i := i
+					i := i // Create a new 'i' that gets captured by the goroutine's closure https://golang.org/doc/faq#closures_and_goroutines
 					go func() {
 						defer wg.Done()
-						_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{
+						_, err := b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{
 							VersionNumber:     -1,
 							CreationTimestamp: time.Now(),
 							Data:              Data1,
@@ -674,9 +681,10 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				// 5 "bar" creations in parallel
 				for i := 0; i < 5; i++ {
 					wg.Add(1)
+					i := i // Create a new 'i' that gets captured by the goroutine's closure https://golang.org/doc/faq#closures_and_goroutines
 					go func() {
 						defer wg.Done()
-						_, err = b.CreateOrUpdateModelVersion("bar", backend.VersionArgs{
+						_, err := b.CreateOrUpdateModelVersion("bar", backend.VersionArgs{
 							VersionNumber:     -1,
 							CreationTimestamp: time.Now(),
 							Data:              Data2,

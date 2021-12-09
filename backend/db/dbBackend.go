@@ -137,6 +137,19 @@ func (b *dbBackend) Destroy() {
 	// Nothing
 }
 
+func (b *dbBackend) retrieveLatestVersionNumber(db *gorm.DB, modelID string) (int, error) {
+	latestVersionInfo := dbVersion{ModelID: modelID}
+	if err := db.Order("version_number desc").First(&latestVersionInfo).Error; err != nil {
+		if errors.Is(gorm.ErrRecordNotFound, err) {
+			// No version yet
+			return 0, nil
+		} else {
+			return 0, err
+		}
+	}
+	return latestVersionInfo.VersionNumber, nil
+}
+
 // CreateModel creates a model with a given unique id in the backend
 func (b *dbBackend) CreateOrUpdateModel(modelInfo backend.ModelInfo) (backend.ModelInfo, error) {
 
@@ -157,15 +170,63 @@ func (b *dbBackend) CreateOrUpdateModel(modelInfo backend.ModelInfo) (backend.Mo
 		return backend.ModelInfo{}, err
 	}
 
+	latestVersionNumber, err := b.retrieveLatestVersionNumber(tx, modelInfo.ModelID)
+	if err != nil {
+		// Unexpected error
+		tx.Rollback()
+		return backend.ModelInfo{}, err
+	}
+
+	modelInfo.LatestVersionNumber = latestVersionNumber
+
 	tx.Commit()
 	return modelInfo, nil
 }
 
+func retrieveModel(db *gorm.DB, modelID string, dest interface{}) error {
+	if err := db.First(dest, "model_id=?", modelID).Error; err != nil {
+		if errors.Is(gorm.ErrRecordNotFound, err) {
+			return &backend.UnknownModelError{ModelID: modelID}
+		}
+		return err
+	}
+	return nil
+}
+
+// RetrieveModelVersionInfo retrieves a given model version info
+func (b *dbBackend) RetrieveModelInfo(modelID string) (backend.ModelInfo, error) {
+	tx := b.db.Begin()
+
+	modelInfo := dbModel{}
+	if err := retrieveModel(tx, modelID, &modelInfo); err != nil {
+		tx.Rollback()
+		return backend.ModelInfo{}, err
+	}
+
+	modelInfoOut, err := backendModelInfoFromDB(modelInfo)
+	if err != nil {
+		tx.Rollback()
+		return backend.ModelInfo{}, err
+	}
+
+	latestVersionNumber, err := b.retrieveLatestVersionNumber(tx, modelInfo.ModelID)
+	if err != nil {
+		// Unexpected error
+		tx.Rollback()
+		return backend.ModelInfo{}, err
+	}
+
+	modelInfoOut.LatestVersionNumber = latestVersionNumber
+
+	tx.Commit()
+	return modelInfoOut, nil
+}
+
 // HasModel check if a model exists
 func (b *dbBackend) HasModel(modelID string) (bool, error) {
-	model := dbModel{}
-	if err := b.db.First(&model, "model_id=?", modelID).Error; err != nil {
-		if errors.Is(gorm.ErrRecordNotFound, err) {
+	modelInfo := dbModel{}
+	if err := retrieveModel(b.db, modelID, &modelInfo); err != nil {
+		if _, ok := err.(*backend.UnknownModelError); ok {
 			return false, nil
 		}
 		return false, err
@@ -244,20 +305,13 @@ func (b *dbBackend) CreateOrUpdateModelVersion(modelID string, versionArgs backe
 	}
 
 	if version.VersionNumber <= 0 {
-		// If versionNumber is 0 or less, we create a new version after the last one
-		latestVersionInfo := dbVersion{ModelID: modelID}
-		if err := tx.Order("version_number desc").First(&latestVersionInfo).Error; err != nil {
-			if errors.Is(gorm.ErrRecordNotFound, err) {
-				// No version yet
-				version.VersionNumber = 1
-			} else {
-				// Unexpected error
-				tx.Rollback()
-				return backend.VersionInfo{}, err
-			}
-		} else {
-			version.VersionNumber = latestVersionInfo.VersionNumber + 1
+		latestVersionNumber, err := b.retrieveLatestVersionNumber(tx, modelID)
+		if err != nil {
+			// Unexpected error
+			tx.Rollback()
+			return backend.VersionInfo{}, err
 		}
+		version.VersionNumber = latestVersionNumber + 1
 	}
 
 	if err := tx.Clauses(clause.OnConflict{
@@ -307,16 +361,6 @@ func retrieveModelVersion(db *gorm.DB, modelID string, versionNumber int, dest i
 	return nil
 }
 
-func retrieveModel(db *gorm.DB, modelID string, dest interface{}) error {
-	if err := db.First(dest, "model_id=?", modelID).Error; err != nil {
-		if errors.Is(gorm.ErrRecordNotFound, err) {
-			return &backend.UnknownModelError{ModelID: modelID}
-		}
-		return err
-	}
-	return nil
-}
-
 // RetrieveModelVersionData retrieves a given model version data
 func (b *dbBackend) RetrieveModelVersionData(modelID string, versionNumber int) ([]byte, error) {
 	version := dbVersion{}
@@ -339,21 +383,6 @@ func (b *dbBackend) RetrieveModelVersionInfo(modelID string, versionNumber int) 
 	}
 
 	return versionInfoOut, nil
-}
-
-// RetrieveModelVersionInfo retrieves a given model version info
-func (b *dbBackend) RetrieveModelInfo(modelID string) (backend.ModelInfo, error) {
-	modelInfo := dbModel{}
-	if err := retrieveModel(b.db, modelID, &modelInfo); err != nil {
-		return backend.ModelInfo{}, err
-	}
-
-	modelInfoOut, err := backendModelInfoFromDB(modelInfo)
-	if err != nil {
-		return backend.ModelInfo{}, err
-	}
-
-	return modelInfoOut, nil
 }
 
 // DeleteModelVersion deletes a given model version

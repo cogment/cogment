@@ -20,19 +20,20 @@ import (
 )
 
 type ModelInfo struct {
-	ModelID  string            `json:"modelId" yaml:"model_id"`
-	UserData map[string]string `json:"userData" yaml:"user_data"`
+	ModelID             string
+	LatestVersionNumber int // Latest version number, 0 means that no version exists yet.
+	UserData            map[string]string
 }
 
 // VersionInfo describes the informations (metadata) for a particular version of a model
 type VersionInfo struct {
-	ModelID           string            `json:"modelId" yaml:"model_id"`
-	VersionNumber     int               `json:"versionNumber" yaml:"version_number"`
-	CreationTimestamp time.Time         `json:"creationTimestamp" yaml:"creation_timestamp"`
-	Archived          bool              `json:"archived"`
-	DataHash          string            `json:"dataHash" yaml:"data_hash"`
-	DataSize          int               `json:"dataSize" yaml:"data_size"`
-	UserData          map[string]string `json:"userData" yaml:"user_data"`
+	ModelID           string
+	VersionNumber     int
+	CreationTimestamp time.Time
+	Archived          bool
+	DataHash          string
+	DataSize          int
+	UserData          map[string]string
 }
 
 type VersionArgs struct {
