@@ -404,10 +404,10 @@ func (b *dbBackend) DeleteModelVersion(modelID string, versionNumber int) error 
 	return nil
 }
 
-// ListModelVersionInfos list the versions info of a model from the latest to the earliest from the given offset index, it returns at most the given limit VersionNumber of versions
-func (b *dbBackend) ListModelVersionInfos(modelID string, offset int, limit int) ([]backend.VersionInfo, error) {
+// ListModelVersionInfos list the versions info of a model from the latest to the earliest from the given initialVersionNumber, it returns at most the given limit VersionNumber of versions
+func (b *dbBackend) ListModelVersionInfos(modelID string, initialVersionNumber int, limit int) ([]backend.VersionInfo, error) {
 	versions := []dbVersionInfo{}
-	if err := b.db.Model(&dbVersion{}).Where(&dbVersion{ModelID: modelID}).Limit(limit).Offset(offset).Find(&versions).Error; err != nil {
+	if err := b.db.Model(&dbVersion{}).Where(&dbVersion{ModelID: modelID}).Where("version_number>=?", initialVersionNumber).Limit(limit).Find(&versions).Error; err != nil {
 		return []backend.VersionInfo{}, err
 	}
 

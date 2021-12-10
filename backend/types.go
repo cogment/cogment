@@ -59,7 +59,7 @@ type Backend interface {
 	RetrieveModelVersionInfo(modelID string, versionNumber int) (VersionInfo, error)
 	RetrieveModelVersionData(modelID string, versionNumber int) ([]byte, error)
 	DeleteModelVersion(modelID string, versionNumber int) error
-	ListModelVersionInfos(modelID string, offset int, limit int) ([]VersionInfo, error)
+	ListModelVersionInfos(modelID string, initialVersionNumber int, limit int) ([]VersionInfo, error)
 }
 
 // UnknownModelError is raised when trying to operate on an unknown model

@@ -160,8 +160,8 @@ func (b *hybridBackend) DeleteModelVersion(modelID string, versionNumber int) er
 	return nil
 }
 
-// ListModelVersionInfos list the versions info of a model from the latest to the earliest from the given offset index, it returns at most the given limit number of versions
-func (b *hybridBackend) ListModelVersionInfos(modelID string, offset int, limit int) ([]backend.VersionInfo, error) {
+// ListModelVersionInfos list the versions info of a model from the latest to the earliest from the given initial version number, it returns at most the given limit number of versions
+func (b *hybridBackend) ListModelVersionInfos(modelID string, initialVersionNumber int, limit int) ([]backend.VersionInfo, error) {
 	// Transient is kept in sync from the archive, so it should have everything
-	return b.transient.ListModelVersionInfos(modelID, offset, limit)
+	return b.transient.ListModelVersionInfos(modelID, initialVersionNumber, limit)
 }

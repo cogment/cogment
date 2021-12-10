@@ -22,6 +22,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"strconv"
 	"text/template"
 	"time"
 
@@ -152,9 +153,9 @@ var versionDataFilenameTemplate = template.Must(template.New("versionDataFilenam
 
 var versionInfoFilenameTemplate = template.Must(template.New("versionInfoFilenameTemplate").Parse(`{{ .ModelID }}-v{{ .VersionNumber | printf "%06d" }}.yaml`))
 var modelInfoFilenameTemplate = template.Must(template.New("modelInfoFilenameTemplate").Parse(`{{ .ModelID }}.yaml`))
-var versionInfoFilenameRegexp = regexp.MustCompile("[a-zA-Z][a-zA-Z0-9-_]*-v[0-9]+.yaml")
+var versionInfoFilenameRegexp = regexp.MustCompile("([a-zA-Z][a-zA-Z0-9-_]*)-v([0-9]+).yaml")
 
-var modelDirnameRegexp = regexp.MustCompile("[a-zA-Z][a-zA-Z0-9-_]*")
+var modelDirnameRegexp = regexp.MustCompile("([a-zA-Z][a-zA-Z0-9-_]*)")
 
 // CreateBackend creates a new backend using the local filesystem
 func CreateBackend(rootDirname string) (backend.Backend, error) {
@@ -491,11 +492,20 @@ func (b *fsBackend) DeleteModelVersion(modelID string, versionNumber int) error 
 	return nil
 }
 
-// ListModelVersionInfos list the versions info of a model from the latest to the earliest from the given offset index, it returns at most the given limit number of versions
-func (b *fsBackend) ListModelVersionInfos(modelID string, offset int, limit int) ([]backend.VersionInfo, error) {
+// ListModelVersionInfos list the versions info of a model from the latest to the earliest from the given initialVersionNumber, it returns at most the given limit number of versions
+func (b *fsBackend) ListModelVersionInfos(modelID string, initialVersionNumber int, limit int) ([]backend.VersionInfo, error) {
 	modelDirname := path.Join(b.rootDirname, modelID)
-	modelVersionEntries, err := filteredReadDir(modelDirname, offset, limit, func(entry fs.DirEntry) bool {
-		return !entry.IsDir() && versionInfoFilenameRegexp.MatchString(entry.Name())
+	modelVersionEntries, err := filteredReadDir(modelDirname, 0, limit, func(entry fs.DirEntry) bool {
+		if entry.IsDir() {
+			return false
+		}
+		submatches := versionInfoFilenameRegexp.FindStringSubmatch(entry.Name())
+		if submatches == nil {
+			return false
+		}
+		// Parsing the version number, we ignore the error as the regex matching should be enough guarantees
+		versionNumber, _ := strconv.Atoi(submatches[2])
+		return versionNumber >= initialVersionNumber
 	})
 	if err != nil {
 		return []backend.VersionInfo{}, &backend.UnknownModelError{ModelID: modelID}

@@ -623,6 +623,12 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				assert.NoError(t, err)
 				assert.Len(t, versions, 20)
 
+				versionsSubset, err := b.ListModelVersionInfos("foo", 8, 5)
+				assert.NoError(t, err)
+				assert.Len(t, versionsSubset, 5)
+				assert.Equal(t, 8, versionsSubset[0].VersionNumber)
+				assert.Equal(t, 12, versionsSubset[4].VersionNumber)
+
 				for i, version := range versions {
 					assert.Equal(t, "foo", version.ModelID)
 					assert.Equal(t, i+1, version.VersionNumber)
@@ -635,7 +641,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				assert.Equal(t, 1, versions[0].VersionNumber)
 				assert.Equal(t, 2, versions[1].VersionNumber)
 
-				versions, err = b.ListModelVersionInfos("foo", 2, 3)
+				versions, err = b.ListModelVersionInfos("foo", 3, 3)
 				assert.NoError(t, err)
 				assert.Len(t, versions, 3)
 				assert.Equal(t, 3, versions[0].VersionNumber)

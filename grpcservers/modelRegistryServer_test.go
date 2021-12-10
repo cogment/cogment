@@ -255,7 +255,7 @@ func TestCreateVersion(t *testing.T) {
 	{
 		rep, err := ctx.client.RetrieveVersionInfos(ctx.grpcCtx, &grpcapi.RetrieveVersionInfosRequest{ModelId: "foo"})
 		assert.NoError(t, err)
-		assert.Equal(t, "2", rep.NextVersionHandle)
+		assert.Equal(t, "3", rep.NextVersionHandle)
 		assert.Len(t, rep.VersionInfos, 2)
 		assert.Equal(t, "foo", rep.VersionInfos[0].ModelId)
 		assert.Equal(t, 1, int(rep.VersionInfos[0].VersionNumber))
@@ -319,7 +319,7 @@ func TestRetrieveVersionInfosAll(t *testing.T) {
 		rep, err := ctx.client.RetrieveVersionInfos(ctx.grpcCtx, &grpcapi.RetrieveVersionInfosRequest{ModelId: "bar", VersionsCount: 5})
 		assert.NoError(t, err)
 
-		assert.Equal(t, "5", rep.NextVersionHandle)
+		assert.Equal(t, "6", rep.NextVersionHandle)
 		assert.Len(t, rep.VersionInfos, 5)
 
 		assert.Equal(t, "bar", rep.VersionInfos[0].ModelId)
@@ -338,26 +338,26 @@ func TestRetrieveVersionInfosAll(t *testing.T) {
 		rep, err := ctx.client.RetrieveVersionInfos(ctx.grpcCtx, &grpcapi.RetrieveVersionInfosRequest{ModelId: "bar", VersionsCount: 5, VersionHandle: "7"})
 		assert.NoError(t, err)
 
-		assert.Equal(t, "10", rep.NextVersionHandle)
-		assert.Len(t, rep.VersionInfos, 3)
+		assert.Equal(t, "11", rep.NextVersionHandle)
+		assert.Len(t, rep.VersionInfos, 4)
 
 		assert.Equal(t, "bar", rep.VersionInfos[0].ModelId)
-		assert.Equal(t, uint(8), uint(rep.VersionInfos[0].VersionNumber))
+		assert.Equal(t, uint(7), uint(rep.VersionInfos[0].VersionNumber))
 		assert.False(t, rep.VersionInfos[0].Archived)
 		assert.NotZero(t, rep.VersionInfos[0].DataHash)
 		assert.NotZero(t, rep.VersionInfos[0].CreationTimestamp)
 
-		assert.Equal(t, "bar", rep.VersionInfos[2].ModelId)
-		assert.Equal(t, uint(10), uint(rep.VersionInfos[2].VersionNumber))
-		assert.True(t, rep.VersionInfos[2].Archived)
-		assert.Equal(t, rep.VersionInfos[0].DataHash, rep.VersionInfos[2].DataHash)
-		assert.GreaterOrEqual(t, rep.VersionInfos[2].CreationTimestamp, rep.VersionInfos[0].CreationTimestamp)
+		assert.Equal(t, "bar", rep.VersionInfos[3].ModelId)
+		assert.Equal(t, uint(10), uint(rep.VersionInfos[3].VersionNumber))
+		assert.True(t, rep.VersionInfos[3].Archived)
+		assert.Equal(t, rep.VersionInfos[0].DataHash, rep.VersionInfos[3].DataHash)
+		assert.GreaterOrEqual(t, rep.VersionInfos[3].CreationTimestamp, rep.VersionInfos[0].CreationTimestamp)
 	}
 	{
-		rep, err := ctx.client.RetrieveVersionInfos(ctx.grpcCtx, &grpcapi.RetrieveVersionInfosRequest{ModelId: "bar", VersionsCount: 5, VersionHandle: "10"})
+		rep, err := ctx.client.RetrieveVersionInfos(ctx.grpcCtx, &grpcapi.RetrieveVersionInfosRequest{ModelId: "bar", VersionsCount: 5, VersionHandle: "11"})
 		assert.NoError(t, err)
 
-		assert.Equal(t, "10", rep.NextVersionHandle)
+		assert.Equal(t, "11", rep.NextVersionHandle)
 		assert.Len(t, rep.VersionInfos, 0)
 	}
 }
@@ -415,7 +415,7 @@ func TestRetrieveVersionInfosSome(t *testing.T) {
 		rep, err := ctx.client.RetrieveVersionInfos(ctx.grpcCtx, &grpcapi.RetrieveVersionInfosRequest{ModelId: "bar", VersionNumbers: []int32{1}})
 		assert.NoError(t, err)
 		assert.Len(t, rep.VersionInfos, 1)
-		assert.Equal(t, "1", rep.NextVersionHandle)
+		assert.Equal(t, "2", rep.NextVersionHandle)
 
 		assert.Equal(t, "bar", rep.VersionInfos[0].ModelId)
 		assert.Equal(t, 1, int(rep.VersionInfos[0].VersionNumber))
@@ -427,7 +427,7 @@ func TestRetrieveVersionInfosSome(t *testing.T) {
 		rep, err := ctx.client.RetrieveVersionInfos(ctx.grpcCtx, &grpcapi.RetrieveVersionInfosRequest{ModelId: "bar", VersionNumbers: []int32{5}})
 		assert.NoError(t, err)
 		assert.Len(t, rep.VersionInfos, 1)
-		assert.Equal(t, "1", rep.NextVersionHandle)
+		assert.Equal(t, "6", rep.NextVersionHandle)
 
 		assert.Equal(t, "bar", rep.VersionInfos[0].ModelId)
 		assert.Equal(t, 5, int(rep.VersionInfos[0].VersionNumber))
@@ -439,7 +439,7 @@ func TestRetrieveVersionInfosSome(t *testing.T) {
 		rep, err := ctx.client.RetrieveVersionInfos(ctx.grpcCtx, &grpcapi.RetrieveVersionInfosRequest{ModelId: "bar", VersionNumbers: []int32{-1}})
 		assert.NoError(t, err)
 		assert.Len(t, rep.VersionInfos, 1)
-		assert.Equal(t, "1", rep.NextVersionHandle)
+		assert.Equal(t, "11", rep.NextVersionHandle)
 
 		assert.Equal(t, "bar", rep.VersionInfos[0].ModelId)
 		assert.Equal(t, 10, int(rep.VersionInfos[0].VersionNumber))

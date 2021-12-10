@@ -208,14 +208,16 @@ func (s *ModelRegistryServer) RetrieveVersionInfos(ctx context.Context, req *grp
 
 		pbVersionInfos := []*grpcapi.ModelVersionInfo{}
 
+		nextVersionNumber := offset
 		for _, versionInfo := range versionInfos {
 			pbVersionInfo := createPbModelVersionInfo(versionInfo)
 			pbVersionInfos = append(pbVersionInfos, &pbVersionInfo)
+			nextVersionNumber = versionInfo.VersionNumber + 1
 		}
 
 		return &grpcapi.RetrieveVersionInfosReply{
 			VersionInfos:      pbVersionInfos,
-			NextVersionHandle: strconv.Itoa(offset + len(pbVersionInfos)),
+			NextVersionHandle: strconv.Itoa(nextVersionNumber),
 		}, nil
 	}
 
@@ -224,6 +226,7 @@ func (s *ModelRegistryServer) RetrieveVersionInfos(ctx context.Context, req *grp
 	if req.VersionsCount > 0 {
 		versionNumberSlice = versionNumberSlice[:req.VersionsCount]
 	}
+	nextVersionNumber := offset
 	for _, versionNumber := range versionNumberSlice {
 		versionInfo, err := b.RetrieveModelVersionInfo(req.ModelId, int(versionNumber))
 		if err != nil {
@@ -238,11 +241,12 @@ func (s *ModelRegistryServer) RetrieveVersionInfos(ctx context.Context, req *grp
 
 		pbVersionInfo := createPbModelVersionInfo(versionInfo)
 		pbVersionInfos = append(pbVersionInfos, &pbVersionInfo)
+		nextVersionNumber = versionInfo.VersionNumber + 1
 	}
 
 	return &grpcapi.RetrieveVersionInfosReply{
 		VersionInfos:      pbVersionInfos,
-		NextVersionHandle: strconv.Itoa(offset + len(pbVersionInfos)),
+		NextVersionHandle: strconv.Itoa(nextVersionNumber),
 	}, nil
 }
 
