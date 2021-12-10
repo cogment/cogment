@@ -247,7 +247,11 @@ void Trial::prepare_actors() {
       throw MakeException("Actor name cannot be the same as environment name [{}]", m_env->name());
     }
 
-    if (url == "client") {
+    if (url == "client" || url == "cogment://client") {
+      if (url == "client") {
+        spdlog::warn("Client actor endpoint must be 'cogment://client' in the parameters [{}]", url);
+      }
+
       auto client_actor = std::make_unique<ClientActor>(this, actor_info);
       m_actors.emplace_back(std::move(client_actor));
     }
