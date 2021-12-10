@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Changed
+
+- Stricter control of streams to limit gRPC problems
+
 ## v2.0.0-rc2 - 2021-11-30
 
 ### Changed
