@@ -291,6 +291,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 						UserData:          versionUserData,
 					})
 					assert.NoError(t, err)
+					assert.Equal(t, 2+i+1, modelVersionI.VersionNumber)
 					assert.Equal(t, backend.ComputeSHA256Hash(Data2), modelVersionI.DataHash)
 					assert.Equal(t, len(Data2), modelVersionI.DataSize)
 				}

@@ -5,6 +5,7 @@ go 1.16
 require (
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/jstemmer/go-junit-report v0.0.0-20190106144839-af01ea7f8024
+	github.com/karlseguin/ccache/v2 v2.0.8
 	github.com/rogpeppe/go-internal v1.3.0
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.7.0

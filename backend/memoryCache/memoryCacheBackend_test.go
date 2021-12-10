@@ -16,6 +16,7 @@ package memoryCache
 
 import (
 	"testing"
+	"time"
 
 	"github.com/cogment/cogment-model-registry/backend"
 	"github.com/cogment/cogment-model-registry/backend/fs"
@@ -28,7 +29,7 @@ func TestSuiteMemoryCacheBackend(t *testing.T) {
 		fsBackend, err := fs.CreateBackend(t.TempDir())
 		assert.NoError(t, err)
 
-		b, err := CreateBackend(fsBackend)
+		b, err := CreateBackend(DefaultVersionCacheConfiguration, fsBackend)
 		assert.NoError(t, err)
 		return b
 	}, func(b backend.Backend) {
@@ -36,4 +37,51 @@ func TestSuiteMemoryCacheBackend(t *testing.T) {
 		mcb.archive.Destroy()
 		mcb.Destroy()
 	})
+}
+
+func TestSmallMaxSize(t *testing.T) {
+	fsBackend, err := fs.CreateBackend(t.TempDir())
+	assert.NoError(t, err)
+	defer fsBackend.Destroy()
+
+	b, err := CreateBackend(VersionCacheConfiguration{MaxSize: 2000, VersionsToPrune: 1, Expiration: DefaultVersionCacheConfiguration.Expiration}, fsBackend)
+	assert.NoError(t, err)
+	defer b.Destroy()
+
+	_, err = b.CreateOrUpdateModel(backend.ModelInfo{ModelID: "foo"})
+	assert.NoError(t, err)
+
+	assert.Len(t, test.Data1, 750)
+	data1Hash := backend.ComputeSHA256Hash(test.Data1)
+
+	_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{VersionNumber: -1, Archived: false, DataHash: data1Hash, Data: test.Data1})
+	assert.NoError(t, err)
+
+	time.Sleep(100 * time.Millisecond)
+
+	_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{VersionNumber: -1, Archived: false, DataHash: data1Hash, Data: test.Data1})
+	assert.NoError(t, err)
+
+	time.Sleep(100 * time.Millisecond)
+
+	versionInfo, err := b.RetrieveModelVersionInfo("foo", 2)
+	assert.NoError(t, err)
+	assert.Equal(t, versionInfo.VersionNumber, 2)
+	assert.Equal(t, data1Hash, versionInfo.DataHash)
+
+	_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{VersionNumber: -1, Archived: false, DataHash: data1Hash, Data: test.Data1})
+	assert.NoError(t, err)
+
+	time.Sleep(100 * time.Millisecond)
+
+	versionInfo, err = b.RetrieveModelVersionInfo("foo", 3)
+	assert.NoError(t, err)
+	assert.Equal(t, versionInfo.VersionNumber, 3)
+	assert.Equal(t, data1Hash, versionInfo.DataHash)
+
+	versionInfos, err := b.ListModelVersionInfos("foo", -1, -1)
+	assert.NoError(t, err)
+	assert.Len(t, versionInfos, 2)
+	assert.Equal(t, 2, versionInfos[0].VersionNumber)
+	assert.Equal(t, 3, versionInfos[1].VersionNumber)
 }
