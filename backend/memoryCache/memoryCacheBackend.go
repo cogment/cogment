@@ -27,15 +27,15 @@ import (
 )
 
 type VersionCacheConfiguration struct {
-	MaxSize         int
-	VersionsToPrune int
-	Expiration      time.Duration
+	MaxSize      int
+	ToPruneCount int
+	Expiration   time.Duration
 }
 
 var DefaultVersionCacheConfiguration = VersionCacheConfiguration{
-	MaxSize:         1024 * 1024 * 1024, // 1GB
-	VersionsToPrune: 50,
-	Expiration:      1 * time.Hour,
+	MaxSize:      1024 * 1024 * 1024, // 1GB
+	ToPruneCount: 50,
+	Expiration:   1 * time.Hour,
 }
 
 type memoryCacheBackend struct {
@@ -90,7 +90,7 @@ func CreateBackend(versionCacheConfiguration VersionCacheConfiguration, archive 
 		archive:                        archive,
 		modelsLatestVersionNumberMutex: sync.RWMutex{},
 		modelsLatestVersionNumber:      make(map[string]int),
-		versionCache:                   ccache.Layered(ccache.Configure().MaxSize(int64(versionCacheConfiguration.MaxSize)).ItemsToPrune(uint32(versionCacheConfiguration.VersionsToPrune))),
+		versionCache:                   ccache.Layered(ccache.Configure().MaxSize(int64(versionCacheConfiguration.MaxSize)).ItemsToPrune(uint32(versionCacheConfiguration.ToPruneCount))),
 		versionCacheConfiguration:      versionCacheConfiguration,
 	}
 

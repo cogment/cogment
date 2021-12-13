@@ -59,7 +59,7 @@ func TestSmallMaxSize(t *testing.T) {
 	assert.NoError(t, err)
 	defer fsBackend.Destroy()
 
-	b, err := CreateBackend(VersionCacheConfiguration{MaxSize: 2000, VersionsToPrune: 1, Expiration: DefaultVersionCacheConfiguration.Expiration}, fsBackend)
+	b, err := CreateBackend(VersionCacheConfiguration{MaxSize: 2000, ToPruneCount: 1, Expiration: DefaultVersionCacheConfiguration.Expiration}, fsBackend)
 	assert.NoError(t, err)
 	defer b.Destroy()
 

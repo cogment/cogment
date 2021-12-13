@@ -6,6 +6,9 @@
 
 This module, cogment Model Registry, is a versioned key value store dedicated to the storage of models.
 
+- **Transient** (non-archived) model versions can be used to broadcast an updated version of a model to its users, e.g. during training. Transient model versions are stored in memory and can be evicted, in particular once the memory limit is reached.
+- **Archived** model versions are stored on the filesystem, they are slower to create and to retrieve and should be used for long-term storage of specific versions, e.g. for validation or deployment purposes.
+
 ## Usage
 
 ```console
@@ -18,7 +21,10 @@ The following environment variables can be used to configure the server:
 
 - `COGMENT_MODEL_REGISTRY_PORT`: The port to listen on. Defaults to 9000.
 - `COGMENT_MODEL_REGISTRY_ARCHIVE_DIR`: The directory to store model archives. Docker images defaults to `/data`.
-- `COGMENT_MODEL_REGISTRY_SENT_MODEL_VERSION_DATA_CHUNK_SIZE`: The size of the model version data chunk sent by the server. Defaults to 5*1024*1024 (5MB).
+- `COGMENT_MODEL_REGISTRY_VERSION_CACHE_MAX_SIZE`: The maximum cumulated size for the model versions stored in memory. Defaults to 1024 \* 1024 \* 1024 (1GB).
+- `COGMENT_MODEL_REGISTRY_VERSION_CACHE_EXPIRATION`: The maximum duration for which model versions are kept in memory. Defaults to 1h, can be set to any value parsable by [`time.ParseDuration`](https://pkg.go.dev/time#ParseDuration).
+- `COGMENT_MODEL_REGISTRY_VERSION_CACHE_TO_PRUNE_COUNT`: The amount of model versions that are removed from cache at once. Defaults to 50.
+- `COGMENT_MODEL_REGISTRY_SENT_MODEL_VERSION_DATA_CHUNK_SIZE`: The size of the model version data chunk sent by the server. Defaults to 5 \* 1024 \* 1024 (5MB).
 - `COGMENT_MODEL_REGISTRY_GRPC_REFLECTION`: Set to start a [gRPC reflection server](https://github.com/grpc/grpc/blob/master/doc/server-reflection.md). Defaults to `false`.
 
 ## API

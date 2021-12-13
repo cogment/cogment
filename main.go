@@ -24,9 +24,8 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	"github.com/cogment/cogment-model-registry/backend"
-	"github.com/cogment/cogment-model-registry/backend/db"
 	"github.com/cogment/cogment-model-registry/backend/fs"
-	"github.com/cogment/cogment-model-registry/backend/hybrid"
+	"github.com/cogment/cogment-model-registry/backend/memoryCache"
 	"github.com/cogment/cogment-model-registry/grpcservers"
 	"github.com/cogment/cogment-model-registry/version"
 )
@@ -35,6 +34,9 @@ func main() {
 	viper.AutomaticEnv()
 	viper.SetDefault("PORT", 9000)
 	viper.SetDefault("ARCHIVE_DIR", ".cogment_model_registry")
+	viper.SetDefault("VERSION_CACHE_MAX_SIZE", memoryCache.DefaultVersionCacheConfiguration.MaxSize)
+	viper.SetDefault("VERSION_CACHE_EXPIRATION", memoryCache.DefaultVersionCacheConfiguration.Expiration)
+	viper.SetDefault("VERSION_CACHE_TO_PRUNE_COUNT", memoryCache.DefaultVersionCacheConfiguration.ToPruneCount)
 	viper.SetDefault("SENT_MODEL_VERSION_DATA_CHUNK_SIZE", 1024*1024*5) // Default chunk size is 5 MB
 	viper.SetDefault("GRPC_REFLECTION", false)
 	viper.SetEnvPrefix("COGMENT_MODEL_REGISTRY")
@@ -51,24 +53,23 @@ func main() {
 		log.Fatalf("%v", err)
 	}
 
-	var dbBackend backend.Backend
-	var fsBackend backend.Backend
+	var archiveBackend backend.Backend
 	var backend backend.Backend
 
 	go func() {
-		dbBackend, err := db.CreateBackend()
-		if err != nil {
-			log.Fatalf("unable to create the database backend: %v", err)
-		}
-
 		archiveDir := viper.GetString("ARCHIVE_DIR")
-		fsBackend, err := fs.CreateBackend(archiveDir)
+		archiveBackend, err = fs.CreateBackend(archiveDir)
 		if err != nil {
 			log.Fatalf("unable to create the archive filesystem backend: %v", err)
 		}
 		log.Printf("Filesystem backend created in %q for archived model versions\n", archiveDir)
 
-		backend, err := hybrid.CreateBackend(dbBackend, fsBackend)
+		versionCacheConfiguration := memoryCache.VersionCacheConfiguration{
+			MaxSize:      viper.GetInt("VERSION_CACHE_MAX_SIZE"),
+			Expiration:   viper.GetDuration("VERSION_CACHE_EXPIRATION"),
+			ToPruneCount: viper.GetInt("VERSION_CACHE_TO_PRUNE_COUNT"), // Parsed according to https://pkg.go.dev/time#ParseDuration
+		}
+		backend, err = memoryCache.CreateBackend(versionCacheConfiguration, archiveBackend)
 		if err != nil {
 			log.Fatalf("unable to create the backend: %v", err)
 		}
@@ -80,11 +81,8 @@ func main() {
 		if backend != nil {
 			backend.Destroy()
 		}
-		if fsBackend != nil {
-			fsBackend.Destroy()
-		}
-		if dbBackend != nil {
-			dbBackend.Destroy()
+		if archiveBackend != nil {
+			archiveBackend.Destroy()
 		}
 	}()
 

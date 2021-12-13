@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/cogment/cogment-model-registry/backend"
-	"github.com/cogment/cogment-model-registry/backend/db"
+	"github.com/cogment/cogment-model-registry/backend/fs"
 	grpcapi "github.com/cogment/cogment-model-registry/grpcapi/cogment/api"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
@@ -50,10 +50,10 @@ eleifend tellus. Aenean leo ligula, porttitor eu, consequat vitae, eleifend ac,
 enim. Aliquam lorem ante, dapibus in, viverra quis, feugiat a, tellus. Phasellus
 viverra nulla ut metus varius laoreet.`)
 
-func createContext(sentModelVersionDataChunkSize int) (testContext, error) {
+func createContext(t *testing.T, sentModelVersionDataChunkSize int) (testContext, error) {
 	listener := bufconn.Listen(1024 * 1024)
 	server := grpc.NewServer()
-	backend, err := db.CreateBackend()
+	backend, err := fs.CreateBackend(t.TempDir())
 	if err != nil {
 		return testContext{}, err
 	}
@@ -99,7 +99,7 @@ func TestCreateOrUpdateModel(t *testing.T) {
 	modelUserData["model_test2"] = "model_test2"
 	modelUserData["model_test3"] = "model_test3"
 
-	ctx, err := createContext(1024 * 1024)
+	ctx, err := createContext(t, 1024*1024)
 	assert.NoError(t, err)
 	defer ctx.destroy()
 	{
@@ -128,7 +128,7 @@ func TestDeleteModel(t *testing.T) {
 	modelUserData["model_test2"] = "model_test2"
 	modelUserData["model_test3"] = "model_test3"
 
-	ctx, err := createContext(1024 * 1024)
+	ctx, err := createContext(t, 1024*1024)
 	assert.NoError(t, err)
 	defer ctx.destroy()
 	{
@@ -167,7 +167,7 @@ func TestCreateVersion(t *testing.T) {
 	versionUserData["version_test2"] = "version_test2"
 	versionUserData["version_test3"] = "version_test3"
 
-	ctx, err := createContext(1024 * 1024)
+	ctx, err := createContext(t, 1024*1024)
 	assert.NoError(t, err)
 	defer ctx.destroy()
 	{
@@ -280,7 +280,7 @@ func TestRetrieveVersionInfosAll(t *testing.T) {
 	versionUserData["version_test2"] = "version_test2"
 	versionUserData["version_test3"] = "version_test3"
 
-	ctx, err := createContext(1024 * 1024)
+	ctx, err := createContext(t, 1024*1024)
 	assert.NoError(t, err)
 	defer ctx.destroy()
 	{
@@ -311,8 +311,10 @@ func TestRetrieveVersionInfosAll(t *testing.T) {
 					DataChunk: modelData,
 				}}})
 			assert.NoError(t, err)
-			_, err = stream.CloseAndRecv()
+			rep, err := stream.CloseAndRecv()
 			assert.NoError(t, err)
+			//fmt.Println(rep.VersionInfo)
+			assert.Equal(t, i, int(rep.VersionInfo.VersionNumber))
 		}
 	}
 	{
@@ -373,7 +375,7 @@ func TestRetrieveVersionInfosSome(t *testing.T) {
 	versionUserData["version_test2"] = "version_test2"
 	versionUserData["version_test3"] = "version_test3"
 
-	ctx, err := createContext(1024 * 1024)
+	ctx, err := createContext(t, 1024*1024)
 	assert.NoError(t, err)
 	defer ctx.destroy()
 	{
@@ -466,7 +468,7 @@ func TestGetModelVersionData(t *testing.T) {
 	versionUserData["version_test2"] = "version_test2"
 	versionUserData["version_test3"] = "version_test3"
 
-	ctx, err := createContext(16) // For the purpose of the test we limit the sent chunk size drastically
+	ctx, err := createContext(t, 16) // For the purpose of the test we limit the sent chunk size drastically
 	assert.NoError(t, err)
 	defer ctx.destroy()
 	{

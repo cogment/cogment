@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Changed
+
+- The model registry now stored transient model version in a memory cache.
+
+### Added
+
+- Introduce `backend.MemoryCacheBackend` a cache backend that stores model version in a upper bounded memory cache and uses another backend for archived versions.
+
+### Removed
+
+- `backend.DbBackend` and `backend.HybridBackend` are no longer used and have been removed.
+
 ## v0.2.0 - 2021-10-05
 
 ### Fixed
