@@ -7,11 +7,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Changed
+
+- Internal `backend.Backend` now uses `uint` for version numbers and uses 0 to request the creation of a new version.
+
 ## v0.3.0 - 2021-12-14
 
 ### Changed
 
-- The model registry now stored transient model versions in a memory cache.
+- The model registry now stores transient model versions in a memory cache.
 
 ### Added
 

@@ -77,17 +77,17 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				b := createBackend()
 				defer destroyBackend(b)
 
-				modelInfo, err := b.CreateOrUpdateModel(backend.ModelInfo{
+				modelInfo, err := b.CreateOrUpdateModel(backend.ModelArgs{
 					ModelID:  "foo",
 					UserData: modelUserData,
 				})
 				assert.NoError(t, err)
 				assert.Equal(t, "foo", modelInfo.ModelID)
-				assert.Equal(t, 0, modelInfo.LatestVersionNumber)
+				assert.Equal(t, 0, int(modelInfo.LatestVersionNumber))
 				assert.Equal(t, modelUserData, modelInfo.UserData)
 
 				// Create a another one should succeed
-				_, err = b.CreateOrUpdateModel(backend.ModelInfo{
+				_, err = b.CreateOrUpdateModel(backend.ModelArgs{
 					ModelID:  "bar",
 					UserData: modelUserData,
 				})
@@ -100,19 +100,19 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				b := createBackend()
 				defer destroyBackend(b)
 
-				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
+				_, err := b.CreateOrUpdateModel(backend.ModelArgs{
 					ModelID:  "foo",
 					UserData: modelUserData,
 				})
 				assert.NoError(t, err)
 
-				_, err = b.CreateOrUpdateModel(backend.ModelInfo{
+				_, err = b.CreateOrUpdateModel(backend.ModelArgs{
 					ModelID:  "bar",
 					UserData: modelUserData,
 				})
 				assert.NoError(t, err)
 
-				_, err = b.CreateOrUpdateModel(backend.ModelInfo{
+				_, err = b.CreateOrUpdateModel(backend.ModelArgs{
 					ModelID:  "baz",
 					UserData: modelUserData,
 				})
@@ -134,7 +134,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				defer destroyBackend(b)
 
 				{
-					_, err := b.CreateOrUpdateModel(backend.ModelInfo{
+					_, err := b.CreateOrUpdateModel(backend.ModelArgs{
 						ModelID:  "foo",
 						UserData: modelUserData,
 					})
@@ -169,7 +169,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 					assert.False(t, found)
 				}
 				{
-					_, err := b.CreateOrUpdateModel(backend.ModelInfo{
+					_, err := b.CreateOrUpdateModel(backend.ModelArgs{
 						ModelID:  "foo",
 						UserData: modelUserData,
 					})
@@ -187,14 +187,13 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				assert.NoError(t, err)
 				assert.Len(t, models, 0)
 
-				_, err = b.CreateOrUpdateModel(backend.ModelInfo{
+				_, err = b.CreateOrUpdateModel(backend.ModelArgs{
 					ModelID:  "foo",
 					UserData: modelUserData,
 				})
 				assert.NoError(t, err)
 
 				_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{
-					VersionNumber:     -1,
 					CreationTimestamp: time.Now(),
 					Data:              Data1,
 					DataHash:          backend.ComputeSHA256Hash(Data1),
@@ -203,7 +202,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				})
 				assert.NoError(t, err)
 
-				_, err = b.CreateOrUpdateModel(backend.ModelInfo{
+				_, err = b.CreateOrUpdateModel(backend.ModelArgs{
 					ModelID:  "bar",
 					UserData: modelUserData,
 				})
@@ -211,7 +210,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 
 				for i := 0; i < 15; i++ {
 					_, err = b.CreateOrUpdateModelVersion("bar", backend.VersionArgs{
-						VersionNumber:     -1,
+						VersionNumber:     0,
 						CreationTimestamp: time.Now(),
 						Data:              Data2,
 						DataHash:          backend.ComputeSHA256Hash(Data2),
@@ -221,7 +220,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 					assert.NoError(t, err)
 				}
 
-				_, err = b.CreateOrUpdateModel(backend.ModelInfo{
+				_, err = b.CreateOrUpdateModel(backend.ModelArgs{
 					ModelID:  "baz",
 					UserData: modelUserData,
 				})
@@ -252,14 +251,13 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				b := createBackend()
 				defer destroyBackend(b)
 
-				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
+				_, err := b.CreateOrUpdateModel(backend.ModelArgs{
 					ModelID:  "foo",
 					UserData: modelUserData,
 				})
 				assert.NoError(t, err)
 
 				modelVersion1, err := b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{
-					VersionNumber:     -1,
 					CreationTimestamp: time.Now(),
 					Data:              Data1,
 					DataHash:          backend.ComputeSHA256Hash(Data1),
@@ -267,11 +265,10 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 					UserData:          versionUserData,
 				})
 				assert.NoError(t, err)
-				assert.Equal(t, 1, modelVersion1.VersionNumber)
+				assert.Equal(t, 1, int(modelVersion1.VersionNumber))
 				assert.Equal(t, "foo", modelVersion1.ModelID)
 
 				modelVersion2, err := b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{
-					VersionNumber:     -1,
 					CreationTimestamp: time.Now(),
 					Data:              Data1,
 					DataHash:          backend.ComputeSHA256Hash(Data1),
@@ -279,12 +276,11 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 					UserData:          versionUserData,
 				})
 				assert.NoError(t, err)
-				assert.Equal(t, 2, modelVersion2.VersionNumber)
+				assert.Equal(t, 2, int(modelVersion2.VersionNumber))
 				assert.Equal(t, "foo", modelVersion1.ModelID)
 
 				for i := 0; i < 20; i++ {
 					modelVersionI, err := b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{
-						VersionNumber:     -1,
 						CreationTimestamp: time.Now(),
 						Data:              Data2,
 						DataHash:          backend.ComputeSHA256Hash(Data2),
@@ -292,13 +288,12 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 						UserData:          versionUserData,
 					})
 					assert.NoError(t, err)
-					assert.Equal(t, 2+i+1, modelVersionI.VersionNumber)
+					assert.Equal(t, 2+i+1, int(modelVersionI.VersionNumber))
 					assert.Equal(t, backend.ComputeSHA256Hash(Data2), modelVersionI.DataHash)
 					assert.Equal(t, len(Data2), modelVersionI.DataSize)
 				}
 
 				modelVersion23, err := b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{
-					VersionNumber:     -1,
 					CreationTimestamp: time.Now(),
 					Data:              Data1,
 					DataHash:          backend.ComputeSHA256Hash(Data1),
@@ -306,7 +301,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 					UserData:          versionUserData,
 				})
 				assert.NoError(t, err)
-				assert.Equal(t, 23, modelVersion23.VersionNumber)
+				assert.Equal(t, 23, int(modelVersion23.VersionNumber))
 				assert.Equal(t, backend.ComputeSHA256Hash(Data1), modelVersion23.DataHash)
 				assert.Equal(t, len(Data1), modelVersion23.DataSize)
 
@@ -319,13 +314,13 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 					UserData:          versionUserData,
 				})
 				assert.NoError(t, err)
-				assert.Equal(t, 10, modelVersion10.VersionNumber)
+				assert.Equal(t, 10, int(modelVersion10.VersionNumber))
 				assert.Equal(t, backend.ComputeSHA256Hash(Data1), modelVersion10.DataHash)
 				assert.Equal(t, len(Data1), modelVersion10.DataSize)
 
 				modelInfo, err := b.RetrieveModelInfo("foo")
 				assert.NoError(t, err)
-				assert.Equal(t, 23, modelInfo.LatestVersionNumber)
+				assert.Equal(t, 23, int(modelInfo.LatestVersionNumber))
 			},
 		},
 		{
@@ -334,14 +329,13 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				b := createBackend()
 				defer destroyBackend(b)
 
-				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
+				_, err := b.CreateOrUpdateModel(backend.ModelArgs{
 					ModelID:  "foo",
 					UserData: modelUserData,
 				})
 				assert.NoError(t, err)
 
 				_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{
-					VersionNumber:     -1,
 					CreationTimestamp: time.Now(),
 					Data:              Data1,
 					DataHash:          backend.ComputeSHA256Hash(Data1),
@@ -351,7 +345,6 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				assert.NoError(t, err)
 
 				_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{
-					VersionNumber:     -1,
 					CreationTimestamp: time.Now(),
 					Data:              Data2,
 					DataHash:          backend.ComputeSHA256Hash(Data2),
@@ -363,7 +356,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				modelVersion1, err := b.RetrieveModelVersionInfo("foo", 1)
 				assert.NoError(t, err)
 				assert.Equal(t, "foo", modelVersion1.ModelID)
-				assert.Equal(t, 1, modelVersion1.VersionNumber)
+				assert.Equal(t, 1, int(modelVersion1.VersionNumber))
 				assert.False(t, modelVersion1.Archived)
 				assert.Equal(t, backend.ComputeSHA256Hash(Data1), modelVersion1.DataHash)
 				assert.Equal(t, len(Data1), modelVersion1.DataSize)
@@ -375,7 +368,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				modelVersion2, err := b.RetrieveModelVersionInfo("foo", 2)
 				assert.NoError(t, err)
 				assert.Equal(t, "foo", modelVersion2.ModelID)
-				assert.Equal(t, 2, modelVersion2.VersionNumber)
+				assert.Equal(t, 2, int(modelVersion2.VersionNumber))
 				assert.True(t, modelVersion2.Archived)
 				assert.Equal(t, backend.ComputeSHA256Hash(Data2), modelVersion2.DataHash)
 				assert.Equal(t, len(Data2), modelVersion2.DataSize)
@@ -425,7 +418,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				b := createBackend()
 				defer destroyBackend(b)
 
-				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
+				_, err := b.CreateOrUpdateModel(backend.ModelArgs{
 					ModelID:  "foo",
 					UserData: modelUserData,
 				})
@@ -448,7 +441,6 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				assert.EqualError(t, err, `model "foo" doesn't have any version yet`)
 
 				_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{
-					VersionNumber:     -1,
 					CreationTimestamp: time.Now(),
 					Data:              Data1,
 					DataHash:          backend.ComputeSHA256Hash(Data1),
@@ -460,7 +452,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				modelVersion1, err := b.RetrieveModelVersionInfo("foo", -1)
 				assert.NoError(t, err)
 				assert.Equal(t, "foo", modelVersion1.ModelID)
-				assert.Equal(t, 1, modelVersion1.VersionNumber)
+				assert.Equal(t, 1, int(modelVersion1.VersionNumber))
 				assert.True(t, modelVersion1.Archived)
 				assert.Equal(t, backend.ComputeSHA256Hash(Data1), modelVersion1.DataHash)
 				assert.Equal(t, len(Data1), modelVersion1.DataSize)
@@ -470,7 +462,6 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				assert.Equal(t, Data1, modelVersion1Data)
 
 				_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{
-					VersionNumber:     -1,
 					CreationTimestamp: time.Now(),
 					Data:              Data2,
 					DataHash:          backend.ComputeSHA256Hash(Data2),
@@ -482,7 +473,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				modelVersion2, err := b.RetrieveModelVersionInfo("foo", -1)
 				assert.NoError(t, err)
 				assert.Equal(t, "foo", modelVersion2.ModelID)
-				assert.Equal(t, 2, modelVersion2.VersionNumber)
+				assert.Equal(t, 2, int(modelVersion2.VersionNumber))
 				assert.False(t, modelVersion2.Archived)
 				assert.Equal(t, backend.ComputeSHA256Hash(Data2), modelVersion2.DataHash)
 				assert.Equal(t, len(Data2), modelVersion2.DataSize)
@@ -498,14 +489,13 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				b := createBackend()
 				defer destroyBackend(b)
 
-				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
+				_, err := b.CreateOrUpdateModel(backend.ModelArgs{
 					ModelID:  "foo",
 					UserData: modelUserData,
 				})
 				assert.NoError(t, err)
 
 				_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{
-					VersionNumber:     -1,
 					CreationTimestamp: time.Now(),
 					Data:              Data1,
 					DataHash:          backend.ComputeSHA256Hash(Data1),
@@ -544,7 +534,6 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				assert.Len(t, versions, 3)
 
 				_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{
-					VersionNumber:     -1,
 					CreationTimestamp: time.Now(),
 					Data:              Data2,
 					DataHash:          backend.ComputeSHA256Hash(Data2),
@@ -557,22 +546,22 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				assert.Len(t, versions, 4)
 
 				assert.Equal(t, "foo", versions[0].ModelID)
-				assert.Equal(t, 1, versions[0].VersionNumber)
+				assert.Equal(t, 1, int(versions[0].VersionNumber))
 				assert.Equal(t, backend.ComputeSHA256Hash(Data1), versions[0].DataHash)
 				assert.Equal(t, len(Data1), versions[0].DataSize)
 
 				assert.Equal(t, "foo", versions[1].ModelID)
-				assert.Equal(t, 3, versions[1].VersionNumber)
+				assert.Equal(t, 3, int(versions[1].VersionNumber))
 				assert.Equal(t, backend.ComputeSHA256Hash(Data1), versions[1].DataHash)
 				assert.Equal(t, len(Data1), versions[1].DataSize)
 
 				assert.Equal(t, "foo", versions[2].ModelID)
-				assert.Equal(t, 12, versions[2].VersionNumber)
+				assert.Equal(t, 12, int(versions[2].VersionNumber))
 				assert.Equal(t, backend.ComputeSHA256Hash(Data2), versions[2].DataHash)
 				assert.Equal(t, len(Data2), versions[2].DataSize)
 
 				assert.Equal(t, "foo", versions[3].ModelID)
-				assert.Equal(t, 13, versions[3].VersionNumber)
+				assert.Equal(t, 13, int(versions[3].VersionNumber))
 				assert.Equal(t, backend.ComputeSHA256Hash(Data2), versions[3].DataHash)
 				assert.Equal(t, len(Data2), versions[3].DataSize)
 
@@ -593,7 +582,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				modelLatestVersionInfo, err := b.RetrieveModelVersionInfo("foo", -1)
 				assert.NoError(t, err)
 				assert.Equal(t, "foo", modelLatestVersionInfo.ModelID)
-				assert.Equal(t, 12, modelLatestVersionInfo.VersionNumber)
+				assert.Equal(t, 12, int(modelLatestVersionInfo.VersionNumber))
 				assert.Equal(t, backend.ComputeSHA256Hash(Data2), modelLatestVersionInfo.DataHash)
 				assert.Equal(t, len(Data2), modelLatestVersionInfo.DataSize)
 			},
@@ -604,7 +593,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				b := createBackend()
 				defer destroyBackend(b)
 
-				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
+				_, err := b.CreateOrUpdateModel(backend.ModelArgs{
 					ModelID:  "foo",
 					UserData: modelUserData,
 				})
@@ -612,7 +601,6 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 
 				for i := 0; i < 20; i++ {
 					_, err := b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{
-						VersionNumber:     -1,
 						CreationTimestamp: time.Now(),
 						Data:              Data1,
 						Archived:          false,
@@ -628,27 +616,27 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				versionsSubset, err := b.ListModelVersionInfos("foo", 8, 5)
 				assert.NoError(t, err)
 				assert.Len(t, versionsSubset, 5)
-				assert.Equal(t, 8, versionsSubset[0].VersionNumber)
-				assert.Equal(t, 12, versionsSubset[4].VersionNumber)
+				assert.Equal(t, 8, int(versionsSubset[0].VersionNumber))
+				assert.Equal(t, 12, int(versionsSubset[4].VersionNumber))
 
 				for i, version := range versions {
 					assert.Equal(t, "foo", version.ModelID)
-					assert.Equal(t, i+1, version.VersionNumber)
+					assert.Equal(t, i+1, int(version.VersionNumber))
 					assert.NotNil(t, version.DataHash)
 				}
 
 				versions, err = b.ListModelVersionInfos("foo", 0, 2)
 				assert.NoError(t, err)
 				assert.Len(t, versions, 2)
-				assert.Equal(t, 1, versions[0].VersionNumber)
-				assert.Equal(t, 2, versions[1].VersionNumber)
+				assert.Equal(t, 1, int(versions[0].VersionNumber))
+				assert.Equal(t, 2, int(versions[1].VersionNumber))
 
 				versions, err = b.ListModelVersionInfos("foo", 3, 3)
 				assert.NoError(t, err)
 				assert.Len(t, versions, 3)
-				assert.Equal(t, 3, versions[0].VersionNumber)
-				assert.Equal(t, 4, versions[1].VersionNumber)
-				assert.Equal(t, 5, versions[2].VersionNumber)
+				assert.Equal(t, 3, int(versions[0].VersionNumber))
+				assert.Equal(t, 4, int(versions[1].VersionNumber))
+				assert.Equal(t, 5, int(versions[2].VersionNumber))
 			},
 		},
 		{
@@ -657,10 +645,10 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				b := createBackend()
 				defer b.Destroy()
 
-				_, err := b.CreateOrUpdateModel(backend.ModelInfo{ModelID: "foo"})
+				_, err := b.CreateOrUpdateModel(backend.ModelArgs{ModelID: "foo"})
 				assert.NoError(t, err)
 
-				_, err = b.CreateOrUpdateModel(backend.ModelInfo{ModelID: "bar"})
+				_, err = b.CreateOrUpdateModel(backend.ModelArgs{ModelID: "bar"})
 				assert.NoError(t, err)
 
 				wg := new(sync.WaitGroup)
@@ -674,7 +662,6 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 					go func() {
 						defer wg.Done()
 						_, err := b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{
-							VersionNumber:     -1,
 							CreationTimestamp: time.Now(),
 							Data:              Data1,
 							DataHash:          backend.ComputeSHA256Hash(Data1),
@@ -693,7 +680,6 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 					go func() {
 						defer wg.Done()
 						_, err := b.CreateOrUpdateModelVersion("bar", backend.VersionArgs{
-							VersionNumber:     -1,
 							CreationTimestamp: time.Now(),
 							Data:              Data2,
 							DataHash:          backend.ComputeSHA256Hash(Data2),
@@ -773,7 +759,10 @@ func RunBenchmark(b *testing.B, createBackend func() backend.Backend, destroyBac
 					modelID := modelID
 					go func() {
 						defer wg.Done()
-						_, err := bck.CreateOrUpdateModel(backend.ModelInfo{ModelID: modelID, UserData: modelUserData})
+						_, err := bck.CreateOrUpdateModel(backend.ModelArgs{
+							ModelID:  modelID,
+							UserData: modelUserData,
+						})
 						assert.NoError(b, err)
 					}()
 				}
@@ -789,7 +778,6 @@ func RunBenchmark(b *testing.B, createBackend func() backend.Backend, destroyBac
 						go func() {
 							defer wg.Done()
 							_, err := bck.CreateOrUpdateModelVersion(modelID, backend.VersionArgs{
-								VersionNumber:     -1,
 								CreationTimestamp: time.Now(),
 								Data:              Data1,
 								DataHash:          backend.ComputeSHA256Hash(Data1),

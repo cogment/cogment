@@ -54,13 +54,6 @@ func createPbModelVersionInfo(modelVersionInfo backend.VersionInfo) grpcapi.Mode
 	}
 }
 
-func createBackendModelInfo(modelInfo *grpcapi.ModelInfo) backend.ModelInfo {
-	return backend.ModelInfo{
-		ModelID:  modelInfo.ModelId,
-		UserData: modelInfo.UserData,
-	}
-}
-
 func (s *ModelRegistryServer) SetBackend(b backend.Backend) {
 	s.backendPromise.Set(b)
 }
@@ -68,16 +61,19 @@ func (s *ModelRegistryServer) SetBackend(b backend.Backend) {
 func (s *ModelRegistryServer) CreateOrUpdateModel(ctx context.Context, req *grpcapi.CreateOrUpdateModelRequest) (*grpcapi.CreateOrUpdateModelReply, error) {
 	log.Printf("CreateOrUpdateModel(req={ModelId: %q})\n", req.ModelInfo.ModelId)
 
-	modelInfo := createBackendModelInfo(req.ModelInfo)
+	modelArgs := backend.ModelArgs{
+		ModelID:  req.ModelInfo.ModelId,
+		UserData: req.ModelInfo.UserData,
+	}
 
 	b, err := s.backendPromise.Await(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = b.CreateOrUpdateModel(modelInfo)
+	_, err = b.CreateOrUpdateModel(modelArgs)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "unexpected error while creating model %q: %s", modelInfo.ModelID, err)
+		return nil, status.Errorf(codes.Internal, "unexpected error while creating model %q: %s", modelArgs.ModelID, err)
 	}
 
 	return &grpcapi.CreateOrUpdateModelReply{}, nil
@@ -164,7 +160,6 @@ func (s *ModelRegistryServer) CreateVersion(inStream grpcapi.ModelRegistrySP_Cre
 	}
 
 	versionInfo, err := b.CreateOrUpdateModelVersion(receivedVersionInfo.ModelId, backend.VersionArgs{
-		VersionNumber:     -1,
 		CreationTimestamp: creationTimestamp,
 		Archived:          receivedVersionInfo.Archived,
 		DataHash:          receivedHash,
@@ -182,13 +177,14 @@ func (s *ModelRegistryServer) CreateVersion(inStream grpcapi.ModelRegistrySP_Cre
 func (s *ModelRegistryServer) RetrieveVersionInfos(ctx context.Context, req *grpcapi.RetrieveVersionInfosRequest) (*grpcapi.RetrieveVersionInfosReply, error) {
 	log.Printf("RetrieveVersionInfos(req={ModelId: %q, VersionNumbers: %#v, VersionsCount: %d, VersionHandle: %q})\n", req.ModelId, req.VersionNumbers, req.VersionsCount, req.VersionHandle)
 
-	offset := 0
+	initialVersionNumber := uint(0)
 	if req.VersionHandle != "" {
 		var err error
-		offset, err = strconv.Atoi(req.VersionHandle)
+		initialVersionNumber64, err := strconv.ParseUint(req.VersionHandle, 10, 0)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "Invalid value for `version_handle` (%q) only empty or values provided by a previous call should be used", req.VersionHandle)
 		}
+		initialVersionNumber = uint(initialVersionNumber64)
 	}
 
 	b, err := s.backendPromise.Await(ctx)
@@ -198,7 +194,7 @@ func (s *ModelRegistryServer) RetrieveVersionInfos(ctx context.Context, req *grp
 
 	if len(req.VersionNumbers) == 0 {
 		// Retrieve all version infos
-		versionInfos, err := b.ListModelVersionInfos(req.ModelId, offset, int(req.VersionsCount))
+		versionInfos, err := b.ListModelVersionInfos(req.ModelId, initialVersionNumber, int(req.VersionsCount))
 		if err != nil {
 			if _, ok := err.(*backend.UnknownModelError); ok {
 				return nil, status.Errorf(codes.NotFound, "%s", err)
@@ -208,7 +204,7 @@ func (s *ModelRegistryServer) RetrieveVersionInfos(ctx context.Context, req *grp
 
 		pbVersionInfos := []*grpcapi.ModelVersionInfo{}
 
-		nextVersionNumber := offset
+		nextVersionNumber := initialVersionNumber
 		for _, versionInfo := range versionInfos {
 			pbVersionInfo := createPbModelVersionInfo(versionInfo)
 			pbVersionInfos = append(pbVersionInfos, &pbVersionInfo)
@@ -217,16 +213,16 @@ func (s *ModelRegistryServer) RetrieveVersionInfos(ctx context.Context, req *grp
 
 		return &grpcapi.RetrieveVersionInfosReply{
 			VersionInfos:      pbVersionInfos,
-			NextVersionHandle: strconv.Itoa(nextVersionNumber),
+			NextVersionHandle: strconv.FormatUint(uint64(nextVersionNumber), 10),
 		}, nil
 	}
 
 	pbVersionInfos := []*grpcapi.ModelVersionInfo{}
-	versionNumberSlice := req.VersionNumbers[offset:]
+	versionNumberSlice := req.VersionNumbers[initialVersionNumber:]
 	if req.VersionsCount > 0 {
 		versionNumberSlice = versionNumberSlice[:req.VersionsCount]
 	}
-	nextVersionNumber := offset
+	nextVersionNumber := initialVersionNumber
 	for _, versionNumber := range versionNumberSlice {
 		versionInfo, err := b.RetrieveModelVersionInfo(req.ModelId, int(versionNumber))
 		if err != nil {
@@ -246,7 +242,7 @@ func (s *ModelRegistryServer) RetrieveVersionInfos(ctx context.Context, req *grp
 
 	return &grpcapi.RetrieveVersionInfosReply{
 		VersionInfos:      pbVersionInfos,
-		NextVersionHandle: strconv.Itoa(nextVersionNumber),
+		NextVersionHandle: strconv.FormatUint(uint64(nextVersionNumber), 10),
 	}, nil
 }
 

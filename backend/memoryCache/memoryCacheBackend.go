@@ -41,14 +41,14 @@ var DefaultVersionCacheConfiguration = VersionCacheConfiguration{
 type memoryCacheBackend struct {
 	archive                        backend.Backend
 	modelsLatestVersionNumberMutex sync.RWMutex
-	modelsLatestVersionNumber      map[string]int
+	modelsLatestVersionNumber      map[string]uint
 	versionCache                   *ccache.LayeredCache
 	versionCacheConfiguration      VersionCacheConfiguration
 }
 
 type cachedVersion struct {
 	ModelID           string
-	VersionNumber     int
+	VersionNumber     uint
 	CreationTimestamp time.Time
 	Archived          bool
 	DataHash          string
@@ -89,7 +89,7 @@ func CreateBackend(versionCacheConfiguration VersionCacheConfiguration, archive 
 	b := memoryCacheBackend{
 		archive:                        archive,
 		modelsLatestVersionNumberMutex: sync.RWMutex{},
-		modelsLatestVersionNumber:      make(map[string]int),
+		modelsLatestVersionNumber:      make(map[string]uint),
 		versionCache:                   ccache.Layered(ccache.Configure().MaxSize(int64(versionCacheConfiguration.MaxSize)).ItemsToPrune(uint32(versionCacheConfiguration.ToPruneCount))),
 		versionCacheConfiguration:      versionCacheConfiguration,
 	}
@@ -100,14 +100,14 @@ func CreateBackend(versionCacheConfiguration VersionCacheConfiguration, archive 
 func (b *memoryCacheBackend) Destroy() {
 }
 
-func (b *memoryCacheBackend) retrieveCachedModelLatestVersionNumber(modelID string) (int, bool) {
+func (b *memoryCacheBackend) retrieveCachedModelLatestVersionNumber(modelID string) (uint, bool) {
 	b.modelsLatestVersionNumberMutex.RLock()
 	defer b.modelsLatestVersionNumberMutex.RUnlock()
 	latestVersionNumber, ok := b.modelsLatestVersionNumber[modelID]
 	return latestVersionNumber, ok
 }
 
-func (b *memoryCacheBackend) deleteCachedModelLatestVersionNumber(modelID string, predicate func(int) bool) {
+func (b *memoryCacheBackend) deleteCachedModelLatestVersionNumber(modelID string, predicate func(uint) bool) {
 	latestVersionNumber, ok := b.retrieveCachedModelLatestVersionNumber(modelID)
 	if ok && predicate(latestVersionNumber) {
 		b.modelsLatestVersionNumberMutex.Lock()
@@ -116,7 +116,7 @@ func (b *memoryCacheBackend) deleteCachedModelLatestVersionNumber(modelID string
 	}
 }
 
-func (b *memoryCacheBackend) updateCachedModelLatestVersionNumber(modelID string, versionNumber int) int {
+func (b *memoryCacheBackend) updateCachedModelLatestVersionNumber(modelID string, versionNumber uint) uint {
 	latestVersionNumber, ok := b.retrieveCachedModelLatestVersionNumber(modelID)
 	if !ok || latestVersionNumber < versionNumber {
 		b.modelsLatestVersionNumberMutex.Lock()
@@ -127,7 +127,7 @@ func (b *memoryCacheBackend) updateCachedModelLatestVersionNumber(modelID string
 	return latestVersionNumber
 }
 
-func (b *memoryCacheBackend) retrieveModelLatestVersionNumber(modelID string) (int, error) {
+func (b *memoryCacheBackend) retrieveModelLatestVersionNumber(modelID string) (uint, error) {
 	latestVersionNumber, ok := b.retrieveCachedModelLatestVersionNumber(modelID)
 	if ok {
 		return latestVersionNumber, nil
@@ -138,10 +138,11 @@ func (b *memoryCacheBackend) retrieveModelLatestVersionNumber(modelID string) (i
 	}
 	latestVersionNumber = modelInfo.LatestVersionNumber
 	b.versionCache.ForEachFunc(modelID, func(versionNumberStr string, item *ccache.Item) bool {
-		versionNumber, err := strconv.Atoi(versionNumberStr)
+		versionNumber64, err := strconv.ParseUint(versionNumberStr, 10, 0)
 		if err != nil {
 			panic(err)
 		}
+		versionNumber := uint(versionNumber64)
 		if versionNumber > latestVersionNumber {
 			latestVersionNumber = versionNumber
 		}
@@ -150,11 +151,11 @@ func (b *memoryCacheBackend) retrieveModelLatestVersionNumber(modelID string) (i
 	return latestVersionNumber, nil
 }
 
-func (b *memoryCacheBackend) CreateOrUpdateModel(modelInfo backend.ModelInfo) (backend.ModelInfo, error) {
-	modelInfo, err := b.archive.CreateOrUpdateModel(modelInfo)
+func (b *memoryCacheBackend) CreateOrUpdateModel(modelArgs backend.ModelArgs) (backend.ModelInfo, error) {
+	modelInfo, err := b.archive.CreateOrUpdateModel(modelArgs)
 	if err != nil {
 		// Something wrong happened, let's just clear the cache
-		b.deleteCachedModelLatestVersionNumber(modelInfo.ModelID, func(int) bool { return true })
+		b.deleteCachedModelLatestVersionNumber(modelInfo.ModelID, func(uint) bool { return true })
 		b.versionCache.DeleteAll(modelInfo.ModelID)
 		return backend.ModelInfo{}, err
 	}
@@ -172,7 +173,7 @@ func (b *memoryCacheBackend) DeleteModel(modelID string) error {
 	if err != nil {
 		return err
 	}
-	b.deleteCachedModelLatestVersionNumber(modelID, func(int) bool { return true })
+	b.deleteCachedModelLatestVersionNumber(modelID, func(uint) bool { return true })
 	b.versionCache.DeleteAll(modelID)
 	return nil
 }
@@ -181,7 +182,7 @@ func (b *memoryCacheBackend) ListModels(offset int, limit int) ([]string, error)
 	return b.archive.ListModels(offset, limit)
 }
 
-func (b *memoryCacheBackend) retrieveCachedModelVersion(modelID string, versionNumber int) (cachedVersion, bool) {
+func (b *memoryCacheBackend) retrieveCachedModelVersion(modelID string, versionNumber uint) (cachedVersion, bool) {
 	versionNumberStr := fmt.Sprintf("%d", versionNumber)
 	// Is the version cached?
 	cachedItem := b.versionCache.Get(modelID, versionNumberStr)
@@ -191,19 +192,19 @@ func (b *memoryCacheBackend) retrieveCachedModelVersion(modelID string, versionN
 	return deserializeCachedVersion(cachedItem.Value()), true
 }
 
-func (b *memoryCacheBackend) updateCachedModelVersion(modelID string, versionNumber int, version cachedVersion) {
+func (b *memoryCacheBackend) updateCachedModelVersion(modelID string, versionNumber uint, version cachedVersion) {
 	versionNumberStr := fmt.Sprintf("%d", versionNumber)
 	b.versionCache.Set(modelID, versionNumberStr, serializeCachedVersion(version), b.versionCacheConfiguration.Expiration)
 }
 
-func (b *memoryCacheBackend) deleteCachedModelVersion(modelID string, versionNumber int) {
+func (b *memoryCacheBackend) deleteCachedModelVersion(modelID string, versionNumber uint) {
 	versionNumberStr := fmt.Sprintf("%d", versionNumber)
 	b.versionCache.Delete(modelID, versionNumberStr)
 }
 
 func (b *memoryCacheBackend) CreateOrUpdateModelVersion(modelID string, versionArgs backend.VersionArgs) (backend.VersionInfo, error) {
 	// Let's compute the actual version number
-	if versionArgs.VersionNumber < 0 {
+	if versionArgs.VersionNumber == 0 {
 		latestVersionNumber, err := b.retrieveModelLatestVersionNumber(modelID)
 		if err != nil {
 			return backend.VersionInfo{}, err
@@ -244,26 +245,17 @@ func (b *memoryCacheBackend) CreateOrUpdateModelVersion(modelID string, versionA
 	return versionInfo, nil
 }
 
-func (b *memoryCacheBackend) RetrieveModelVersionData(modelID string, versionNumber int) ([]byte, error) {
-	// Let's compute the actual version number
-	if versionNumber < 0 {
-		latestVersionNumber, err := b.retrieveModelLatestVersionNumber(modelID)
-		if err != nil {
-			return nil, err
-		}
-
-		versionNumber = latestVersionNumber
-	}
+func (b *memoryCacheBackend) doRetrieveModelVersionData(modelID string, versionNumber uint) ([]byte, error) {
 	// Is the version cached?
 	version, versionInCache := b.retrieveCachedModelVersion(modelID, versionNumber)
 	if versionInCache {
 		return version.Data, nil
 	}
-	versionData, err := b.archive.RetrieveModelVersionData(modelID, versionNumber)
+	versionData, err := b.archive.RetrieveModelVersionData(modelID, int(versionNumber))
 	if err != nil {
 		return nil, err
 	}
-	versionInfo, err := b.archive.RetrieveModelVersionInfo(modelID, versionNumber)
+	versionInfo, err := b.archive.RetrieveModelVersionInfo(modelID, int(versionNumber))
 	if err == nil {
 		// Version info was properly retrieved, let's put everything in cache
 		b.updateCachedModelVersion(modelID, versionInfo.VersionNumber, cachedVersion{
@@ -280,16 +272,20 @@ func (b *memoryCacheBackend) RetrieveModelVersionData(modelID string, versionNum
 	return versionData, nil
 }
 
-func (b *memoryCacheBackend) RetrieveModelVersionInfo(modelID string, versionNumber int) (backend.VersionInfo, error) {
+func (b *memoryCacheBackend) RetrieveModelVersionData(modelID string, versionNumber int) ([]byte, error) {
 	// Let's compute the actual version number
 	if versionNumber < 0 {
 		latestVersionNumber, err := b.retrieveModelLatestVersionNumber(modelID)
 		if err != nil {
-			return backend.VersionInfo{}, err
+			return nil, err
 		}
 
-		versionNumber = latestVersionNumber
+		return b.doRetrieveModelVersionData(modelID, latestVersionNumber)
 	}
+	return b.doRetrieveModelVersionData(modelID, uint(versionNumber))
+}
+
+func (b *memoryCacheBackend) doRetrieveModelVersionInfo(modelID string, versionNumber uint) (backend.VersionInfo, error) {
 	// Is the version cached?
 	version, versionInCache := b.retrieveCachedModelVersion(modelID, versionNumber)
 	if versionInCache {
@@ -303,11 +299,24 @@ func (b *memoryCacheBackend) RetrieveModelVersionInfo(modelID string, versionNum
 			UserData:          version.UserData,
 		}, nil
 	}
-	versionInfo, err := b.archive.RetrieveModelVersionInfo(modelID, versionNumber)
+	versionInfo, err := b.archive.RetrieveModelVersionInfo(modelID, int(versionNumber))
 	if err == nil {
 		b.updateCachedModelLatestVersionNumber(modelID, versionInfo.VersionNumber)
 	}
 	return versionInfo, err
+}
+
+func (b *memoryCacheBackend) RetrieveModelVersionInfo(modelID string, versionNumber int) (backend.VersionInfo, error) {
+	// Let's compute the actual version number
+	if versionNumber < 0 {
+		latestVersionNumber, err := b.retrieveModelLatestVersionNumber(modelID)
+		if err != nil {
+			return backend.VersionInfo{}, err
+		}
+
+		return b.doRetrieveModelVersionInfo(modelID, latestVersionNumber)
+	}
+	return b.doRetrieveModelVersionInfo(modelID, uint(versionNumber))
 }
 
 func (b *memoryCacheBackend) RetrieveModelInfo(modelID string) (backend.ModelInfo, error) {
@@ -318,6 +327,15 @@ func (b *memoryCacheBackend) RetrieveModelInfo(modelID string) (backend.ModelInf
 	return modelInfo, err
 }
 
+func (b *memoryCacheBackend) doDeleteModelVersion(modelID string, versionNumber uint) error {
+	// Delete from the archive model ignoring any error here
+	_ = b.archive.DeleteModelVersion(modelID, int(versionNumber))
+	b.deleteCachedModelVersion(modelID, versionNumber)
+	// Delete the latest version number if it became "dirty"
+	b.deleteCachedModelLatestVersionNumber(modelID, func(latestVersionNumber uint) bool { return versionNumber >= latestVersionNumber })
+	return nil
+}
+
 func (b *memoryCacheBackend) DeleteModelVersion(modelID string, versionNumber int) error {
 	// Let's compute the actual version number
 	if versionNumber < 0 {
@@ -325,18 +343,12 @@ func (b *memoryCacheBackend) DeleteModelVersion(modelID string, versionNumber in
 		if err != nil {
 			return err
 		}
-
-		versionNumber = latestVersionNumber
+		return b.doDeleteModelVersion(modelID, latestVersionNumber)
 	}
-	// Delete from the archive model ignoring any error here
-	_ = b.archive.DeleteModelVersion(modelID, versionNumber)
-	b.deleteCachedModelVersion(modelID, versionNumber)
-	// Delete the latest version number if it became "dirty"
-	b.deleteCachedModelLatestVersionNumber(modelID, func(latestVersionNumber int) bool { return versionNumber >= latestVersionNumber })
-	return nil
+	return b.doDeleteModelVersion(modelID, uint(versionNumber))
 }
 
-func (b *memoryCacheBackend) ListModelVersionInfos(modelID string, initialVersionNumber int, limit int) ([]backend.VersionInfo, error) {
+func (b *memoryCacheBackend) ListModelVersionInfos(modelID string, initialVersionNumber uint, limit int) ([]backend.VersionInfo, error) {
 	latestVersionNumber, err := b.retrieveModelLatestVersionNumber(modelID)
 	if err != nil {
 		return nil, err
@@ -346,7 +358,7 @@ func (b *memoryCacheBackend) ListModelVersionInfos(modelID string, initialVersio
 		initialVersionNumber = 1
 	}
 	for versionNumber := initialVersionNumber; versionNumber <= latestVersionNumber; versionNumber++ {
-		versionInfo, err := b.RetrieveModelVersionInfo(modelID, versionNumber)
+		versionInfo, err := b.RetrieveModelVersionInfo(modelID, int(versionNumber))
 		if err != nil {
 			// skip the version if it is unknown.
 			if _, ok := err.(*backend.UnknownModelVersionError); ok {

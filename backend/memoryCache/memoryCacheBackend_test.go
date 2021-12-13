@@ -63,40 +63,40 @@ func TestSmallMaxSize(t *testing.T) {
 	assert.NoError(t, err)
 	defer b.Destroy()
 
-	_, err = b.CreateOrUpdateModel(backend.ModelInfo{ModelID: "foo"})
+	_, err = b.CreateOrUpdateModel(backend.ModelArgs{ModelID: "foo"})
 	assert.NoError(t, err)
 
 	assert.Len(t, test.Data1, 750)
 	data1Hash := backend.ComputeSHA256Hash(test.Data1)
 
-	_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{VersionNumber: -1, Archived: false, DataHash: data1Hash, Data: test.Data1})
+	_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{Archived: false, DataHash: data1Hash, Data: test.Data1})
 	assert.NoError(t, err)
 
 	time.Sleep(100 * time.Millisecond)
 
-	_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{VersionNumber: -1, Archived: false, DataHash: data1Hash, Data: test.Data1})
+	_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{Archived: false, DataHash: data1Hash, Data: test.Data1})
 	assert.NoError(t, err)
 
 	time.Sleep(100 * time.Millisecond)
 
 	versionInfo, err := b.RetrieveModelVersionInfo("foo", 2)
 	assert.NoError(t, err)
-	assert.Equal(t, versionInfo.VersionNumber, 2)
+	assert.Equal(t, 2, int(versionInfo.VersionNumber))
 	assert.Equal(t, data1Hash, versionInfo.DataHash)
 
-	_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{VersionNumber: -1, Archived: false, DataHash: data1Hash, Data: test.Data1})
+	_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{Archived: false, DataHash: data1Hash, Data: test.Data1})
 	assert.NoError(t, err)
 
 	time.Sleep(100 * time.Millisecond)
 
 	versionInfo, err = b.RetrieveModelVersionInfo("foo", 3)
 	assert.NoError(t, err)
-	assert.Equal(t, versionInfo.VersionNumber, 3)
+	assert.Equal(t, 3, int(versionInfo.VersionNumber))
 	assert.Equal(t, data1Hash, versionInfo.DataHash)
 
-	versionInfos, err := b.ListModelVersionInfos("foo", -1, -1)
+	versionInfos, err := b.ListModelVersionInfos("foo", 0, -1)
 	assert.NoError(t, err)
 	assert.Len(t, versionInfos, 2)
-	assert.Equal(t, 2, versionInfos[0].VersionNumber)
-	assert.Equal(t, 3, versionInfos[1].VersionNumber)
+	assert.Equal(t, 2, int(versionInfos[0].VersionNumber))
+	assert.Equal(t, 3, int(versionInfos[1].VersionNumber))
 }

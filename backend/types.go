@@ -19,16 +19,17 @@ import (
 	"time"
 )
 
+// ModelInfo describes the informations (metadata) for a particular model
 type ModelInfo struct {
 	ModelID             string
-	LatestVersionNumber int // Latest version number, 0 means that no version exists yet.
 	UserData            map[string]string
+	LatestVersionNumber uint // Latest version number, 0 means that no version exists yet.
 }
 
 // VersionInfo describes the informations (metadata) for a particular version of a model
 type VersionInfo struct {
 	ModelID           string
-	VersionNumber     int
+	VersionNumber     uint
 	CreationTimestamp time.Time
 	Archived          bool
 	DataHash          string
@@ -36,8 +37,15 @@ type VersionInfo struct {
 	UserData          map[string]string
 }
 
+// ModelArgs represents the arguments to create or update a model
+type ModelArgs struct {
+	ModelID  string
+	UserData map[string]string
+}
+
+// VersionArgs represents the arguments to create or update a version
 type VersionArgs struct {
-	VersionNumber     int
+	VersionNumber     uint // Set to 0 to create a new version
 	CreationTimestamp time.Time
 	Archived          bool
 	DataHash          string
@@ -49,7 +57,7 @@ type VersionArgs struct {
 type Backend interface {
 	Destroy()
 
-	CreateOrUpdateModel(modelInfo ModelInfo) (ModelInfo, error)
+	CreateOrUpdateModel(modelArgs ModelArgs) (ModelInfo, error)
 	RetrieveModelInfo(modelID string) (ModelInfo, error)
 	HasModel(modelID string) (bool, error)
 	DeleteModel(modelID string) error
@@ -59,7 +67,7 @@ type Backend interface {
 	RetrieveModelVersionInfo(modelID string, versionNumber int) (VersionInfo, error)
 	RetrieveModelVersionData(modelID string, versionNumber int) ([]byte, error)
 	DeleteModelVersion(modelID string, versionNumber int) error
-	ListModelVersionInfos(modelID string, initialVersionNumber int, limit int) ([]VersionInfo, error)
+	ListModelVersionInfos(modelID string, initialVersionNumber uint, limit int) ([]VersionInfo, error)
 }
 
 // UnknownModelError is raised when trying to operate on an unknown model
