@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSuiteMemoryCacheBackend(t *testing.T) {
+func TestSuiteMemoryCacheOverFsBackend(t *testing.T) {
 	test.RunSuite(t, func() backend.Backend {
 		fsBackend, err := fs.CreateBackend(t.TempDir())
 		assert.NoError(t, err)
@@ -34,6 +34,21 @@ func TestSuiteMemoryCacheBackend(t *testing.T) {
 		return b
 	}, func(b backend.Backend) {
 		mcb := b.(*memoryCacheBackend)
+		mcb.archive.Destroy()
+		mcb.Destroy()
+	})
+}
+
+func BenchmarkMemoryCacheOverFsBackend(b *testing.B) {
+	test.RunBenchmarkSuite(b, func() backend.Backend {
+		fsBackend, err := fs.CreateBackend(b.TempDir())
+		assert.NoError(b, err)
+
+		bck, err := CreateBackend(DefaultVersionCacheConfiguration, fsBackend)
+		assert.NoError(b, err)
+		return bck
+	}, func(bck backend.Backend) {
+		mcb := bck.(*memoryCacheBackend)
 		mcb.archive.Destroy()
 		mcb.Destroy()
 	})

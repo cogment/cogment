@@ -31,3 +31,13 @@ func TestSuiteFsBackend(t *testing.T) {
 		b.Destroy()
 	})
 }
+
+func BenchmarkSuiteFsBackend(b *testing.B) {
+	test.RunBenchmarkSuite(b, func() backend.Backend {
+		bck, err := CreateBackend(b.TempDir())
+		assert.NoError(b, err)
+		return bck
+	}, func(bck backend.Backend) {
+		bck.Destroy()
+	})
+}

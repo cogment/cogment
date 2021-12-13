@@ -15,6 +15,7 @@
 package test
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -739,4 +740,87 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 	for _, c := range cases {
 		t.Run(c.name, c.test)
 	}
+}
+
+func RunBenchmark(b *testing.B, createBackend func() backend.Backend, destroyBackend func(backend.Backend), modelCount int, versionsCount int, retrieveLatest bool) {
+	versionUserData := make(map[string]string)
+	versionUserData["version_test1"] = "version_test1"
+	versionUserData["version_test2"] = "version_test2"
+	versionUserData["version_test3"] = "version_test3"
+
+	modelUserData := make(map[string]string)
+	modelUserData["model_test1"] = "model_test1"
+	modelUserData["model_test2"] = "model_test2"
+	modelUserData["model_test3"] = "model_test3"
+
+	modelIDs := []string{}
+	for i := 0; i < modelCount; i++ {
+		modelIDs = append(modelIDs, fmt.Sprintf("model_%d", i))
+	}
+
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		func() {
+			bck := createBackend()
+			defer destroyBackend(bck)
+
+			// Create a bunch of models asynchronously
+			{
+				wg := new(sync.WaitGroup)
+				for _, modelID := range modelIDs {
+					wg.Add(1)
+					modelID := modelID
+					go func() {
+						defer wg.Done()
+						_, err := bck.CreateOrUpdateModel(backend.ModelInfo{ModelID: modelID, UserData: modelUserData})
+						assert.NoError(b, err)
+					}()
+				}
+				wg.Wait()
+			}
+			// For each version, create it then retrieve it
+			{
+				for versionNumber := 1; versionNumber-1 < versionsCount; versionNumber++ {
+					wg := new(sync.WaitGroup)
+					for _, modelID := range modelIDs {
+						wg.Add(1)
+						modelID := modelID
+						go func() {
+							defer wg.Done()
+							_, err := bck.CreateOrUpdateModelVersion(modelID, backend.VersionArgs{
+								VersionNumber:     -1,
+								CreationTimestamp: time.Now(),
+								Data:              Data1,
+								DataHash:          backend.ComputeSHA256Hash(Data1),
+								Archived:          i%10 == 0,
+							})
+							assert.NoError(b, err)
+
+							if retrieveLatest {
+								versionInfo, err := bck.RetrieveModelVersionInfo(modelID, -1)
+								assert.NoError(b, err)
+								assert.Equal(b, versionNumber, versionInfo.VersionNumber)
+							} else {
+								_, err := bck.RetrieveModelVersionInfo(modelID, versionNumber)
+								assert.NoError(b, err)
+							}
+
+							versionData, err := bck.RetrieveModelVersionData(modelID, versionNumber)
+							assert.NoError(b, err)
+							assert.Equal(b, Data1, versionData)
+						}()
+					}
+					wg.Wait()
+				}
+			}
+		}()
+	}
+}
+
+func RunBenchmarkSuite(b *testing.B, createBackend func() backend.Backend, destroyBackend func(backend.Backend)) {
+	b.Run("1m_500v_latest", func(b *testing.B) { RunBenchmark(b, createBackend, destroyBackend, 1, 500, true) })
+	b.Run("1m_500v", func(b *testing.B) { RunBenchmark(b, createBackend, destroyBackend, 1, 500, false) })
+	b.Run("20m_500v_latest", func(b *testing.B) { RunBenchmark(b, createBackend, destroyBackend, 20, 500, true) })
+	b.Run("20m_500v", func(b *testing.B) { RunBenchmark(b, createBackend, destroyBackend, 20, 500, false) })
 }

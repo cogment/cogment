@@ -61,10 +61,12 @@ func main() {
 			log.Fatalf("unable to create the database backend: %v", err)
 		}
 
-		fsBackend, err := fs.CreateBackend(viper.GetString("ARCHIVE_DIR"))
+		archiveDir := viper.GetString("ARCHIVE_DIR")
+		fsBackend, err := fs.CreateBackend(archiveDir)
 		if err != nil {
 			log.Fatalf("unable to create the archive filesystem backend: %v", err)
 		}
+		log.Printf("Filesystem backend created in %q for archived model versions\n", archiveDir)
 
 		backend, err := hybrid.CreateBackend(dbBackend, fsBackend)
 		if err != nil {

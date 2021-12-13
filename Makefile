@@ -23,7 +23,7 @@ test: generate-protos
 	go test -race -timeout 30s -v ./...
 
 benchmark: generate-protos
-	go test -v ./... -run xxx -bench . -test.benchtime 2s
+	go test ./... -run xxx -bench . -test.benchtime 30s
 
 test-with-report: generate-protos
 	rm -f test_failed.txt

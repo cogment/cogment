@@ -169,7 +169,6 @@ func CreateBackend(rootDirname string) (backend.Backend, error) {
 	backend := fsBackend{
 		rootDirname: rootDirname,
 	}
-	log.Printf("created a filesystem backend in %q\n", rootDirname)
 	return &backend, nil
 }
 

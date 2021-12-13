@@ -15,15 +15,11 @@
 package hybrid
 
 import (
-	"context"
 	"crypto/rand"
 	"fmt"
-	"testing"
 
 	"github.com/cogment/cogment-model-registry/backend"
-	"github.com/cogment/cogment-model-registry/backend/db"
 	"github.com/cogment/cogment-model-registry/backend/fs"
-	"github.com/stretchr/testify/assert"
 )
 
 func generateRandomBytes(size uint) (blk []byte, err error) {
@@ -61,22 +57,24 @@ func populateDirWithModels(dir string, modelsCount uint, versionsPerModelCount u
 	return nil
 }
 
-func BenchmarkSyncFsToDb(b *testing.B) {
-	b.ReportAllocs()
-	rootDir := b.TempDir()
-	err := populateDirWithModels(rootDir, 10, 20, 1024*1024)
-	assert.NoError(b, err)
+// func BenchmarkSyncFsToDb(b *testing.B) {
+// 	b.ReportAllocs()
+// 	rootDir := b.TempDir()
+// 	err := populateDirWithModels(rootDir, 10, 20, 1024*1024)
+// 	assert.NoError(b, err)
 
-	for i := 0; i < b.N; i++ {
-		dbB, err := db.CreateBackend()
-		defer dbB.Destroy()
-		assert.NoError(b, err)
+// 	for i := 0; i < b.N; i++ {
+// 		func() {
+// 			dbB, err := db.CreateBackend()
+// 			defer dbB.Destroy()
+// 			assert.NoError(b, err)
 
-		fsB, err := fs.CreateBackend(rootDir)
-		defer fsB.Destroy()
-		assert.NoError(b, err)
+// 			fsB, err := fs.CreateBackend(rootDir)
+// 			defer fsB.Destroy()
+// 			assert.NoError(b, err)
 
-		err = Sync(context.Background(), dbB, fsB)
-		assert.NoError(b, err)
-	}
-}
+// 			err = Sync(context.Background(), dbB, fsB)
+// 			assert.NoError(b, err)
+// 		}()
+// 	}
+// }

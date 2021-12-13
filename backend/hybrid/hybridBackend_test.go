@@ -41,6 +41,23 @@ func TestSuiteHybridBackend(t *testing.T) {
 	})
 }
 
+func BenchmarkSuiteHybridFsDbBackend(b *testing.B) {
+	test.RunBenchmarkSuite(b, func() backend.Backend {
+		fsBackend, err := fs.CreateBackend(b.TempDir())
+		assert.NoError(b, err)
+		dbBackend, err := db.CreateBackend()
+		assert.NoError(b, err)
+		bck, err := CreateBackend(dbBackend, fsBackend)
+		assert.NoError(b, err)
+		return bck
+	}, func(bck backend.Backend) {
+		hb := bck.(*hybridBackend)
+		hb.archive.Destroy()
+		hb.transient.Destroy()
+		hb.Destroy()
+	})
+}
+
 func TestInitialSync(t *testing.T) {
 
 	versionUserData := make(map[string]string)

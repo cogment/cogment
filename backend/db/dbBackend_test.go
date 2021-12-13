@@ -31,3 +31,13 @@ func TestSuiteDbBackend(t *testing.T) {
 		b.Destroy()
 	})
 }
+
+func BenchmarkSuiteDbBackend(b *testing.B) {
+	test.RunBenchmarkSuite(b, func() backend.Backend {
+		bck, err := CreateBackend()
+		assert.NoError(b, err)
+		return bck
+	}, func(bck backend.Backend) {
+		bck.Destroy()
+	})
+}
