@@ -46,7 +46,7 @@ func copy(src, _dst string) (int64, error) {
 		return 0, err
 	}
 	defer destination.Close()
-	fmt.Println(dst, src)
+
 	nBytes, err := io.Copy(destination, source)
 	return nBytes, err
 }
@@ -93,6 +93,8 @@ var syncCmd = &cobra.Command{
 
 		for _, outputDirectory := range directories {
 			for _, inFile := range files {
+				message := fmt.Sprintf("Copying %s to %s", inFile, outputDirectory)
+				fmt.Println(message)
 				_, err := copy(inFile, outputDirectory)
 				if err != nil {
 					return fmt.Errorf("Copy fail! %v", err)
