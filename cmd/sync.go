@@ -62,8 +62,8 @@ func isDir(path string) bool {
 // generateCmd represents the generate command
 var syncCmd = &cobra.Command{
 	Use:   "sync files... directories...",
-	Short: "Sync a list of files to a list of directories",
-	Long:  "Sync a list of files to a list of directories, order doesn't matter, supports glob format, as in `cogment sync *.proto client`",
+	Short: "Copy a list of files to a list of directories",
+	Long:  "Copy a list of files to a list of directories, order doesn't matter, supports glob format, as in `cogment sync *.proto client`",
 	RunE: func(cmd *cobra.Command, args []string) error {
 
 		files := []string{}
