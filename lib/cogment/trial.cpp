@@ -159,7 +159,7 @@ void Trial::new_obs(cogmentAPI::ObservationSet&& obs) {
     *(sample->mutable_observations()) = std::move(obs);
   }
   else {
-    spdlog::error("Trial [{}] - No sample for new observation. Trial may have ended.", m_id);
+    spdlog::debug("Trial [{}] - State [{}]. New observation lost", m_id, get_trial_state_string(m_state));
     return;
   }
 }
@@ -170,7 +170,7 @@ void Trial::new_special_event(std::string_view desc) {
     sample->mutable_info()->add_special_events(desc.data(), desc.size());
   }
   else {
-    spdlog::debug("Trial [{}] - No sample for special event [{}]. Trial may have ended.", m_id, desc);
+    spdlog::debug("Trial [{}] - State [{}]. Special event lost [{}]", m_id, get_trial_state_string(m_state), desc);
   }
 }
 
@@ -370,7 +370,7 @@ void Trial::reward_received(const std::string& sender, cogmentAPI::Reward&& rewa
     *new_rew = reward;  // TODO: The reward may have a wildcard (or invalid) receiver, do we want that in the sample?
   }
   else {
-    spdlog::warn("Trial [{}] - No sample for reward received from [{}]. Trial may have ended.", m_id, sender);
+    spdlog::debug("Trial [{}] - State [{}]. Reward from [{}] lost", m_id, get_trial_state_string(m_state), sender);
     return;
   }
 
@@ -411,7 +411,7 @@ void Trial::message_received(const std::string& sender, cogmentAPI::Message&& me
     new_msg->set_sender_name(sender);
   }
   else {
-    spdlog::warn("Trial [{}] - No sample for message received from [{}]. Trial may have ended.", m_id, sender);
+    spdlog::debug("Trial [{}] - State [{}]. Message from [{}] lost", m_id, get_trial_state_string(m_state), sender);
     return;
   }
 
@@ -493,7 +493,7 @@ void Trial::dispatch_observations(bool last) {
 
   auto sample = get_last_sample();
   if (sample == nullptr) {
-    spdlog::warn("Trial [{}] - No sample to dispatch an observation. Trial may have ended.", m_id);
+    spdlog::debug("Trial [{}] - State [{}]. Observations not sent", m_id, get_trial_state_string(m_state));
     return;
   }
 
@@ -679,7 +679,13 @@ void Trial::terminate(const std::string& details) {
   if (m_state == InternalState::ended) {
     return;
   }
-  set_state(InternalState::terminating);
+  try {
+    set_state(InternalState::terminating);
+  }
+  catch (const CogmentError& exc) {
+    spdlog::debug("Trial [{}] - Hard termination [{}] in state [{}]: {}", m_id, details,
+                  get_trial_state_string(m_state), exc.what());
+  }
 
   new_special_event("Forced termination: " + details);
   spdlog::info("Trial [{}] - Hard termination requested [{}]", m_id, details);
@@ -775,7 +781,7 @@ void Trial::actor_acted(const std::string& actor_name, cogmentAPI::Action&& acti
 
   auto sample = get_last_sample();
   if (sample == nullptr) {
-    spdlog::warn("Trial [{}] - No sample for action received from [{}]. Trial may have ended.", m_id, actor_name);
+    spdlog::debug("Trial [{}] - State [{}]. Action from [{}] lost", m_id, get_trial_state_string(m_state), actor_name);
     return;
   }
   auto sample_action = sample->mutable_actions(actor_index);
@@ -915,7 +921,7 @@ void Trial::set_state(InternalState new_state) {
     break;
   }
 
-  if (invalid_transition) {
+  if (invalid_transition && new_state != InternalState::ended) {
     throw MakeException("Cannot switch trial state from [{}] to [{}]", get_trial_state_string(m_state),
                         get_trial_state_string(new_state));
   }

@@ -29,6 +29,7 @@
 
 constexpr uint64_t NANOS = 1'000'000'000;
 constexpr double NANOS_INV = 1.0 / NANOS;
+using COGMENT_ERROR_BASE_TYPE = std::runtime_error;
 
 // Ignores (i.e. not added to the vector) the last empty string if there is a trailing separator
 std::vector<std::string> split(const std::string& in, char separator);
@@ -36,8 +37,12 @@ std::vector<std::string> split(const std::string& in, char separator);
 // Unix epoch time in nanoseconds
 uint64_t Timestamp();
 
+class CogmentError : public COGMENT_ERROR_BASE_TYPE {
+  using COGMENT_ERROR_BASE_TYPE::COGMENT_ERROR_BASE_TYPE;
+};
+
 // TODO: Update to use std::format (C++20)
-template <class EXC = std::runtime_error, class... Args>
+template <class EXC = CogmentError, class... Args>
 EXC MakeException(const char* format, Args&&... args) {
   try {
     std::string val = fmt::format(format, std::forward<Args>(args)...);
