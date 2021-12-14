@@ -127,28 +127,53 @@ func (b *memoryCacheBackend) updateCachedModelLatestVersionNumber(modelID string
 	return latestVersionNumber
 }
 
-func (b *memoryCacheBackend) retrieveModelLatestVersionNumber(modelID string) (uint, error) {
-	latestVersionNumber, ok := b.retrieveCachedModelLatestVersionNumber(modelID)
-	if ok {
-		return latestVersionNumber, nil
-	}
-	modelInfo, err := b.archive.RetrieveModelInfo(modelID)
-	if err != nil {
-		return 0, err
-	}
-	latestVersionNumber = modelInfo.LatestVersionNumber
-	b.versionCache.ForEachFunc(modelID, func(versionNumberStr string, item *ccache.Item) bool {
-		versionNumber64, err := strconv.ParseUint(versionNumberStr, 10, 0)
-		if err != nil {
-			panic(err)
+func (b *memoryCacheBackend) resolveModelVersionNumbers(modelID string, versionNumbers []int) ([]uint, error) {
+	resolvedVersionNumbers := []uint{}
+	latestVersionNumber := uint(0) // We might not need it
+	for _, versionNumber := range versionNumbers {
+		// Check if it's a positive version number (no check in this case it'll be done later)
+		if versionNumber >= 0 {
+			resolvedVersionNumbers = append(resolvedVersionNumbers, uint(versionNumber))
+			continue
 		}
-		versionNumber := uint(versionNumber64)
-		if versionNumber > latestVersionNumber {
-			latestVersionNumber = versionNumber
+
+		// We now need `latestVersionNumber` to be set
+		if latestVersionNumber == uint(0) {
+			var ok bool
+			latestVersionNumber, ok = b.retrieveCachedModelLatestVersionNumber(modelID)
+			if !ok {
+				modelInfo, err := b.archive.RetrieveModelInfo(modelID)
+				if err != nil {
+					return nil, err
+				}
+				latestVersionNumber = modelInfo.LatestVersionNumber
+				b.versionCache.ForEachFunc(modelID, func(versionNumberStr string, item *ccache.Item) bool {
+					versionNumber64, err := strconv.ParseUint(versionNumberStr, 10, 0)
+					if err != nil {
+						panic(err)
+					}
+					versionNumber := uint(versionNumber64)
+					if versionNumber > latestVersionNumber {
+						latestVersionNumber = versionNumber
+					}
+					return true // Means that the iteration should continue
+				})
+			}
 		}
-		return true // Means that the iteration should continue
-	})
-	return latestVersionNumber, nil
+
+		// Let's actually resolve this version number
+		nthToLastIndex := uint(-versionNumber - 1)
+
+		if nthToLastIndex > latestVersionNumber+1 {
+			// Appending 0 to notify that it doesn't exist
+			resolvedVersionNumbers = append(resolvedVersionNumbers, uint(0))
+			continue
+		}
+
+		resolvedVersionNumbers = append(resolvedVersionNumbers, uint(latestVersionNumber-nthToLastIndex))
+	}
+
+	return resolvedVersionNumbers, nil
 }
 
 func (b *memoryCacheBackend) CreateOrUpdateModel(modelArgs backend.ModelArgs) (backend.ModelInfo, error) {
@@ -166,6 +191,14 @@ func (b *memoryCacheBackend) CreateOrUpdateModel(modelArgs backend.ModelArgs) (b
 
 func (b *memoryCacheBackend) HasModel(modelID string) (bool, error) {
 	return b.archive.HasModel(modelID)
+}
+
+func (b *memoryCacheBackend) RetrieveModelInfo(modelID string) (backend.ModelInfo, error) {
+	modelInfo, err := b.archive.RetrieveModelInfo(modelID)
+	if err == nil {
+		b.updateCachedModelLatestVersionNumber(modelID, modelInfo.LatestVersionNumber)
+	}
+	return modelInfo, err
 }
 
 func (b *memoryCacheBackend) DeleteModel(modelID string) error {
@@ -204,12 +237,12 @@ func (b *memoryCacheBackend) deleteCachedModelVersion(modelID string, versionNum
 
 func (b *memoryCacheBackend) CreateOrUpdateModelVersion(modelID string, versionArgs backend.VersionArgs) (backend.VersionInfo, error) {
 	// Let's compute the actual version number
-	if versionArgs.VersionNumber == 0 {
-		latestVersionNumber, err := b.retrieveModelLatestVersionNumber(modelID)
+	if versionArgs.VersionNumber == uint(0) {
+		resolvedVersionNumbers, err := b.resolveModelVersionNumbers(modelID, []int{-1})
 		if err != nil {
 			return backend.VersionInfo{}, err
 		}
-		versionArgs.VersionNumber = latestVersionNumber + 1
+		versionArgs.VersionNumber = resolvedVersionNumbers[0] + 1
 	}
 
 	var versionInfo backend.VersionInfo
@@ -273,16 +306,15 @@ func (b *memoryCacheBackend) doRetrieveModelVersionData(modelID string, versionN
 }
 
 func (b *memoryCacheBackend) RetrieveModelVersionData(modelID string, versionNumber int) ([]byte, error) {
-	// Let's compute the actual version number
-	if versionNumber < 0 {
-		latestVersionNumber, err := b.retrieveModelLatestVersionNumber(modelID)
-		if err != nil {
-			return nil, err
-		}
-
-		return b.doRetrieveModelVersionData(modelID, latestVersionNumber)
+	resolvedVersionNumbers, err := b.resolveModelVersionNumbers(modelID, []int{versionNumber})
+	if err != nil {
+		return nil, err
 	}
-	return b.doRetrieveModelVersionData(modelID, uint(versionNumber))
+	resolvedVersionNumber := resolvedVersionNumbers[0]
+	if resolvedVersionNumber == 0 {
+		return nil, &backend.UnknownModelVersionError{ModelID: modelID, VersionNumber: versionNumber}
+	}
+	return b.doRetrieveModelVersionData(modelID, resolvedVersionNumbers[0])
 }
 
 func (b *memoryCacheBackend) doRetrieveModelVersionInfo(modelID string, versionNumber uint) (backend.VersionInfo, error) {
@@ -307,24 +339,15 @@ func (b *memoryCacheBackend) doRetrieveModelVersionInfo(modelID string, versionN
 }
 
 func (b *memoryCacheBackend) RetrieveModelVersionInfo(modelID string, versionNumber int) (backend.VersionInfo, error) {
-	// Let's compute the actual version number
-	if versionNumber < 0 {
-		latestVersionNumber, err := b.retrieveModelLatestVersionNumber(modelID)
-		if err != nil {
-			return backend.VersionInfo{}, err
-		}
-
-		return b.doRetrieveModelVersionInfo(modelID, latestVersionNumber)
+	resolvedVersionNumbers, err := b.resolveModelVersionNumbers(modelID, []int{versionNumber})
+	if err != nil {
+		return backend.VersionInfo{}, err
 	}
-	return b.doRetrieveModelVersionInfo(modelID, uint(versionNumber))
-}
-
-func (b *memoryCacheBackend) RetrieveModelInfo(modelID string) (backend.ModelInfo, error) {
-	modelInfo, err := b.archive.RetrieveModelInfo(modelID)
-	if err == nil {
-		b.updateCachedModelLatestVersionNumber(modelID, modelInfo.LatestVersionNumber)
+	resolvedVersionNumber := resolvedVersionNumbers[0]
+	if resolvedVersionNumber == 0 {
+		return backend.VersionInfo{}, &backend.UnknownModelVersionError{ModelID: modelID, VersionNumber: versionNumber}
 	}
-	return modelInfo, err
+	return b.doRetrieveModelVersionInfo(modelID, resolvedVersionNumber)
 }
 
 func (b *memoryCacheBackend) doDeleteModelVersion(modelID string, versionNumber uint) error {
@@ -338,25 +361,24 @@ func (b *memoryCacheBackend) doDeleteModelVersion(modelID string, versionNumber 
 
 func (b *memoryCacheBackend) DeleteModelVersion(modelID string, versionNumber int) error {
 	// Let's compute the actual version number
-	if versionNumber < 0 {
-		latestVersionNumber, err := b.retrieveModelLatestVersionNumber(modelID)
-		if err != nil {
-			return err
-		}
-		return b.doDeleteModelVersion(modelID, latestVersionNumber)
+	resolvedVersionNumbers, err := b.resolveModelVersionNumbers(modelID, []int{versionNumber})
+	if err != nil {
+		return err
 	}
-	return b.doDeleteModelVersion(modelID, uint(versionNumber))
+	return b.doDeleteModelVersion(modelID, resolvedVersionNumbers[0])
 }
 
 func (b *memoryCacheBackend) ListModelVersionInfos(modelID string, initialVersionNumber uint, limit int) ([]backend.VersionInfo, error) {
-	latestVersionNumber, err := b.retrieveModelLatestVersionNumber(modelID)
+	if initialVersionNumber == 0 {
+		initialVersionNumber = 1
+	}
+	resolvedVersionNumbers, err := b.resolveModelVersionNumbers(modelID, []int{int(initialVersionNumber), -1})
 	if err != nil {
 		return nil, err
 	}
+	initialVersionNumber = resolvedVersionNumbers[0]
+	latestVersionNumber := resolvedVersionNumbers[1]
 	versions := []backend.VersionInfo{}
-	if initialVersionNumber < 1 {
-		initialVersionNumber = 1
-	}
 	for versionNumber := initialVersionNumber; versionNumber <= latestVersionNumber; versionNumber++ {
 		versionInfo, err := b.RetrieveModelVersionInfo(modelID, int(versionNumber))
 		if err != nil {

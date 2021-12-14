@@ -104,7 +104,7 @@ $ echo "{\"model_id\":\"my_model\"}" | grpcurl -plaintext -d @ localhost:9000 co
       "dataSize": "14"
     }
   ],
-  "nextVersionHandle": "2"
+  "nextVersionHandle": "3"
 }
 ```
 
@@ -123,26 +123,26 @@ $ echo "{\"model_id\":\"my_model\", \"version_numbers\":[1]}" | grpcurl -plainte
       "dataSize": "14"
     }
   ],
-  "nextVersionHandle": "1"
+  "nextVersionHandle": "2"
 }
 ```
 
-#### Retrieve the latest version of a model
+#### Retrieve the n-th to last version of a model
 
 ```console
-$ echo "{\"model_id\":\"my_model\", \"version_numbers\":[-1]}" | grpcurl -plaintext -d @ localhost:9000 cogment.ModelRegistrySP/RetrieveVersionInfos
+$ echo "{\"model_id\":\"my_model\", \"version_numbers\":[-2]}" | grpcurl -plaintext -d @ localhost:9000 cogment.ModelRegistrySP/RetrieveVersionInfos
 {
   "versionInfos": [
     {
       "modelId": "my_model",
-      "versionNumber": 2,
-      "creationTimestamp": "1633119625907957639",
+      "versionNumber": 1,
+      "creationTimestamp": "1633119005107454620",
       "archived": true,
       "dataHash": "jY0g3VkUK62ILPr2JuaW5g7uQi0EcJVZJu8IYp3yfhI=",
       "dataSize": "14"
     }
   ],
-  "nextVersionHandle": "1"
+  "nextVersionHandle": "2"
 }
 ```
 
@@ -155,7 +155,7 @@ $ echo "{\"model_id\":\"my_model\", \"version_number\":1}" | grpcurl -plaintext 
 }
 ```
 
-To retrieve the latest version, use `version_number:-1`.
+To retrieve the n-th to last version, use `version_number:-n` (e.g. `-1` for the latest, `-2` for the 2nd to last).
 
 ## Developers
 

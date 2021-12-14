@@ -177,23 +177,27 @@ func (b *fsBackend) Destroy() {
 	// Nothing
 }
 
-func (b *fsBackend) retrieveModelLatestVersionInfo(modelID string) (backend.VersionInfo, error) {
+func (b *fsBackend) retrieveModelNthToLastVersionInfo(modelID string, nthToLastIndex uint) (backend.VersionInfo, error) {
 	modelDirname := path.Join(b.rootDirname, modelID)
 	modelDirContent, err := os.ReadDir(modelDirname)
 	if err != nil {
 		return backend.VersionInfo{}, &backend.UnknownModelError{ModelID: modelID}
 	}
 
+	nthToLastNextIndex := uint(0)
 	for i := len(modelDirContent) - 1; i >= 0; i-- {
 		entry := modelDirContent[i]
 		if !entry.IsDir() && versionInfoFilenameRegexp.MatchString(entry.Name()) {
-			// This is the latest version info file
-			latestVersionInfoFilename := path.Join(modelDirname, entry.Name())
-			latestVersionInfo, err := loadVersionInfoFile(latestVersionInfoFilename)
-			if err != nil {
-				return backend.VersionInfo{}, fmt.Errorf("unable to retrieve model %q latest version info: %w", modelID, err)
+			if nthToLastNextIndex == nthToLastIndex {
+				// We've reached the target
+				latestVersionInfoFilename := path.Join(modelDirname, entry.Name())
+				latestVersionInfo, err := loadVersionInfoFile(latestVersionInfoFilename)
+				if err != nil {
+					return backend.VersionInfo{}, fmt.Errorf("unable to retrieve model %q latest version info: %w", modelID, err)
+				}
+				return latestVersionInfo, nil
 			}
-			return latestVersionInfo, nil
+			nthToLastNextIndex++
 		}
 	}
 	// No versions
@@ -211,7 +215,7 @@ func (b *fsBackend) CreateOrUpdateModel(modelArgs backend.ModelArgs) (backend.Mo
 		return backend.ModelInfo{}, err
 	}
 
-	latestVersionInfo, err := b.retrieveModelLatestVersionInfo(modelInfo.ModelID)
+	latestVersionInfo, err := b.retrieveModelNthToLastVersionInfo(modelInfo.ModelID, 0)
 	if err != nil {
 		return backend.ModelInfo{}, err
 	}
@@ -236,7 +240,7 @@ func (b *fsBackend) RetrieveModelInfo(modelID string) (backend.ModelInfo, error)
 		return backend.ModelInfo{}, err
 	}
 
-	latestVersionInfo, err := b.retrieveModelLatestVersionInfo(modelInfo.ModelID)
+	latestVersionInfo, err := b.retrieveModelNthToLastVersionInfo(modelInfo.ModelID, 0)
 	if err != nil {
 		return backend.ModelInfo{}, err
 	}
@@ -260,7 +264,7 @@ func (b *fsBackend) HasModel(modelID string) (bool, error) {
 
 // DeleteModel deletes a model with a given id from the storage
 func (b *fsBackend) DeleteModel(modelID string) error {
-	_, err := b.retrieveModelLatestVersionInfo(modelID)
+	_, err := b.retrieveModelNthToLastVersionInfo(modelID, 0)
 	if err != nil {
 		return err
 	}
@@ -353,9 +357,9 @@ func (b *fsBackend) buildVersionDataFilename(versionInfo backend.VersionInfo) st
 // CreateModelVersion creates and store a new version for a model and returns its info, including the version number
 func (b *fsBackend) CreateOrUpdateModelVersion(modelID string, versionArgs backend.VersionArgs) (backend.VersionInfo, error) {
 	var versionInfo backend.VersionInfo
-	if versionArgs.VersionNumber <= 0 {
+	if versionArgs.VersionNumber == 0 {
 		// Create a new version after the last one
-		latestVersionInfo, err := b.retrieveModelLatestVersionInfo(modelID)
+		latestVersionInfo, err := b.retrieveModelNthToLastVersionInfo(modelID, 0)
 		if err != nil {
 			return backend.VersionInfo{}, err
 		}
@@ -415,16 +419,19 @@ func (b *fsBackend) CreateOrUpdateModelVersion(modelID string, versionArgs backe
 
 // RetrieveModelVersionInfo retrieves a given model version info
 func (b *fsBackend) RetrieveModelVersionInfo(modelID string, versionNumber int) (backend.VersionInfo, error) {
-	if versionNumber <= 0 {
-		// Retrieve the latest version
-		latestVersionInfo, err := b.retrieveModelLatestVersionInfo(modelID)
+	if versionNumber == 0 {
+		return backend.VersionInfo{}, &backend.UnknownModelVersionError{ModelID: modelID, VersionNumber: versionNumber}
+	}
+	if versionNumber < 0 {
+		// Retrieve the nth to last version
+		versionInfo, err := b.retrieveModelNthToLastVersionInfo(modelID, uint(-versionNumber-1))
 		if err != nil {
 			return backend.VersionInfo{}, err
 		}
-		if latestVersionInfo.VersionNumber == 0 {
-			return backend.VersionInfo{}, &backend.UnknownModelVersionError{ModelID: modelID, VersionNumber: -1}
+		if versionInfo.VersionNumber == 0 {
+			return backend.VersionInfo{}, &backend.UnknownModelVersionError{ModelID: modelID, VersionNumber: versionNumber}
 		}
-		return latestVersionInfo, nil
+		return versionInfo, nil
 	}
 	// Retrieve a specific version
 	versionInfoFilename := b.buildVersionInfoFilename(backend.VersionInfo{ModelID: modelID, VersionNumber: uint(versionNumber)})
@@ -445,17 +452,19 @@ func (b *fsBackend) RetrieveModelVersionInfo(modelID string, versionNumber int) 
 // RetrieveModelVersion retrieves a given model version data
 func (b *fsBackend) RetrieveModelVersionData(modelID string, versionNumber int) ([]byte, error) {
 	var versionInfo backend.VersionInfo
-	if versionNumber <= 0 {
-		// Retrieve the latest version
+	if versionNumber == 0 {
+		return []byte{}, &backend.UnknownModelVersionError{ModelID: modelID, VersionNumber: versionNumber}
+	}
+	if versionNumber < 0 {
+		// Retrieve the nth to last version
 		var err error
-		latestVersionInfo, err := b.retrieveModelLatestVersionInfo(modelID)
+		versionInfo, err = b.retrieveModelNthToLastVersionInfo(modelID, uint(-versionNumber-1))
 		if err != nil {
 			return []byte{}, err
 		}
-		if latestVersionInfo.VersionNumber == 0 {
+		if versionInfo.VersionNumber == 0 {
 			return []byte{}, &backend.UnknownModelVersionError{ModelID: modelID, VersionNumber: versionNumber}
 		}
-		versionInfo = latestVersionInfo
 	} else {
 		versionInfo = backend.VersionInfo{
 			ModelID:       modelID,
@@ -478,10 +487,13 @@ func (b *fsBackend) RetrieveModelVersionData(modelID string, versionNumber int) 
 // DeleteModelVersion deletes a given model version
 func (b *fsBackend) DeleteModelVersion(modelID string, versionNumber int) error {
 	var versionInfo backend.VersionInfo
-	if versionNumber <= 0 {
-		// Retrieve the latest version
+	if versionNumber == 0 {
+		return &backend.UnknownModelVersionError{ModelID: modelID, VersionNumber: versionNumber}
+	}
+	if versionNumber < 0 {
+		// Retrieve the nth to last version
 		var err error
-		latestVersionInfo, err := b.retrieveModelLatestVersionInfo(modelID)
+		latestVersionInfo, err := b.retrieveModelNthToLastVersionInfo(modelID, uint(-versionNumber-1))
 		if err != nil {
 			return err
 		}
@@ -511,7 +523,6 @@ func (b *fsBackend) DeleteModelVersion(modelID string, versionNumber int) error 
 	return nil
 }
 
-// ListModelVersionInfos list the versions info of a model from the latest to the earliest from the given initialVersionNumber, it returns at most the given limit number of versions
 func (b *fsBackend) ListModelVersionInfos(modelID string, initialVersionNumber uint, limit int) ([]backend.VersionInfo, error) {
 	modelDirname := path.Join(b.rootDirname, modelID)
 	modelVersionEntries, err := filteredReadDir(modelDirname, 0, limit, func(entry fs.DirEntry) bool {

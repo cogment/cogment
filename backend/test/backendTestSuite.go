@@ -194,6 +194,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				assert.NoError(t, err)
 
 				_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{
+					VersionNumber:     0,
 					CreationTimestamp: time.Now(),
 					Data:              Data1,
 					DataHash:          backend.ComputeSHA256Hash(Data1),
@@ -210,7 +211,6 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 
 				for i := 0; i < 15; i++ {
 					_, err = b.CreateOrUpdateModelVersion("bar", backend.VersionArgs{
-						VersionNumber:     0,
 						CreationTimestamp: time.Now(),
 						Data:              Data2,
 						DataHash:          backend.ComputeSHA256Hash(Data2),
@@ -361,9 +361,9 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				assert.Equal(t, backend.ComputeSHA256Hash(Data1), modelVersion1.DataHash)
 				assert.Equal(t, len(Data1), modelVersion1.DataSize)
 
-				modelVersion1Data, err := b.RetrieveModelVersionData("foo", 2)
+				modelVersion1Data, err := b.RetrieveModelVersionData("foo", 1)
 				assert.NoError(t, err)
-				assert.Equal(t, Data2, modelVersion1Data)
+				assert.Equal(t, Data1, modelVersion1Data)
 
 				modelVersion2, err := b.RetrieveModelVersionInfo("foo", 2)
 				assert.NoError(t, err)
@@ -430,7 +430,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 					assert.ErrorAs(t, err, &concreteErr)
 					assert.Equal(t, "foo", concreteErr.ModelID)
 				}
-				assert.EqualError(t, err, `model "foo" doesn't have any version yet`)
+				assert.EqualError(t, err, `no version "n-1" for model "foo" found`)
 
 				_, err = b.RetrieveModelVersionData("foo", -1)
 				{
@@ -438,7 +438,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 					assert.ErrorAs(t, err, &concreteErr)
 					assert.Equal(t, "foo", concreteErr.ModelID)
 				}
-				assert.EqualError(t, err, `model "foo" doesn't have any version yet`)
+				assert.EqualError(t, err, `no version "n-1" for model "foo" found`)
 
 				_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{
 					CreationTimestamp: time.Now(),
@@ -481,6 +481,70 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				modelVersion2Data, err := b.RetrieveModelVersionData("foo", -1)
 				assert.NoError(t, err)
 				assert.Equal(t, Data2, modelVersion2Data)
+			},
+		},
+		{
+			name: "TestRetrieveModelVersion - nth latest",
+			test: func(t *testing.T) {
+				b := createBackend()
+				defer destroyBackend(b)
+
+				_, err := b.CreateOrUpdateModel(backend.ModelArgs{
+					ModelID:  "foo",
+					UserData: modelUserData,
+				})
+				assert.NoError(t, err)
+
+				_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{
+					CreationTimestamp: time.Now(),
+					Data:              Data1,
+					DataHash:          backend.ComputeSHA256Hash(Data1),
+					Archived:          false,
+					UserData:          versionUserData,
+				})
+				assert.NoError(t, err)
+
+				_, err = b.CreateOrUpdateModelVersion("foo", backend.VersionArgs{
+					CreationTimestamp: time.Now(),
+					Data:              Data2,
+					DataHash:          backend.ComputeSHA256Hash(Data2),
+					Archived:          true,
+					UserData:          versionUserData,
+				})
+				assert.NoError(t, err)
+
+				modelVersion2, err := b.RetrieveModelVersionInfo("foo", -1)
+				assert.NoError(t, err)
+				assert.Equal(t, "foo", modelVersion2.ModelID)
+				assert.Equal(t, 2, int(modelVersion2.VersionNumber))
+				assert.True(t, modelVersion2.Archived)
+				assert.Equal(t, backend.ComputeSHA256Hash(Data2), modelVersion2.DataHash)
+				assert.Equal(t, len(Data2), modelVersion2.DataSize)
+
+				modelVersion2Data, err := b.RetrieveModelVersionData("foo", -1)
+				assert.NoError(t, err)
+				assert.Equal(t, Data2, modelVersion2Data)
+
+				modelVersion1, err := b.RetrieveModelVersionInfo("foo", -2)
+				assert.NoError(t, err)
+				assert.Equal(t, "foo", modelVersion1.ModelID)
+				assert.Equal(t, 1, int(modelVersion1.VersionNumber))
+				assert.False(t, modelVersion1.Archived)
+				assert.Equal(t, backend.ComputeSHA256Hash(Data1), modelVersion1.DataHash)
+				assert.Equal(t, len(Data1), modelVersion1.DataSize)
+
+				modelVersion1Data, err := b.RetrieveModelVersionData("foo", -2)
+				assert.NoError(t, err)
+				assert.Equal(t, Data1, modelVersion1Data)
+
+				_, err = b.RetrieveModelVersionInfo("foo", -3)
+				{
+					concreteErr := &backend.UnknownModelVersionError{}
+					assert.ErrorAs(t, err, &concreteErr)
+					assert.Equal(t, "foo", concreteErr.ModelID)
+					assert.Equal(t, -3, concreteErr.VersionNumber)
+				}
+				assert.EqualError(t, err, `no version "n-3" for model "foo" found`)
 			},
 		},
 		{
