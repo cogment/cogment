@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- The model registry now stored transient model version in a memory cache.
+- The model registry now stored transient model versions in a memory cache.
 
 ### Added
 
