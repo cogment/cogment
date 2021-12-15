@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Changed
+
+- Change warning to debug for expected (under special circumstances) exeptions
+- Properly manage forced termination of pending trials
+
 ## v2.0.0-rc3 - 2021-12-10
 
 ### Changed
