@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.0.0 - 2021-12-15
+
 ### Changed
 
 - Change warning to debug for expected (under special circumstances) exeptions
