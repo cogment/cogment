@@ -7,7 +7,7 @@ COPY requirements.txt ./
 RUN pip install -r requirements.txt
 
 COPY cogment.yaml *.proto ./
-RUN python -m cogment.generate
+RUN python -m cogment.generate --spec cogment.yaml
 
 # Copy the rest of the service sources
 COPY . ./
