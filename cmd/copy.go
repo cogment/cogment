@@ -62,12 +62,12 @@ func isDir(path string) bool {
 // generateCmd represents the generate command
 var copyCmd = &cobra.Command{
 	Use: "copy file_or_folder	...",
-	Short: "Copy all files listed to all existing directories listed",
-	Long:  "Copy all files listed to all existing directories listed, order doesn't matter, supports glob format, as in `cogment copy *.proto client`",
+	Short: "Copy all files listed to all existing folders listed",
+	Long:  "Copy all files listed to all existing folders listed, order doesn't matter, supports glob format, as in `cogment copy *.proto client`",
 	RunE: func(cmd *cobra.Command, args []string) error {
 
 		files := []string{}
-		directories := []string{}
+		folders := []string{}
 
 		for _, arg := range args {
 			fileOrDirs, err := filepath.Glob(arg)
@@ -77,7 +77,7 @@ var copyCmd = &cobra.Command{
 			for _, fileOrDir := range fileOrDirs {
 				isDir := isDir(fileOrDir)
 				if isDir {
-					directories = append(directories, fileOrDir)
+					folders = append(folders, fileOrDir)
 				} else {
 					files = append(files, fileOrDir)
 				}
@@ -87,11 +87,11 @@ var copyCmd = &cobra.Command{
 		if len(files) == 0 {
 			return fmt.Errorf("no files to copy")
 		}
-		if len(directories) == 0 {
-			return fmt.Errorf("no directories to copy")
+		if len(folders) == 0 {
+			return fmt.Errorf("no folders to copy")
 		}
 
-		for _, outputDirectory := range directories {
+		for _, outputDirectory := range folders {
 			for _, inFile := range files {
 				message := fmt.Sprintf("Copying %s to %s", inFile, outputDirectory)
 				fmt.Println(message)
