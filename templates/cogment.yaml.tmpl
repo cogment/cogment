@@ -4,8 +4,8 @@ import:
     - data.proto
 
 commands:
-  sync: >
-    cogment sync
+  copy: >
+    cogment copy
     {{- if $config.WebClient }}
     web-client
     {{- end }}
@@ -16,7 +16,7 @@ commands:
     {{- end }}
 
   generate: |
-    cogment run sync
+    cogment run copy
     {{- if $config.WebClient }}
     cd web-client && npx cogment-js-sdk-generate && cd ../
     {{- end }}
@@ -27,7 +27,7 @@ commands:
     cd {{.Name|snakeify}}; python -m cogment.generate; cd ../
     {{- end }}
   
-  build: cogment run sync && docker-compose build orchestrator metrics dashboard client environment{{ range .ListServiceActorServices }} {{.Name|kebabify}}{{end}}{{ if $config.WebClient }} web-client{{ end }}
+  build: cogment run copy && docker-compose build orchestrator metrics dashboard client environment{{ range .ListServiceActorServices }} {{.Name|kebabify}}{{end}}{{ if $config.WebClient }} web-client{{ end }}
   dashboard: docker-compose up --build dashboard
   start: docker-compose up orchestrator metrics dashboard environment{{ range .ListServiceActorServices }} {{.Name|kebabify}}{{end}}{{ if $config.WebClient }} web-client{{ end }}
   stop: docker-compose stop orchestrator metrics dashboard environment{{ range .ListServiceActorServices }} {{.Name|kebabify}}{{end}}{{ if $config.WebClient }} web-client{{ end }}
