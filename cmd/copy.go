@@ -61,9 +61,9 @@ func isDir(path string) bool {
 
 // generateCmd represents the generate command
 var copyCmd = &cobra.Command{
-	Use:   "copy files... directories...",
-	Short: "Copy a list of files to a list of directories",
-	Long:  "Copy a list of files to a list of directories, order doesn't matter, supports glob format, as in `cogment copy *.proto client`",
+	Use: "copy file_or_folder	...",
+	Short: "Copy all files listed to all existing directories listed",
+	Long:  "Copy all files listed to all existing directories listed, order doesn't matter, supports glob format, as in `cogment copy *.proto client`",
 	RunE: func(cmd *cobra.Command, args []string) error {
 
 		files := []string{}
