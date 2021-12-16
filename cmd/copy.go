@@ -60,10 +60,10 @@ func isDir(path string) bool {
 }
 
 // generateCmd represents the generate command
-var syncCmd = &cobra.Command{
-	Use:   "sync files... directories...",
+var copyCmd = &cobra.Command{
+	Use:   "copy files... directories...",
 	Short: "Copy a list of files to a list of directories",
-	Long:  "Copy a list of files to a list of directories, order doesn't matter, supports glob format, as in `cogment sync *.proto client`",
+	Long:  "Copy a list of files to a list of directories, order doesn't matter, supports glob format, as in `cogment copy *.proto client`",
 	RunE: func(cmd *cobra.Command, args []string) error {
 
 		files := []string{}
@@ -85,10 +85,10 @@ var syncCmd = &cobra.Command{
 		}
 
 		if len(files) == 0 {
-			return fmt.Errorf("no files to sync")
+			return fmt.Errorf("no files to copy")
 		}
 		if len(directories) == 0 {
-			return fmt.Errorf("no directories to sync")
+			return fmt.Errorf("no directories to copy")
 		}
 
 		for _, outputDirectory := range directories {
@@ -107,5 +107,5 @@ var syncCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(syncCmd)
+	rootCmd.AddCommand(copyCmd)
 }
