@@ -15,5 +15,5 @@
 package version
 
 var (
-	CliVersion = "1.2.0"
+	CliVersion = "2.0.0-rc1"
 )
