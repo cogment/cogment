@@ -13,10 +13,10 @@ commands:
   generate: |
     cogment run copy
     python -m pip install cogment[generate]
-    cd environment; python -m cogment.generate; cd ../
-    cd client; python -m cogment.generate; cd ../
-    cd dumb; python -m cogment.generate; cd ../
-    cd smart; python -m cogment.generate; cd ../
+    cd environment; python -m cogment.generate --spec cogment.yaml; cd ../
+    cd client; python -m cogment.generate --spec cogment.yaml; cd ../
+    cd dumb; python -m cogment.generate --spec cogment.yaml; cd ../
+    cd smart; python -m cogment.generate --spec cogment.yaml; cd ../
   
   build: cogment run copy && docker-compose build orchestrator metrics dashboard client environment dumb smart
   dashboard: docker-compose up --build dashboard
