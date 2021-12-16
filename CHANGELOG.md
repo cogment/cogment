@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.0.0-rc1 - 2021-12-16
+
+- Rename `cogment sync` to `cogment copy`
+- Code generation updated for Cogment API 2.0
+
 ## v1.2.0 - 2021-09-27
 
 ### Added
