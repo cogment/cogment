@@ -1,0 +1,55 @@
+import:
+  proto:
+    - data.proto
+
+commands:
+  copy: >
+    cogment copy cogment.yaml *.proto \
+    web-client \
+    environment \
+    h1 \
+    client
+
+  generate: |
+    cogment run copy
+    cd web-client && npx cogment-js-sdk-generate cogment.yaml && cd ../
+    python -m pip install cogment[generate]
+    cd environment; python -m cogment.generate --spec cogment.yaml; cd ../
+    cd client; python -m cogment.generate --spec cogment.yaml; cd ../
+    cd h1; python -m cogment.generate --spec cogment.yaml; cd ../
+  
+  build: cogment run copy && docker-compose build orchestrator metrics dashboard client environment h1 web-client
+  dashboard: docker-compose up --build dashboard
+  start: docker-compose up orchestrator metrics dashboard environment h1 web-client
+  stop: docker-compose stop orchestrator metrics dashboard environment h1 web-client
+  down: docker-compose down
+  client: docker-compose run --rm client
+
+environment:
+  config_type: test.EnvConfig
+
+trial:
+  config_type: test.TrialConfig
+
+# Static configuration
+actor_classes:
+  - name: h
+    action:
+      space: test.HAction
+    observation:
+      space: test.Observation
+
+
+# Dynamic configuration (could be changed by a pre-hook)
+trial_params:
+  environment:
+    endpoint: grpc://environment:9000
+    #config: {}
+  actors:
+    - name: h_h1_1
+      actor_class: h
+      implementation: h1
+      endpoint: grpc://h1:9000
+    - name: client_actor
+      actor_class: h
+      endpoint: client

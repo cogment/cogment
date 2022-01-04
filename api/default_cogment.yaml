@@ -2,13 +2,13 @@
 components:
   orchestrator:
     package: cogment/orchestrator
-    version: v2.0.0-rc3
+    version: v2.0.0
   python:
     package: cogment[generate]
-    version: v2.0.0rc2
+    version: v2.0.2
   javascript:
     package: "@cogment/cogment-js-sdk"
-    version: v2.0.0
+    version: v2.0.0-rc2 
   metrics:
     package: cogment/metrics
     version: v1.2.3

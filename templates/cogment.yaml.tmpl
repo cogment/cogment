@@ -5,7 +5,7 @@ import:
 
 commands:
   copy: >
-    cogment copy
+    cogment copy cogment.yaml *.proto 
     {{- if $config.WebClient }}
     web-client
     {{- end }}
@@ -18,13 +18,13 @@ commands:
   generate: |
     cogment run copy
     {{- if $config.WebClient }}
-    cd web-client && npx cogment-js-sdk-generate && cd ../
+    cd web-client && npx cogment-js-sdk-generate cogment.yaml && cd ../
     {{- end }}
     python -m pip install cogment[generate]
-    cd environment; python -m cogment.generate --spec cogment.yaml; cd ../
-    cd client; python -m cogment.generate --spec cogment.yaml; cd ../
+    cd environment; python -m cogment.generate; cd ../
+    cd client; python -m cogment.generate; cd ../
     {{- range .ListServiceActorServices }}
-    cd {{.Name|snakeify}}; python -m cogment.generate --spec cogment.yaml; cd ../
+    cd {{.Name|snakeify}}; python -m cogment.generate; cd ../
     {{- end }}
   
   build: cogment run copy && docker-compose build orchestrator metrics dashboard client environment{{ range .ListServiceActorServices }} {{.Name|kebabify}}{{end}}{{ if $config.WebClient }} web-client{{ end }}

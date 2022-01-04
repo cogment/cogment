@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package test;
+
+message EnvConfig {
+}
+
+message TrialConfig {
+  EnvConfig env_config = 1;
+}
+
+message Observation {}
+message HAction {}
+

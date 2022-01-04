@@ -2,3 +2,5 @@ FROM {{ .Components.Orchestrator.Package }}:v{{ .Components.Orchestrator.Version
 
 COPY cogment.yaml .
 COPY *.proto .
+
+CMD ["--params=cogment.yaml"]
