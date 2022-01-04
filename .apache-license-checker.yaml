@@ -2,6 +2,8 @@ ignore:
   - "testdata"
   - "pkged.go"
   - "**/.snapshots"
+  - "test"
+
 license:
   CopyrightYear: 2021
   Author: "AI Redefined Inc. <dev+cogment@ai-r.com>"
