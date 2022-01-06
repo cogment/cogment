@@ -1,1 +1,0 @@
-cogment[generate]==2.0.2
