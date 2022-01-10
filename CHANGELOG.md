@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.0.0 - 2022-01-10
+
 - Updated dockerfiles and yaml files to comply with 2.0
 
 ## v2.0.0-rc1 - 2021-12-16
