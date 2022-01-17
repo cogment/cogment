@@ -60,7 +60,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
-	err = grpcservers.RegisterLogExporterServer(server, backend)
+	err = grpcservers.RegisterDatalogServer(server, backend)
 	if err != nil {
 		log.Fatalf("%v", err)
 	}

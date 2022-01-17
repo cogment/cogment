@@ -16,7 +16,6 @@ package grpcservers
 
 import (
 	"context"
-	"fmt"
 	"io"
 
 	"github.com/cogment/cogment-trial-datastore/backend"
@@ -27,8 +26,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-type logExporterServer struct {
-	grpcapi.UnimplementedLogExporterServer
+type datalogServer struct {
+	grpcapi.UnimplementedDatalogSPServer
 	backend backend.Backend
 }
 
@@ -45,11 +44,11 @@ func actorIdxFromActorName(actorName string, actorIndices map[string]uint32) int
 func trialSampleFromDatalogSample(trialID string, actorIndices map[string]uint32, datalogSample *grpcapi.DatalogSample) (*grpcapi.StoredTrialSample, error) {
 	// Base stuffs
 	sample := grpcapi.StoredTrialSample{
-		UserId:       datalogSample.UserId,
+		UserId:       "",
 		TrialId:      trialID,
-		TickId:       datalogSample.TrialData.TickId,
-		Timestamp:    datalogSample.TrialData.Timestamp,
-		State:        datalogSample.TrialData.State,
+		TickId:       datalogSample.Info.TickId,
+		Timestamp:    datalogSample.Info.Timestamp,
+		State:        datalogSample.Info.State,
 		ActorSamples: make([]*grpcapi.StoredTrialActorSample, len(actorIndices)),
 		Payloads:     make([][]byte, 0),
 	}
@@ -63,10 +62,7 @@ func trialSampleFromDatalogSample(trialID string, actorIndices map[string]uint32
 	if datalogSample.Observations != nil {
 		payloadIdxFromObsIdx := make([]uint32, len(datalogSample.Observations.Observations))
 		for obsIdx, obsData := range datalogSample.Observations.Observations {
-			if !obsData.Snapshot {
-				return nil, fmt.Errorf("No support for delta observations")
-			}
-			payload := obsData.Content
+			payload := obsData
 			payloadIdxFromObsIdx[obsIdx] = uint32(len(sample.Payloads))
 			sample.Payloads = append(sample.Payloads, payload)
 		}
@@ -146,15 +142,15 @@ func trialSampleFromDatalogSample(trialID string, actorIndices map[string]uint32
 	return &sample, nil
 }
 
-func (s *logExporterServer) OnLogSample(stream grpcapi.LogExporter_OnLogSampleServer) error {
+func (s *datalogServer) RunTrialDatalog(stream grpcapi.DatalogSP_RunTrialDatalogServer) error {
 	ctx := stream.Context()
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
-		return status.Errorf(codes.DataLoss, "LogExporterServer.OnLogSample: failed to get metadata")
+		return status.Errorf(codes.DataLoss, "DatalogServer.RunTrialDatalog: failed to get metadata")
 	}
 	trialIDs := md.Get("trial-id")
 	if len(trialIDs) == 0 {
-		return status.Errorf(codes.InvalidArgument, "LogExporterServer.OnLogSample: missing required header \"trial-id\"")
+		return status.Errorf(codes.InvalidArgument, "DatalogServer.RunTrialDatalog: missing required header \"trial-id\"")
 	}
 	trialID := trialIDs[0]
 	actorIndices := make(map[string]uint32)
@@ -165,15 +161,15 @@ func (s *logExporterServer) OnLogSample(stream grpcapi.LogExporter_OnLogSampleSe
 	}
 	trialParams := req.GetTrialParams()
 	if trialParams == nil {
-		return status.Errorf(codes.InvalidArgument, "LogExporterServer.OnLogSample: initial message is not of type \"cogment.TrialParams\"")
+		return status.Errorf(codes.InvalidArgument, "DatalogServer.RunTrialDatalog: initial message is not of type \"cogment.TrialParams\"")
 	}
 	err = s.backend.CreateOrUpdateTrials(ctx, []*backend.TrialParams{{TrialID: trialID, UserID: "log exporter server", Params: trialParams}})
 	if err != nil {
-		return status.Errorf(codes.Internal, "LogExporterServer.OnLogSample: internal error %q", err)
+		return status.Errorf(codes.Internal, "DatalogServer.RunTrialDatalog: internal error %q", err)
 	}
 
 	// Acknowledge the handling of the first "params" message
-	err = stream.Send(&grpcapi.LogExporterSampleReply{})
+	err = stream.Send(&grpcapi.RunTrialDatalogOutput{})
 	if err != nil {
 		return err
 	}
@@ -192,35 +188,35 @@ func (s *logExporterServer) OnLogSample(stream grpcapi.LogExporter_OnLogSampleSe
 		}
 		sample := req.GetSample()
 		if sample == nil {
-			return status.Errorf(codes.InvalidArgument, "LogExporterServer.OnLogSample: body message is not of type \"cogment.DatalogSample\"")
+			return status.Errorf(codes.InvalidArgument, "DatalogServer.RunTrialDatalog: body message is not of type \"cogment.DatalogSample\"")
 		}
 		trialSample, err := trialSampleFromDatalogSample(trialID, actorIndices, sample)
 		if err != nil {
-			return status.Errorf(codes.Internal, "LogExporterServer.OnLogSample: internal error %q", err)
+			return status.Errorf(codes.Internal, "DatalogServer.RunTrialDatalog: internal error %q", err)
 		}
 		err = s.backend.AddSamples(ctx, []*grpcapi.StoredTrialSample{trialSample})
 		if err != nil {
-			return status.Errorf(codes.Internal, "LogExporterServer.OnLogSample: internal error %q", err)
+			return status.Errorf(codes.Internal, "DatalogServer.RunTrialDatalog: internal error %q", err)
 		}
 
 		// Acknowledge the handling of the following "sample" message
-		err = stream.Send(&grpcapi.LogExporterSampleReply{})
+		err = stream.Send(&grpcapi.RunTrialDatalogOutput{})
 		if err != nil {
 			return err
 		}
 	}
 }
 
-func (s *logExporterServer) Version(context.Context, *grpcapi.VersionRequest) (*grpcapi.VersionInfo, error) {
-	return nil, status.Errorf(codes.Unimplemented, "LogExporterServer.Version not implemented")
+func (s *datalogServer) Version(context.Context, *grpcapi.VersionRequest) (*grpcapi.VersionInfo, error) {
+	return nil, status.Errorf(codes.Unimplemented, "DatalogServer.Version not implemented")
 }
 
-// RegisterLogExporterServer registers a LogExporterServer to a gRPC server.
-func RegisterLogExporterServer(grpcServer grpc.ServiceRegistrar, backend backend.Backend) error {
-	server := &logExporterServer{
+// RegisterDatalogServer registers a DatalogServer to a gRPC server.
+func RegisterDatalogServer(grpcServer grpc.ServiceRegistrar, backend backend.Backend) error {
+	server := &datalogServer{
 		backend: backend,
 	}
 
-	grpcapi.RegisterLogExporterServer(grpcServer, server)
+	grpcapi.RegisterDatalogSPServer(grpcServer, server)
 	return nil
 }

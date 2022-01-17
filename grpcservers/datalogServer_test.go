@@ -29,23 +29,23 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 )
 
-type logExporterServerTestFixture struct {
+type datalogServerTestFixture struct {
 	backend    backend.Backend
 	ctx        context.Context
-	client     grpcapi.LogExporterClient
+	client     grpcapi.DatalogSPClient
 	connection *grpc.ClientConn
 }
 
-func createLogExporterServerTestFixture() (logExporterServerTestFixture, error) {
+func createDatalogServerTestFixture() (datalogServerTestFixture, error) {
 	listener := bufconn.Listen(1024 * 1024)
 	server := CreateGrpcServer(false)
 	backend, err := backend.CreateMemoryBackend(backend.DefaultMaxSampleSize)
 	if err != nil {
-		return logExporterServerTestFixture{}, err
+		return datalogServerTestFixture{}, err
 	}
-	err = RegisterLogExporterServer(server, backend)
+	err = RegisterDatalogServer(server, backend)
 	if err != nil {
-		return logExporterServerTestFixture{}, err
+		return datalogServerTestFixture{}, err
 	}
 	go func() {
 		if err := server.Serve(listener); err != nil {
@@ -61,31 +61,31 @@ func createLogExporterServerTestFixture() (logExporterServerTestFixture, error) 
 
 	connection, err := grpc.DialContext(ctx, "bufnet", grpc.WithContextDialer(bufDialer), grpc.WithInsecure())
 	if err != nil {
-		return logExporterServerTestFixture{}, err
+		return datalogServerTestFixture{}, err
 	}
 
-	return logExporterServerTestFixture{
+	return datalogServerTestFixture{
 		backend:    backend,
 		ctx:        ctx,
-		client:     grpcapi.NewLogExporterClient(connection),
+		client:     grpcapi.NewDatalogSPClient(connection),
 		connection: connection,
 	}, nil
 }
 
-func (fxt *logExporterServerTestFixture) destroy() {
+func (fxt *datalogServerTestFixture) destroy() {
 	fxt.connection.Close()
 	fxt.backend.Destroy()
 }
 
-func TestOnLogSampleSimple(t *testing.T) {
-	fxt, err := createLogExporterServerTestFixture()
+func TestRunTrialDatalogSimple(t *testing.T) {
+	fxt, err := createDatalogServerTestFixture()
 	assert.NoError(t, err)
 	defer fxt.destroy()
 
 	trialID := "mytrial"
 
 	ctx := metadata.AppendToOutgoingContext(fxt.ctx, "trial-id", trialID)
-	stream, err := fxt.client.OnLogSample(ctx)
+	stream, err := fxt.client.RunTrialDatalog(ctx)
 	assert.NoError(t, err)
 	ack := make(chan int)
 	go func() {
@@ -104,8 +104,8 @@ func TestOnLogSampleSimple(t *testing.T) {
 	}()
 	{
 		// Send the trial params
-		err = stream.Send(&grpcapi.LogExporterSampleRequest{
-			Msg: &grpcapi.LogExporterSampleRequest_TrialParams{
+		err = stream.Send(&grpcapi.RunTrialDatalogInput{
+			Msg: &grpcapi.RunTrialDatalogInput_TrialParams{
 				TrialParams: &grpcapi.TrialParams{
 					Actors: []*grpcapi.ActorParams{{
 						Name: "myactor",
@@ -127,11 +127,10 @@ func TestOnLogSampleSimple(t *testing.T) {
 	}
 	{
 		// Send a sample with only a reward
-		err = stream.Send(&grpcapi.LogExporterSampleRequest{
-			Msg: &grpcapi.LogExporterSampleRequest_Sample{
+		err = stream.Send(&grpcapi.RunTrialDatalogInput{
+			Msg: &grpcapi.RunTrialDatalogInput_Sample{
 				Sample: &grpcapi.DatalogSample{
-					UserId: "foo",
-					TrialData: &grpcapi.TrialData{
+					Info: &grpcapi.SampleInfo{
 						TickId: 0,
 					},
 					Rewards: []*grpcapi.Reward{{
@@ -161,20 +160,16 @@ func TestOnLogSampleSimple(t *testing.T) {
 	}
 	{
 		// Send a sample with an observation and an action
-		err = stream.Send(&grpcapi.LogExporterSampleRequest{
-			Msg: &grpcapi.LogExporterSampleRequest_Sample{
+		err = stream.Send(&grpcapi.RunTrialDatalogInput{
+			Msg: &grpcapi.RunTrialDatalogInput_Sample{
 				Sample: &grpcapi.DatalogSample{
-					UserId: "foo",
-					TrialData: &grpcapi.TrialData{
+					Info: &grpcapi.SampleInfo{
 						TickId: 1,
 					},
 					Observations: &grpcapi.ObservationSet{
-						TickId:    1,
-						ActorsMap: []int32{0},
-						Observations: []*grpcapi.ObservationData{{
-							Content:  []byte("an_observation"),
-							Snapshot: true,
-						}},
+						TickId:       1,
+						ActorsMap:    []int32{0},
+						Observations: [][]byte{[]byte("an_observation")},
 					},
 					Actions: []*grpcapi.Action{{
 						TickId:  1,
