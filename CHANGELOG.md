@@ -7,14 +7,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
-- Updated to Cogment API 2.0
-
 ### Added
 
-- Add the ability to retrieve any n-th to last version to `cogment.ModelRegistrySP/RetrieveVersionInfos`, `cogment.ModelRegistrySP/RetrieveVersionData`.
+- Add the ability to retrieve any n-th to last version to `cogmentAPI.ModelRegistrySP/RetrieveVersionInfos`, `cogmentAPI.ModelRegistrySP/RetrieveVersionData`.
 
 ### Changed
 
+- **Breaking Change** Update Cogment API to 2.0
 - Internal `backend.Backend` now uses `uint` for version numbers and uses 0 to request the creation of a new version.
 
 ## v0.3.0 - 2021-12-14
