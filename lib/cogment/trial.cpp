@@ -847,8 +847,15 @@ ClientActor* Trial::get_join_candidate(const std::string& actor_name, const std:
   ClientActor* candidate = nullptr;
 
   if (!actor_name.empty()) {
-    auto actor_index = m_actor_indexes.at(actor_name);
-    auto& actor = m_actors.at(actor_index);
+    auto actor_index_itor = m_actor_indexes.find(actor_name);
+    if (actor_index_itor == m_actor_indexes.end()) {
+      throw MakeException("Actor name unknown: [{}]", actor_name);
+    }
+
+    if (actor_index_itor->second >= m_actors.size()) {
+      throw MakeException("Internal error: Bad actor index [{}] vs [{}]", actor_index_itor->second, m_actors.size());
+    }
+    auto& actor = m_actors[actor_index_itor->second];
 
     if (!actor_class.empty() && actor->actor_class() != actor_class) {
       throw MakeException("Actor does not match requested class: [{}] vs [{}]", actor_class, actor->actor_class());
