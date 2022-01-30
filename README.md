@@ -31,29 +31,75 @@ The following environment variables can be used to configure the server:
 
 The Model Registry exposes a gRPC defined in the [Model Registry API](https://github.com/cogment/cogment-api/blob/main/model_registry.proto)
 
-### Create or update a model - `cogment.ModelRegistrySP/CreateOrUpdateModel( .cogment.CreateOrUpdateModelRequest ) returns ( .cogment.CreateOrUpdateModelReply );`
+### Create or update a model - `cogmentAPI.ModelRegistrySP/CreateOrUpdateModel( .cogmentAPI.CreateOrUpdateModelRequest ) returns ( .cogmentAPI.CreateOrUpdateModelReply );`
 
 _This example requires `COGMENT_MODEL_REGISTRY_GRPC_REFLECTION` to be enabled and requires [grpcurl](https://github.com/fullstorydev/grpcurl)_
 
 ```console
-$ echo "{\"model_info\":{\"model_id\":\"my_model\",\"user_data\":{\"type\":\"my_model_type\"}}}" | grpcurl -plaintext -d @ localhost:9000 cogment.ModelRegistrySP/CreateOrUpdateModel
+$ echo "{\"model_info\":{\"model_id\":\"my_model\",\"user_data\":{\"type\":\"my_model_type\"}}}" | grpcurl -plaintext -d @ localhost:9000 cogmentAPI.ModelRegistrySP/CreateOrUpdateModel
 {
 
 }
 ```
 
-### Delete a model - `cogment.ModelRegistrySP/DeleteModel( .cogment.DeleteModelRequest ) returns ( .cogment.DeleteModelReply );`
+### Delete a model - `cogmentAPI.ModelRegistrySP/DeleteModel( .cogmentAPI.DeleteModelRequest ) returns ( .cogmentAPI.DeleteModelReply );`
 
 _This example requires `COGMENT_MODEL_REGISTRY_GRPC_REFLECTION` to be enabled and requires [grpcurl](https://github.com/fullstorydev/grpcurl)_
 
 ```console
-$ echo "{\"model_id\":\"my_model\"}" | grpcurl -plaintext -d @ localhost:9000 cogment.ModelRegistrySP/DeleteModel
+$ echo "{\"model_id\":\"my_model\"}" | grpcurl -plaintext -d @ localhost:9000 cogmentAPI.ModelRegistrySP/DeleteModel
 {
 
 }
 ```
 
-### Create a model version - `cogment.ModelRegistrySP/CreateVersion( stream .cogment.CreateVersionRequestChunk ) returns ( .cogment.CreateVersionReply );`
+### Retrieve models - `cogmentAPI.ModelRegistrySP/RetrieveModels( .cogmentAPI.RetrieveModelsRequest ) returns ( .cogmentAPI.RetrieveModelsReply );`
+
+_These examples requires `COGMENT_MODEL_REGISTRY_GRPC_REFLECTION` to be enabled and requires [grpcurl](https://github.com/fullstorydev/grpcurl)_
+
+#### List the models
+
+```console
+$ echo "{}" | grpcurl -plaintext -d @ localhost:9000 cogmentAPI.ModelRegistrySP/RetrieveModels
+{
+  "modelInfos": [
+    {
+      "modelId": "my_model",
+      "userData": {
+        "type": "my_model_type"
+      }
+    },
+    {
+      "modelId": "my_other_model",
+      "userData": {
+        "type": "my_model_type"
+      }
+    }
+  ],
+  "nextModelHandle": "2"
+}
+```
+
+#### Retrieve specific model(s)
+
+```console
+$ echo "{\"model_ids\":[\"my_other_model\"]}" | grpcurl -plaintext -d @ localhost:9000 cogmentAPI.ModelRegistrySP/RetrieveModels
+{
+  "modelInfos": [
+    {
+      "modelId": "my_other_model",
+      "userData": {
+        "type": "my_model_type"
+      }
+    }
+  ],
+  "nextModelHandle": "1"
+}
+```
+
+### Create a model version - `cogmentAPI.ModelRegistrySP/CreateVersion( stream .cogmentAPI.CreateVersionRequestChunk ) returns ( .cogmentAPI.CreateVersionReply );`
+
+_This example requires `COGMENT_MODEL_REGISTRY_GRPC_REFLECTION` to be enabled and requires [grpcurl](https://github.com/fullstorydev/grpcurl)_
 
 ```console
 $ echo "{\"header\":{\"version_info\":{
@@ -66,7 +112,7 @@ $ echo "{\"header\":{\"version_info\":{
   }}\
   {\"body\":{\
     \"data_chunk\":\"$(printf chunk_2 | base64)\"\
-  }}" | grpcurl -plaintext -d @ localhost:9000 cogment.ModelRegistrySP/CreateVersion
+  }}" | grpcurl -plaintext -d @ localhost:9000 cogmentAPI.ModelRegistrySP/CreateVersion
 {
   "versionInfo": {
     "modelId": "my_model",
@@ -79,12 +125,14 @@ $ echo "{\"header\":{\"version_info\":{
 }
 ```
 
-### Retrieve model versions infos - `cogment.ModelRegistrySP/RetrieveVersionInfos ( .cogment.RetrieveVersionInfosRequest ) returns ( .cogment.RetrieveVersionInfosReply );`
+### Retrieve model versions infos - `cogmentAPI.ModelRegistrySP/RetrieveVersionInfos ( .cogmentAPI.RetrieveVersionInfosRequest ) returns ( .cogmentAPI.RetrieveVersionInfosReply );`
+
+_These examples require `COGMENT_MODEL_REGISTRY_GRPC_REFLECTION` to be enabled and requires [grpcurl](https://github.com/fullstorydev/grpcurl)_
 
 #### List the versions of a model
 
 ```console
-$ echo "{\"model_id\":\"my_model\"}" | grpcurl -plaintext -d @ localhost:9000 cogment.ModelRegistrySP/RetrieveVersionInfos
+$ echo "{\"model_id\":\"my_model\"}" | grpcurl -plaintext -d @ localhost:9000 cogmentAPI.ModelRegistrySP/RetrieveVersionInfos
 {
   "versionInfos": [
     {
@@ -111,7 +159,7 @@ $ echo "{\"model_id\":\"my_model\"}" | grpcurl -plaintext -d @ localhost:9000 co
 #### Retrieve specific versions of a model
 
 ```console
-$ echo "{\"model_id\":\"my_model\", \"version_numbers\":[1]}" | grpcurl -plaintext -d @ localhost:9000 cogment.ModelRegistrySP/RetrieveVersionInfos
+$ echo "{\"model_id\":\"my_model\", \"version_numbers\":[1]}" | grpcurl -plaintext -d @ localhost:9000 cogmentAPI.ModelRegistrySP/RetrieveVersionInfos
 {
   "versionInfos": [
     {
@@ -130,7 +178,7 @@ $ echo "{\"model_id\":\"my_model\", \"version_numbers\":[1]}" | grpcurl -plainte
 #### Retrieve the n-th to last version of a model
 
 ```console
-$ echo "{\"model_id\":\"my_model\", \"version_numbers\":[-2]}" | grpcurl -plaintext -d @ localhost:9000 cogment.ModelRegistrySP/RetrieveVersionInfos
+$ echo "{\"model_id\":\"my_model\", \"version_numbers\":[-2]}" | grpcurl -plaintext -d @ localhost:9000 cogmentAPI.ModelRegistrySP/RetrieveVersionInfos
 {
   "versionInfos": [
     {
@@ -146,7 +194,9 @@ $ echo "{\"model_id\":\"my_model\", \"version_numbers\":[-2]}" | grpcurl -plaint
 }
 ```
 
-### Retrieve given version data - `cogment.ModelRegistrySP/RetrieveVersionData ( .cogment.RetrieveVersionDataRequest ) returns ( stream .cogment.RetrieveVersionDataReplyChunk );`
+### Retrieve given version data - `cogmentAPI.ModelRegistrySP/RetrieveVersionData ( .cogmentAPI.RetrieveVersionDataRequest ) returns ( stream .cogmentAPI.RetrieveVersionDataReplyChunk );`
+
+_This example requires `COGMENT_MODEL_REGISTRY_GRPC_REFLECTION` to be enabled and requires [grpcurl](https://github.com/fullstorydev/grpcurl)_
 
 ```console
 $ echo "{\"model_id\":\"my_model\", \"version_number\":1}" | grpcurl -plaintext -d @ localhost:9000 cogment.ModelRegistrySP/RetrieveVersionData

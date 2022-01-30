@@ -61,7 +61,7 @@ func (s *ModelRegistryServer) SetBackend(b backend.Backend) {
 func (s *ModelRegistryServer) CreateOrUpdateModel(ctx context.Context, req *grpcapi.CreateOrUpdateModelRequest) (*grpcapi.CreateOrUpdateModelReply, error) {
 	log.Printf("CreateOrUpdateModel(req={ModelId: %q})\n", req.ModelInfo.ModelId)
 
-	modelArgs := backend.ModelArgs{
+	modelInfo := backend.ModelInfo{
 		ModelID:  req.ModelInfo.ModelId,
 		UserData: req.ModelInfo.UserData,
 	}
@@ -71,9 +71,9 @@ func (s *ModelRegistryServer) CreateOrUpdateModel(ctx context.Context, req *grpc
 		return nil, err
 	}
 
-	_, err = b.CreateOrUpdateModel(modelArgs)
+	_, err = b.CreateOrUpdateModel(modelInfo)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "unexpected error while creating model %q: %s", modelArgs.ModelID, err)
+		return nil, status.Errorf(codes.Internal, "unexpected error while creating model %q: %s", modelInfo.ModelID, err)
 	}
 
 	return &grpcapi.CreateOrUpdateModelReply{}, nil
@@ -99,7 +99,61 @@ func (s *ModelRegistryServer) DeleteModel(ctx context.Context, req *grpcapi.Dele
 }
 
 func (s *ModelRegistryServer) RetrieveModels(ctx context.Context, req *grpcapi.RetrieveModelsRequest) (*grpcapi.RetrieveModelsReply, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RetrieveModels not implemented")
+	log.Printf("RetrieveModels(req={ModelIds: %#v, ModelsCount: %d, ModelHandle: %q})\n", req.ModelIds, req.ModelsCount, req.ModelHandle)
+
+	offset := 0
+	if req.ModelHandle != "" {
+		var err error
+		offset64, err := strconv.ParseInt(req.ModelHandle, 10, 0)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "Invalid value for `model_handle` (%q) only empty or values provided by a previous call should be used", req.ModelHandle)
+		}
+		offset = int(offset64)
+	}
+
+	b, err := s.backendPromise.Await(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	pbModelInfos := []*grpcapi.ModelInfo{}
+
+	if len(req.ModelIds) == 0 {
+		// Retrieve all models
+		modelInfos, err := b.ListModels(offset, int(req.ModelsCount))
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "unexpected error while retrieving models: %s", err)
+		}
+
+		for _, modelInfo := range modelInfos {
+			pbModelInfo := grpcapi.ModelInfo{ModelId: modelInfo.ModelID, UserData: modelInfo.UserData}
+			pbModelInfos = append(pbModelInfos, &pbModelInfo)
+		}
+	} else {
+		modelIdsSlice := req.ModelIds[offset:]
+		if req.ModelsCount > 0 {
+			modelIdsSlice = modelIdsSlice[:req.ModelsCount]
+		}
+		for _, modelId := range modelIdsSlice {
+			modelInfo, err := b.RetrieveModelInfo(modelId)
+			if err != nil {
+				if _, ok := err.(*backend.UnknownModelError); ok {
+					return nil, status.Errorf(codes.NotFound, "%s", err)
+				}
+				return nil, status.Errorf(codes.Internal, `unexpected error while retrieving models: %s`, err)
+			}
+
+			pbModelInfo := grpcapi.ModelInfo{ModelId: modelInfo.ModelID, UserData: modelInfo.UserData}
+			pbModelInfos = append(pbModelInfos, &pbModelInfo)
+		}
+	}
+
+	nextOffset := offset + len(pbModelInfos)
+
+	return &grpcapi.RetrieveModelsReply{
+		ModelInfos:      pbModelInfos,
+		NextModelHandle: strconv.FormatInt(int64(nextOffset), 10),
+	}, nil
 }
 
 func (s *ModelRegistryServer) CreateVersion(inStream grpcapi.ModelRegistrySP_CreateVersionServer) error {

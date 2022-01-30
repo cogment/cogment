@@ -117,6 +117,22 @@ func TestCreateOrUpdateModel(t *testing.T) {
 		assert.NoError(t, err)
 	}
 	{
+		rep, err := ctx.client.RetrieveModels(ctx.grpcCtx, &grpcapi.RetrieveModelsRequest{})
+		assert.NoError(t, err)
+		assert.Len(t, rep.ModelInfos, 2)
+		assert.Equal(t, "2", rep.NextModelHandle)
+
+		assert.Equal(t, rep.ModelInfos[0].ModelId, "bar")
+		assert.Equal(t, rep.ModelInfos[0].UserData["model_test1"], "model_test1")
+		assert.Equal(t, rep.ModelInfos[0].UserData["model_test2"], "model_test2")
+		assert.Equal(t, rep.ModelInfos[0].UserData["model_test3"], "model_test3")
+
+		assert.Equal(t, rep.ModelInfos[1].ModelId, "foo")
+		assert.Equal(t, rep.ModelInfos[1].UserData["model_test1"], "model_test1")
+		assert.Equal(t, rep.ModelInfos[1].UserData["model_test2"], "model_test2")
+		assert.Equal(t, rep.ModelInfos[1].UserData["model_test3"], "model_test3")
+	}
+	{
 		_, err := ctx.client.DeleteModel(ctx.grpcCtx, &grpcapi.DeleteModelRequest{ModelId: "foo"})
 		assert.NoError(t, err)
 	}

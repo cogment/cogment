@@ -77,17 +77,16 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				b := createBackend()
 				defer destroyBackend(b)
 
-				modelInfo, err := b.CreateOrUpdateModel(backend.ModelArgs{
+				modelInfo, err := b.CreateOrUpdateModel(backend.ModelInfo{
 					ModelID:  "foo",
 					UserData: modelUserData,
 				})
 				assert.NoError(t, err)
 				assert.Equal(t, "foo", modelInfo.ModelID)
-				assert.Equal(t, 0, int(modelInfo.LatestVersionNumber))
 				assert.Equal(t, modelUserData, modelInfo.UserData)
 
 				// Create a another one should succeed
-				_, err = b.CreateOrUpdateModel(backend.ModelArgs{
+				_, err = b.CreateOrUpdateModel(backend.ModelInfo{
 					ModelID:  "bar",
 					UserData: modelUserData,
 				})
@@ -100,19 +99,19 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				b := createBackend()
 				defer destroyBackend(b)
 
-				_, err := b.CreateOrUpdateModel(backend.ModelArgs{
+				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
 					ModelID:  "foo",
 					UserData: modelUserData,
 				})
 				assert.NoError(t, err)
 
-				_, err = b.CreateOrUpdateModel(backend.ModelArgs{
+				_, err = b.CreateOrUpdateModel(backend.ModelInfo{
 					ModelID:  "bar",
 					UserData: modelUserData,
 				})
 				assert.NoError(t, err)
 
-				_, err = b.CreateOrUpdateModel(backend.ModelArgs{
+				_, err = b.CreateOrUpdateModel(backend.ModelInfo{
 					ModelID:  "baz",
 					UserData: modelUserData,
 				})
@@ -134,7 +133,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				defer destroyBackend(b)
 
 				{
-					_, err := b.CreateOrUpdateModel(backend.ModelArgs{
+					_, err := b.CreateOrUpdateModel(backend.ModelInfo{
 						ModelID:  "foo",
 						UserData: modelUserData,
 					})
@@ -169,7 +168,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 					assert.False(t, found)
 				}
 				{
-					_, err := b.CreateOrUpdateModel(backend.ModelArgs{
+					_, err := b.CreateOrUpdateModel(backend.ModelInfo{
 						ModelID:  "foo",
 						UserData: modelUserData,
 					})
@@ -187,7 +186,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				assert.NoError(t, err)
 				assert.Len(t, models, 0)
 
-				_, err = b.CreateOrUpdateModel(backend.ModelArgs{
+				_, err = b.CreateOrUpdateModel(backend.ModelInfo{
 					ModelID:  "foo",
 					UserData: modelUserData,
 				})
@@ -203,7 +202,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				})
 				assert.NoError(t, err)
 
-				_, err = b.CreateOrUpdateModel(backend.ModelArgs{
+				_, err = b.CreateOrUpdateModel(backend.ModelInfo{
 					ModelID:  "bar",
 					UserData: modelUserData,
 				})
@@ -220,7 +219,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 					assert.NoError(t, err)
 				}
 
-				_, err = b.CreateOrUpdateModel(backend.ModelArgs{
+				_, err = b.CreateOrUpdateModel(backend.ModelInfo{
 					ModelID:  "baz",
 					UserData: modelUserData,
 				})
@@ -230,9 +229,12 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				assert.NoError(t, err)
 				assert.Len(t, models, 3)
 
-				assert.Equal(t, "bar", models[0])
-				assert.Equal(t, "baz", models[1])
-				assert.Equal(t, "foo", models[2])
+				assert.Equal(t, "bar", models[0].ModelID)
+				assert.Equal(t, modelUserData, models[0].UserData)
+				assert.Equal(t, "baz", models[1].ModelID)
+				assert.Equal(t, modelUserData, models[1].UserData)
+				assert.Equal(t, "foo", models[2].ModelID)
+				assert.Equal(t, modelUserData, models[2].UserData)
 
 				err = b.DeleteModel("bar")
 				assert.NoError(t, err)
@@ -241,8 +243,8 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				assert.NoError(t, err)
 				assert.Len(t, models, 2)
 
-				assert.Equal(t, "baz", models[0])
-				assert.Equal(t, "foo", models[1])
+				assert.Equal(t, "baz", models[0].ModelID)
+				assert.Equal(t, "foo", models[1].ModelID)
 			},
 		},
 		{
@@ -251,7 +253,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				b := createBackend()
 				defer destroyBackend(b)
 
-				_, err := b.CreateOrUpdateModel(backend.ModelArgs{
+				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
 					ModelID:  "foo",
 					UserData: modelUserData,
 				})
@@ -318,9 +320,9 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				assert.Equal(t, backend.ComputeSHA256Hash(Data1), modelVersion10.DataHash)
 				assert.Equal(t, len(Data1), modelVersion10.DataSize)
 
-				modelInfo, err := b.RetrieveModelInfo("foo")
+				modelLatestVersionNumber, err := b.RetrieveModelLatestVersionNumber("foo")
 				assert.NoError(t, err)
-				assert.Equal(t, 23, int(modelInfo.LatestVersionNumber))
+				assert.Equal(t, 23, int(modelLatestVersionNumber))
 			},
 		},
 		{
@@ -329,7 +331,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				b := createBackend()
 				defer destroyBackend(b)
 
-				_, err := b.CreateOrUpdateModel(backend.ModelArgs{
+				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
 					ModelID:  "foo",
 					UserData: modelUserData,
 				})
@@ -418,7 +420,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				b := createBackend()
 				defer destroyBackend(b)
 
-				_, err := b.CreateOrUpdateModel(backend.ModelArgs{
+				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
 					ModelID:  "foo",
 					UserData: modelUserData,
 				})
@@ -489,7 +491,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				b := createBackend()
 				defer destroyBackend(b)
 
-				_, err := b.CreateOrUpdateModel(backend.ModelArgs{
+				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
 					ModelID:  "foo",
 					UserData: modelUserData,
 				})
@@ -553,7 +555,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				b := createBackend()
 				defer destroyBackend(b)
 
-				_, err := b.CreateOrUpdateModel(backend.ModelArgs{
+				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
 					ModelID:  "foo",
 					UserData: modelUserData,
 				})
@@ -657,7 +659,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				b := createBackend()
 				defer destroyBackend(b)
 
-				_, err := b.CreateOrUpdateModel(backend.ModelArgs{
+				_, err := b.CreateOrUpdateModel(backend.ModelInfo{
 					ModelID:  "foo",
 					UserData: modelUserData,
 				})
@@ -709,10 +711,10 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				b := createBackend()
 				defer b.Destroy()
 
-				_, err := b.CreateOrUpdateModel(backend.ModelArgs{ModelID: "foo"})
+				_, err := b.CreateOrUpdateModel(backend.ModelInfo{ModelID: "foo"})
 				assert.NoError(t, err)
 
-				_, err = b.CreateOrUpdateModel(backend.ModelArgs{ModelID: "bar"})
+				_, err = b.CreateOrUpdateModel(backend.ModelInfo{ModelID: "bar"})
 				assert.NoError(t, err)
 
 				wg := new(sync.WaitGroup)
@@ -823,7 +825,7 @@ func RunBenchmark(b *testing.B, createBackend func() backend.Backend, destroyBac
 					modelID := modelID
 					go func() {
 						defer wg.Done()
-						_, err := bck.CreateOrUpdateModel(backend.ModelArgs{
+						_, err := bck.CreateOrUpdateModel(backend.ModelInfo{
 							ModelID:  modelID,
 							UserData: modelUserData,
 						})

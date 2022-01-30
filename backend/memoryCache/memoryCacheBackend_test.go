@@ -63,7 +63,7 @@ func TestSmallMaxSize(t *testing.T) {
 	assert.NoError(t, err)
 	defer b.Destroy()
 
-	_, err = b.CreateOrUpdateModel(backend.ModelArgs{ModelID: "foo"})
+	_, err = b.CreateOrUpdateModel(backend.ModelInfo{ModelID: "foo"})
 	assert.NoError(t, err)
 
 	assert.Len(t, test.Data1, 750)

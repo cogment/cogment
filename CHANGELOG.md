@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Added
+
+- Implement `cogmentAPI.ModelRegistrySP/RetrieveModels`, the method able to retrieve models and their data.
+
+### Fixed
+
+- Examples in the readme now uses the correct protobuf namespace.
+
 ## v0.4.0 - 2022-01-19
 
 ### Added

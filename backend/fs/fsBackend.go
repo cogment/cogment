@@ -75,9 +75,8 @@ func loadModelInfoFile(modelInfoFilename string) (backend.ModelInfo, error) {
 	}
 
 	return backend.ModelInfo{
-		ModelID:             modelInfo.ModelID,
-		LatestVersionNumber: 0,
-		UserData:            modelInfo.UserData,
+		ModelID:  modelInfo.ModelID,
+		UserData: modelInfo.UserData,
 	}, nil
 }
 
@@ -204,7 +203,7 @@ func (b *fsBackend) retrieveModelNthToLastVersionInfo(modelID string, nthToLastI
 	return backend.VersionInfo{}, nil
 }
 
-func (b *fsBackend) CreateOrUpdateModel(modelArgs backend.ModelArgs) (backend.ModelInfo, error) {
+func (b *fsBackend) CreateOrUpdateModel(modelArgs backend.ModelInfo) (backend.ModelInfo, error) {
 	modelInfo := backend.ModelInfo{
 		ModelID:  modelArgs.ModelID,
 		UserData: modelArgs.UserData,
@@ -214,12 +213,6 @@ func (b *fsBackend) CreateOrUpdateModel(modelArgs backend.ModelArgs) (backend.Mo
 	if err != nil {
 		return backend.ModelInfo{}, err
 	}
-
-	latestVersionInfo, err := b.retrieveModelNthToLastVersionInfo(modelInfo.ModelID, 0)
-	if err != nil {
-		return backend.ModelInfo{}, err
-	}
-	modelInfo.LatestVersionNumber = latestVersionInfo.VersionNumber
 
 	return modelInfo, nil
 }
@@ -240,13 +233,15 @@ func (b *fsBackend) RetrieveModelInfo(modelID string) (backend.ModelInfo, error)
 		return backend.ModelInfo{}, err
 	}
 
-	latestVersionInfo, err := b.retrieveModelNthToLastVersionInfo(modelInfo.ModelID, 0)
-	if err != nil {
-		return backend.ModelInfo{}, err
-	}
-	modelInfo.LatestVersionNumber = latestVersionInfo.VersionNumber
+	return modelInfo, nil
+}
 
-	return modelInfo, err
+func (b *fsBackend) RetrieveModelLatestVersionNumber(modelID string) (uint, error) {
+	latestVersionInfo, err := b.retrieveModelNthToLastVersionInfo(modelID, 0)
+	if err != nil {
+		return 0, err
+	}
+	return latestVersionInfo.VersionNumber, nil
 }
 
 // HasModel checks if a model exists
@@ -311,17 +306,30 @@ func filteredReadDir(dirname string, offset int, limit int, filter func(fs.DirEn
 }
 
 // ListModels list models ordered by id from the given offset index, it returns at most the given limit number of models
-func (b *fsBackend) ListModels(offset int, limit int) ([]string, error) {
+func (b *fsBackend) ListModels(offset int, limit int) ([]backend.ModelInfo, error) {
 	modelEntries, err := filteredReadDir(b.rootDirname, offset, limit, func(entry fs.DirEntry) bool {
 		return entry.IsDir() && modelDirnameRegexp.MatchString(entry.Name())
 	})
 	if err != nil {
-		return []string{}, fmt.Errorf("unable to list models: %w", err)
+		return []backend.ModelInfo{}, fmt.Errorf("unable to list models: %w", err)
 	}
 
-	models := []string{}
+	models := []backend.ModelInfo{}
 	for _, entry := range modelEntries {
-		models = append(models, entry.Name())
+		modelID := entry.Name()
+		modelInfoFilename := b.buildModelInfoFilename(backend.ModelInfo{ModelID: modelID})
+
+		_, err := os.Stat(modelInfoFilename)
+		if err != nil {
+			return []backend.ModelInfo{}, fmt.Errorf("unable to read model info from %q: %w", modelInfoFilename, err)
+		}
+
+		modelInfo, err := loadModelInfoFile(modelInfoFilename)
+		if err != nil {
+			return []backend.ModelInfo{}, err
+		}
+
+		models = append(models, modelInfo)
 	}
 
 	return models, nil

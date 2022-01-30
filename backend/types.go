@@ -21,9 +21,8 @@ import (
 
 // ModelInfo describes the informations (metadata) for a particular model
 type ModelInfo struct {
-	ModelID             string
-	UserData            map[string]string
-	LatestVersionNumber uint // Latest version number, 0 means that no version exists yet.
+	ModelID  string
+	UserData map[string]string
 }
 
 // VersionInfo describes the informations (metadata) for a particular version of a model
@@ -35,12 +34,6 @@ type VersionInfo struct {
 	DataHash          string
 	DataSize          int
 	UserData          map[string]string
-}
-
-// ModelArgs represents the arguments to create or update a model
-type ModelArgs struct {
-	ModelID  string
-	UserData map[string]string
 }
 
 // VersionArgs represents the arguments to create or update a version
@@ -57,11 +50,12 @@ type VersionArgs struct {
 type Backend interface {
 	Destroy()
 
-	CreateOrUpdateModel(modelArgs ModelArgs) (ModelInfo, error)
+	CreateOrUpdateModel(modeInfo ModelInfo) (ModelInfo, error)
 	RetrieveModelInfo(modelID string) (ModelInfo, error)
+	RetrieveModelLatestVersionNumber(modelID string) (uint, error)
 	HasModel(modelID string) (bool, error)
 	DeleteModel(modelID string) error
-	ListModels(offset int, limit int) ([]string, error)
+	ListModels(offset int, limit int) ([]ModelInfo, error)
 
 	CreateOrUpdateModelVersion(modelID string, versionArgs VersionArgs) (VersionInfo, error)
 	RetrieveModelVersionInfo(modelID string, versionNumber int) (VersionInfo, error)
