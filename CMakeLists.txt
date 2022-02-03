@@ -39,7 +39,7 @@ target_link_libraries(orchestrator
     gRPC::grpc
 )
 
-set_target_properties(orchestrator PROPERTIES DEBUG_POSTFIX _dbg)
+set_target_properties(orchestrator PROPERTIES DEBUG_POSTFIX _debug)
 
 install(TARGETS orchestrator
         DESTINATION bin)
@@ -51,8 +51,8 @@ endif()
 
 file(GLOB_RECURSE ALL_SOURCE_FILES *.cpp *.h *.cxx *.hxx *.hpp *.cc *.ipp)
 
-set(CLANG_FORMAT_EXCLUDE_PATTERNS ${CLANG_FORMAT_EXCLUDE_PATTERNS} 
-  "/CMakeFiles/" 
+set(CLANG_FORMAT_EXCLUDE_PATTERNS ${CLANG_FORMAT_EXCLUDE_PATTERNS}
+  "/CMakeFiles/"
   "cmake"
   "third_party"
 )

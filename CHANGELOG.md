@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+- Orchestrator can now be launched with a grpc web proxy using the `COGMENT_WEB_PROXY_PORT` environment variable.
+  - All grpc-web traffic recevied on that port will be forwarded to the
+  orchestrator's actor service port.
+  - If the trial lifecycle service is on the same port as the actor service, both will be accessible via the proxy.
+- Setting `COGMENT_ORCHESTRATOR_VARIANT=debug` will launch the orchestrator's debug executable.
+
 ## v2.0.0 - 2021-12-15
 
 ### Changed
