@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Changed
+
+- Change the default size of the pruned versions group from 50 to 5 to avoid situations where the latest version of a model was pruned as it was inserted.
+- Improve the error message when retrieving a n-th to last version that does not exist.
+
 ## v0.5.0 - 2022-02-01
 
 ### Added

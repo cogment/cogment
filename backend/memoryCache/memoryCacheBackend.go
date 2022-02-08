@@ -34,7 +34,7 @@ type VersionCacheConfiguration struct {
 
 var DefaultVersionCacheConfiguration = VersionCacheConfiguration{
 	MaxSize:      1024 * 1024 * 1024, // 1GB
-	ToPruneCount: 50,
+	ToPruneCount: 5,
 	Expiration:   1 * time.Hour,
 }
 
@@ -335,10 +335,11 @@ func (b *memoryCacheBackend) doRetrieveModelVersionInfo(modelID string, versionN
 		}, nil
 	}
 	versionInfo, err := b.archive.RetrieveModelVersionInfo(modelID, int(versionNumber))
-	if err == nil {
-		b.updateCachedModelLatestVersionNumber(modelID, versionInfo.VersionNumber)
+	if err != nil {
+		return backend.VersionInfo{}, err
 	}
-	return versionInfo, err
+	b.updateCachedModelLatestVersionNumber(modelID, versionInfo.VersionNumber)
+	return versionInfo, nil
 }
 
 func (b *memoryCacheBackend) RetrieveModelVersionInfo(modelID string, versionNumber int) (backend.VersionInfo, error) {
@@ -350,7 +351,15 @@ func (b *memoryCacheBackend) RetrieveModelVersionInfo(modelID string, versionNum
 	if resolvedVersionNumber == 0 {
 		return backend.VersionInfo{}, &backend.UnknownModelVersionError{ModelID: modelID, VersionNumber: versionNumber}
 	}
-	return b.doRetrieveModelVersionInfo(modelID, resolvedVersionNumber)
+	versionInfo, err := b.doRetrieveModelVersionInfo(modelID, resolvedVersionNumber)
+	if err != nil {
+		if _, ok := err.(*backend.UnknownModelVersionError); ok {
+			// Sending an error with the unresolved versionNumber for it to make sense to the user
+			return backend.VersionInfo{}, &backend.UnknownModelVersionError{ModelID: modelID, VersionNumber: versionNumber}
+		}
+		return backend.VersionInfo{}, err
+	}
+	return versionInfo, nil
 }
 
 func (b *memoryCacheBackend) doDeleteModelVersion(modelID string, versionNumber uint) error {

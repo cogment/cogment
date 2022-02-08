@@ -59,7 +59,7 @@ func (s *ModelRegistryServer) SetBackend(b backend.Backend) {
 }
 
 func (s *ModelRegistryServer) CreateOrUpdateModel(ctx context.Context, req *grpcapi.CreateOrUpdateModelRequest) (*grpcapi.CreateOrUpdateModelReply, error) {
-	log.Printf("CreateOrUpdateModel(req={ModelId: %q})\n", req.ModelInfo.ModelId)
+	log.Printf("CreateOrUpdateModel(req={ModelId: %q, UserData: %#v})\n", req.ModelInfo.ModelId, req.ModelInfo.UserData)
 
 	modelInfo := backend.ModelInfo{
 		ModelID:  req.ModelInfo.ModelId,
@@ -130,12 +130,12 @@ func (s *ModelRegistryServer) RetrieveModels(ctx context.Context, req *grpcapi.R
 			pbModelInfos = append(pbModelInfos, &pbModelInfo)
 		}
 	} else {
-		modelIdsSlice := req.ModelIds[offset:]
+		modelIDsSlice := req.ModelIds[offset:]
 		if req.ModelsCount > 0 {
-			modelIdsSlice = modelIdsSlice[:req.ModelsCount]
+			modelIDsSlice = modelIDsSlice[:req.ModelsCount]
 		}
-		for _, modelId := range modelIdsSlice {
-			modelInfo, err := b.RetrieveModelInfo(modelId)
+		for _, modelID := range modelIDsSlice {
+			modelInfo, err := b.RetrieveModelInfo(modelID)
 			if err != nil {
 				if _, ok := err.(*backend.UnknownModelError); ok {
 					return nil, status.Errorf(codes.NotFound, "%s", err)

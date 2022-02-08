@@ -100,3 +100,32 @@ func TestSmallMaxSize(t *testing.T) {
 	assert.Equal(t, 2, int(versionInfos[0].VersionNumber))
 	assert.Equal(t, 3, int(versionInfos[1].VersionNumber))
 }
+
+func TestModelAddedInArchiveBackend(t *testing.T) {
+	fsBackend, err := fs.CreateBackend(t.TempDir())
+	assert.NoError(t, err)
+	defer fsBackend.Destroy()
+
+	b, err := CreateBackend(VersionCacheConfiguration{MaxSize: 2000, ToPruneCount: 1, Expiration: DefaultVersionCacheConfiguration.Expiration}, fsBackend)
+	assert.NoError(t, err)
+	defer b.Destroy()
+
+	_, err = b.CreateOrUpdateModel(backend.ModelInfo{ModelID: "foo"})
+	assert.NoError(t, err)
+
+	_, err = b.RetrieveModelVersionInfo("foo", -1)
+	concreteErr := &backend.UnknownModelVersionError{}
+	assert.ErrorAs(t, err, &concreteErr)
+	assert.Equal(t, "foo", concreteErr.ModelID)
+	assert.Equal(t, -1, concreteErr.VersionNumber)
+
+	// Create a version in the fs backend
+	data1Hash := backend.ComputeSHA256Hash(test.Data1)
+	_, err = fsBackend.CreateOrUpdateModelVersion("foo", backend.VersionArgs{Archived: true, DataHash: data1Hash, Data: test.Data1})
+	assert.NoError(t, err)
+
+	versionInfo, err := b.RetrieveModelVersionInfo("foo", -1)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, int(versionInfo.VersionNumber))
+	assert.Equal(t, data1Hash, versionInfo.DataHash)
+}

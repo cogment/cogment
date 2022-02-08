@@ -19,11 +19,13 @@ import (
 	"io"
 	"log"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/cogment/cogment-model-registry/backend"
 	"github.com/cogment/cogment-model-registry/backend/fs"
+	"github.com/cogment/cogment-model-registry/backend/memoryCache"
 	grpcapi "github.com/cogment/cogment-model-registry/grpcapi/cogment/api"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
@@ -53,7 +55,16 @@ viverra nulla ut metus varius laoreet.`)
 func createContext(t *testing.T, sentModelVersionDataChunkSize int) (testContext, error) {
 	listener := bufconn.Listen(1024 * 1024)
 	server := grpc.NewServer()
-	backend, err := fs.CreateBackend(t.TempDir())
+	archiveBackend, err := fs.CreateBackend(t.TempDir())
+	if err != nil {
+		return testContext{}, err
+	}
+	versionCacheConfiguration := memoryCache.VersionCacheConfiguration{
+		MaxSize:      len(modelData) * 20,
+		Expiration:   memoryCache.DefaultVersionCacheConfiguration.Expiration,
+		ToPruneCount: 2,
+	}
+	backend, err := memoryCache.CreateBackend(versionCacheConfiguration, archiveBackend)
 	if err != nil {
 		return testContext{}, err
 	}
@@ -329,7 +340,6 @@ func TestRetrieveVersionInfosAll(t *testing.T) {
 			assert.NoError(t, err)
 			rep, err := stream.CloseAndRecv()
 			assert.NoError(t, err)
-			//fmt.Println(rep.VersionInfo)
 			assert.Equal(t, i, int(rep.VersionInfo.VersionNumber))
 		}
 	}
@@ -378,6 +388,85 @@ func TestRetrieveVersionInfosAll(t *testing.T) {
 		assert.Equal(t, "11", rep.NextVersionHandle)
 		assert.Len(t, rep.VersionInfos, 0)
 	}
+}
+
+func TestConcurrentRetrieveVersionInfos(t *testing.T) {
+	ctx, err := createContext(t, 1024*1024)
+	assert.NoError(t, err)
+	defer ctx.destroy()
+	{
+		_, err := ctx.client.CreateOrUpdateModel(ctx.grpcCtx, &grpcapi.CreateOrUpdateModelRequest{ModelInfo: &grpcapi.ModelInfo{ModelId: "bar", UserData: make(map[string]string)}})
+		assert.NoError(t, err)
+	}
+	wg := new(sync.WaitGroup)
+	oneVersionCreated := make(chan struct{})
+	// Creating 50 versions sequentially
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 50; i++ {
+			stream, err := ctx.client.CreateVersion(ctx.grpcCtx)
+			assert.NoError(t, err)
+			// Send the header
+			err = stream.Send(&grpcapi.CreateVersionRequestChunk{
+				Msg: &grpcapi.CreateVersionRequestChunk_Header_{
+					Header: &grpcapi.CreateVersionRequestChunk_Header{
+						VersionInfo: &grpcapi.ModelVersionInfo{
+							ModelId:           "bar",
+							CreationTimestamp: nsTimestampFromTime(time.Now()),
+							Archived:          i%2 == 0,
+							DataHash:          backend.ComputeSHA256Hash(modelData),
+							DataSize:          uint64(len(modelData)),
+							UserData:          make(map[string]string),
+						},
+					},
+				},
+			})
+			assert.NoError(t, err)
+			time.Sleep(50 * time.Millisecond)
+			// Send the first chunk
+			err = stream.Send(&grpcapi.CreateVersionRequestChunk{
+				Msg: &grpcapi.CreateVersionRequestChunk_Body_{
+					Body: &grpcapi.CreateVersionRequestChunk_Body{
+						DataChunk: modelData[:50],
+					},
+				},
+			})
+			assert.NoError(t, err)
+			time.Sleep(50 * time.Millisecond)
+			// Send the second chunk
+			err = stream.Send(&grpcapi.CreateVersionRequestChunk{
+				Msg: &grpcapi.CreateVersionRequestChunk_Body_{
+					Body: &grpcapi.CreateVersionRequestChunk_Body{
+						DataChunk: modelData[50:],
+					},
+				},
+			})
+			assert.NoError(t, err)
+			time.Sleep(50 * time.Millisecond)
+			_, err = stream.CloseAndRecv()
+			assert.NoError(t, err)
+			go func() { oneVersionCreated <- struct{}{} }()
+		}
+	}()
+
+	<-oneVersionCreated
+	// 10 * 10 staggered latest version info retrieval
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		i := i // Create a new 'i' that gets captured by the goroutine's closure https://golang.org/doc/faq#closures_and_goroutines
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 10; j++ {
+				_, err := ctx.client.RetrieveVersionInfos(ctx.grpcCtx, &grpcapi.RetrieveVersionInfosRequest{ModelId: "bar", VersionNumbers: []int32{-1}})
+				assert.NoError(t, err)
+
+				time.Sleep(time.Duration(i) * 100 * time.Millisecond)
+			}
+		}()
+	}
+
+	wg.Wait()
 }
 
 func TestRetrieveVersionInfosSome(t *testing.T) {
