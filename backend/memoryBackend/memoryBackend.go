@@ -214,8 +214,8 @@ func (b *memoryBackend) CreateOrUpdateTrials(ctx context.Context, trialsParams [
 	return nil
 }
 
-func (b *memoryBackend) preprocessRetrieveTrialsArgs(filter []string, fromTrialIdx int, count int) (filter, int, int) {
-	selectedTrialIDs := createFilterFromStringArray(filter)
+func (b *memoryBackend) preprocessRetrieveTrialsArgs(filter []string, fromTrialIdx int, count int) (utils.IDFilter, int, int) {
+	selectedTrialIDs := utils.NewIDFilter(filter)
 
 	if fromTrialIdx < 0 {
 		fromTrialIdx = 0
@@ -223,7 +223,7 @@ func (b *memoryBackend) preprocessRetrieveTrialsArgs(filter []string, fromTrialI
 
 	if count <= 0 {
 		count = b.trialIDs.Len()
-		if !selectedTrialIDs.selectsAll() && count > len(selectedTrialIDs) {
+		if !selectedTrialIDs.SelectsAll() && count > len(selectedTrialIDs) {
 			count = len(selectedTrialIDs)
 		}
 	}
@@ -250,7 +250,7 @@ func (b *memoryBackend) RetrieveTrials(ctx context.Context, filter []string, fro
 		if data[0].deleted {
 			continue
 		}
-		if selectedTrialIDs.selects(trialID) {
+		if selectedTrialIDs.Selects(trialID) {
 			result.TrialInfos = append(result.TrialInfos, createTrialInfo(trialID, data[0]))
 			result.NextTrialIdx = trialIdx + 1
 		}
@@ -261,7 +261,7 @@ func (b *memoryBackend) RetrieveTrials(ctx context.Context, filter []string, fro
 
 func (b *memoryBackend) ObserveTrials(ctx context.Context, filter []string, fromTrialIdx int, count int, out chan<- backend.TrialsInfoResult) error {
 	selectedTrialIDs, fromTrialIdx, _ := b.preprocessRetrieveTrialsArgs(filter, fromTrialIdx, count)
-	if !selectedTrialIDs.selectsAll() && (count <= 0 || count > len(selectedTrialIDs)) {
+	if !selectedTrialIDs.SelectsAll() && (count <= 0 || count > len(selectedTrialIDs)) {
 		count = len(selectedTrialIDs)
 	}
 
@@ -282,7 +282,7 @@ func (b *memoryBackend) ObserveTrials(ctx context.Context, filter []string, from
 		for trialIDItem := range observer {
 			trialID := trialIDItem.(string)
 			data, _ := b.retrieveTrialDatas([]string{trialID})
-			if !data[0].deleted && selectedTrialIDs.selects(trialID) {
+			if !data[0].deleted && selectedTrialIDs.Selects(trialID) {
 				unitResult := backend.TrialsInfoResult{
 					TrialInfos:   []*backend.TrialInfo{createTrialInfo(trialID, data[0])},
 					NextTrialIdx: trialIdx + 1,
@@ -352,7 +352,7 @@ func (b *memoryBackend) AddSamples(ctx context.Context, samples []*grpcapi.Store
 		t := trialDatas[idx]
 		serializedSample, err := proto.Marshal(sample)
 		if err != nil {
-			log.Fatalf("Unexpected serialization error %v", err)
+			return backend.NewUnexpectedError("unable to serialize sample (%w)", err)
 		}
 		sampleSize := uint32(len(serializedSample))
 		atomic.AddUint32(&b.samplesSize, sampleSize)
@@ -376,28 +376,24 @@ func (b *memoryBackend) ObserveSamples(ctx context.Context, filter backend.Trial
 		return err
 	}
 
-	actorNamesFilter := createFilterFromStringArray(filter.ActorNames)
-	actorClassesFilter := createFilterFromStringArray(filter.ActorClasses)
-	actorImplementationsFilter := createFilterFromStringArray(filter.ActorImplementations)
-	fieldsFilter := createSampleFieldsFilter(filter.Fields)
-
 	g, ctx := errgroup.WithContext(ctx)
 
 	for _, td := range trialDatas {
 		td := td // Create a new 'td' that gets captured by the goroutine's closure https://golang.org/doc/faq#closures_and_goroutines
-		actorFilter := createActorFilter(actorNamesFilter, actorClassesFilter, actorImplementationsFilter, td.params)
+		appliedFilter := backend.NewAppliedTrialSampleFilter(filter, td.params)
 		observer := make(utils.ObservableListObserver)
 		g.Go(func() error {
 			defer close(observer)
-			return td.storedSamples.Observe(ctx, 0, observer)
+			err := td.storedSamples.Observe(ctx, 0, observer)
+			return err
 		})
-		if actorFilter.selectsAll() && fieldsFilter.selectsAll() {
+		if appliedFilter.SelectsAll() {
 			// No filtering done on this trial's samples
 			g.Go(func() error {
 				for serializedSample := range observer {
 					sample := &grpcapi.StoredTrialSample{}
 					if err := proto.Unmarshal(serializedSample.([]byte), sample); err != nil {
-						log.Fatalf("Unexpected deserialization error %v", err)
+						return backend.NewUnexpectedError("unable to deserialize sample (%w)", err)
 					}
 					out <- sample
 				}
@@ -409,9 +405,9 @@ func (b *memoryBackend) ObserveSamples(ctx context.Context, filter backend.Trial
 				for serializedSample := range observer {
 					sample := &grpcapi.StoredTrialSample{}
 					if err := proto.Unmarshal(serializedSample.([]byte), sample); err != nil {
-						log.Fatalf("Unexpected deserialization error %v", err)
+						return backend.NewUnexpectedError("unable to deserialize sample (%w)", err)
 					}
-					filteredSample := filterTrialSample(sample, actorFilter, fieldsFilter)
+					filteredSample := appliedFilter.Filter(sample)
 					out <- filteredSample
 				}
 				return nil

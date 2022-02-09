@@ -51,6 +51,14 @@ func generateSample(trialID string, actorCount int, end bool) *grpcapi.StoredTri
 	return sample
 }
 
+func extractTrialIDs(trialInfos []*backend.TrialInfo) []string {
+	trialIDs := []string{}
+	for _, trialInfo := range trialInfos {
+		trialIDs = append(trialIDs, trialInfo.TrialID)
+	}
+	return trialIDs
+}
+
 // RunSuite runs the full backend test suite
 func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend func(backend.Backend)) {
 	t.Run("TestCreateBackend", func(t *testing.T) {
@@ -83,17 +91,20 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 
 			assert.Len(t, r.TrialInfos, 2)
 
-			assert.Equal(t, "trial-1", r.TrialInfos[0].TrialID)
-			assert.Equal(t, grpcapi.TrialState_UNKNOWN, r.TrialInfos[0].State)
-			assert.Equal(t, 0, r.TrialInfos[0].SamplesCount)
-			assert.Equal(t, 0, r.TrialInfos[0].StoredSamplesCount)
-
-			assert.Equal(t, "trial-2", r.TrialInfos[1].TrialID)
-			assert.Equal(t, grpcapi.TrialState_UNKNOWN, r.TrialInfos[1].State)
-			assert.Equal(t, 0, r.TrialInfos[1].SamplesCount)
-			assert.Equal(t, 0, r.TrialInfos[1].StoredSamplesCount)
-
-			assert.Equal(t, 2, r.NextTrialIdx)
+			assert.ElementsMatch(t, r.TrialInfos, []*backend.TrialInfo{
+				{
+					TrialID:            "trial-1",
+					State:              grpcapi.TrialState_UNKNOWN,
+					SamplesCount:       0,
+					StoredSamplesCount: 0,
+				},
+				{
+					TrialID:            "trial-2",
+					State:              grpcapi.TrialState_UNKNOWN,
+					SamplesCount:       0,
+					StoredSamplesCount: 0,
+				},
+			})
 		}
 
 		{
@@ -116,11 +127,62 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 
 			assert.Len(t, r.TrialInfos, 3)
 
-			assert.Equal(t, "trial-1", r.TrialInfos[0].TrialID)
-			assert.Equal(t, "trial-2", r.TrialInfos[1].TrialID)
-			assert.Equal(t, "trial-3", r.TrialInfos[2].TrialID)
+			assert.ElementsMatch(t, r.TrialInfos, []*backend.TrialInfo{
+				{
+					TrialID:            "trial-1",
+					State:              grpcapi.TrialState_UNKNOWN,
+					SamplesCount:       0,
+					StoredSamplesCount: 0,
+				},
+				{
+					TrialID:            "trial-2",
+					State:              grpcapi.TrialState_UNKNOWN,
+					SamplesCount:       0,
+					StoredSamplesCount: 0,
+				},
+				{
+					TrialID:            "trial-3",
+					State:              grpcapi.TrialState_UNKNOWN,
+					SamplesCount:       0,
+					StoredSamplesCount: 0,
+				},
+			})
+		}
 
-			assert.Equal(t, 3, r.NextTrialIdx)
+		{
+			r1, err := b.RetrieveTrials(context.Background(), []string{}, 0, 2)
+			assert.NoError(t, err)
+
+			assert.Len(t, r1.TrialInfos, 2)
+
+			assert.ElementsMatch(t, r1.TrialInfos, []*backend.TrialInfo{
+				{
+					TrialID:            "trial-1",
+					State:              grpcapi.TrialState_UNKNOWN,
+					SamplesCount:       0,
+					StoredSamplesCount: 0,
+				},
+				{
+					TrialID:            "trial-2",
+					State:              grpcapi.TrialState_UNKNOWN,
+					SamplesCount:       0,
+					StoredSamplesCount: 0,
+				},
+			})
+
+			r2, err := b.RetrieveTrials(context.Background(), []string{}, r1.NextTrialIdx, 2)
+			assert.NoError(t, err)
+
+			assert.Len(t, r2.TrialInfos, 1)
+
+			assert.ElementsMatch(t, r2.TrialInfos, []*backend.TrialInfo{
+				{
+					TrialID:            "trial-3",
+					State:              grpcapi.TrialState_UNKNOWN,
+					SamplesCount:       0,
+					StoredSamplesCount: 0,
+				},
+			})
 		}
 	})
 	t.Run("TestObserveTrials", func(t *testing.T) {
@@ -160,17 +222,13 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				close(observer)
 			}()
 			results := []*backend.TrialInfo{}
-			nextTrialIdx := 0
 			for r := range observer {
 				results = append(results, r.TrialInfos...)
-				nextTrialIdx = r.NextTrialIdx
 			}
 
 			assert.Len(t, results, 1)
 
 			assert.Equal(t, "trial-2", results[0].TrialID)
-
-			assert.Equal(t, 2, nextTrialIdx)
 		}()
 
 		wg.Add(1)
@@ -184,18 +242,14 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				close(observer)
 			}()
 			results := []*backend.TrialInfo{}
-			nextTrialIdx := 0
 			for r := range observer {
 				results = append(results, r.TrialInfos...)
-				nextTrialIdx = r.NextTrialIdx
 			}
 
 			assert.Len(t, results, 2)
 
 			assert.Equal(t, "trial-1", results[0].TrialID)
 			assert.Equal(t, "trial-2", results[1].TrialID)
-
-			assert.Equal(t, 2, nextTrialIdx)
 		}()
 
 		wg.Add(1)
@@ -209,18 +263,14 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				close(observer)
 			}()
 			results := []*backend.TrialInfo{}
-			nextTrialIdx := 0
 			for r := range observer {
 				results = append(results, r.TrialInfos...)
-				nextTrialIdx = r.NextTrialIdx
 			}
 
 			assert.Len(t, results, 2)
 
 			assert.Equal(t, "trial-1", results[0].TrialID)
 			assert.Equal(t, "trial-2", results[1].TrialID)
-
-			assert.Equal(t, 2, nextTrialIdx)
 		}()
 
 		wg.Wait()
@@ -259,8 +309,6 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 			assert.Len(t, r.TrialInfos, 1)
 
 			assert.Equal(t, "B", r.TrialInfos[0].TrialID)
-
-			assert.Equal(t, 2, r.NextTrialIdx)
 		}
 
 		{
@@ -299,8 +347,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 
 			assert.Len(t, r.TrialInfos, 2)
 
-			assert.Equal(t, "A", r.TrialInfos[0].TrialID)
-			assert.Equal(t, "B", r.TrialInfos[1].TrialID)
+			assert.ElementsMatch(t, extractTrialIDs(r.TrialInfos), []string{"A", "B"})
 		}
 
 		{
@@ -358,10 +405,11 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 		assert.Equal(t, 5, r.TrialInfos[0].SamplesCount)
 		assert.Equal(t, 5, r.TrialInfos[0].StoredSamplesCount)
 
+		ctx, cancel := context.WithCancel(context.Background())
 		observer := make(backend.TrialSampleObserver)
 		go func() {
-			err := b.ObserveSamples(context.Background(), backend.TrialSampleFilter{TrialIDs: []string{"my-trial"}}, observer)
-			assert.NoError(t, err)
+			err := b.ObserveSamples(ctx, backend.TrialSampleFilter{TrialIDs: []string{"my-trial"}}, observer)
+			assert.ErrorIs(t, err, context.Canceled)
 			close(observer)
 		}()
 		sampleResult := <-observer
@@ -371,6 +419,8 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 		sampleResult = <-observer
 		assert.Equal(t, "my-trial", sampleResult.TrialId)
 		assert.Equal(t, secondSample.TickId, sampleResult.TickId)
+
+		cancel()
 	})
 	t.Run("TestConcurrentAddAndObserveSamples", func(t *testing.T) {
 		t.Parallel() // This test involves goroutines and `time.Sleep`

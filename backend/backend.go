@@ -16,6 +16,7 @@ package backend
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	grpcapi "github.com/cogment/cogment-trial-datastore/grpcapi/cogment/api"
@@ -44,15 +45,6 @@ type TrialParams struct {
 	Params  *grpcapi.TrialParams
 }
 
-// TrialSampleFilter represents the arguments that can be passed to create or update a trial
-type TrialSampleFilter struct {
-	TrialIDs             []string
-	ActorNames           []string
-	ActorClasses         []string
-	ActorImplementations []string
-	Fields               []grpcapi.StoredTrialSampleField
-}
-
 type TrialSampleObserver chan *grpcapi.StoredTrialSample
 
 // Backend defines the interface for a datalogger backend
@@ -77,4 +69,21 @@ type UnknownTrialError struct {
 
 func (e *UnknownTrialError) Error() string {
 	return fmt.Sprintf("no trial %q found", e.TrialID)
+}
+
+// UnexpectedError is raised when an internal issue occurs
+type UnexpectedError struct {
+	err error
+}
+
+func NewUnexpectedError(format string, a ...interface{}) *UnexpectedError {
+	return &UnexpectedError{err: fmt.Errorf(format, a...)}
+}
+
+func (e *UnexpectedError) Error() string {
+	return fmt.Sprintf("unexpected internal error: %s", e.err.Error())
+}
+
+func (e *UnexpectedError) Unwrap() error {
+	return errors.Unwrap(e.err)
 }

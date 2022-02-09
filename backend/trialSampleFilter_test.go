@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package memoryBackend
+package backend
 
 import (
 	"testing"
@@ -122,17 +122,21 @@ var trialSample1 *grpcapi.StoredTrialSample = &grpcapi.StoredTrialSample{
 }
 
 func TestNoFilters(t *testing.T) {
-	filteredTrialSample1 := filterTrialSample(trialSample1, make(trialActorFilter), make(sampleFieldsFilter))
+	f := NewAppliedTrialSampleFilter(TrialSampleFilter{}, trialParams)
+	filteredTrialSample1 := f.Filter(trialSample1)
 	assert.True(t, proto.Equal(trialSample1, filteredTrialSample1))
 }
 
 func TestFieldFiltersFilterOutRewardsAndMessages(t *testing.T) {
-	fieldFilter := createSampleFieldsFilter([]grpcapi.StoredTrialSampleField{
-		grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_ACTION,
-		grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_OBSERVATION,
-		grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_REWARD,
-	})
-	filteredTrialSample1 := filterTrialSample(trialSample1, make(trialActorFilter), fieldFilter)
+	f := NewAppliedTrialSampleFilter(TrialSampleFilter{
+		Fields: []grpcapi.StoredTrialSampleField{
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_ACTION,
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_OBSERVATION,
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_REWARD,
+		},
+	}, trialParams)
+
+	filteredTrialSample1 := f.Filter(trialSample1)
 
 	assert.False(t, proto.Equal(trialSample1, filteredTrialSample1))
 	assert.Less(t, proto.Size(filteredTrialSample1), proto.Size(trialSample1))
@@ -155,21 +159,24 @@ func TestFieldFiltersFilterOutRewardsAndMessages(t *testing.T) {
 	assert.Empty(t, filteredTrialSample1.Payloads[4])
 	assert.Empty(t, filteredTrialSample1.Payloads[5])
 
-	twiceFilteredTrialSample1 := filterTrialSample(filteredTrialSample1, make(trialActorFilter), fieldFilter)
+	twiceFilteredTrialSample1 := f.Filter(filteredTrialSample1)
 
 	assert.True(t, proto.Equal(twiceFilteredTrialSample1, filteredTrialSample1))
 }
 
 func TestFieldFiltersFilterOutReward(t *testing.T) {
-	fieldFilter := createSampleFieldsFilter([]grpcapi.StoredTrialSampleField{
-		grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_ACTION,
-		grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_OBSERVATION,
-		grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_REWARDS,
-		grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_REWARDS,
-		grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_MESSAGES,
-		grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_MESSAGES,
-	})
-	filteredTrialSample1 := filterTrialSample(trialSample1, make(trialActorFilter), fieldFilter)
+	f := NewAppliedTrialSampleFilter(TrialSampleFilter{
+		Fields: []grpcapi.StoredTrialSampleField{
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_ACTION,
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_OBSERVATION,
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_REWARDS,
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_REWARDS,
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_MESSAGES,
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_MESSAGES,
+		},
+	}, trialParams)
+
+	filteredTrialSample1 := f.Filter(trialSample1)
 
 	assert.False(t, proto.Equal(trialSample1, filteredTrialSample1))
 	assert.Less(t, proto.Size(filteredTrialSample1), proto.Size(trialSample1))
@@ -181,8 +188,19 @@ func TestFieldFiltersFilterOutReward(t *testing.T) {
 }
 
 func TestActorNameFilters(t *testing.T) {
-	actorNameFilter := createActorFilter(createFilterFromStringArray([]string{"my-actor-2"}), createFilterFromStringArray([]string{}), createFilterFromStringArray([]string{}), trialParams)
-	filteredTrialSample1 := filterTrialSample(trialSample1, actorNameFilter, make(sampleFieldsFilter))
+	f := NewAppliedTrialSampleFilter(TrialSampleFilter{
+		ActorNames: []string{"my-actor-2"},
+		Fields: []grpcapi.StoredTrialSampleField{
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_ACTION,
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_OBSERVATION,
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_REWARDS,
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_REWARDS,
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_MESSAGES,
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_MESSAGES,
+		},
+	}, trialParams)
+
+	filteredTrialSample1 := f.Filter(trialSample1)
 
 	assert.False(t, proto.Equal(trialSample1, filteredTrialSample1))
 	assert.Less(t, proto.Size(filteredTrialSample1), proto.Size(trialSample1))
@@ -196,7 +214,7 @@ func TestActorNameFilters(t *testing.T) {
 	assert.NotEmpty(t, filteredTrialSample1.Payloads[4])
 	assert.NotEmpty(t, filteredTrialSample1.Payloads[5])
 
-	twiceFilteredTrialSample1 := filterTrialSample(filteredTrialSample1, actorNameFilter, make(sampleFieldsFilter))
+	twiceFilteredTrialSample1 := f.Filter(filteredTrialSample1)
 
 	assert.True(t, proto.Equal(twiceFilteredTrialSample1, filteredTrialSample1))
 }
