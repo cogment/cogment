@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/cogment/cogment-trial-datastore/backend"
+	"github.com/cogment/cogment-trial-datastore/backend/memoryBackend"
 	grpcapi "github.com/cogment/cogment-trial-datastore/grpcapi/cogment/api"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
@@ -39,7 +40,7 @@ type datalogServerTestFixture struct {
 func createDatalogServerTestFixture() (datalogServerTestFixture, error) {
 	listener := bufconn.Listen(1024 * 1024)
 	server := CreateGrpcServer(false)
-	backend, err := backend.CreateMemoryBackend(backend.DefaultMaxSampleSize)
+	backend, err := memoryBackend.CreateMemoryBackend(memoryBackend.DefaultMaxSampleSize)
 	if err != nil {
 		return datalogServerTestFixture{}, err
 	}

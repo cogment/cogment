@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package backend
+package memoryBackend
 
 import (
 	"container/list"
@@ -24,6 +24,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
+	"github.com/cogment/cogment-trial-datastore/backend"
 	grpcapi "github.com/cogment/cogment-trial-datastore/grpcapi/cogment/api"
 	"github.com/cogment/cogment-trial-datastore/utils"
 	"golang.org/x/sync/errgroup"
@@ -41,8 +42,8 @@ type trialData struct {
 	deleted           bool
 }
 
-func createTrialInfo(trialID string, data *trialData) *TrialInfo {
-	return &TrialInfo{
+func createTrialInfo(trialID string, data *trialData) *backend.TrialInfo {
+	return &backend.TrialInfo{
 		TrialID:            trialID,
 		State:              data.trialState,
 		UserID:             data.userID,
@@ -65,7 +66,7 @@ type memoryBackend struct {
 var DefaultMaxSampleSize uint32 = 1024 * 1024 * 1024 // 1GB
 
 // CreateMemoryBackend creates a Backend that will store at most "maxSamplesSize" bytes of samples
-func CreateMemoryBackend(maxSamplesSize uint32) (Backend, error) {
+func CreateMemoryBackend(maxSamplesSize uint32) (backend.Backend, error) {
 	evictionWorkerContext, evictionWorkerCancel := context.WithCancel(context.Background())
 	backend := &memoryBackend{
 		trials:                make(map[string]*trialData),
@@ -178,13 +179,13 @@ func (b *memoryBackend) retrieveTrialDatas(trialIDs []string) ([]*trialData, err
 			}
 			reply = append(reply, data)
 		} else {
-			return []*trialData{}, &UnknownTrialError{TrialID: trialID}
+			return []*trialData{}, &backend.UnknownTrialError{TrialID: trialID}
 		}
 	}
 	return reply, nil
 }
 
-func (b *memoryBackend) CreateOrUpdateTrials(ctx context.Context, trialsParams []*TrialParams) error {
+func (b *memoryBackend) CreateOrUpdateTrials(ctx context.Context, trialsParams []*backend.TrialParams) error {
 	b.trialsMutex.Lock()
 	defer b.trialsMutex.Unlock()
 
@@ -230,11 +231,11 @@ func (b *memoryBackend) preprocessRetrieveTrialsArgs(filter []string, fromTrialI
 	return selectedTrialIDs, fromTrialIdx, count
 }
 
-func (b *memoryBackend) RetrieveTrials(ctx context.Context, filter []string, fromTrialIdx int, count int) (TrialsInfoResult, error) {
+func (b *memoryBackend) RetrieveTrials(ctx context.Context, filter []string, fromTrialIdx int, count int) (backend.TrialsInfoResult, error) {
 	selectedTrialIDs, fromTrialIdx, count := b.preprocessRetrieveTrialsArgs(filter, fromTrialIdx, count)
 
-	result := TrialsInfoResult{
-		TrialInfos:   []*TrialInfo{},
+	result := backend.TrialsInfoResult{
+		TrialInfos:   []*backend.TrialInfo{},
 		NextTrialIdx: 0,
 	}
 
@@ -258,7 +259,7 @@ func (b *memoryBackend) RetrieveTrials(ctx context.Context, filter []string, fro
 	return result, nil
 }
 
-func (b *memoryBackend) ObserveTrials(ctx context.Context, filter []string, fromTrialIdx int, count int, out chan<- TrialsInfoResult) error {
+func (b *memoryBackend) ObserveTrials(ctx context.Context, filter []string, fromTrialIdx int, count int, out chan<- backend.TrialsInfoResult) error {
 	selectedTrialIDs, fromTrialIdx, _ := b.preprocessRetrieveTrialsArgs(filter, fromTrialIdx, count)
 	if !selectedTrialIDs.selectsAll() && (count <= 0 || count > len(selectedTrialIDs)) {
 		count = len(selectedTrialIDs)
@@ -282,8 +283,8 @@ func (b *memoryBackend) ObserveTrials(ctx context.Context, filter []string, from
 			trialID := trialIDItem.(string)
 			data, _ := b.retrieveTrialDatas([]string{trialID})
 			if !data[0].deleted && selectedTrialIDs.selects(trialID) {
-				unitResult := TrialsInfoResult{
-					TrialInfos:   []*TrialInfo{createTrialInfo(trialID, data[0])},
+				unitResult := backend.TrialsInfoResult{
+					TrialInfos:   []*backend.TrialInfo{createTrialInfo(trialID, data[0])},
 					NextTrialIdx: trialIdx + 1,
 				}
 				select {
@@ -326,14 +327,14 @@ func (b *memoryBackend) DeleteTrials(ctx context.Context, trialIDs []string) err
 	return nil
 }
 
-func (b *memoryBackend) GetTrialParams(ctx context.Context, trialIDs []string) ([]*TrialParams, error) {
+func (b *memoryBackend) GetTrialParams(ctx context.Context, trialIDs []string) ([]*backend.TrialParams, error) {
 	trialDatas, err := b.retrieveTrialDatas(trialIDs)
 	if err != nil {
-		return []*TrialParams{}, err
+		return []*backend.TrialParams{}, err
 	}
-	trialParams := make([]*TrialParams, len(trialIDs))
+	trialParams := make([]*backend.TrialParams, len(trialIDs))
 	for idx, trialData := range trialDatas {
-		trialParams[idx] = &TrialParams{TrialID: trialIDs[idx], Params: trialData.params}
+		trialParams[idx] = &backend.TrialParams{TrialID: trialIDs[idx], Params: trialData.params}
 	}
 	return trialParams, nil
 }
@@ -369,7 +370,7 @@ func (b *memoryBackend) AddSamples(ctx context.Context, samples []*grpcapi.Store
 	return nil
 }
 
-func (b *memoryBackend) ObserveSamples(ctx context.Context, filter TrialSampleFilter, out chan<- *grpcapi.StoredTrialSample) error {
+func (b *memoryBackend) ObserveSamples(ctx context.Context, filter backend.TrialSampleFilter, out chan<- *grpcapi.StoredTrialSample) error {
 	trialDatas, err := b.retrieveTrialDatas(filter.TrialIDs)
 	if err != nil {
 		return err

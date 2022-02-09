@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package backend
+package memoryBackend
 
 import (
 	grpcapi "github.com/cogment/cogment-trial-datastore/grpcapi/cogment/api"

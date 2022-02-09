@@ -20,7 +20,7 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/cogment/cogment-trial-datastore/backend"
+	"github.com/cogment/cogment-trial-datastore/backend/memoryBackend"
 	"github.com/cogment/cogment-trial-datastore/grpcservers"
 	"github.com/cogment/cogment-trial-datastore/version"
 	log "github.com/sirupsen/logrus"
@@ -31,7 +31,7 @@ func main() {
 	viper.SetDefault("PORT", 9000)
 	viper.SetDefault("GRPC_REFLECTION", false)
 	viper.SetDefault("LOG_LEVEL", "info")
-	viper.SetDefault("MEMORY_STORAGE_MAX_SAMPLE_SIZE", backend.DefaultMaxSampleSize)
+	viper.SetDefault("MEMORY_STORAGE_MAX_SAMPLE_SIZE", memoryBackend.DefaultMaxSampleSize)
 	viper.SetEnvPrefix("COGMENT_TRIAL_DATASTORE")
 
 	logLevel, err := log.ParseLevel(viper.GetString("LOG_LEVEL"))
@@ -45,7 +45,7 @@ func main() {
 	log.Infof("setting up log level to %q", logLevel.String())
 	log.SetLevel(logLevel)
 
-	backend, err := backend.CreateMemoryBackend(viper.GetUint32("MEMORY_STORAGE_MAX_SAMPLE_SIZE"))
+	backend, err := memoryBackend.CreateMemoryBackend(viper.GetUint32("MEMORY_STORAGE_MAX_SAMPLE_SIZE"))
 	if err != nil {
 		log.Fatalf("unable to create the memory backend: %v", err)
 	}
