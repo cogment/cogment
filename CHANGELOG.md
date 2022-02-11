@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.1.0 - 2022-02-11
+
 - Orchestrator can now be launched with a grpc web proxy using the `COGMENT_WEB_PROXY_PORT` environment variable.
   - All grpc-web traffic recevied on that port will be forwarded to the
   orchestrator's actor service port.
