@@ -20,6 +20,8 @@ import (
 
 	"github.com/spf13/viper"
 
+	"github.com/cogment/cogment-trial-datastore/backend"
+	"github.com/cogment/cogment-trial-datastore/backend/boltBackend"
 	"github.com/cogment/cogment-trial-datastore/backend/memoryBackend"
 	"github.com/cogment/cogment-trial-datastore/grpcservers"
 	"github.com/cogment/cogment-trial-datastore/version"
@@ -32,6 +34,7 @@ func main() {
 	viper.SetDefault("GRPC_REFLECTION", false)
 	viper.SetDefault("LOG_LEVEL", "info")
 	viper.SetDefault("MEMORY_STORAGE_MAX_SAMPLE_SIZE", memoryBackend.DefaultMaxSampleSize)
+	viper.SetDefault("FILE_STORAGE_PATH", nil)
 	viper.SetEnvPrefix("COGMENT_TRIAL_DATASTORE")
 
 	logLevel, err := log.ParseLevel(viper.GetString("LOG_LEVEL"))
@@ -45,9 +48,20 @@ func main() {
 	log.Infof("setting up log level to %q", logLevel.String())
 	log.SetLevel(logLevel)
 
-	backend, err := memoryBackend.CreateMemoryBackend(viper.GetUint32("MEMORY_STORAGE_MAX_SAMPLE_SIZE"))
-	if err != nil {
-		log.Fatalf("unable to create the memory backend: %v", err)
+	var backend backend.Backend
+	if viper.IsSet("FILE_STORAGE_PATH") {
+		storageFilePath := viper.GetString("FILE_STORAGE_PATH")
+		log.Infof("using a file storage backend in %q", storageFilePath)
+		backend, err = boltBackend.CreateBoltBackend(storageFilePath)
+		if err != nil {
+			log.Fatalf("unable to create the bolt file backend: %v", err)
+		}
+	} else {
+		log.Info("using an in-memory storage")
+		backend, err = memoryBackend.CreateMemoryBackend(viper.GetUint32("MEMORY_STORAGE_MAX_SAMPLE_SIZE"))
+		if err != nil {
+			log.Fatalf("unable to create the memory backend: %v", err)
+		}
 	}
 
 	port := viper.GetInt("PORT")
