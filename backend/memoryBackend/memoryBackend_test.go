@@ -62,6 +62,17 @@ func TestSuiteMemoryBackend(t *testing.T) {
 	})
 }
 
+func BenchmarkMemoryBackend(b *testing.B) {
+	test.RunBenchmarks(b, func() backend.Backend {
+		bck, err := CreateMemoryBackend(DefaultMaxSampleSize)
+		assert.NoError(b, err)
+		return bck
+	}, func(bck backend.Backend) {
+		mb := bck.(*memoryBackend)
+		mb.Destroy()
+	})
+}
+
 func TestTriaEviction(t *testing.T) {
 	// Uncomment to see the log from the trial eviction worker
 	// log.SetLevel(log.DebugLevel)

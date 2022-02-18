@@ -22,6 +22,9 @@ fix-lint: generate-protos
 test: generate-protos
 	go test -race -v ./...
 
+benchmark: generate-protos
+	go test ./... -run xxx -bench . -test.benchtime 60s
+
 test-with-report: generate-protos
 	rm -f test_failed.txt
 	go test -race -v ./... 2>&1 > raw_report.txt || echo test_failed > test_failed.txt

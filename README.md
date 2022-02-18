@@ -47,14 +47,20 @@ $ make test
 
 Testing with JUnit style reports (for the CI):
 
-```
+```console
 $ make test-with-report
 ```
 
 Build a binary in `build/cogment-trial-datastore`:
 
-```
+```console
 $ make build
+```
+
+High level benchmarks of the different backends can be launched with:
+
+```console
+$ make benchmark
 ```
 
 ### With Docker

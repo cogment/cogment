@@ -16,6 +16,7 @@ package test
 
 import (
 	"context"
+	"math/rand"
 	"sync"
 	"testing"
 	"time"
@@ -36,13 +37,32 @@ func generateTrialParams(actorCount int, maxSteps uint32) *grpcapi.TrialParams {
 	return params
 }
 
-func generateSample(trialID string, actorCount int, end bool) *grpcapi.StoredTrialSample {
+const bytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+func makeRandomBytes(n int) []byte {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = bytes[rand.Intn(len(bytes))]
+	}
+	return b
+}
+
+func makePayloads(payloadSize int, payloadCount int) [][]byte {
+	payloads := make([][]byte, payloadCount)
+	for i := 0; i < payloadCount; i++ {
+		payloads[i] = makeRandomBytes(payloadSize)
+	}
+	return payloads
+}
+
+func generateSample(trialID string, actorCount int, actorPayloadSize int, end bool) *grpcapi.StoredTrialSample {
 	sample := &grpcapi.StoredTrialSample{
 		TrialId:      trialID,
 		TickId:       nextTickID,
 		Timestamp:    uint64(time.Now().Unix()),
 		State:        grpcapi.TrialState_RUNNING,
 		ActorSamples: make([]*grpcapi.StoredTrialActorSample, actorCount),
+		Payloads:     makePayloads(actorCount, actorPayloadSize),
 	}
 	if end {
 		sample.State = grpcapi.TrialState_ENDED
@@ -374,9 +394,9 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 		}})
 		assert.NoError(t, err)
 
-		firstSample := generateSample("my-trial", 12, false)
-		secondSample := generateSample("my-trial", 12, false)
-		err = b.AddSamples(context.Background(), []*grpcapi.StoredTrialSample{firstSample, secondSample, generateSample("my-trial", 12, false)})
+		firstSample := generateSample("my-trial", 12, 512, false)
+		secondSample := generateSample("my-trial", 12, 512, false)
+		err = b.AddSamples(context.Background(), []*grpcapi.StoredTrialSample{firstSample, secondSample, generateSample("my-trial", 12, 512, false)})
 		assert.NoError(t, err)
 
 		r, err := b.RetrieveTrials(context.Background(), []string{"my-trial"}, -1, -1)
@@ -390,8 +410,8 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 		assert.Equal(t, 3, r.TrialInfos[0].StoredSamplesCount)
 
 		err = b.AddSamples(context.Background(), []*grpcapi.StoredTrialSample{
-			generateSample("my-trial", 12, false),
-			generateSample("my-trial", 12, false),
+			generateSample("my-trial", 12, 512, false),
+			generateSample("my-trial", 12, 512, false),
 		})
 		assert.NoError(t, err)
 
@@ -436,7 +456,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 
 		samples := make([]*grpcapi.StoredTrialSample, 20)
 		for sampleIdx := range samples {
-			samples[sampleIdx] = generateSample("my-trial", 12, sampleIdx == len(samples)-1)
+			samples[sampleIdx] = generateSample("my-trial", 12, 512, sampleIdx == len(samples)-1)
 		}
 
 		wg := sync.WaitGroup{}

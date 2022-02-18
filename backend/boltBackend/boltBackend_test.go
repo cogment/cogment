@@ -15,7 +15,6 @@
 package boltBackend
 
 import (
-	"log"
 	"os"
 	"testing"
 
@@ -28,10 +27,8 @@ import (
 func TestSuiteBoltBackend(t *testing.T) {
 	test.RunSuite(t, func() backend.Backend {
 		// create and open a temporary file
-		f, err := os.CreateTemp("", "trial-datastore-") // in Go version older than 1.17 you can use ioutil.TempFile
-		if err != nil {
-			log.Fatal(err)
-		}
+		f, err := os.CreateTemp("", "trial-datastore-bolt-test")
+		assert.NoError(t, err)
 
 		// close and remove the temporary file
 		defer f.Close()
@@ -41,6 +38,26 @@ func TestSuiteBoltBackend(t *testing.T) {
 		return b
 	}, func(b backend.Backend) {
 		rb := b.(*boltBackend)
+
+		defer os.Remove(rb.filePath)
+		defer rb.Destroy()
+	})
+}
+
+func BenchmarkBoltBackend(b *testing.B) {
+	test.RunBenchmarks(b, func() backend.Backend {
+		// create and open a temporary file
+		f, err := os.CreateTemp("", "trial-datastore-bolt-benchmark")
+		assert.NoError(b, err)
+
+		// close and remove the temporary file
+		defer f.Close()
+
+		bck, err := CreateBoltBackend(f.Name())
+		assert.NoError(b, err)
+		return bck
+	}, func(bck backend.Backend) {
+		rb := bck.(*boltBackend)
 
 		defer os.Remove(rb.filePath)
 		defer rb.Destroy()
