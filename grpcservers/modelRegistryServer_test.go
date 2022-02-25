@@ -60,9 +60,7 @@ func createContext(t *testing.T, sentModelVersionDataChunkSize int) (testContext
 		return testContext{}, err
 	}
 	versionCacheConfiguration := memoryCache.VersionCacheConfiguration{
-		MaxSize:      len(modelData) * 20,
-		Expiration:   memoryCache.DefaultVersionCacheConfiguration.Expiration,
-		ToPruneCount: 2,
+		MaxItems: 20,
 	}
 	backend, err := memoryCache.CreateBackend(versionCacheConfiguration, archiveBackend)
 	if err != nil {

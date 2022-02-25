@@ -54,12 +54,12 @@ func BenchmarkMemoryCacheOverFsBackend(b *testing.B) {
 	})
 }
 
-func TestSmallMaxSize(t *testing.T) {
+func TestSmallMaxItems(t *testing.T) {
 	fsBackend, err := fs.CreateBackend(t.TempDir())
 	assert.NoError(t, err)
 	defer fsBackend.Destroy()
 
-	b, err := CreateBackend(VersionCacheConfiguration{MaxSize: 2000, ToPruneCount: 1, Expiration: DefaultVersionCacheConfiguration.Expiration}, fsBackend)
+	b, err := CreateBackend(VersionCacheConfiguration{MaxItems: 2}, fsBackend)
 	assert.NoError(t, err)
 	defer b.Destroy()
 
@@ -106,7 +106,7 @@ func TestModelAddedInArchiveBackend(t *testing.T) {
 	assert.NoError(t, err)
 	defer fsBackend.Destroy()
 
-	b, err := CreateBackend(VersionCacheConfiguration{MaxSize: 2000, ToPruneCount: 1, Expiration: DefaultVersionCacheConfiguration.Expiration}, fsBackend)
+	b, err := CreateBackend(VersionCacheConfiguration{MaxItems: 2000}, fsBackend)
 	assert.NoError(t, err)
 	defer b.Destroy()
 

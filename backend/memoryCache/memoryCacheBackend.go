@@ -18,31 +18,26 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
-	"strconv"
 	"sync"
 	"time"
 
 	"github.com/cogment/cogment-model-registry/backend"
-	ccache "github.com/karlseguin/ccache/v2"
+	lru "github.com/hashicorp/golang-lru"
 )
 
 type VersionCacheConfiguration struct {
-	MaxSize      int
-	ToPruneCount int
-	Expiration   time.Duration
+	MaxItems int
 }
 
 var DefaultVersionCacheConfiguration = VersionCacheConfiguration{
-	MaxSize:      1024 * 1024 * 1024, // 1GB
-	ToPruneCount: 5,
-	Expiration:   1 * time.Hour,
+	MaxItems: 100,
 }
 
 type memoryCacheBackend struct {
 	archive                        backend.Backend
 	modelsLatestVersionNumberMutex sync.RWMutex
 	modelsLatestVersionNumber      map[string]uint
-	versionCache                   *ccache.LayeredCache
+	versionCache                   *lru.Cache
 	versionCacheConfiguration      VersionCacheConfiguration
 }
 
@@ -56,27 +51,32 @@ type cachedVersion struct {
 	UserData          map[string]string
 }
 
-type sizedBuffer struct {
-	buffer []byte
+type memoryCacheKey struct {
+	modelID       string
+	versionNumber uint
 }
 
-func (s *sizedBuffer) Size() int64 {
-	return int64(len(s.buffer))
+func (b *memoryCacheBackend) deleteModelVersions(modelID string) {
+	for _, key := range b.versionCache.Keys() {
+		if key.(memoryCacheKey).modelID == modelID {
+			b.versionCache.Remove(key)
+		}
+	}
 }
 
-func serializeCachedVersion(version cachedVersion) *sizedBuffer {
+func serializeCachedVersion(version cachedVersion) []byte {
 	var buffer bytes.Buffer
 	enc := gob.NewEncoder(&buffer)
 	err := enc.Encode(version)
 	if err != nil {
 		panic(err)
 	}
-	return &sizedBuffer{buffer: buffer.Bytes()}
+	return buffer.Bytes()
 }
 
 func deserializeCachedVersion(serializedVersion interface{}) cachedVersion {
 	var version cachedVersion
-	reader := bytes.NewReader(serializedVersion.(*sizedBuffer).buffer)
+	reader := bytes.NewReader(serializedVersion.([]byte))
 	dec := gob.NewDecoder(reader)
 	err := dec.Decode(&version)
 	if err != nil {
@@ -86,15 +86,19 @@ func deserializeCachedVersion(serializedVersion interface{}) cachedVersion {
 }
 
 func CreateBackend(versionCacheConfiguration VersionCacheConfiguration, archive backend.Backend) (backend.Backend, error) {
+	cache, err := lru.New(versionCacheConfiguration.MaxItems)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create memory cache backend: %w", err)
+	}
 	b := memoryCacheBackend{
 		archive:                        archive,
 		modelsLatestVersionNumberMutex: sync.RWMutex{},
 		modelsLatestVersionNumber:      make(map[string]uint),
-		versionCache:                   ccache.Layered(ccache.Configure().MaxSize(int64(versionCacheConfiguration.MaxSize)).ItemsToPrune(uint32(versionCacheConfiguration.ToPruneCount))),
+		versionCache:                   cache,
 		versionCacheConfiguration:      versionCacheConfiguration,
 	}
-
 	return &b, nil
+
 }
 
 func (b *memoryCacheBackend) Destroy() {
@@ -147,17 +151,15 @@ func (b *memoryCacheBackend) resolveModelVersionNumbers(modelID string, versionN
 					return nil, err
 				}
 				latestVersionNumber = archivedLatestVersionNumber
-				b.versionCache.ForEachFunc(modelID, func(versionNumberStr string, item *ccache.Item) bool {
-					versionNumber64, err := strconv.ParseUint(versionNumberStr, 10, 0)
-					if err != nil {
-						panic(err)
+
+				for _, key := range b.versionCache.Keys() {
+					if key.(memoryCacheKey).modelID == modelID {
+						versionNumber := key.(memoryCacheKey).versionNumber
+						if versionNumber > latestVersionNumber {
+							latestVersionNumber = versionNumber
+						}
 					}
-					versionNumber := uint(versionNumber64)
-					if versionNumber > latestVersionNumber {
-						latestVersionNumber = versionNumber
-					}
-					return true // Means that the iteration should continue
-				})
+				}
 			}
 		}
 
@@ -181,7 +183,7 @@ func (b *memoryCacheBackend) CreateOrUpdateModel(modelArgs backend.ModelInfo) (b
 	if err != nil {
 		// Something wrong happened, let's just clear the cache
 		b.deleteCachedModelLatestVersionNumber(modelInfo.ModelID, func(uint) bool { return true })
-		b.versionCache.DeleteAll(modelInfo.ModelID)
+		b.deleteModelVersions(modelInfo.ModelID)
 		return backend.ModelInfo{}, err
 	}
 
@@ -210,7 +212,7 @@ func (b *memoryCacheBackend) DeleteModel(modelID string) error {
 		return err
 	}
 	b.deleteCachedModelLatestVersionNumber(modelID, func(uint) bool { return true })
-	b.versionCache.DeleteAll(modelID)
+	b.deleteModelVersions(modelID)
 	return nil
 }
 
@@ -219,23 +221,23 @@ func (b *memoryCacheBackend) ListModels(offset int, limit int) ([]backend.ModelI
 }
 
 func (b *memoryCacheBackend) retrieveCachedModelVersion(modelID string, versionNumber uint) (cachedVersion, bool) {
-	versionNumberStr := fmt.Sprintf("%d", versionNumber)
 	// Is the version cached?
-	cachedItem := b.versionCache.Get(modelID, versionNumberStr)
-	if cachedItem == nil || cachedItem.Expired() {
+	key := memoryCacheKey{modelID: modelID, versionNumber: versionNumber}
+	item, ok := b.versionCache.Get(key)
+	if ok == false {
 		return cachedVersion{}, false
 	}
-	return deserializeCachedVersion(cachedItem.Value()), true
+	return deserializeCachedVersion(item), true
 }
 
 func (b *memoryCacheBackend) updateCachedModelVersion(modelID string, versionNumber uint, version cachedVersion) {
-	versionNumberStr := fmt.Sprintf("%d", versionNumber)
-	b.versionCache.Set(modelID, versionNumberStr, serializeCachedVersion(version), b.versionCacheConfiguration.Expiration)
+	key := memoryCacheKey{modelID: modelID, versionNumber: versionNumber}
+	b.versionCache.Add(key, serializeCachedVersion(version))
 }
 
 func (b *memoryCacheBackend) deleteCachedModelVersion(modelID string, versionNumber uint) {
-	versionNumberStr := fmt.Sprintf("%d", versionNumber)
-	b.versionCache.Delete(modelID, versionNumberStr)
+	key := memoryCacheKey{modelID: modelID, versionNumber: versionNumber}
+	b.versionCache.Remove(key)
 }
 
 func (b *memoryCacheBackend) CreateOrUpdateModelVersion(modelID string, versionArgs backend.VersionArgs) (backend.VersionInfo, error) {

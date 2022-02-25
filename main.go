@@ -34,9 +34,7 @@ func main() {
 	viper.AutomaticEnv()
 	viper.SetDefault("PORT", 9000)
 	viper.SetDefault("ARCHIVE_DIR", ".cogment_model_registry")
-	viper.SetDefault("VERSION_CACHE_MAX_SIZE", memoryCache.DefaultVersionCacheConfiguration.MaxSize)
-	viper.SetDefault("VERSION_CACHE_EXPIRATION", memoryCache.DefaultVersionCacheConfiguration.Expiration)
-	viper.SetDefault("VERSION_CACHE_TO_PRUNE_COUNT", memoryCache.DefaultVersionCacheConfiguration.ToPruneCount)
+	viper.SetDefault("VERSION_CACHE_MAX_ITEMS", memoryCache.DefaultVersionCacheConfiguration.MaxItems)
 	viper.SetDefault("SENT_MODEL_VERSION_DATA_CHUNK_SIZE", 1024*1024*5) // Default chunk size is 5 MB
 	viper.SetDefault("GRPC_REFLECTION", false)
 	viper.SetEnvPrefix("COGMENT_MODEL_REGISTRY")
@@ -65,9 +63,7 @@ func main() {
 		log.Printf("Filesystem backend created in %q for archived model versions\n", archiveDir)
 
 		versionCacheConfiguration := memoryCache.VersionCacheConfiguration{
-			MaxSize:      viper.GetInt("VERSION_CACHE_MAX_SIZE"),
-			Expiration:   viper.GetDuration("VERSION_CACHE_EXPIRATION"),
-			ToPruneCount: viper.GetInt("VERSION_CACHE_TO_PRUNE_COUNT"), // Parsed according to https://pkg.go.dev/time#ParseDuration
+			MaxItems: viper.GetInt("VERSION_CACHE_MAX_ITEMS"),
 		}
 		backend, err = memoryCache.CreateBackend(versionCacheConfiguration, archiveBackend)
 		if err != nil {

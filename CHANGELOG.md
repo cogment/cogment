@@ -7,10 +7,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Fixed
+
+- Fix issue where the latest published model version would be purged from the memory cache while trials were trying to retrieve it.
+
 ### Changed
 
-- Change the default size of the pruned versions group from 50 to 5 to avoid situations where the latest version of a model was pruned as it was inserted.
-- Improve the error message when retrieving a n-th to last version that does not exist.
+- Memory cache now uses `lru` package instead of `ccache`
+- `COGMENT_MODEL_REGISTRY_VERSION_CACHE_MAX_SIZE` has been deprecated and replaced by `COGMENT_MODEL_REGISTRY_VERSION_CACHE_MAX_ITEMS`.
+- `COGMENT_MODEL_REGISTRY_VERSION_CACHE_EXPIRATION` has been deprecated.
+- `COGMENT_MODEL_REGISTRY_VERSION_CACHE_PRUNE_COUNT` has been deprecated.
 
 ## v0.5.0 - 2022-02-01
 
