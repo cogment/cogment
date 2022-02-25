@@ -6,14 +6,19 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_library(slt_settings 
+add_library(slt_settings
   src/setting.cpp)
 
 target_include_directories(slt_settings PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/./include>
   $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include>)
 
-target_compile_options(slt_settings PUBLIC -Wall -Werror)
+target_compile_options(slt_settings PUBLIC -Wall)
+if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+  # Still a bunch of warning on macos
+  target_compile_options(slt_settings PUBLIC -Werror)
+endif()
+
 
 install(TARGETS slt_settings
   EXPORT   slt_settingsTargets

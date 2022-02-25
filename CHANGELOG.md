@@ -9,8 +9,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Add build script for macOS
 - Support for discovery endpoints (i.e. to query the directory)
 - Support for providing the parameters with the StartTrial rpc
+
+### Fixed
+
+- Fix the build on macOS
+- Have the datalog client consume the stream for the server
 
 ## v2.1.0 - 2022-02-11
 

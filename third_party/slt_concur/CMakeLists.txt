@@ -6,14 +6,18 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_library(slt_concur 
+add_library(slt_concur
   src/work_pool.cpp)
 
 target_include_directories(slt_concur PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/./include>
   $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include>)
 
-target_compile_options(slt_concur PUBLIC -Wall -Werror)
+target_compile_options(slt_concur PUBLIC -Wall)
+if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+  # Still a bunch of warning on macos
+  target_compile_options(slt_concur PUBLIC -Werror)
+endif()
 
 install(TARGETS slt_concur
   EXPORT   slt_concurTargets

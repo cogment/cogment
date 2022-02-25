@@ -59,6 +59,7 @@ public:
   Trial& operator=(const Trial&) = delete;
 
   const std::string& id() const { return m_id; }
+  const std::string& user_id() const { return m_user_id; }
   const std::string& env_name() const;
   ThreadPool& thread_pool();
   const cogmentAPI::TrialParams& params() const { return m_params; }

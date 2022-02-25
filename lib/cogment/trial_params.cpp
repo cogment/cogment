@@ -41,7 +41,7 @@ std::string yaml_to_json(YAML::Node yaml) {
 cogmentAPI::TrialParams load_params(const YAML::Node& yaml) {
   cogmentAPI::TrialParams result;
 
-  if (yaml[cfg_file::params_key] != nullptr) {
+  if (yaml[cfg_file::params_key]) {
     YAML::Node yaml_params = yaml[cfg_file::params_key];
 
     auto json_params = yaml_to_json(yaml_params);

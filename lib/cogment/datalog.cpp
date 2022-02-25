@@ -17,6 +17,7 @@
 #endif
 
 #include "cogment/datalog.h"
+#include "cogment/trial.h"
 #include "cogment/utils.h"
 
 #include "spdlog/spdlog.h"
@@ -54,17 +55,21 @@ DatalogServiceImpl::~DatalogServiceImpl() {
     m_stream->WritesDone();
     m_stream->Finish();
   }
+
+  // Awaiting the thread consuming incoming messages
+  if (m_incoming_thread.valid()) {
+    m_incoming_thread.wait();
+  }
 }
 
-void DatalogServiceImpl::start(const std::string& trial_id, const std::string& user_id,
-                               const cogmentAPI::TrialParams& params) {
+void DatalogServiceImpl::start(Trial* trial) {
   if (m_stream != nullptr) {
-    throw MakeException("DatalogService already started for [{}] cannot start for [{}]", m_trial_id, trial_id);
+    throw MakeException("DatalogService already started for [{}] cannot start for [{}]", m_trial->id(), trial->id());
   }
-  m_trial_id = trial_id;
+  m_trial = trial;
 
   static_assert(NB_BITS >= NB_FIELDS);
-  const auto& exclude = params.datalog().exclude_fields();
+  const auto& exclude = m_trial->params().datalog().exclude_fields();
   for (auto field : exclude) {
     to_lower_case(&field);
 
@@ -84,20 +89,37 @@ void DatalogServiceImpl::start(const std::string& trial_id, const std::string& u
       m_exclude_fields.set(INFO_FIELD);
     }
     else {
-      spdlog::warn("Trial [{}] - Datalog excluded field [{}] is not a sample log field", m_trial_id, field);
+      spdlog::warn("Trial [{}] - Datalog excluded field [{}] is not a sample log field", m_trial->id(), field);
     }
   }
-  spdlog::debug("Trial [{}] - Datalog excluded field [{}]", m_trial_id, m_exclude_fields.to_string());
+  spdlog::debug("Trial [{}] - Datalog excluded field [{}]", m_trial->id(), m_exclude_fields.to_string());
 
-  m_context.AddMetadata("trial-id", m_trial_id);
-  m_context.AddMetadata("user-id", user_id);
+  m_context.AddMetadata("trial-id", m_trial->id());
+  m_context.AddMetadata("user-id", m_trial->user_id());
   m_stream = m_stub_entry->get_stub().RunTrialDatalog(&m_context);
 
   if (m_stream != nullptr) {
     cogmentAPI::RunTrialDatalogInput msg;
-    *msg.mutable_trial_params() = params;
+    *msg.mutable_trial_params() = m_trial->params();
     m_stream_valid = m_stream->Write(msg);
   }
+
+  // Starting a thread to consume the incoming messages from the datalog server
+  // We don't really care about those but the stream is bidirectionnal reading from it is required for grpc wellbeing
+  m_incoming_thread = m_trial->thread_pool().push("Datalog incoming data", [this]() {
+    try {
+      for (cogmentAPI::RunTrialDatalogOutput data; m_stream_valid && m_stream->Read(&data); data.Clear()) {
+        // NOTHING
+      }
+      SPDLOG_DEBUG("Trial [{}] - Datalog finished reading stream (valid [{}])", m_trial->id(), m_stream_valid);
+    }
+    catch (const std::exception& exc) {
+      spdlog::error("Trial [{}] - Datalog failed to process stream [{}]", m_trial->id(), exc.what());
+    }
+    catch (...) {
+      spdlog::error("Trial [{}] - Datalog failed to process stream", m_trial->id());
+    }
+  });
 }
 
 void DatalogServiceImpl::dispatch_sample(cogmentAPI::DatalogSample&& data) {

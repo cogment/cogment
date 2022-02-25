@@ -1,4 +1,3 @@
-find_package(Protobuf REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
@@ -55,7 +54,7 @@ macro(compile_proto PROTO)
         add_custom_command(
                 OUTPUT  "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.h"
                         "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.cc"
-                COMMAND ${Protobuf_PROTOC_EXECUTABLE}
+                COMMAND protobuf::protoc
                 ARGS
                 "--proto_path=${COGMENT_API_DIR}/"
                 "--cpp_out=${GENERATED_PROTOBUF_PATH}"
@@ -73,12 +72,12 @@ macro(compile_grpc_proto PROTO)
                         "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.grpc.pb.cc"
                         "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.h"
                         "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.cc"
-                COMMAND ${Protobuf_PROTOC_EXECUTABLE}
+                COMMAND protobuf::protoc
                 ARGS
                 "--proto_path=${COGMENT_API_DIR}/"
                 "--grpc_out=${GENERATED_PROTOBUF_PATH}"
                 "--cpp_out=${GENERATED_PROTOBUF_PATH}"
-                "--plugin=protoc-gen-grpc=/usr/local/bin/grpc_cpp_plugin"
+                "--plugin=protoc-gen-grpc=$<TARGET_FILE:gRPC::grpc_cpp_plugin>"
                 "${COGMENT_API_DIR}/cogment/api/${PROTO}.proto"
                 MAIN_DEPENDENCY ${COGMENT_API_DIR}/cogment/api/${PROTO}.proto
                 )
@@ -141,11 +140,13 @@ target_link_libraries(orchestrator_lib
     spdlog::spdlog
     slt_settings
     slt_concur
-    uuid.a
+    ${UUID_LIB}
     yaml-cpp
-    grpc.a
-    gpr.a
+    gRPC::grpc++
+    gRPC::grpc
+    gRPC::gpr
     protobuf::libprotobuf
+    prometheus-cpp::pull
     Threads::Threads
 )
 
@@ -153,4 +154,5 @@ target_compile_options(orchestrator_lib PUBLIC -Wno-unused-parameter)
 target_include_directories(orchestrator_lib
 PUBLIC
     .
-    ../third_party)
+    ../third_party
+    ${YAML_CPP_INCLUDE_DIR})

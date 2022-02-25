@@ -374,15 +374,14 @@ int main(int argc, const char* argv[]) {
     auto params = cogment::load_params(params_yaml);
 
     if (params_file_loaded) {
-      if (params_yaml[cfg_file::params_key] == nullptr ||
-          params_yaml[cfg_file::params_key][cfg_file::p_max_inactivity_key] == nullptr) {
+      if (!params_yaml[cfg_file::params_key] || !params_yaml[cfg_file::params_key][cfg_file::p_max_inactivity_key]) {
         params.set_max_inactivity(DEFAULT_MAX_INACTIVITY);
       }
     }
     else if (deprecated_config_file_loaded) {
-      if (params_yaml[cfg_file::datalog_key] != nullptr) {
+      if (params_yaml[cfg_file::datalog_key]) {
         std::string type;
-        if (params_yaml[cfg_file::datalog_key][cfg_file::d_type_key] != nullptr) {
+        if (params_yaml[cfg_file::datalog_key][cfg_file::d_type_key]) {
           type = params_yaml[cfg_file::datalog_key][cfg_file::d_type_key].as<std::string>();
         }
         cogment::to_lower_case(&type);
@@ -390,7 +389,7 @@ int main(int argc, const char* argv[]) {
         if (type == "grpc") {
           auto datalog = params.mutable_datalog();
 
-          if (params_yaml[cfg_file::datalog_key][cfg_file::d_url_key] != nullptr) {
+          if (params_yaml[cfg_file::datalog_key][cfg_file::d_url_key]) {
             auto url = params_yaml[cfg_file::datalog_key][cfg_file::d_url_key].as<std::string>();
             url.insert(0, "grpc://");
             datalog->set_endpoint(url);

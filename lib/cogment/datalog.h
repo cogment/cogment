@@ -30,14 +30,13 @@ class Trial;
 class DatalogService {
 public:
   virtual ~DatalogService() {}
-  virtual void start(const std::string& trial_id, const std::string& user_id,
-                     const cogmentAPI::TrialParams& params) = 0;
+  virtual void start(Trial* trial) = 0;
   virtual void add_sample(cogmentAPI::DatalogSample&& data) = 0;
 };
 
 class DatalogServiceNull : public DatalogService {
 public:
-  void start(const std::string& trial_id, const std::string& user_id, const cogmentAPI::TrialParams& params) override {}
+  void start(Trial* trial) override {}
   void add_sample(cogmentAPI::DatalogSample&& data) override {}
 };
 
@@ -48,7 +47,7 @@ public:
   DatalogServiceImpl(StubEntryType stub_entry);
   ~DatalogServiceImpl();
 
-  void start(const std::string& trial_id, const std::string& user_id, const cogmentAPI::TrialParams& params) override;
+  void start(Trial* trial) override;
   void add_sample(cogmentAPI::DatalogSample&& data) override;
 
 private:
@@ -60,7 +59,8 @@ private:
       m_stream;
   grpc::ClientContext m_context;
   bool m_stream_valid;
-  std::string m_trial_id;
+  Trial* m_trial;
+  std::future<void> m_incoming_thread;
   std::bitset<NB_BITS> m_exclude_fields;
 };
 

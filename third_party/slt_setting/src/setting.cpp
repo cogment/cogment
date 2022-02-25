@@ -5,14 +5,12 @@
 #include <iomanip>
 #include <unordered_map>
 #include <iostream>
+#include <vector>
 
 namespace slt {
 namespace {
 slt::Setting request_help =
-    slt::Setting_builder<bool>()
-      .with_default(false)
-      .with_arg("help")
-      .with_description("Shows this help");
+    slt::Setting_builder<bool>().with_default(false).with_arg("help").with_description("Shows this help");
 
 Settings_context* active_context = nullptr;
 using settings_store_t = std::vector<slt::Setting_base*>;
@@ -34,8 +32,8 @@ arg_settings_store_t& arg_settings_store() {
 void Setting_base::register_setting(Setting_base* setting) {
   assert(setting);
   settings_store().push_back(setting);
-  
-  if(setting->arg()) {
+
+  if (setting->arg()) {
     auto& store = arg_settings_store();
     const auto& name = *setting->arg();
 
@@ -45,21 +43,17 @@ void Setting_base::register_setting(Setting_base* setting) {
     }
 
     if (name.find("no_") == 0) {
-      throw Settings_error(std::string("argument cannot start with \"no_\": ") +
-                          name);
+      throw Settings_error(std::string("argument cannot start with \"no_\": ") + name);
     }
     if (store.find(name) != store.end()) {
-      throw Settings_error(
-          std::string("trying to register the same argument twice: ") + name);
+      throw Settings_error(std::string("trying to register the same argument twice: ") + name);
     }
 
     store[name] = setting;
   }
 }
 
-Settings_context::Settings_context(std::string app_name, int argc,
-                                   const char* argv[])
-    : app_name_(app_name) {
+Settings_context::Settings_context(std::string app_name, int argc, const char* argv[]) : app_name_(app_name) {
   assert(active_context == nullptr);
   active_context = this;
 
@@ -70,7 +64,6 @@ Settings_context::Settings_context(std::string app_name, int argc,
   if (help_requested()) {
     print_usage(false);
   }
-
 }
 
 void Settings_context::print_usage(bool to_stderr) const {
@@ -92,7 +85,7 @@ void Settings_context::load_from_args(int argc, const char* argv[]) {
 
   for (int i = 1; i < argc; ++i) {
     std::string_view arg = argv[i];
-    
+
     // Ww only care about arguments prefixed with --
     if (arg.size() > 2 && arg[0] == '-' && arg[1] == '-') {
       arg = arg.substr(2);
@@ -103,11 +96,13 @@ void Settings_context::load_from_args(int argc, const char* argv[]) {
       if (eq_pos != std::string_view::npos) {
         name = arg.substr(0, eq_pos);
         val = arg.substr(eq_pos + 1);
-      } else {
+      }
+      else {
         if (name.find("no_") == 0) {
           name = name.substr(3);
           val = "false";
-        } else {
+        }
+        else {
           val = "true";
         }
       }
@@ -138,14 +133,14 @@ void Settings_context::validate_all() {
   bool all_pass = true;
   auto& store = settings_store();
   for (auto& setting : store) {
-    if(!setting->is_valid()) {
+    if (!setting->is_valid()) {
       std::cerr << "Invalid setting value: " << setting->get_string() << "\n";
       setting->print_help(std::cerr);
       all_pass = false;
     }
   }
 
-  if(!all_pass) {
+  if (!all_pass) {
     throw Settings_error("Invalid Setting value.");
   }
 }

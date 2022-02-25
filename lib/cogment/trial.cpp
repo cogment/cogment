@@ -396,7 +396,7 @@ void Trial::prepare_datalog() {
     m_datalog = std::make_unique<DatalogServiceImpl>(stub_entry);
   }
 
-  m_datalog->start(m_id, m_user_id, m_params);
+  m_datalog->start(this);
 }
 
 void Trial::start(cogmentAPI::TrialParams&& params) {

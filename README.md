@@ -27,6 +27,18 @@ cmake ..
 make
 ```
 
+#### macOS
+
+An end-to-end build script that downloads and build the third party dependencies is available in `./scripts/build_macos.sh`. You can run it with the following command:
+
+```console
+THIRD_PARTY_CLONE_DIR=path/where/third_party/code/is/cloned \
+THIRD_PARTY_INSTALL_DIR=path/where/third_party/libs/are/installed \
+./scripts/build_macos.sh
+```
+
+This script will build and install the orchestrator in ./install
+
 ### Used Cogment protobuf API
 
 The version of the used cogment protobuf API is defined in the `.cogment-api.yml` file at the root of the repository.
