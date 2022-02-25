@@ -26,6 +26,9 @@
 #include <future>
 #include <utility>
 #include <condition_variable>
+#include <algorithm>
+
+namespace cogment {
 
 constexpr uint64_t NANOS = 1'000'000'000;
 constexpr double NANOS_INV = 1.0 / NANOS;
@@ -33,6 +36,9 @@ using COGMENT_ERROR_BASE_TYPE = std::runtime_error;
 
 // Ignores (i.e. not added to the vector) the last empty string if there is a trailing separator
 std::vector<std::string> split(const std::string& in, char separator);
+
+// Trim white space from begining and end of input string
+std::string_view trim(std::string_view in);
 
 // Unix epoch time in nanoseconds
 uint64_t Timestamp();
@@ -65,6 +71,13 @@ grpc::Status MakeErrorStatus(const char* format, Args&&... args) {
   catch (...) {
     return grpc::Status::CANCELLED;  // Not ideal, but the only predefined status other than OK
   }
+}
+
+template <class T>
+void to_lower_case(T* container) {
+  std::transform(container->begin(), container->end(), container->begin(), [](unsigned char val) -> char {
+    return std::tolower(val);
+  });
 }
 
 // Return only the first instance of the key if there are more
@@ -116,6 +129,11 @@ public:
     m_cond.notify_one();
   }
 
+  size_t size() {
+    const std::lock_guard lg(m_queue_lock);
+    return m_data.size();
+  }
+
 private:
   std::queue<T> m_data;
   std::mutex m_queue_lock;
@@ -146,5 +164,7 @@ private:
   std::vector<std::shared_ptr<ThreadControl>> m_thread_controls;
   std::mutex m_push_lock;
 };
+
+}  // namespace cogment
 
 #endif

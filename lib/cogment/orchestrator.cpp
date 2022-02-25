@@ -34,6 +34,7 @@ Orchestrator::Orchestrator(cogmentAPI::TrialParams default_trial_params, uint32_
     m_default_trial_params(std::move(default_trial_params)),
     m_gc_frequency(gc_frequency),
     m_channel_pool(creds),
+    m_directory_stubs(&m_channel_pool),
     m_hook_stubs(&m_channel_pool),
     m_log_stubs(&m_channel_pool),
     m_env_stubs(&m_channel_pool),
@@ -103,8 +104,8 @@ Orchestrator::~Orchestrator() {
   m_delete_thread_fut.wait();
 }
 
-std::shared_ptr<Trial> Orchestrator::start_trial(cogmentAPI::TrialParams params, const std::string& user_id,
-                                                 std::string trial_id_req) {
+std::shared_ptr<Trial> Orchestrator::start_trial(cogmentAPI::TrialParams&& params, const std::string& user_id,
+                                                 std::string trial_id_req, bool final_params) {
   if (trial_id_req.empty()) {
     trial_id_req.assign(to_string(g_uuid_generator()));
   }
@@ -137,15 +138,63 @@ std::shared_ptr<Trial> Orchestrator::start_trial(cogmentAPI::TrialParams params,
     }
   }
 
-  auto final_param = m_perform_pre_hooks(std::move(params), new_trial->id(), user_id);
+  if (final_params) {
+    new_trial->start(std::move(params));
+  }
+  else {
+    auto hook_params = m_perform_pre_hooks(std::move(params), new_trial->id(), user_id);
+    new_trial->start(std::move(hook_params));
+  }
 
-  new_trial->start(std::move(final_param));
   spdlog::info("Trial [{}] successfully initialized", new_trial->id());
 
   return new_trial;
 }
 
-void Orchestrator::add_prehook(const std::string& url) { m_prehooks.push_back(m_hook_stubs.get_stub_entry(url)); }
+void Orchestrator::add_directory(const std::string& user_url) {
+  EndpointData data;
+  try {
+    parse_endpoint(user_url, &data);
+  }
+  catch (const CogmentError& exc) {
+    throw MakeException("Directory endpoint error: [{}]", exc.what());
+  }
+
+  if (data.scheme != EndpointData::SchemeType::GRPC) {
+    throw MakeException("Only gRPC endpoints are valid for the directory service (grpc://) [{}]", user_url);
+  }
+
+  auto stub = m_directory_stubs.get_stub_entry(std::string(data.address));
+  m_directory.add_stub(stub);
+}
+
+void Orchestrator::add_prehook(const std::string& user_url) {
+  EndpointData data;
+  try {
+    parse_endpoint(user_url, &data);
+  }
+  catch (const CogmentError& exc) {
+    throw MakeException("Pre-trial hook endpoint error: [{}]", exc.what());
+  }
+
+  if (m_directory.is_context_endpoint(data)) {
+    data.path = EndpointData::PathType::PREHOOK;
+  }
+
+  std::string address;
+  try {
+    address = m_directory.get_address(data);
+  }
+  catch (const CogmentError& exc) {
+    throw MakeException("Pre-trial hook endpoint error: [{}]", exc.what());
+  }
+
+  if (address == CLIENT_ACTOR_ADDRESS) {
+    throw MakeException("Pre-trial hook endpoint resolved to 'client'");
+  }
+
+  m_prehooks.push_back(m_hook_stubs.get_stub_entry(address));
+}
 
 cogmentAPI::TrialParams Orchestrator::m_perform_pre_hooks(cogmentAPI::TrialParams&& params, const std::string& trial_id,
                                                           const std::string& user_id) {
@@ -173,13 +222,14 @@ void Orchestrator::m_perform_trial_gc() {
   }
   m_gc_countdown.store(m_gc_frequency);
 
+  SPDLOG_TRACE("Garbage collection starting");
   const auto start = Timestamp();
 
-  spdlog::debug("Performing garbage collection of ended and stale trials");
   std::vector<std::shared_ptr<Trial>> stale_trials;
 
   const std::lock_guard lg(m_trials_mutex);
 
+  size_t nb_deleted_trials = 0;
   auto itor = m_trials.begin();
   while (itor != m_trials.end()) {
     auto& trial = itor->second;
@@ -190,6 +240,7 @@ void Orchestrator::m_perform_trial_gc() {
     if (trial->state() == Trial::InternalState::ended) {
       m_trials_to_delete.push(std::move(trial));
       itor = m_trials.erase(itor);
+      nb_deleted_trials++;
     }
     else if (trial->is_stale()) {
       stale_trials.emplace_back(trial);
@@ -211,6 +262,9 @@ void Orchestrator::m_perform_trial_gc() {
     const auto duration = Timestamp() - start;
     m_gc_metrics->Observe(static_cast<double>(duration) * NANOS_INV);
   }
+
+  spdlog::debug("Garbage collection of ended [{}] ([{}] new) and stale [{}] trials", m_trials_to_delete.size(),
+                nb_deleted_trials, stale_trials.size());
   SPDLOG_TRACE("Garbage collection done");
 }
 

@@ -20,6 +20,7 @@
 #include "cogment/trial.h"
 #include "cogment/trial_params.h"
 #include "cogment/utils.h"
+#include "cogment/directory.h"
 
 #include "cogment/api/hooks.grpc.pb.h"
 #include "cogment/api/datalog.grpc.pb.h"
@@ -45,13 +46,15 @@ public:
 
   void Version(cogmentAPI::VersionInfo* out);
 
+  void add_directory(const std::string& url);
   void add_prehook(const std::string& url);
 
-  std::shared_ptr<Trial> start_trial(cogmentAPI::TrialParams params, const std::string& user_id,
-                                     std::string trial_id_req);
+  std::shared_ptr<Trial> start_trial(cogmentAPI::TrialParams&& params, const std::string& user_id,
+                                     std::string trial_id_req, bool final_params);
   std::shared_ptr<Trial> get_trial(const std::string& trial_id) const;
   std::vector<std::shared_ptr<Trial>> all_trials() const;
 
+  const Directory& directory() { return m_directory; }
   StubPool<cogmentAPI::DatalogSP>* log_pool() { return &m_log_stubs; }
   StubPool<cogmentAPI::EnvironmentSP>* env_pool() { return &m_env_stubs; }
   StubPool<cogmentAPI::ServiceActorSP>* agent_pool() { return &m_agent_stubs; }
@@ -81,12 +84,15 @@ private:
   mutable std::mutex m_trials_mutex;
   std::unordered_map<std::string, std::shared_ptr<Trial>> m_trials;
 
+  Directory m_directory;
+
   // List of trial pre-hooks to invoke before actually launching trials
   using HookEntryType = std::shared_ptr<StubPool<cogmentAPI::TrialHooksSP>::Entry>;
   std::vector<HookEntryType> m_prehooks;
 
   ChannelPool m_channel_pool;
 
+  StubPool<cogmentAPI::DirectorySP> m_directory_stubs;
   StubPool<cogmentAPI::TrialHooksSP> m_hook_stubs;
   StubPool<cogmentAPI::DatalogSP> m_log_stubs;
   StubPool<cogmentAPI::EnvironmentSP> m_env_stubs;

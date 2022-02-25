@@ -7,13 +7,21 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Added
+
+- Support for discovery endpoints (i.e. to query the directory)
+- Support for providing the parameters with the StartTrial rpc
+
 ## v2.1.0 - 2022-02-11
 
-- Orchestrator can now be launched with a grpc web proxy using the `COGMENT_WEB_PROXY_PORT` environment variable.
-  - All grpc-web traffic recevied on that port will be forwarded to the
-  orchestrator's actor service port.
-  - If the trial lifecycle service is on the same port as the actor service, both will be accessible via the proxy.
-- Setting `COGMENT_ORCHESTRATOR_VARIANT=debug` will launch the orchestrator's debug executable.
+### Added
+
+- Launch script to manage the starting of the webproxy with the orchestrator
+
+### Changed
+
+- The debug version is now suffixed with `_debug` instead of `_dbg`
+- The debug version of the orchestrator can now be started from the launch script with an environment variable.
 
 ## v2.0.0 - 2021-12-15
 

@@ -99,7 +99,7 @@ void Environment::read_init_data() {
         return;
       }
       else {
-        throw MakeException("Data [{}] received from before init data", static_cast<int>(data_case));
+        throw MakeException("Data [{}] received before init data", static_cast<int>(data_case));
       }
     }
 

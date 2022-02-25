@@ -33,6 +33,10 @@
 namespace cogment {
 const std::string DEFAULT_ENVIRONMENT_NAME("env");
 
+// Directory property names
+constexpr std::string_view ACTOR_CLASS_PROPERTY_NAME("actor_class");
+constexpr std::string_view IMPLEMENTATION_PROPERTY_NAME("implementation");
+
 constexpr int64_t AUTO_TICK_ID = -1;     // The actual tick ID will be determined by the Orchestrator
 constexpr int64_t NO_DATA_TICK_ID = -2;  // When we have received no data (different from default/empty data)
 constexpr uint64_t MAX_TICK_ID = static_cast<uint64_t>(std::numeric_limits<int64_t>::max());
@@ -237,44 +241,118 @@ void Trial::prepare_actors() {
   }
 
   for (const auto& actor_info : m_params.actors()) {
-    auto url = actor_info.endpoint();
+    auto& endpoint = actor_info.endpoint();
+    auto& name = actor_info.name();
+    auto& actor_class = actor_info.actor_class();
+    auto& implementation = actor_info.implementation();
 
-    if (url.empty() || actor_info.name().empty() || actor_info.actor_class().empty()) {
-      throw MakeException("Actor [{}] not fully defined in parameters", actor_info.name());
+    if (endpoint.empty() || name.empty() || actor_class.empty()) {
+      throw MakeException("Actor [{}] not fully defined in parameters", name);
     }
-
-    if (actor_info.name() == m_env->name()) {
+    if (name == m_env->name()) {
       throw MakeException("Actor name cannot be the same as environment name [{}]", m_env->name());
     }
 
-    if (url == "client" || url == "cogment://client") {
-      if (url == "client") {
-        spdlog::warn("Client actor endpoint must be 'cogment://client' in the parameters [{}]", url);
-      }
+    static constexpr std::string_view DEPRECATED_CLIENT_ENDPOINT = "client";
+    if (endpoint == DEPRECATED_CLIENT_ENDPOINT) {
+      spdlog::warn("Client actor endpoint must be 'cogment://client' in the parameters [{}]", endpoint);
 
       auto client_actor = std::make_unique<ClientActor>(this, actor_info);
       m_actors.emplace_back(std::move(client_actor));
     }
     else {
-      auto stub_entry = m_orchestrator->agent_pool()->get_stub_entry(url);
-      auto agent_actor = std::make_unique<ServiceActor>(this, actor_info, stub_entry);
-      m_actors.emplace_back(std::move(agent_actor));
+      EndpointData data;
+      try {
+        parse_endpoint(endpoint, &data);
+      }
+      catch (const CogmentError& exc) {
+        throw MakeException("Actor [{}] endpoint error: [{}]", name, exc.what());
+      }
+      auto& directory = m_orchestrator->directory();
+
+      if (directory.is_context_endpoint(data)) {
+        if (actor_class.find_first_of(INVALID_CHARACTERS) != name.npos) {
+          throw MakeException("Actor class name contains invalid characters [{}]", actor_class);
+        }
+        if (implementation.find_first_of(INVALID_CHARACTERS) != implementation.npos) {
+          throw MakeException("Actor implementation name contains invalid characters [{}]", implementation);
+        }
+
+        data.path = EndpointData::PathType::ACTOR;
+        data.query.emplace_back(ACTOR_CLASS_PROPERTY_NAME, actor_class);
+        if (!implementation.empty()) {
+          data.query.emplace_back(IMPLEMENTATION_PROPERTY_NAME, implementation);
+        }
+      }
+
+      std::string address;
+      try {
+        address = directory.get_address(data);
+      }
+      catch (const CogmentError& exc) {
+        throw MakeException("Actor [{}] endpoint error: [{}]", name, exc.what());
+      }
+
+      if (address == CLIENT_ACTOR_ADDRESS) {
+        auto client_actor = std::make_unique<ClientActor>(this, actor_info);
+        m_actors.emplace_back(std::move(client_actor));
+      }
+      else {
+        auto stub_entry = m_orchestrator->agent_pool()->get_stub_entry(address);
+        auto agent_actor = std::make_unique<ServiceActor>(this, actor_info, stub_entry);
+        m_actors.emplace_back(std::move(agent_actor));
+      }
     }
 
-    auto [itor, inserted] = m_actor_indexes.emplace(actor_info.name(), m_actors.size() - 1);
+    auto [itor, inserted] = m_actor_indexes.emplace(name, m_actors.size() - 1);
     if (!inserted) {
-      throw MakeException("Actor name is not unique [{}]", actor_info.name());
+      throw MakeException("Actor name is not unique [{}]", name);
     }
   }
 }
 
 void Trial::prepare_environment() {
   auto& env_params = m_params.environment();
-  if (env_params.endpoint().empty()) {
+  auto& endpoint = env_params.endpoint();
+  auto& implementation = env_params.implementation();
+  auto& directory = m_orchestrator->directory();
+
+  if (endpoint.empty()) {
     throw MakeException("No environment endpoint provided in parameters");
   }
 
-  auto stub_entry = m_orchestrator->env_pool()->get_stub_entry(env_params.endpoint());
+  EndpointData data;
+  try {
+    parse_endpoint(endpoint, &data);
+  }
+  catch (const CogmentError& exc) {
+    throw MakeException("Environment endpoint error: [{}]", exc.what());
+  }
+
+  if (directory.is_context_endpoint(data)) {
+    if (implementation.find_first_of(INVALID_CHARACTERS) != implementation.npos) {
+      throw MakeException("Environment implementation name contains invalid characters [{}]", implementation);
+    }
+
+    data.path = EndpointData::PathType::ENVIRONMENT;
+    if (!implementation.empty()) {
+      data.query.emplace_back(IMPLEMENTATION_PROPERTY_NAME, implementation);
+    }
+  }
+
+  std::string address;
+  try {
+    address = directory.get_address(data);
+  }
+  catch (const CogmentError& exc) {
+    throw MakeException("Environment endpoint error: [{}]", exc.what());
+  }
+
+  if (address == CLIENT_ACTOR_ADDRESS) {
+    throw MakeException("Environment endpoint resolved to 'client'");
+  }
+
+  auto stub_entry = m_orchestrator->env_pool()->get_stub_entry(address);
   m_env = std::make_unique<Environment>(this, env_params, stub_entry);
 }
 
@@ -283,12 +361,38 @@ void Trial::prepare_datalog() {
     m_datalog = std::make_unique<DatalogServiceNull>();
   }
   else {
-    auto& url = m_params.datalog().endpoint();
-    if (url.empty()) {
+    auto& endpoint = m_params.datalog().endpoint();
+    auto& directory = m_orchestrator->directory();
+
+    if (endpoint.empty()) {
       throw MakeException("Parameter Datalog endpoint missing");
     }
 
-    auto stub_entry = m_orchestrator->log_pool()->get_stub_entry(url);
+    EndpointData data;
+    try {
+      parse_endpoint(endpoint, &data);
+    }
+    catch (const CogmentError& exc) {
+      throw MakeException("Datalog endpoint error: [{}]", exc.what());
+    }
+
+    if (directory.is_context_endpoint(data)) {
+      data.path = EndpointData::PathType::DATALOG;
+    }
+
+    std::string address;
+    try {
+      address = directory.get_address(data);
+    }
+    catch (const CogmentError& exc) {
+      throw MakeException("Datalog endpoint error: [{}]", exc.what());
+    }
+
+    if (address == CLIENT_ACTOR_ADDRESS) {
+      throw MakeException("Datalog endpoint resolved to 'client'");
+    }
+
+    auto stub_entry = m_orchestrator->log_pool()->get_stub_entry(address);
     m_datalog = std::make_unique<DatalogServiceImpl>(stub_entry);
   }
 
@@ -303,7 +407,7 @@ void Trial::start(cogmentAPI::TrialParams&& params) {
   }
 
   m_params = std::move(params);
-  SPDLOG_DEBUG("Trial [{}] - Configuring with parameters: {}", m_id, m_params.DebugString());
+  SPDLOG_DEBUG("Trial [{}] - Configuring with parameters:\n {}", m_id, m_params.DebugString());
 
   if (m_params.environment().name().empty()) {
     spdlog::info("Trial [{}] - Environment name set to default [{}]", m_id, DEFAULT_ENVIRONMENT_NAME);
@@ -343,7 +447,8 @@ void Trial::start(cogmentAPI::TrialParams&& params) {
       // TODO: We could start the environment first (before the actors), then wait here.  But then we would
       //       have to synchronize everything, or hold the first observations until all actors are init.
       self->m_env->init().wait();
-      SPDLOG_TRACE("Trial [{}] - Environment [{}] started", self->m_id, self->m_env->name());
+
+      spdlog::debug("Trial [{}] - Started", self->m_id);
     }
     catch (const std::exception& exc) {
       spdlog::error("Trial [{}] - Failed to start [{}]", self->m_id, exc.what());
@@ -718,6 +823,8 @@ void Trial::terminate(const std::string& details) {
 }
 
 void Trial::env_observed(const std::string& env_name, cogmentAPI::ObservationSet&& obs, bool last) {
+  SPDLOG_TRACE("Trial [{}] - New observations received from environment", m_id);
+
   const std::shared_lock lg(m_terminating_lock);
   refresh_activity();
 

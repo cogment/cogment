@@ -95,24 +95,19 @@ public:
     StubType m_stub;
   };
 
-  std::shared_ptr<Entry> get_stub_entry(const std::string& url) {
+  std::shared_ptr<Entry> get_stub_entry(const std::string& address) {
     const std::lock_guard lg(m_map_lock);
 
-    if (url.find("grpc://") != 0) {
-      throw MakeException("Bad grpc url (must start with 'grpc://'): [{}]", url);
-    }
-
-    auto real_url = url.substr(7);
-    auto& found = m_entries[real_url];
+    auto& found = m_entries[address];
     auto result = found.lock();
 
-    if (!result) {
-      spdlog::info("Opening channel for [{}] at [{}]", Service_T::service_full_name(), real_url);
-      auto channel = m_channel_pool->get_channel(real_url);
+    if (result == nullptr) {
+      spdlog::info("Defining channel for [{}] at [{}]", Service_T::service_full_name(), address);
+      auto channel = m_channel_pool->get_channel(address);
 
       result = std::make_shared<Entry>(std::move(channel), StubType(channel));
       found = result;
-      spdlog::debug("Stub [{}] at [{}] ready for use", Service_T::service_full_name(), real_url);
+      spdlog::debug("Stub [{}] at [{}] ready for use", Service_T::service_full_name(), address);
     }
 
     return result;

@@ -93,6 +93,7 @@ compile_grpc_proto(orchestrator)
 compile_grpc_proto(agent)
 compile_grpc_proto(environment)
 compile_grpc_proto(hooks)
+compile_grpc_proto(directory)
 # Last one to be 'called' because ${COGMENT_API_SRC} is constructed by the previous calls.
 retrieve_protos()
 
@@ -124,6 +125,7 @@ add_library(orchestrator_lib
   cogment/trial_params.cpp
   cogment/trial.cpp
   cogment/utils.cpp
+  cogment/directory.cpp
   cogment/environment.cpp
 
   cogment/services/actor_service.cpp

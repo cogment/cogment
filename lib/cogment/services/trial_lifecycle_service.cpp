@@ -33,14 +33,23 @@ grpc::Status TrialLifecycleService::StartTrial(grpc::ServerContext*, const cogme
 
   try {
     SPDLOG_TRACE("StartTrial from [{}] with trial id [{}]", in->user_id(), in->trial_id_requested());
-    auto params = m_orchestrator->default_trial_params();
 
-    // Apply config override if provided
-    if (in->has_config()) {
-      params.mutable_trial_config()->set_content(in->config().content());
+    std::shared_ptr<Trial> trial;
+
+    if (in->has_params()) {
+      if (in->has_config()) {
+        throw MakeException("Only config or params is allowed, not both");
+      }
+      cogmentAPI::TrialParams params(in->params());
+      trial = m_orchestrator->start_trial(std::move(params), in->user_id(), in->trial_id_requested(), true);
     }
-
-    auto trial = m_orchestrator->start_trial(std::move(params), in->user_id(), in->trial_id_requested());
+    else {
+      auto params = m_orchestrator->default_trial_params();
+      if (in->has_config()) {
+        params.mutable_trial_config()->set_content(in->config().content());
+      }
+      trial = m_orchestrator->start_trial(std::move(params), in->user_id(), in->trial_id_requested(), false);
+    }
 
     if (trial != nullptr) {
       out->set_trial_id(trial->id());

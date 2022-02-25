@@ -18,6 +18,8 @@
 
 #include "cogment/utils.h"
 
+namespace cogment {
+
 #ifdef __linux__
   #include <string.h>
   #include <time.h>
@@ -51,6 +53,31 @@ std::vector<std::string> split(const std::string& in, char separator) {
 
   if (first < in.size()) {
     result.emplace_back(in.substr(first));
+  }
+
+  return result;
+}
+
+std::string_view trim(std::string_view in) {
+  std::string_view result = in;
+
+  for (auto val : in) {
+    if (!std::isspace(static_cast<unsigned char>(val))) {
+      break;
+    }
+    else {
+      result.remove_prefix(1);
+    }
+  }
+
+  for (auto itor = in.rbegin(); itor != in.rend(); itor++) {
+    const auto val = static_cast<unsigned char>(*itor);
+    if (!std::isspace(val)) {
+      break;
+    }
+    else {
+      result.remove_suffix(1);
+    }
   }
 
   return result;
@@ -152,3 +179,5 @@ std::shared_ptr<ThreadPool::ThreadControl>& ThreadPool::add_thread() {
   spdlog::debug("Nb of threads in pool: [{}]", m_thread_controls.size());
   return thr_control;
 }
+
+}  // namespace cogment

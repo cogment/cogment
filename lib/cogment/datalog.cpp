@@ -17,11 +17,19 @@
 #endif
 
 #include "cogment/datalog.h"
+#include "cogment/utils.h"
 
 #include "spdlog/spdlog.h"
 
 namespace cogment {
 namespace {
+
+// Sample fields
+constexpr std::string_view OBSERVATION_FIELD_NAME("observation");
+constexpr std::string_view ACTIONS_FIELD_NAME("actions");
+constexpr std::string_view REWARDS_FIELD_NAME("rewards");
+constexpr std::string_view MESSAGES_FIELD_NAME("messages");
+constexpr std::string_view INFO_FIELD_NAME("info");
 
 constexpr size_t OBSERVATIONS_FIELD = 0;
 constexpr size_t ACTIONS_FIELD = 1;
@@ -58,21 +66,21 @@ void DatalogServiceImpl::start(const std::string& trial_id, const std::string& u
   static_assert(NB_BITS >= NB_FIELDS);
   const auto& exclude = params.datalog().exclude_fields();
   for (auto field : exclude) {
-    std::transform(field.begin(), field.end(), field.begin(), ::tolower);
+    to_lower_case(&field);
 
-    if (field == "observations") {
+    if (field == OBSERVATION_FIELD_NAME) {
       m_exclude_fields.set(OBSERVATIONS_FIELD);
     }
-    else if (field == "actions") {
+    else if (field == ACTIONS_FIELD_NAME) {
       m_exclude_fields.set(ACTIONS_FIELD);
     }
-    else if (field == "rewards") {
+    else if (field == REWARDS_FIELD_NAME) {
       m_exclude_fields.set(REWARDS_FIELD);
     }
-    else if (field == "messages") {
+    else if (field == MESSAGES_FIELD_NAME) {
       m_exclude_fields.set(MESSAGES_FIELD);
     }
-    else if (field == "info") {
+    else if (field == INFO_FIELD_NAME) {
       m_exclude_fields.set(INFO_FIELD);
     }
     else {

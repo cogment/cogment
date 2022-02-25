@@ -51,8 +51,9 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-STATUS_PIPE=/tmp/cogment_orchestrator_status
 PROXY_PID=""
+STATUS_PIPE=$(mktemp -t cogment_orchestrator_status.XXXXXX)
+rm "${STATUS_PIPE}"
 
 trap cleanup EXIT
 
@@ -60,7 +61,7 @@ trap cleanup EXIT
 # commands and report them all before launching the first one.
 
 # Prepare the orchestrator launch command.
-mkfifo ${STATUS_PIPE}
+mkfifo "${STATUS_PIPE}"
 
 ORCHESTRATOR_PROGRAM="orchestrator"
 if [[ -n "${COGMENT_ORCHESTRATOR_VARIANT}" ]]; then
@@ -85,7 +86,7 @@ printf "\n"
 ${ORCHESTRATOR_PROGRAM} --status_file="${STATUS_PIPE}" "${ORCHESTRATOR_ARGS[@]}" &
 
 # Wait for the orchestrator to be done Initializing and be Running
-read -r -n2 STATUS <${STATUS_PIPE}
+read -r -n2 STATUS <"${STATUS_PIPE}"
 if [[ "${STATUS}" != 'IR' ]]; then
   printf "Orchestrator failed to start.\n"
   exit 1
@@ -97,7 +98,7 @@ if [[ -n "${PROXY_LAUNCH_CMD}" ]]; then
 fi
 
 # Wait for the orchestrator to terminate
-read -r -n1 STATUS <${STATUS_PIPE}
+read -r -n1 STATUS <"${STATUS_PIPE}"
 
 # Just to be absolutely safe
 if [[ "${STATUS}" != 'T' ]]; then

@@ -74,6 +74,12 @@ slt::Setting default_params_file = slt::Setting_builder<std::string>()
                                        .with_env_variable("COGMENT_DEFAULT_PARAMS_FILE")
                                        .with_arg("params");
 
+slt::Setting directory_services = slt::Setting_builder<std::string>()
+                                      .with_default("")
+                                      .with_description("Directory service grpc endpoint")
+                                      .with_env_variable("COGMENT_DIRECTORY_SERVICES")
+                                      .with_arg("directory_services");
+
 slt::Setting pre_trial_hooks = slt::Setting_builder<std::string>()
                                    .with_default("")
                                    .with_description("Pre-trial hook gRPC endpoints, separated by a comma")
@@ -99,36 +105,43 @@ slt::Setting display_version = slt::Setting_builder<bool>()
 slt::Setting status_file = slt::Setting_builder<std::string>()
                                .with_default("")
                                .with_description("File to store the Orchestrator status to.")
+                               .with_env_variable("COGMENT_STATUS_FILE")
                                .with_arg("status_file");
 
 slt::Setting private_key = slt::Setting_builder<std::string>()
                                .with_default("")
                                .with_description("File containing PEM encoded private key.")
+                               .with_env_variable("COGMENT_PRIVATE_KEY_FILE")
                                .with_arg("private_key");
 
 slt::Setting root_cert = slt::Setting_builder<std::string>()
                              .with_default("")
                              .with_description("File containing a PEM encoded trusted root certificate.")
+                             .with_env_variable("COGMENT_ROOT_CERT_FILE")
                              .with_arg("root_cert");
 
 slt::Setting trust_chain = slt::Setting_builder<std::string>()
                                .with_default("")
                                .with_description("File containing a PEM encoded trust chain.")
+                               .with_env_variable("COGMENT_TRUST_CHAIN_FILE")
                                .with_arg("trust_chain");
 
 slt::Setting log_level = slt::Setting_builder<std::string>()
                              .with_default("info")
                              .with_description("Set minimum logging level (off, error, warning, info, debug, trace)")
+                             .with_env_variable("COGMENT_LOG_LEVEL")
                              .with_arg("log_level");
 
 slt::Setting log_file = slt::Setting_builder<std::string>()
                             .with_default("")
                             .with_description("Set base file for daily log output")
+                            .with_env_variable("COGMENT_LOG_FILE")
                             .with_arg("log_file");
 
 slt::Setting gc_frequency = slt::Setting_builder<std::uint32_t>()
                                 .with_default(10)
                                 .with_description("Number of trials between garbage collection runs")
+                                .with_env_variable("COGMENT_GC_FREQUENCY")
                                 .with_arg("gc_frequency");
 }  // namespace settings
 
@@ -192,14 +205,14 @@ int main(int argc, const char* argv[]) {
   }
 
   std::string log_level = settings::log_level.get();
-  std::transform(log_level.begin(), log_level.end(), log_level.begin(), ::tolower);
+  cogment::to_lower_case(&log_level);
   try {
     if (!log_level.empty()) {
       const auto level_setting = spdlog::level::from_str(log_level);
 
       // spdlog returns "off" if an unknown string is given!
       if (level_setting == spdlog::level::level_enum::off && log_level != "off") {
-        throw MakeException("Unknown log level setting");
+        throw cogment::MakeException("Unknown log level setting");
       }
 
       spdlog::set_level(level_setting);
@@ -230,6 +243,8 @@ int main(int argc, const char* argv[]) {
   spdlog::debug("\t--{}={}", settings::lifecycle_port.arg().value_or(""), settings::lifecycle_port.get());
   spdlog::debug("\t--{}={}", settings::actor_port.arg().value_or(""), settings::actor_port.get());
   spdlog::debug("\t--{}={}", settings::default_params_file.arg().value_or(""), settings::default_params_file.get());
+  spdlog::debug("\t--{}={}", settings::directory_services.arg().value_or(""), settings::directory_services.get());
+  spdlog::debug("\t--{}={}", settings::pre_trial_hooks.arg().value_or(""), settings::pre_trial_hooks.get());
   spdlog::debug("\t--{}={}", settings::prometheus_port.arg().value_or(""), settings::prometheus_port.get());
   spdlog::debug("\t--{}={}", settings::display_version.arg().value_or(""), settings::display_version.get());
   spdlog::debug("\t--{}={}", settings::status_file.arg().value_or(""), settings::status_file.get());
@@ -237,6 +252,7 @@ int main(int argc, const char* argv[]) {
   spdlog::debug("\t--{}={}", settings::root_cert.arg().value_or(""), settings::root_cert.get());
   spdlog::debug("\t--{}={}", settings::trust_chain.arg().value_or(""), settings::trust_chain.get());
   spdlog::debug("\t--{}={}", settings::log_level.arg().value_or(""), settings::log_level.get());
+  spdlog::debug("\t--{}={}", settings::log_file.arg().value_or(""), settings::log_file.get());
   spdlog::debug("\t--{}={}", settings::gc_frequency.arg().value_or(""), settings::gc_frequency.get());
 
   spdlog::info("Cogment Orchestrator version [{}]", COGMENT_ORCHESTRATOR_VERSION);
@@ -260,21 +276,22 @@ int main(int argc, const char* argv[]) {
 
       auto private_key_file = std::ifstream(settings::private_key.get());
       if (!private_key_file.is_open() || !private_key_file.good()) {
-        throw MakeException("Could not open private key file: [{}] [{}]", cwd, settings::private_key.get());
+        throw cogment::MakeException("Could not open private key file: [{}] [{}]", cwd, settings::private_key.get());
       }
       std::stringstream private_key;
       private_key << private_key_file.rdbuf();
 
       auto root_cert_file = std::ifstream(settings::root_cert.get());
       if (!root_cert_file.is_open() || !root_cert_file.good()) {
-        throw MakeException("Could not open root certificate file: [{}] [{}]", cwd, settings::root_cert.get());
+        throw cogment::MakeException("Could not open root certificate file: [{}] [{}]", cwd, settings::root_cert.get());
       }
       std::stringstream root_cert;
       root_cert << root_cert_file.rdbuf();
 
       auto trust_chain_file = std::ifstream(settings::trust_chain.get());
       if (!trust_chain_file.is_open() || !trust_chain_file.good()) {
-        throw MakeException("Could not open certificate trust chain file: [{}] [{}]", cwd, settings::trust_chain.get());
+        throw cogment::MakeException("Could not open certificate trust chain file: [{}] [{}]", cwd,
+                                     settings::trust_chain.get());
       }
       std::stringstream trust_chain;
       trust_chain << trust_chain_file.rdbuf();
@@ -336,8 +353,8 @@ int main(int argc, const char* argv[]) {
         params_file_loaded = true;
       }
       catch (const std::exception& exc) {
-        throw MakeException("Failed to load default parameters file [{}]: {}", settings::default_params_file.get(),
-                            exc.what());
+        throw cogment::MakeException("Failed to load default parameters file [{}]: {}",
+                                     settings::default_params_file.get(), exc.what());
       }
     }
     else if (!settings::deprecated_config_file.get().empty()) {
@@ -347,8 +364,8 @@ int main(int argc, const char* argv[]) {
         deprecated_config_file_loaded = true;
       }
       catch (const std::exception& exc) {
-        throw MakeException("Failed to load default deprecated config file [{}]: {}",
-                            settings::deprecated_config_file.get(), exc.what());
+        throw cogment::MakeException("Failed to load default deprecated config file [{}]: {}",
+                                     settings::deprecated_config_file.get(), exc.what());
       }
     }
     else {
@@ -368,7 +385,7 @@ int main(int argc, const char* argv[]) {
         if (params_yaml[cfg_file::datalog_key][cfg_file::d_type_key] != nullptr) {
           type = params_yaml[cfg_file::datalog_key][cfg_file::d_type_key].as<std::string>();
         }
-        std::transform(type.begin(), type.end(), type.begin(), ::tolower);
+        cogment::to_lower_case(&type);
 
         if (type == "grpc") {
           auto datalog = params.mutable_datalog();
@@ -386,8 +403,16 @@ int main(int argc, const char* argv[]) {
                                        metrics_registry.get());
 
     // ******************* Networking *******************
+    const auto directory_endpoint = settings::directory_services.get();
+    if (!directory_endpoint.empty()) {
+      orchestrator.add_directory(directory_endpoint);
+    }
+    else {
+      spdlog::debug("No directory service defined");
+    }
+
     int nb_prehooks = 0;
-    const auto hooks_urls = split(settings::pre_trial_hooks.get(), ',');
+    const auto hooks_urls = cogment::split(settings::pre_trial_hooks.get(), ',');
     if (!hooks_urls.empty()) {
       if (deprecated_config_file_loaded) {
         spdlog::warn(
@@ -407,7 +432,7 @@ int main(int argc, const char* argv[]) {
       }
       else {
         if (!params_file_loaded) {
-          throw MakeException("No default parameter file and no pre-trial hook definition.");
+          throw cogment::MakeException("No default parameter file and no pre-trial hook definition.");
         }
       }
     }
