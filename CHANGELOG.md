@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v0.3.0 - 2022-02-24
+
 ### Added
 
 - Introduce a backend based on bbolt (https://github.com/etcd-io/bbolt) a file based embedded key-value store.
