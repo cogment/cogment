@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v0.6.0 - 2022-02-25
+
 ### Fixed
 
 - Fix issue where the latest published model version would be purged from the memory cache while trials were trying to retrieve it.
