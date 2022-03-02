@@ -1,0 +1,29 @@
+run:
+  # timeout for analysis, e.g. 30s, 5m, default is 1m
+  timeout: 2m
+
+  skip-dirs:
+    - .go
+
+linters:
+  disable-all: true
+  enable:
+    - deadcode
+    - errcheck
+    - gofmt
+    - gosimple
+    - govet
+    - ineffassign
+    - lll
+    - revive
+    - staticcheck
+    - structcheck
+    - typecheck
+    - unused
+    - varcheck
+
+linters-settings:
+  lll:
+    # Should be synchronized with the content of ../../.editorconfig
+    line-length: 120
+    tab-width: 2

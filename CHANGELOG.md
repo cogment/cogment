@@ -7,16 +7,171 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
-## v2.0.0 - 2022-01-10
+This is the initial release of the _unified_ Cogment executable that includes:
+
+- the orchestrator, accessible as `cogment service orchestrator`,
+- the model registry, accessible as `cogment service model_registry`,
+- the trial datastore, accessible as `cogment service trial_datastore`,
+- the CLI.
+
+Cogment supports natively linux, macOS (> 10.15), and windows on amd64 (aka x84_64) architectures.
+
+### Added
+
+- Add orchestrator support for discovery endpoints (i.e. to query the directory)
+- Add orchestrator support for providing the parameters with the StartTrial rpc
+
+### Changed
+
+- Deprecate `cogment run`, users should now rely on a dedicated script, e.g. bash script.
+- Deprecate `cogment copy`, users should now rely on dedicated commands, e.g. `cp` if needed.
+- Deprecate `cogment init`.
+- Update the copyright notice year to 2022.
+
+### Fixed
+
+- Have the orchestrator datalog client consume the stream for the server
+
+## _Model Registry_ - v0.6.0 - 2022-02-25
+
+### Fixed
+
+- Fix issue where the latest published model version would be purged from the memory cache while trials were trying to retrieve it.
+
+### Changed
+
+- Memory cache now uses `lru` package instead of `ccache`
+- `COGMENT_MODEL_REGISTRY_VERSION_CACHE_MAX_SIZE` has been deprecated and replaced by `COGMENT_MODEL_REGISTRY_VERSION_CACHE_MAX_ITEMS`.
+- `COGMENT_MODEL_REGISTRY_VERSION_CACHE_EXPIRATION` has been deprecated.
+- `COGMENT_MODEL_REGISTRY_VERSION_CACHE_PRUNE_COUNT` has been deprecated.
+
+## _Orchestrator_ - v2.1.0 - 2022-02-11
+
+### Added
+
+- Launch script to manage the starting of the webproxy with the orchestrator
+
+### Changed
+
+- The debug version is now suffixed with `_debug` instead of `_dbg`
+- The debug version of the orchestrator can now be started from the launch script with an environment variable.
+
+## _Model Registry_ - v0.5.0 - 2022-02-01
+
+### Added
+
+- Implement `cogmentAPI.ModelRegistrySP/RetrieveModels`, the method able to retrieve models and their data.
+
+### Fixed
+
+- Examples in the readme now uses the correct protobuf namespace.
+
+## _Model Registry_ - v0.4.0 - 2022-01-19
+
+### Added
+
+- Add the ability to retrieve any n-th to last version to `cogmentAPI.ModelRegistrySP/RetrieveVersionInfos`, `cogmentAPI.ModelRegistrySP/RetrieveVersionData`.
+
+### Changed
+
+- **Breaking Change** Update Cogment API to 2.0
+- Internal `backend.Backend` now uses `uint` for version numbers and uses 0 to request the creation of a new version.
+
+## _CLI_ - 2.0.0 - 2022-01-10
 
 - Updated dockerfiles and yaml files to comply with 2.0
 
-## v2.0.0-rc1 - 2021-12-16
+## _Trial Datastore_ - v0.3.0 - 2022-02-24
+
+### Added
+
+- Introduce a backend based on bbolt (https://github.com/etcd-io/bbolt) a file based embedded key-value store.
+
+## _Trial Datastore_ - v0.2.0 - 2022-01-19
+
+### Changed
+
+- **Breaking Change** Update Cogment API to 2.0, no longer support API v1.X
+
+## _CLI_ - 2.0.0-rc1 - 2021-12-16
 
 - Rename `cogment sync` to `cogment copy`
 - Code generation updated for Cogment API 2.0
 
-## v1.2.0 - 2021-09-27
+## _Orchestrator_ - v2.0.0 - 2021-12-15
+
+### Changed
+
+- Change warning to debug for expected (under special circumstances) exeptions
+- Properly manage forced termination of pending trials
+
+## _Orchestrator_ - v2.0.0-rc3 - 2021-12-10
+
+### Changed
+
+- Stricter control of streams to limit gRPC problems
+
+## _Model Registry_ - v0.3.0 - 2021-12-14
+
+### Changed
+
+- The model registry now stores transient model versions in a memory cache.
+
+### Added
+
+- Introduce `backend.MemoryCacheBackend` a cache backend that stores model version in a upper bounded memory cache and uses another backend for archived versions.
+
+### Removed
+
+- `backend.DbBackend` and `backend.HybridBackend` are no longer used and have been removed.
+
+## _Orchestrator_ - v2.0.0-rc2 - 2021-11-30
+
+### Changed
+
+- Better management of config: differentiate between absence of config and empty config
+
+## _Orchestrator_ - v2.0.0-rc1 - 2021-11-29
+
+### Changed
+
+#### Breaking Changes
+
+- Implement [cogment api 2.0.0](https://github.com/cogment/cogment-api/blob/main/CHANGELOG.md#v200---2021-11-12), in particular follow a new streaming model for actors & environments.
+- Rename environment variables `TRIAL_LIFECYCLE_PORT`, `TRIAL_ACTOR_PORT` & `PROMETHEUS_PORT` to `COGMENT_LIFECYCLE_PORT`, `COGMENT_ACTOR_PORT` & `COGMENT_ORCHESTRATOR_PROMETHEUS_PORT`.
+- The `cogment.yaml` file is now optional and needs to be provided with the `--params` command line argument or the `COGMENT_DEFAULT_PARAMS_FILE` environment variable, only the `trial_params` is take into account.
+
+- Add the ability to provide a list of pretrial hook endpoints with the `--pre_trial_hooks` comand line argument or the `COGMENT_PRE_TRIAL_HOOKS` environment variable.
+- Remove dependencies to easygrpc.
+- General refactor and cleanup.
+
+## _Trial Datastore_ - v0.1.2 - 2021-10-25
+
+### Fixed
+
+- Fix bad data initialization that would cause a nil pointer dereference when receiving samples through the datalog server
+
+## _Trial Datastore_ - v0.1.1 - 2021-10-22
+
+### Fixed
+
+- Fix naming collision in cogment gRPC API
+
+## _Trial Datastore_ - v0.1.0 - 2021-10-20
+
+Introduce Trial Datastore, a simple logger & store for trial generated data.
+
+## _Model Registry_ - v0.2.0 - 2021-10-05
+
+### Fixed
+
+- Fix `database is locked` errors during the initial sync by configuring SQLite for concurrent access.
+
+## _Model Registry_ - v0.1.0 - 2021-10-01
+
+Introduce Model Registry, a simple versioned key-value store for models
+
+## _CLI_ - 1.2.0 - 2021-09-27
 
 ### Added
 
@@ -26,7 +181,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Upgrade the version used by `cogment init` of the python sdk to `v1.3.0`
 
-## v1.1.0 - 2021-09-09
+## _CLI_ - 1.1.0 - 2021-09-09
 
 ### Added
 
@@ -40,16 +195,38 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Upgrade the version of the orchestrator used by `cogment init` to `v1.0.3`
 
-## v1.0.3 - 2021-07-07
+## _Orchestrator_ - v1.0.3 - 2021-07-30
+
+### Added
+
+- Add Prometheus metrics for trial garbage collection, trial duration and tick duration
+- Add the ability to disable Prometheus server by setting its port to 0 in `PROMETHEUS_PORT` or with the `--prometheus-port` CLI flag
+
+### Fixed
+
+- Fix several memory leaks that was causing the memory to grow with each trial execution
+
+## _Orchestrator_ - v1.0.2 - 2021-07-07
+
+### Changed
+
+- Update copyright notice to use the legal name of AI Redefined Inc.
+- Use strings everywhere for trial id
+
+### Fixed
+
+- Order of state recording in datalog sample (to be the state at the end of the tick).
+
+## _CLI_ - 1.0.3 - 2021-07-07
 
 ### Changed
 
 - `cogment init` now uses fixed version for the metrics and dashboard.
 - cogment.yaml template includes client in docker-compose build command
 
-## v1.0.2 - 2021-06-17
+## _CLI_ - 1.0.2 - 2021-06-17
 
-## v1.0.1 - 2021-06-04
+## _CLI_ - 1.0.1 - 2021-06-04
 
 ### Changed
 
@@ -57,14 +234,51 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - better error handling
 - Update copyright notice to use the legal name of AI Redefined Inc.
 
-## v1.0.0 - 2021-05-11
+## _Orchestrator_ - v1.0.1 - 2021-06-02
 
-## v1.0.0-beta3 - 2021-04-27
+### Changed
+
+- Cleanup logs and add trace logs
+- Fix environment message sending (to only send when there are messages)
+- Add SIGSEGV trapping and reporting
+- Add log file output option
+
+## _CLI_ - 1.0.0 - 2021-05-11
+
+## _Orchestrator_ - v1.0.0 - 2021-05-10
+
+- Initial public release.
+
+### Fixed
+
+- Environment can now receive messages
+- The parameter `max_steps` now works
+
+## _CLI_ - 1.0.0-beta3 - 2021-04-27
 
 - Upgrade the version of cogment-orchestrator to `v1.0.0-beta3`
 - Upgrade the version of cogment-py-sdk to `v1.0.0-beta3`
 
-## v1.0.0-beta1 - 2021-04-08
+## _Orchestrator_ - v1.0.0-beta3 - 2021-04-26
+
+### Added
+
+- Add implementation for the GetTrialInfo function
+
+### Fixed
+
+- Fill in missing API data in the datalog `DatalogSample.TrialData` protobuf class
+- Fix timing problems causing various issues
+
+## _Orchestrator_ - v1.0.0-beta2 - 2021-04-15
+
+### Fixed
+
+- Fixed the problem where the last rewards from the environment would get to the actors too late
+- Fixed the filling of DatalogSample (actions, rewards and messages were missing)
+- Fixed one deadlock with actor responses
+
+## _CLI_ - 1.0.0-beta1 - 2021-04-08
 
 - Initial beta release, no more breaking changes should be introduced.
 
@@ -72,7 +286,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Generated web-client no longer include a `.git`
 
-## v1.0.0-alpha10 - 2021-04-01
+## _Orchestrator_ - v1.0.0-beta1 - 2021-04-07
+
+- Initial beta release, no more breaking changes should be introduced.
+
+## _Orchestrator_ - v1.0.0-alpha9 - 2021-04-01
+
+### Changed
+
+- Rename ActorClass `id` to `name`
+
+## _CLI_ - 1.0.0-alpha10 - 2021-04-01
 
 ### Changed
 
@@ -90,19 +314,39 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - The default `cogment run build` properly build all the services.
 - Fix `cogment generate` to properly support `import` in proto files.
 
-## v1.0.0-alpha9 - 2021-03-01
+## _Orchestrator_ - v1.0.0-alpha8 - 2021-03-30
 
-## v1.0.0-alpha8 - 2021-02-25
+- Technical release, updating dependencies to fixed versions.
 
-## v1.0.0-alpha7 - 2021-02-24
+## _Orchestrator_ - v1.0.0-alpha7 - 2021-03-30
 
-## v1.0.0-alpha6 - 2021-02-23
+### Added
+
+- Log exporter is now available: trials param, observations, rewards, messages of every trials are sent to the log exporter service.
+
+### Changed
+
+- Tick ID management centralized in orchestrator
+
+## _Orchestrator_ - v1.0.0-alpha6 - 2021-03-10
+
+### Added
+
+- Watch trials is now supported
+
+## _CLI_ - 1.0.0-alpha9 - 2021-03-01
+
+## _CLI_ - 1.0.0-alpha8 - 2021-02-25
+
+## _CLI_ - 1.0.0-alpha7 - 2021-02-24
+
+## _CLI_ - 1.0.0-alpha6 - 2021-02-23
 
 ### Changed
 
 - Update to use github.com as import target
 
-## v1.0.0-alpha5 - 2021-02-22
+## _CLI_ - 1.0.0-alpha5 - 2021-02-22
 
 ### Added
 
@@ -115,16 +359,36 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `cogment generate` now accepts a `--typescript` flag that depends on the `--js-out` flag, will enable typing definition generation for user protobufs. This can be repeated multiple times to target multiple output directories, just like python-out
 - `cogment init` templates uses dependencies between services (`depends_on` clause) for bringing up the stack vs. having service names repeated in `cogment run` commands. `docker-compose up web-client` will bring up the entire stack, `docker-compose up dashboard` will bring up all the necessary containers.
 
-## v1.0.0-alpha4 - 2021-02-19
+## _Orchestrator_ - v1.0.0-alpha5 - 2021-02-19
 
-## v1.0.0-alpha3 - 2021-02-19
+### Added
+
+- Add support for messages and rewrads, they can be sent from the actor client.
+- Addition for tls communication
+
+## _CLI_ - 1.0.0-alpha4 - 2021-02-19
+
+## _CLI_ - 1.0.0-alpha3 - 2021-02-19
 
 ### Changed
 
 - `cogment init` now generates actor & environment implementations handling all the possible events.
 - Initialize Metrics and Dashboard when `cogment init` is run
 
-## v1.0.0-alpha2 - 2021-01-28
+## _Orchestrator_ - v1.0.0-alpha4 - 2021-02-17
+
+### Added
+
+- Add support for messages and rewrads, they can be sent from the actor client.
+
+## _Orchestrator_ - v1.0.0-alpha3 - 2021-01-28
+
+### Fixed
+
+- Fix a crash occuring at the end of trials.
+- Fix occasional crash when employing prehooks.
+
+## _CLI_ - 1.0.0-alpha2 - 2021-01-28
 
 ### Changed
 
@@ -139,10 +403,36 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Build and publish a `latest` tag for `cogment/cli` on dockerhub at <https://hub.docker.com/r/cogment/cli>.
 - `cogment init` on project whose name contains a `-` now generates valid `.proto` files.
 
-## v1.0.0-alpha1 - 2020-12-07
+## _Orchestrator_ - v1.0.0-alpha2 - 2021-01-11
+
+### Added
+
+- Add support for messages, they can be sent between actors and the environment.
+- Add dispatch of immediate rewards to actors.
+
+## _CLI_ - v1.0.0-alpha1 - 2020-12-07
 
 - Initial alpha release, expect some breaking changes.
 
 ### Known issues
 
 - Files generated by `cogment init` are not up-to-date.
+
+### Added
+
+- Add build script for macOS
+- Support for discovery endpoints (i.e. to query the directory)
+- Support for providing the parameters with the StartTrial rpc
+
+### Fixed
+
+- Fix the build on macOS
+- Have the datalog client consume the stream for the server
+
+### Fixed
+
+- Fix the logging levels, making the default less verbose.
+
+## _Orchestrator_ - v1.0.0-alpha1 - 2020-12-07
+
+- Initial alpha release, expect some breaking changes.

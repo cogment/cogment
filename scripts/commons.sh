@@ -67,11 +67,12 @@ function validate_version() {
 }
 
 function retrieve_package_version() {
-  sed -n "s/.*CliVersion\ *=\ *\"\(${VERSION_SED_REGEX}\)\"/\1/p" "${ROOT_DIR}/version/version.go"
+  cat "${ROOT_DIR}/version.txt"
 }
 
 function update_package_version() {
   local version=$1
-  sed -i.bak "/.*CliVersion\ *=/s/${VERSION_SED_REGEX}/${version}/" "${ROOT_DIR}/version/version.go"
+  cp "${ROOT_DIR}/version.txt" "${ROOT_DIR}/version.txt.bak"
+  echo "${version}" >"${ROOT_DIR}/version.txt"
   retrieve_package_version
 }

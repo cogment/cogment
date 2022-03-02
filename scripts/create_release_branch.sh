@@ -89,9 +89,9 @@ if [[ "${version}" != "${updated_version}" ]]; then
   printf "Error while updating the version to %s.\n" "${version}"
   exit 1
 fi
-git -C "${ROOT_DIR}" commit -q -a -m"chore(release): prepare release v${version}"
+git -C "${ROOT_DIR}" commit -q -a -m"Preparing release v${version}"
 
-# TODO here we could ask / retrieve the latest versions of the different modules and update /api/default_cogment.yaml
+# TODO here we could ask / retrieve the latest version of the cogment api and update .cogment-api.yaml
 
 printf "** Version updated to v%s\n" "${updated_version}"
 

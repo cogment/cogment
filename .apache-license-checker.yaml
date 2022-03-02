@@ -1,9 +1,15 @@
-ignore:
-  - "testdata"
-  - "pkged.go"
-  - "**/.snapshots"
-  - "test"
-
 license:
-  CopyrightYear: 2021
+  CopyrightYear: 2022
   Author: "AI Redefined Inc. <dev+cogment@ai-r.com>"
+ignore:
+  - "build"
+  - "install"
+  - "packages/orchestrator_dependencies"
+  - "packages/orchestrator/lib/cogment/base64.cpp"
+  - "packages/orchestrator/third_party"
+  - "packages/orchestrator/build"
+  - "packages/orchestrator/install"
+  - "packages/cogment/grpcapi"
+  - "packages/cogment/testdata"
+  - "packages/cogment/pkged.go"
+  - "packages/cogment/**/.snapshots"

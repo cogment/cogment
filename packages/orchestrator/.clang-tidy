@@ -1,0 +1,9 @@
+---
+Checks:          'clang-diagnostic-*,clang-analyzer-*'
+WarningsAsErrors: ''
+HeaderFilterRegex: 'lib//cogment'
+AnalyzeTemporaryDtors: false
+FormatStyle:     none
+CheckOptions: []
+...
+

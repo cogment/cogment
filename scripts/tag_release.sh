@@ -118,6 +118,8 @@ git -C "${ROOT_DIR}" rebase -q main
 
 printf "** \"develop\" rebased on the just release \"main\"\n"
 
+# TODO here we could set the cogment api version to latest in .cogment-api.yaml
+
 # (Force) push develop to the remote
 if [[ "${dry_run}" == 1 ]]; then
   printf "** DRY RUN SUCCESSFUL - Skipping (force) pushing \"develop\" branch to %s \n" "${GIT_REMOTE}"

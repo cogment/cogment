@@ -1,5 +1,22 @@
-Dockerfile
-.dockerignore
+# Docker resources
+/*.dockerfile
+/.dockerignore
+/build_docker.sh
 
-# generated files
-pkged.go
+# Other scripts
+/scripts
+/build_all_no_orchestrator.sh
+/build_macos.sh
+/build_windows.bat
+
+# Git and cache folders
+/.git
+/.gitignore
+
+# Local build output
+/build
+/install
+/packages/orchestrator/lib/cogment/version.h
+/packages/cogment/version/version.go
+/packages/cogment/pkged.go
+/packages/cogment/services/orchestrator/lib
