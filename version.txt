@@ -1,1 +1,1 @@
-2.2.0-one-cogment-prerelease
+2.2.0-rc1
