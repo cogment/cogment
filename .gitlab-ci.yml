@@ -95,7 +95,7 @@ build_all_no_orchestrator:
       - ./install/linux_amd64_no_orchestrator/bin/cogment
       - ./install/windows_amd64_no_orchestrator/bin/cogment.exe
       - ./install/macos_amd64_no_orchestrator/bin/cogment
-      - ./install/macos_amd64_no_orchestrator/bin/cogment
+      - ./install/macos_arm64_no_orchestrator/bin/cogment
 
 build_linux_amd64:
   stage: build

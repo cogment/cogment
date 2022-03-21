@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Fixed
+
+- Fix the artifact path for the "no_orchestrator" macos amd64 version.
+
 ## v2.2.0-rc1 - 2022-03-21
 
 This is the initial release of the _unified_ Cogment executable that includes:
