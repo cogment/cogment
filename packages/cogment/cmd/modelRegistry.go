@@ -69,7 +69,7 @@ func init() {
 	)
 
 	registryViper.SetDefault(registryArchiveDirKey, modelRegistry.DefaultOptions.ArchiveDir)
-	_ = registryViper.BindEnv(registryArchiveDirKey, "COGMENT_MODEL_REGISTRY_FILE_STORAGE_PATH")
+	_ = registryViper.BindEnv(registryArchiveDirKey, "COGMENT_MODEL_REGISTRY_ARCHIVE_DIR")
 	registryCmd.Flags().String(
 		registryArchiveDirKey,
 		registryViper.GetString(registryArchiveDirKey),

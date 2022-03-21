@@ -5,6 +5,6 @@ FROM ubuntu:20.04
 COPY ${COGMENT_EXEC} /usr/local/bin/cogment
 
 VOLUME /data
-ENV COGMENT_MODEL_REGISTRY_ARCHIVE_DIR=/data
+ENV COGMENT_MODEL_REGISTRY_ARCHIVE_DIR=/data/model_registry
 
 ENTRYPOINT ["cogment"]
