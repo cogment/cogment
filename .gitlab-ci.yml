@@ -297,8 +297,10 @@ publish_tag_to_gh_releases:
     - cp ./install/macos_amd64_no_orchestrator/bin/cogment ./release/cogment-macos-amd64-no-orchestrator
     - cp ./install/macos_arm64_no_orchestrator/bin/cogment ./release/cogment-macos-arm64-no-orchestrator
     - cp ./install/windows_amd64_no_orchestrator/bin/cogment.exe ./release/cogment-windows-amd64-no-orchestrator.exe
+    # generate the changes for the target version
+    - ./scripts/extract_version_changes.sh $CI_COMMIT_TAG > ./RELEASE_NOTES.md
     # gh release authenticates to github using the GH_TOKEN environment variable
-    - gh release create $CI_COMMIT_TAG ./release/* -t $CI_COMMIT_TAG -R cogment/cogment-cli $GH_PRERELEASE -F ./CHANGELOG.md
+    - gh release create $CI_COMMIT_TAG ./release/* -t $CI_COMMIT_TAG -R cogment/cogment-cli $GH_PRERELEASE -F ./RELEASE_NOTES.md
   rules:
     - if: '$CI_COMMIT_TAG =~ /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+(-[[:alnum:]]+)$/'
       variables:
