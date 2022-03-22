@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.2.0-rc2 - 2022-03-21
+
 ### Fixed
 
 - Fix the artifact path for the "no_orchestrator" macos amd64 version.
