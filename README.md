@@ -16,17 +16,20 @@ This repository includes the the main Cogment module, a multiplatform stand alon
 
 ### Standalone binary (preferred)
 
-To install the latest published version run the following command:
+Download the install script and make sure you can run it using
 
 ```console
-curl --silent -L https://raw.githubusercontent.com/cogment/cogment-cli/main/install.sh | sudo bash
+curl --silent -L https://raw.githubusercontent.com/cogment/cogment-cli/main/install.sh --output install-cogment.sh
+chmod +x install-cogment.sh
 ```
 
-To install a specific version (here v1.0.0) run the following command:
+Download and install the latest final version using
 
 ```console
-curl --silent -L https://raw.githubusercontent.com/cogment/cogment-cli/main/install.sh | sudo bash -s -- --version v1.0.0
+sudo ./install-cogment.sh
 ```
+
+Other installation options are available using `./install-cogment.sh --help`
 
 For futher installation options please refer to cogment's [installation guide](https://docs.cogment.ai/introduction/installation/).
 

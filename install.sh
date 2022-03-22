@@ -120,36 +120,29 @@ else
   fi
 fi
 
-cogment_cli_filename="cogment-${os}-${arch}"
-if [[ "${os}" == "windows" ]]; then
-  cogment_cli_filename="${cogment_cli_filename}.exe"
+if [[ "${skip_install}" == 0 && $(/usr/bin/id -u) != 0 ]]; then
+  printf "To install Cogment this script should run as a root user.\n"
+  exit 1
 fi
-cogment_cli_url="https://github.com/cogment/cogment-cli/releases/download/${version}/${cogment_cli_filename}"
 
-if [[ "${skip_install}" == 1 ]]; then
-  printf "Downloading cogment CLI from '%s' to './%s'...\n" "${cogment_cli_url}" "${cogment_cli_filename}"
-  curl -L --silent "${cogment_cli_url}" --output "${cogment_cli_filename}"
+cogment_url="https://github.com/cogment/cogment-cli/releases/download/${version}/cogment-${os}-${arch}"
+if [[ "${os}" == "windows" ]]; then
+  cogment_url="${cogment_url}.exe"
+  cogment_local_path="./cogment.exe"
+  printf "Downloading Cogment from '%s'...\n" "${cogment_url}"
+  curl -L --silent "${cogment_url}" --output "${cogment_local_path}"
+  printf "Copy this file to a directory belonging to your PATH environment variable.\n"
 else
-  case ${os} in
-    "linux" | "macos")
-      if [[ $(/usr/bin/id -u) -ne 0 ]]; then
-        printf "To install cogment CLI this script should run as a root user.\n"
-        exit 1
-      fi
-      cogment_cli_installed_filename="/usr/local/bin/cogment"
-      printf "Downloading cogment CLI from '%s' to '%s'...\n" "${cogment_cli_url}" "${cogment_cli_installed_filename}"
-      curl -L --silent "${cogment_cli_url}" --output "${cogment_cli_installed_filename}"
-      chmod +x /usr/local/bin/cogment
-      printf "cogment is now installed, test it by running 'cogment version'.\n"
-      ;;
-    "windows")
-      printf "Downloading cogment CLI from '%s' to './%s'...\n" "${cogment_cli_url}" "${cogment_cli_filename}"
-      curl -L --silent "${cogment_cli_url}" --output "${cogment_cli_filename}"
-      printf "Copy this file to a directory belonging to your PATH environment variable.\n"
-      ;;
-    *)
-      printf "Unexpected error!\n"
-      exit 1
-      ;;
-  esac
+  cogment_local_path="./cogment"
+  printf "Downloading Cogment from '%s'...\n" "${cogment_url}"
+  curl -L --silent "${cogment_url}" --output "${cogment_local_path}"
+  if [[ "${skip_install}" == 1 ]]; then
+    chmod +x "${cogment_local_path}"
+    printf "Cogment downloaded, test it by running '%s version'.\n" "${cogment_local_path}"
+  else
+    cogment_installed_path="/usr/local/bin/cogment"
+    mv "${cogment_local_path}" "${cogment_installed_path}"
+    chmod +x "${cogment_installed_path}"
+    printf "Cogment installed at '%s', test it by running 'cogment version'.\n" "${cogment_installed_path}"
+  fi
 fi
