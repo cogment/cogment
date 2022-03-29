@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.2.0-rc3 - 2022-03-29
+
 ### Changed
 
 - Update the install script to easily retrieve a local exec simply called `./cogment`.
