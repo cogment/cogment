@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.2.0-rc4 - 2022-04-07
+
 ### Changed
 
 - Update the prometheus C++ client to fix build errors in recent compilers.
