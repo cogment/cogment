@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Fixed
+
+- Fix failure of the install script when trying to get the latest version of Cogment.
+
 ## v2.2.0-rc4 - 2022-04-07
 
 ### Changed

@@ -19,7 +19,7 @@ This repository includes the the main Cogment module, a multiplatform stand alon
 Download the install script and make sure you can run it using
 
 ```console
-curl --silent -L https://raw.githubusercontent.com/cogment/cogment-cli/main/install.sh --output install-cogment.sh
+curl --silent -L https://raw.githubusercontent.com/cogment/cogment/main/install.sh --output install-cogment.sh
 chmod +x install-cogment.sh
 ```
 

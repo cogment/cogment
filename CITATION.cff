@@ -6,7 +6,7 @@ authors:
     website: https://ai-r.com
 license: Apache-2.0
 url: https://cogment.ai
-repository: https://github.com/cogment/cogment-cli
+repository: https://github.com/cogment/cogment
 preferred-citation:
   type: "article"
   title: "Cogment: Open Source Framework For Distributed Multi-actor Training, Deployment & Operations"

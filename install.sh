@@ -4,7 +4,7 @@
 
 function usage() {
   local usage_str=""
-  usage_str+="Download and install cogment cli\n\n"
+  usage_str+="Download and install Cogment\n\n"
   usage_str+="Usage:\n"
   usage_str+="  $(basename "${BASH_SOURCE[0]}") [--version X.Y.Z[.PRE]] [--arch ARCH] [--os OS] [--skip-install]\n\n"
   usage_str+="  Requires root access unless '--skip-install' is specified.\n\n"
@@ -109,7 +109,7 @@ esac
 
 ## 3 - Deal with the version
 if [[ -z "${version}" ]]; then
-  version=$(get_latest_gh_release "cogment/cogment-cli")
+  version=$(get_latest_gh_release "cogment/cogment")
 else
   input_version=${version}
   version="v$(validate_version "${input_version}")"
@@ -125,7 +125,7 @@ if [[ "${skip_install}" == 0 && $(/usr/bin/id -u) != 0 ]]; then
   exit 1
 fi
 
-cogment_url="https://github.com/cogment/cogment-cli/releases/download/${version}/cogment-${os}-${arch}"
+cogment_url="https://github.com/cogment/cogment/releases/download/${version}/cogment-${os}-${arch}"
 if [[ "${os}" == "windows" ]]; then
   cogment_url="${cogment_url}.exe"
   cogment_local_path="./cogment.exe"
