@@ -50,15 +50,25 @@ build_docker:
   extends: .base_docker_build
   timeout: 2 hours
   variables:
-    COGMENT_BUILD_ENVIRONMENT_IMAGE_CACHE: $CI_REGISTRY_IMAGE/build_environment:latest
-    COGMENT_BUILD_ENVIRONMENT_IMAGE: $CI_REGISTRY_IMAGE/build_environment:commit-$CI_COMMIT_SHORT_SHA
+    COGMENT_BUILD_ENVIRONMENT_IMAGE_CACHE: $CI_REGISTRY_IMAGE/build-environment:latest
+    COGMENT_BUILD_ENVIRONMENT_IMAGE: $CI_REGISTRY_IMAGE/build-environment:commit-$CI_COMMIT_SHORT_SHA
     COGMENT_BUILD_IMAGE_CACHE: $CI_REGISTRY_IMAGE/build:latest
     COGMENT_BUILD_IMAGE: $CI_REGISTRY_IMAGE/build:commit-$CI_COMMIT_SHORT_SHA
     COGMENT_IMAGE: $CI_REGISTRY_IMAGE:commit-$CI_COMMIT_SHORT_SHA
+    COGMENT_CLI_IMAGE: $CI_REGISTRY_IMAGE/cli:commit-$CI_COMMIT_SHORT_SHA
+    COGMENT_ORCHESTRATOR_IMAGE: $CI_REGISTRY_IMAGE/orchestrator:commit-$CI_COMMIT_SHORT_SHA
+    COGMENT_TRIAL_DATASTORE_IMAGE: $CI_REGISTRY_IMAGE/trial-datastore:commit-$CI_COMMIT_SHORT_SHA
+    COGMENT_MODEL_REGISTRY_IMAGE: $CI_REGISTRY_IMAGE/model-registry:commit-$CI_COMMIT_SHORT_SHA
   script:
     - ./build_docker.sh
     - docker push $COGMENT_BUILD_ENVIRONMENT_IMAGE
     - docker push $COGMENT_BUILD_IMAGE
+    - docker push $COGMENT_IMAGE
+    - ./deprecated_docker_images/build_deprecated_docker_images.sh
+    - docker push $COGMENT_CLI_IMAGE
+    - docker push $COGMENT_ORCHESTRATOR_IMAGE
+    - docker push $COGMENT_TRIAL_DATASTORE_IMAGE
+    - docker push $COGMENT_MODEL_REGISTRY_IMAGE
 
 .base_linux_build:
   image: !reference [build_docker, variables, COGMENT_BUILD_ENVIRONMENT_IMAGE]
@@ -208,15 +218,24 @@ push_docker_latest_to_gitlab:
   extends: .base_docker_build
   variables:
     COGMENT_BUILD_ENVIRONMENT_IMAGE_CACHE: !reference [build_docker, variables, COGMENT_BUILD_ENVIRONMENT_IMAGE]
-    COGMENT_BUILD_ENVIRONMENT_IMAGE: $CI_REGISTRY_IMAGE/build_environment:latest
+    COGMENT_BUILD_ENVIRONMENT_IMAGE: $CI_REGISTRY_IMAGE/build-environment:latest
     COGMENT_BUILD_IMAGE_CACHE: $!reference [build_docker, variables, COGMENT_BUILD_IMAGE]
     COGMENT_BUILD_IMAGE: $CI_REGISTRY_IMAGE/build:latest
     COGMENT_IMAGE: $CI_REGISTRY_IMAGE:latest
+    COGMENT_CLI_IMAGE: $CI_REGISTRY_IMAGE/cli:latest
+    COGMENT_ORCHESTRATOR_IMAGE: $CI_REGISTRY_IMAGE/orchestrator:latest
+    COGMENT_TRIAL_DATASTORE_IMAGE: $CI_REGISTRY_IMAGE/trial-datastore:latest
+    COGMENT_MODEL_REGISTRY_IMAGE: $CI_REGISTRY_IMAGE/model-registry:latest
   script:
     - ./build_docker.sh
     - docker push $COGMENT_BUILD_ENVIRONMENT_IMAGE
     - docker push $COGMENT_BUILD_IMAGE
     - docker push $COGMENT_IMAGE
+    - ./deprecated_docker_images/build_deprecated_docker_images.sh
+    - docker push $COGMENT_CLI_IMAGE
+    - docker push $COGMENT_ORCHESTRATOR_IMAGE
+    - docker push $COGMENT_TRIAL_DATASTORE_IMAGE
+    - docker push $COGMENT_MODEL_REGISTRY_IMAGE
   only:
     - main
     - develop
@@ -227,13 +246,22 @@ push_docker_latest_to_dockerhub:
   extends: .base_docker_build
   variables:
     COGMENT_BUILD_ENVIRONMENT_IMAGE_CACHE: !reference [build_docker, variables, COGMENT_BUILD_ENVIRONMENT_IMAGE]
-    COGMENT_BUILD_ENVIRONMENT_IMAGE: $CI_REGISTRY_IMAGE/build_environment:latest
+    COGMENT_BUILD_ENVIRONMENT_IMAGE: $CI_REGISTRY_IMAGE/build-environment:latest
     COGMENT_BUILD_IMAGE_CACHE: $!reference [build_docker, variables, COGMENT_BUILD_IMAGE]
     COGMENT_BUILD_IMAGE: $CI_REGISTRY_IMAGE/build:latest
-    COGMENT_IMAGE: cogment/cli:latest
+    COGMENT_IMAGE: cogment/cogment:latest
+    COGMENT_CLI_IMAGE: cogment/cli:latest
+    COGMENT_ORCHESTRATOR_IMAGE: cogment/orchestrator:latest
+    COGMENT_TRIAL_DATASTORE_IMAGE: cogment/trial-datastore:latest
+    COGMENT_MODEL_REGISTRY_IMAGE: cogment/model-registry:latest
   script:
     - ./build_docker.sh
     - docker push $COGMENT_IMAGE
+    - ./deprecated_docker_images/build_deprecated_docker_images.sh
+    - docker push $COGMENT_CLI_IMAGE
+    - docker push $COGMENT_ORCHESTRATOR_IMAGE
+    - docker push $COGMENT_TRIAL_DATASTORE_IMAGE
+    - docker push $COGMENT_MODEL_REGISTRY_IMAGE
   only:
     - main
 
@@ -247,9 +275,18 @@ cogment:push_docker_tag_to_gitlab:
     COGMENT_BUILD_IMAGE_CACHE: $!reference [build_docker, variables, COGMENT_BUILD_IMAGE]
     COGMENT_BUILD_IMAGE: $CI_REGISTRY_IMAGE/build:latest
     COGMENT_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
+    COGMENT_CLI_IMAGE: $CI_REGISTRY_IMAGE/cli:$CI_COMMIT_TAG
+    COGMENT_ORCHESTRATOR_IMAGE: $CI_REGISTRY_IMAGE/orchestrator:$CI_COMMIT_TAG
+    COGMENT_TRIAL_DATASTORE_IMAGE: $CI_REGISTRY_IMAGE/trial-datastore:$CI_COMMIT_TAG
+    COGMENT_MODEL_REGISTRY_IMAGE: $CI_REGISTRY_IMAGE/model-registry:$CI_COMMIT_TAG
   script:
     - ./build_docker.sh
     - docker push $COGMENT_IMAGE
+    - ./deprecated_docker_images/build_deprecated_docker_images.sh
+    - docker push $COGMENT_CLI_IMAGE
+    - docker push $COGMENT_ORCHESTRATOR_IMAGE
+    - docker push $COGMENT_TRIAL_DATASTORE_IMAGE
+    - docker push $COGMENT_MODEL_REGISTRY_IMAGE
   only:
     - /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+(?:-[[:alnum:]]+)?$/
 
@@ -263,9 +300,18 @@ cogment_push_docker_tag_to_dockerhub:
     COGMENT_BUILD_IMAGE_CACHE: $!reference [build_docker, variables, COGMENT_BUILD_IMAGE]
     COGMENT_BUILD_IMAGE: $CI_REGISTRY_IMAGE/build:latest
     COGMENT_IMAGE: cogment/cogment:$CI_COMMIT_TAG
+    COGMENT_CLI_IMAGE: cogment/cli:$CI_COMMIT_TAG
+    COGMENT_ORCHESTRATOR_IMAGE: cogment/orchestrator:$CI_COMMIT_TAG
+    COGMENT_TRIAL_DATASTORE_IMAGE: cogment/trial-datastore:$CI_COMMIT_TAG
+    COGMENT_MODEL_REGISTRY_IMAGE: cogment/model-registry:$CI_COMMIT_TAG
   script:
     - ./build_docker.sh
     - docker push $COGMENT_IMAGE
+    - ./deprecated_docker_images/build_deprecated_docker_images.sh
+    - docker push $COGMENT_CLI_IMAGE
+    - docker push $COGMENT_ORCHESTRATOR_IMAGE
+    - docker push $COGMENT_TRIAL_DATASTORE_IMAGE
+    - docker push $COGMENT_MODEL_REGISTRY_IMAGE
   only:
     - /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+(?:-[[:alnum:]]+)?$/
 
@@ -300,7 +346,7 @@ publish_tag_to_gh_releases:
     # generate the changes for the target version
     - ./scripts/extract_version_changes.sh $CI_COMMIT_TAG > ./RELEASE_NOTES.md
     # gh release authenticates to github using the GH_TOKEN environment variable
-    - gh release create $CI_COMMIT_TAG ./release/* -t $CI_COMMIT_TAG -R cogment/cogment-cli $GH_PRERELEASE -F ./RELEASE_NOTES.md
+    - gh release create $CI_COMMIT_TAG ./release/* -t $CI_COMMIT_TAG -R cogment/cogment $GH_PRERELEASE -F ./RELEASE_NOTES.md
   rules:
     - if: '$CI_COMMIT_TAG =~ /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+(-[[:alnum:]]+)$/'
       variables:
@@ -331,7 +377,7 @@ publish_branch_to_github:
   extends: .base_gh_ssh_agent
   script:
     - git checkout ${CI_COMMIT_BRANCH} # Checkout the branch not the sha1
-    - git remote add downstream git@github.com:cogment/cogment-cli.git
+    - git remote add downstream git@github.com:cogment/cogment.git
     - git fetch downstream ${CI_COMMIT_BRANCH}
     - git push --tags downstream ${CI_COMMIT_BRANCH}:${CI_COMMIT_BRANCH}
   only:

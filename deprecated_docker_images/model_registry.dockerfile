@@ -1,0 +1,9 @@
+ARG COGMENT_IMAGE=cogment/cogment:latest
+FROM ${COGMENT_IMAGE}
+
+VOLUME /data
+ENV COGMENT_MODEL_REGISTRY_ARCHIVE_DIR=/data
+
+ENV COGMENT_MODEL_REGISTRY_PORT=9000
+
+ENTRYPOINT ["cogment", "services", "model_registry"]

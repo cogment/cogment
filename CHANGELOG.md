@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Update the prometheus C++ client to fix build errors in recent compilers.
 
+### Added
+
+- Build dedicated images for the legacy modules _orchestrator_, _model registry_, _trial datastore_ and _cli_ modules to facilitate migrations.
+
+### Fixed
+
+- Fix the built docker image.
+
 ## v2.2.0-rc3 - 2022-03-29
 
 ### Changed

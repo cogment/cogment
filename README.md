@@ -1,6 +1,6 @@
 # cogment
 
-[![Latest GitHub release](https://img.shields.io/github/v/release/cogment/cogment-cli?label=binary%20release&sort=semver&style=flat-square)](https://github.com/cogment/cogment-cli/releases) [![Latest Docker release](https://img.shields.io/docker/v/cogment/cli?label=docker%20release&sort=semver&style=flat-square)](https://hub.docker.com/r/cogment/cli) [![Apache 2 License](https://img.shields.io/badge/license-Apache%202-green?style=flat-square)](./LICENSE) [![Changelog](https://img.shields.io/badge/-Changelog%20-blueviolet?style=flat-square)](./CHANGELOG.md)
+[![Latest GitHub release](https://img.shields.io/github/v/release/cogment/cogment?label=binary%20release&sort=semver&style=flat-square)](https://github.com/cogment/cogment/releases) [![Latest Docker release](https://img.shields.io/docker/v/cogment/cogment?label=docker%20release&sort=semver&style=flat-square)](https://hub.docker.com/r/cogment/cogment) [![Apache 2 License](https://img.shields.io/badge/license-Apache%202-green?style=flat-square)](./LICENSE) [![Changelog](https://img.shields.io/badge/-Changelog%20-blueviolet?style=flat-square)](./CHANGELOG.md)
 
 [Cogment](https://cogment.ai) enables AI researchers and engineers to build, train, and operate AI agents in simulated or real environments shared with humans. Developed by [AI Redefined](https://ai-r.com), Cogment is the first open source platform designed to address the challenges of continuously training humans and AI together. For the full user documentation visit <https://docs.cogment.ai>
 
