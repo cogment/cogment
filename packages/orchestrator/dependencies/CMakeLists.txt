@@ -23,7 +23,7 @@ FetchContent_Declare(
 FetchContent_Declare(
   prometheus-cpp
   GIT_REPOSITORY "https://github.com/jupp0r/prometheus-cpp"
-  GIT_TAG v0.6.0
+  GIT_TAG v1.0.0
 )
 
 # build gRPC
