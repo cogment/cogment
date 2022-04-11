@@ -102,10 +102,10 @@ build_all_no_orchestrator:
     expose_as: cogment_no_orchestrator
     expire_in: 1 week
     paths:
-      - ./install/linux_amd64_no_orchestrator/bin/cogment
-      - ./install/windows_amd64_no_orchestrator/bin/cogment.exe
-      - ./install/macos_amd64_no_orchestrator/bin/cogment
-      - ./install/macos_arm64_no_orchestrator/bin/cogment
+      - ./install/linux_amd64_no_orchestrator/
+      - ./install/windows_amd64_no_orchestrator/
+      - ./install/macos_amd64_no_orchestrator/
+      - ./install/macos_arm64_no_orchestrator/
 
 build_linux_amd64:
   stage: build
@@ -118,7 +118,7 @@ build_linux_amd64:
     expose_as: cogment_linux_amd64
     expire_in: 1 week
     paths:
-      - ./install/linux_amd64/bin/cogment
+      - ./install/linux_amd64/
 
 .base_macos_build:
   tags:
@@ -148,7 +148,7 @@ build_macos_amd64:
     expose_as: cogment_macos_amd64
     expire_in: 1 week
     paths:
-      - ./install/macos_amd64/bin/cogment
+      - ./install/macos_amd64/
 
 .base_windows_build:
   tags:
@@ -180,7 +180,7 @@ build_windows_amd64:
     expose_as: cogment_windows_amd64
     expire_in: 1 week
     paths:
-      - ./install/windows_amd64/bin/cogment.exe
+      - ./install/windows_amd64/
 
 orchestrator_lint:
   stage: build
@@ -343,6 +343,7 @@ publish_tag_to_gh_releases:
     - cp ./install/macos_amd64_no_orchestrator/bin/cogment ./release/cogment-macos-amd64-no-orchestrator
     - cp ./install/macos_arm64_no_orchestrator/bin/cogment ./release/cogment-macos-arm64-no-orchestrator
     - cp ./install/windows_amd64_no_orchestrator/bin/cogment.exe ./release/cogment-windows-amd64-no-orchestrator.exe
+    - tar czf ./release/cogment-api.tar.gz ./install/linux_amd64/include/cogment
     # generate the changes for the target version
     - ./scripts/extract_version_changes.sh $CI_COMMIT_TAG > ./RELEASE_NOTES.md
     # gh release authenticates to github using the GH_TOKEN environment variable

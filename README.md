@@ -1,6 +1,7 @@
 # cogment
 
-[![Latest GitHub release](https://img.shields.io/github/v/release/cogment/cogment?label=binary%20release&sort=semver&style=flat-square)](https://github.com/cogment/cogment/releases) [![Latest Docker release](https://img.shields.io/docker/v/cogment/cogment?label=docker%20release&sort=semver&style=flat-square)](https://hub.docker.com/r/cogment/cogment) [![Apache 2 License](https://img.shields.io/badge/license-Apache%202-green?style=flat-square)](./LICENSE) [![Changelog](https://img.shields.io/badge/-Changelog%20-blueviolet?style=flat-square)](./CHANGELOG.md)
+[![Latest Release](https://img.shields.io/github/v/release/cogment/cogment?label=latest%20release&sort=semver&style=flat-square)](https://github.com/cogment/cogment/releases)
+[![Latest Docker Release](https://img.shields.io/docker/v/cogment/cogment?label=latest%20docker%20release&sort=semver&style=flat-square)](https://hub.docker.com/r/cogment/cogment) [![Apache 2 License](https://img.shields.io/badge/license-Apache%202-green?style=flat-square)](./LICENSE) [![Changelog](https://img.shields.io/badge/-Changelog%20-blueviolet?style=flat-square)](./CHANGELOG.md)
 
 [Cogment](https://cogment.ai) enables AI researchers and engineers to build, train, and operate AI agents in simulated or real environments shared with humans. Developed by [AI Redefined](https://ai-r.com), Cogment is the first open source platform designed to address the challenges of continuously training humans and AI together. For the full user documentation visit <https://docs.cogment.ai>
 
@@ -31,12 +32,12 @@ sudo ./install-cogment.sh
 
 Other installation options are available using `./install-cogment.sh --help`
 
-For futher installation options please refer to cogment's [installation guide](https://docs.cogment.ai/introduction/installation/).
+For futher installation options please refer to cogment's [installation guide](https://cogment.ai/docs/cogment/installation/).
 
 ### Docker image
 
 ```console
-docker pull cogment/cli
+docker pull cogment/cogment
 ```
 
 ## Developers
@@ -48,7 +49,7 @@ A [CMake](https://cmake.org) based systems glues the build of both together
 #### Prerequisites
 
 - Fully working **c++** build toolchain.
-- Fully working **go** setup, as described in the [official documentation](https://golang.org/doc/install).
+- Fully working **go** setup (1.16), as described in the [official documentation](https://golang.org/doc/install).
 - **`Cmake`** (>= 3.10), the core of the build system, it should be installed as described in the [official documentation](https://cmake.org/install/).
 - **`Make`**, most flavor should work fine.
 - _Optional_ a [**docker**](https://www.docker.com/) installation to be able to build the docker image.

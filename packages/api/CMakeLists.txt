@@ -55,3 +55,7 @@ else()
   )
 endif()
 
+install(
+  FILES ${COGMENT_API_FILES}
+  DESTINATION include/cogment/api/
+)

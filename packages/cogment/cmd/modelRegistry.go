@@ -81,8 +81,7 @@ func init() {
 	registryCmd.Flags().Uint32(
 		registryCacheMaxItemsKey,
 		registryViper.GetUint32(registryCacheMaxItemsKey),
-		"Maximum cumulated size of samples size the memory storage "+
-			"holds before evicting least recently used trials samples (in bytes)",
+		"Maximum number of model versions the memory storage holds before evicting least recently used",
 	)
 
 	registryViper.SetDefault(registrySentVersionChunkSizeKey, modelRegistry.DefaultOptions.SentVersionDataChunkSize)
