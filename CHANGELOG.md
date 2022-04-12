@@ -10,10 +10,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Add the gRPC cogment api to the release package.
+- Add support for installing the gRPC API from the install script.
 
 ### Fixed
 
-- Fix help message for the `--cache_max_items` option of `cogment services model_registry` command.
+- Fix the help message for the `--cache_max_items` option of `cogment services model_registry` command.
 
 ## v2.2.0-rc5 - 2022-04-07
 

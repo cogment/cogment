@@ -2,19 +2,24 @@
 
 ### FUNCTIONS
 
+install_dir="/usr/local"
+skip_install=0
+include_api=0
+
 function usage() {
-  local usage_str=""
-  usage_str+="Download and install Cogment\n\n"
-  usage_str+="Usage:\n"
-  usage_str+="  $(basename "${BASH_SOURCE[0]}") [--version X.Y.Z[.PRE]] [--arch ARCH] [--os OS] [--skip-install]\n\n"
-  usage_str+="  Requires root access unless '--skip-install' is specified.\n\n"
-  usage_str+="Options:\n"
-  usage_str+="  --version X.Y.Z[.PRE]:    Target version, default is latest.\n"
-  usage_str+="  --arch ARCH:              Target system architecture, default is this machine's.\n"
-  usage_str+="  --os OS:                  Target operating system, default is this machine's.\n"
-  usage_str+="  --skip-install:           Do not install the downloaded binary to the recommended location.\n"
-  usage_str+="  -h, --help:               Show this screen.\n"
-  printf "%b" "${usage_str}"
+  printf "\
+    Download and install Cogment\n\n \
+    Usage:\n \
+      %s [--version X.Y.Z[.PRE]] [--arch ARCH] [--os OS] [--skip-install]\n\n \
+      Requires root access unless '--skip-install' is specified.\n\n \
+    Options:\n \
+      --version X.Y.Z[.PRE]:    Target version, default is latest.\n \
+      --arch ARCH:              Target system architecture, default is this machine's.\n \
+      --os OS:                  Target operating system, default is this machine's.\n \
+      --include-api:            Also download & install the protobuf definitions for Cogment gRPC API.\n \
+      --install-dir:            Install dir (default is %s).\n \
+      --skip-install:           Do not install the downloaded binary to the recommended location.\n \
+      -h, --help:               Show this screen.\n" "$(basename "${BASH_SOURCE[0]}")" "${install_dir}"
 }
 
 VERSION_SED_REGEX="[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\(-[a-zA-Z0-9][a-zA-Z0-9]*\)\{0,1\}"
@@ -38,7 +43,6 @@ function get_latest_gh_release() {
 
 set -o errexit
 
-skip_install=0
 while [[ "$1" != "" ]]; do
   case $1 in
     --version)
@@ -52,6 +56,13 @@ while [[ "$1" != "" ]]; do
     --os)
       shift
       os=$1
+      ;;
+    --include-api)
+      include_api=1
+      ;;
+    --install-dir)
+      shift
+      install_dir=$1
       ;;
     --skip-install)
       skip_install=1
@@ -125,6 +136,7 @@ if [[ "${skip_install}" == 0 && $(/usr/bin/id -u) != 0 ]]; then
   exit 1
 fi
 
+## 4 - Deal with cogment
 cogment_url="https://github.com/cogment/cogment/releases/download/${version}/cogment-${os}-${arch}"
 if [[ "${os}" == "windows" ]]; then
   cogment_url="${cogment_url}.exe"
@@ -140,9 +152,26 @@ else
     chmod +x "${cogment_local_path}"
     printf "Cogment downloaded, test it by running '%s version'.\n" "${cogment_local_path}"
   else
-    cogment_installed_path="/usr/local/bin/cogment"
+    cogment_installed_path="${install_dir}/bin/cogment"
     mv "${cogment_local_path}" "${cogment_installed_path}"
     chmod +x "${cogment_installed_path}"
+    printf "Cogment installed at '%s', test it by running 'cogment version'.\n" "${cogment_installed_path}"
+  fi
+fi
+
+## 5 - Deal with cogment api
+cogment_api_url="https://github.com/cogment/cogment/releases/download/${version}/cogment-api.tar.gz"
+if [[ "${include_api}" == 1 ]]; then
+  cogment_api_local_path="./cogment-api"
+  printf "Downloading Cogment API from '%s'...\n" "${cogment_api_url}"
+  mkdir -p "${cogment_api_local_path}"
+  curl -L --silent "${cogment_api_url}" | tar xf - --directory="${cogment_api_local_path}"
+  if [[ "${skip_install}" == 1 ]]; then
+    printf "Cogment API downloaded to '%s'" "${cogment_api_local_path}"
+  else
+    cogment_installed_path="${install_dir}/include"
+    mv "${cogment_local_path}/*" "${cogment_installed_path}"
+    rm -rf "${cogment_api_local_path}"
     printf "Cogment installed at '%s', test it by running 'cogment version'.\n" "${cogment_installed_path}"
   fi
 fi
