@@ -55,6 +55,8 @@ func newDynamicLibrary(libraryName string, libraryFile pkging.File) (*dynamicLib
 		return nil, err
 	}
 
+	tmpF.Close()
+
 	pathCStr := C.CString(localPath)
 	defer C.free(unsafe.Pointer(pathCStr))
 	hModule := C.LoadLibrary(pathCStr)
@@ -80,7 +82,7 @@ func (dl *dynamicLibrary) getSymbol(symbol string) (unsafe.Pointer, error) {
 }
 
 func (dl *dynamicLibrary) destroy() error {
-	if r := C.FreeLibrary(dl.hModule); r != 0 {
+	if r := C.FreeLibrary(dl.hModule); r == 0 {
 		return fmt.Errorf("unable to close the handle to dynamic library loaded from %q", dl.libLocalPath)
 	}
 	err := os.Remove(dl.libLocalPath)

@@ -15,43 +15,52 @@
 #ifndef COGMENT_ORCHESTRATOR_H
 #define COGMENT_ORCHESTRATOR_H
 
+#if defined(_MSC_VER)
+  //  Microsoft
+  #define ORCH_EXPORT __declspec(dllexport)
+  #define ORCH_IMPORT __declspec(dllimport)
+#else
+  #define ORCH_EXPORT
+  #define ORCH_IMPORT
+#endif
+
 #include <time.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void* cogment_orchestrator_options_create();
-void cogment_orchestrator_options_destroy(void* options);
+ORCH_EXPORT void* cogment_orchestrator_options_create();
+ORCH_EXPORT void cogment_orchestrator_options_destroy(void* options);
 
-void cogment_orchestrator_options_set_lifecycle_port(void* options, unsigned int port);
-void cogment_orchestrator_options_set_actor_port(void* options, unsigned int port);
-void cogment_orchestrator_options_set_default_params_file(void* options, char* path);
-void cogment_orchestrator_options_add_pretrial_hook(void* options, char* pretrial_hook_endpoint);
-void cogment_orchestrator_options_add_directory_service(void* options, char* directory_service_endpoint);
-void cogment_orchestrator_options_set_prometheus_port(void* options, unsigned int port);
-void cogment_orchestrator_options_set_private_key_file(void* options, char* path);
-void cogment_orchestrator_options_set_root_certificate_file(void* options, char* path);
-void cogment_orchestrator_options_trust_chain_file(void* options, char* path);
-void cogment_orchestrator_options_garbage_collector_frequency(void* options, unsigned int frequency);
+ORCH_EXPORT void cogment_orchestrator_options_set_lifecycle_port(void* options, unsigned int port);
+ORCH_EXPORT void cogment_orchestrator_options_set_actor_port(void* options, unsigned int port);
+ORCH_EXPORT void cogment_orchestrator_options_set_default_params_file(void* options, char* path);
+ORCH_EXPORT void cogment_orchestrator_options_add_pretrial_hook(void* options, char* pretrial_hook_endpoint);
+ORCH_EXPORT void cogment_orchestrator_options_add_directory_service(void* options, char* directory_service_endpoint);
+ORCH_EXPORT void cogment_orchestrator_options_set_prometheus_port(void* options, unsigned int port);
+ORCH_EXPORT void cogment_orchestrator_options_set_private_key_file(void* options, char* path);
+ORCH_EXPORT void cogment_orchestrator_options_set_root_certificate_file(void* options, char* path);
+ORCH_EXPORT void cogment_orchestrator_options_trust_chain_file(void* options, char* path);
+ORCH_EXPORT void cogment_orchestrator_options_garbage_collector_frequency(void* options, unsigned int frequency);
 typedef void (*CogmentOrchestratorLogger)(void* ctx, const char* logger_name, int log_level, time_t timestamp,
                                           size_t thread_id, const char* file_name, int line, const char* function_name,
                                           const char* message);
-void cogment_orchestrator_options_set_logging(void* options, const char* level, void* ctx,
-                                              CogmentOrchestratorLogger logger);
+ORCH_EXPORT void cogment_orchestrator_options_set_logging(void* options, const char* level, void* ctx,
+                                                          CogmentOrchestratorLogger logger);
 
 const int COGMENT_ORCHESTRATOR_INIT_STATUS = 1;
 const int COGMENT_ORCHESTRATOR_READY_STATUS = 2;
 const int COGMENT_ORCHESTRATOR_TERMINATED_STATUS = 3;
 
 typedef void (*CogmentOrchestratorStatusListener)(void* ctx, int status);
-void cogment_orchestrator_options_set_status_listener(void* options, void* ctx,
-                                                      CogmentOrchestratorStatusListener status_listener);
+ORCH_EXPORT void cogment_orchestrator_options_set_status_listener(void* options, void* ctx,
+                                                                  CogmentOrchestratorStatusListener status_listener);
 
-void* cogment_orchestrator_create_and_start(void* options);
-void cogment_orchestrator_destroy(void* orchestrator);
-int cogment_orchestrator_wait_for_termination(void* orchestrator);
-void cogment_orchestrator_shutdown(void* orchestrator);
+ORCH_EXPORT void* cogment_orchestrator_create_and_start(void* options);
+ORCH_EXPORT void cogment_orchestrator_destroy(void* orchestrator);
+ORCH_EXPORT int cogment_orchestrator_wait_for_termination(void* orchestrator);
+ORCH_EXPORT void cogment_orchestrator_shutdown(void* orchestrator);
 
 #ifdef __cplusplus
 }
