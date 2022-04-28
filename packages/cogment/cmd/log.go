@@ -25,14 +25,63 @@ import (
 
 var log = logrus.WithField("component", "cmd")
 
-func configureLog(cfg *viper.Viper) error {
-	// Formatter
-	logrus.SetFormatter(&utils.LoggerFormatter{
-		PrefixFields: []string{"component", "backend"},
-	})
+type logFormat string
 
-	if servicesViper.IsSet(servicesLogFileKey) {
-		path := servicesViper.GetString(servicesLogFileKey)
+const (
+	text logFormat = "text"
+	json logFormat = "json"
+)
+
+var expectedLogFormats = []logFormat{text, json}
+
+func isValidLogFormat(desiredFormat logFormat) bool {
+	for _, format := range expectedLogFormats {
+		if format == desiredFormat {
+			return true
+		}
+	}
+	return false
+}
+
+var expectedLogLevels []string
+
+func init() {
+	expectedLogLevels = make([]string, 0)
+	for _, level := range logrus.AllLevels {
+		expectedLogLevels = append(expectedLogLevels, level.String())
+	}
+}
+
+func configureLog(cfg *viper.Viper) error {
+	// Define what is the desired log format
+	desiredFormat := text // default is text
+	if cfg.IsSet(servicesLogFormatKey) {
+		// Explicitely specified log format
+		desiredFormat = logFormat(cfg.GetString(servicesLogFormatKey))
+		if !isValidLogFormat(desiredFormat) {
+			return fmt.Errorf(
+				"invalid log format specified %q expecting one of %v",
+				desiredFormat,
+				expectedLogLevels,
+			)
+		}
+	} else if cfg.IsSet(servicesLogFileKey) {
+		// default for file is json
+		desiredFormat = json
+	}
+
+	// Apply the desired log format
+	switch desiredFormat {
+	case json:
+		logrus.SetFormatter(&logrus.JSONFormatter{})
+	case text:
+		logrus.SetFormatter(&utils.LoggerFormatter{
+			PrefixFields: []string{"component", "backend"},
+		})
+	}
+
+	if cfg.IsSet(servicesLogFileKey) {
+		path := cfg.GetString(servicesLogFileKey)
 		file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err != nil {
 			return fmt.Errorf("unable to open log file %q: %w", path, err)
@@ -43,11 +92,11 @@ func configureLog(cfg *viper.Viper) error {
 		return nil
 	}
 
-	logLevel, err := logrus.ParseLevel(servicesViper.GetString(servicesLogLevelKey))
+	logLevel, err := logrus.ParseLevel(cfg.GetString(servicesLogLevelKey))
 	if err != nil {
 		err := fmt.Errorf(
 			"invalid log level specified %q expecting one of %v",
-			servicesViper.GetString(servicesLogLevelKey),
+			cfg.GetString(servicesLogLevelKey),
 			expectedLogLevels,
 		)
 		log.WithField("error", err).Error("Unable to configure logging")

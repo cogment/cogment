@@ -28,8 +28,7 @@ var servicesViper = viper.New()
 
 var servicesLogLevelKey = "log_level"
 var servicesLogFileKey = "log_file"
-
-var expectedLogLevels []string
+var servicesLogFormatKey = "log_format"
 
 // servicesCmd represents the services command
 var servicesCmd = &cobra.Command{
@@ -40,11 +39,6 @@ var servicesCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(servicesCmd)
-
-	expectedLogLevels = make([]string, 0)
-	for _, level := range logrus.AllLevels {
-		expectedLogLevels = append(expectedLogLevels, level.String())
-	}
 
 	servicesViper.SetDefault(servicesLogLevelKey, logrus.InfoLevel.String())
 	_ = servicesViper.BindEnv(servicesLogLevelKey, "COGMENT_LOG_LEVEL")
@@ -58,7 +52,17 @@ func init() {
 	servicesCmd.PersistentFlags().String(
 		servicesLogFileKey,
 		servicesViper.GetString(servicesLogFileKey),
-		"Set base file for daily log output (env variable)",
+		"Set log file output",
+	)
+
+	_ = servicesViper.BindEnv(servicesLogFormatKey, "COGMENT_LOG_FORMAT")
+	servicesCmd.PersistentFlags().String(
+		servicesLogFormatKey,
+		servicesViper.GetString(servicesLogFormatKey),
+		fmt.Sprintf(
+			"Set log format as one of %v, default is %q, when a log file is specified it is %q",
+			expectedLogFormats, text, json,
+		),
 	)
 
 	// Don't sort alphabetically, keep insertion order

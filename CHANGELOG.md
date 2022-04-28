@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Added
+
+- Introduce the ability to define the log format, accessible through the `--log-format` option or the `COGMENT_LOG_FORMAT` environment variable.
+
 ### Changed
 
 - Make sure of compatibility with ubuntu 18.04 by moving the build environment to it
