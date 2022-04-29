@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- Fix for Windows build being unable to load and get symbols from orchestrator.dll
+- Fix inability to load the symbol from `orchestrator.dll` on Windows that was preventing the orchestrator service from being launched
 - Fix the packaging of the cogment api
 
 ## v2.2.0 - 2022-04-11
