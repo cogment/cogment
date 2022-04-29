@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.3.0 - 2022-04-29
+
 ### Added
 
 - Introduce the ability to define the log format, accessible through the `--log-format` option or the `COGMENT_LOG_FORMAT` environment variable.
