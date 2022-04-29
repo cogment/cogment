@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Fix for Windows build being unable to load and get symbols from orchestrator.dll
+- Fix the packaging of the cogment api
 
 ## v2.2.0 - 2022-04-11
 

@@ -343,7 +343,7 @@ publish_tag_to_gh_releases:
     - cp ./install/macos_amd64_no_orchestrator/bin/cogment ./release/cogment-macos-amd64-no-orchestrator
     - cp ./install/macos_arm64_no_orchestrator/bin/cogment ./release/cogment-macos-arm64-no-orchestrator
     - cp ./install/windows_amd64_no_orchestrator/bin/cogment.exe ./release/cogment-windows-amd64-no-orchestrator.exe
-    - tar czf ./release/cogment-api.tar.gz ./install/linux_amd64/include/cogment
+    - tar czf ./release/cogment-api.tar.gz --directory=./install/linux_amd64/include/cogment .
     # generate the changes for the target version
     - ./scripts/extract_version_changes.sh $CI_COMMIT_TAG > ./RELEASE_NOTES.md
     # gh release authenticates to github using the GH_TOKEN environment variable
