@@ -1,4 +1,4 @@
-FROM ubuntu:20.04
+FROM ubuntu:18.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=America/New_York
@@ -7,8 +7,6 @@ RUN apt-get update && apt-get install -y \
   autoconf \
   autogen \
   build-essential \
-  clang \
-  clang-format \
   curl \
   git \
   libcurl4-openssl-dev \
@@ -16,11 +14,23 @@ RUN apt-get update && apt-get install -y \
   libpulse-dev \
   libssl-dev \
   libtool \
-  unzip
+  lsb-release \
+  software-properties-common \
+  unzip \
+  wget
 
+# Install clang-format v10
+RUN curl --silent  https://apt.llvm.org/llvm-snapshot.gpg.key|apt-key add - && \
+  echo "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic main" >> /etc/apt/sources.list && \
+  echo "deb-src http://apt.llvm.org/bionic/ llvm-toolchain-bionic main" >> /etc/apt/sources.list && \
+  apt-get update && apt-get install -y clang-format-10 && \
+  ln -s $(which clang-format-10) /usr/bin/clang-format
+
+# Install CMake v3.22.3
 RUN curl -L --silent https://github.com/Kitware/CMake/releases/download/v3.22.3/cmake-3.22.3-linux-x86_64.sh --output install-cmake.sh && \
   sh install-cmake.sh --prefix=/usr/local/ --exclude-subdir
 
+# Install Go v1.16.15
 RUN curl -L --silent https://go.dev/dl/go1.16.15.linux-amd64.tar.gz --output go-linux-amd64.tar.gz && \
   tar -C /usr/local -xzf go-linux-amd64.tar.gz
 

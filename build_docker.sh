@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 if [[ -z "${COGMENT_BUILD_ENVIRONMENT_IMAGE_CACHE}" ]]; then
-  COGMENT_BUILD_ENVIRONMENT_IMAGE_CACHE="registry.gitlab.com/ai-r/cogment-cli/build_environment:latest"
+  COGMENT_BUILD_ENVIRONMENT_IMAGE_CACHE="registry.gitlab.com/ai-r/cogment-cli/build-environment:latest"
   printf "** Using default value '%s' for the docker build environment image used for cache, set COGMENT_BUILD_ENVIRONMENT_IMAGE_CACHE to specify another one\n" "${COGMENT_BUILD_ENVIRONMENT_IMAGE_CACHE}"
 fi
 
@@ -10,7 +10,7 @@ if ! docker pull "${COGMENT_BUILD_ENVIRONMENT_IMAGE_CACHE}"; then
 fi
 
 if [[ -z "${COGMENT_BUILD_ENVIRONMENT_IMAGE}" ]]; then
-  COGMENT_BUILD_ENVIRONMENT_IMAGE="registry.gitlab.com/ai-r/cogment-cli/build_environment:local"
+  COGMENT_BUILD_ENVIRONMENT_IMAGE="registry.gitlab.com/ai-r/cogment-cli/build-environment:local"
   printf "** Using default value '%s' for the docker build environment image to build, set COGMENT_BUILD_ENVIRONMENT_IMAGE to specify another one\n" "${COGMENT_BUILD_ENVIRONMENT_IMAGE}"
 fi
 

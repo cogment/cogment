@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Changed
+
+- Make sure of compatibility with ubuntu 18.04 by moving the build environment to it
+
 ### Fixed
 
 - Fix for Windows build being unable to load and get symbols from orchestrator.dll
