@@ -315,8 +315,26 @@ cogment_push_docker_tag_to_dockerhub:
   only:
     - /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+(?:-[[:alnum:]]+)?$/
 
-publish_tag_to_gh_releases:
+.base_gh_ssh_agent:
+  before_script:
+    ## _Inspired by https://docs.gitlab.com/ee/ci/ssh_keys/_
+    ##
+    ## Install ssh-agent if not already installed.
+    - "command -v ssh-agent >/dev/null || ( apt-get update -y && apt-get install openssh-client -y )"
+    ## Run ssh-agent
+    - eval $(ssh-agent -s)
+    ## Add the private key file to ssh-agent
+    - echo "$GH_REPO_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    ## Create the SSH directory and give it the right permissions
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    ## Using the set $SSH_KNOWN_HOSTS to be able to verify remote servers public keys
+    - echo "$SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
+
+publish_tag_to_github:
   stage: publish
+  extends: .base_gh_ssh_agent
   needs:
     - job: build_linux_amd64
       artifacts: true
@@ -335,6 +353,12 @@ publish_tag_to_gh_releases:
     - apt update -y
     - apt install gh -y
   script:
+    # Publish the tag
+    - git checkout ${CI_COMMIT_BRANCH} # Checkout the branch not the sha1
+    - git remote add downstream git@github.com:cogment/cogment.git
+    - git fetch downstream ${CI_COMMIT_BRANCH}
+    - git push --tags downstream ${CI_COMMIT_BRANCH}:${CI_COMMIT_BRANCH}
+    # Assemble the release
     - mkdir -p ./release
     - cp ./install/linux_amd64/bin/cogment ./release/cogment-linux-amd64
     - cp ./install/macos_amd64/bin/cogment ./release/cogment-macos-amd64
@@ -344,7 +368,7 @@ publish_tag_to_gh_releases:
     - cp ./install/macos_arm64_no_orchestrator/bin/cogment ./release/cogment-macos-arm64-no-orchestrator
     - cp ./install/windows_amd64_no_orchestrator/bin/cogment.exe ./release/cogment-windows-amd64-no-orchestrator.exe
     - tar czf ./release/cogment-api.tar.gz --directory=./install/linux_amd64/include/cogment .
-    # generate the changes for the target version
+    # Generate the changes for the target version
     - ./scripts/extract_version_changes.sh $CI_COMMIT_TAG > ./RELEASE_NOTES.md
     # gh release authenticates to github using the GH_TOKEN environment variable
     - gh release create $CI_COMMIT_TAG ./release/* -t $CI_COMMIT_TAG -R cogment/cogment $GH_PRERELEASE -F ./RELEASE_NOTES.md
@@ -355,23 +379,6 @@ publish_tag_to_gh_releases:
     - if: '$CI_COMMIT_TAG =~ /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$/'
       variables:
         GH_PRERELEASE: ""
-
-.base_gh_ssh_agent:
-  before_script:
-    ## _Inspired by https://docs.gitlab.com/ee/ci/ssh_keys/_
-    ##
-    ## Install ssh-agent if not already installed.
-    - "command -v ssh-agent >/dev/null || ( apt-get update -y && apt-get install openssh-client -y )"
-    ## Run ssh-agent
-    - eval $(ssh-agent -s)
-    ## Add the private key file to ssh-agent
-    - echo "$GH_REPO_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
-    ## Create the SSH directory and give it the right permissions
-    - mkdir -p ~/.ssh
-    - chmod 700 ~/.ssh
-    ## Using the set $SSH_KNOWN_HOSTS to be able to verify remote servers public keys
-    - echo "$SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
-    - chmod 644 ~/.ssh/known_hosts
 
 publish_branch_to_github:
   stage: publish
