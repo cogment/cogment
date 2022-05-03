@@ -48,6 +48,7 @@ cd "${ROOT_DIR}"
 docker build \
   --cache-from "${COGMENT_BUILD_ENVIRONMENT_IMAGE_CACHE}" \
   --cache-from "${COGMENT_BUILD_ENVIRONMENT_IMAGE}" \
+  --build-arg BUILDKIT_INLINE_CACHE=1 \
   --tag "${COGMENT_BUILD_ENVIRONMENT_IMAGE}" \
   --file build_environment.dockerfile \
   .
@@ -57,6 +58,7 @@ docker build \
   --build-arg "COGMENT_BUILD_ENVIRONMENT_IMAGE=${COGMENT_BUILD_ENVIRONMENT_IMAGE}" \
   --cache-from "${COGMENT_BUILD_IMAGE_CACHE}" \
   --cache-from "${COGMENT_BUILD_IMAGE}" \
+  --build-arg BUILDKIT_INLINE_CACHE=1 \
   --tag "${COGMENT_BUILD_IMAGE}" \
   --file build.dockerfile \
   .
