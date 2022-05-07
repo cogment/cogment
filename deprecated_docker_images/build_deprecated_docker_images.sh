@@ -1,27 +1,27 @@
 #!/usr/bin/env bash
 
 if [[ -z "${COGMENT_IMAGE}" ]]; then
-  COGMENT_IMAGE="registry.gitlab.com/ai-r/cogment-cli:local"
+  COGMENT_IMAGE="registry.gitlab.com/ai-r/cogment/cogment:local"
   printf "** Using default value '%s' for the cogment docker image, set COGMENT_IMAGE to specify another one\n" "${COGMENT_IMAGE}"
 fi
 
 if [[ -z "${COGMENT_CLI_IMAGE}" ]]; then
-  COGMENT_CLI_IMAGE="registry.gitlab.com/ai-r/cogment-cli/cli:local"
+  COGMENT_CLI_IMAGE="registry.gitlab.com/ai-r/cogment/cogment/cli:local"
   printf "** Using default value '%s' for the cli docker image to build, set COGMENT_CLI_IMAGE to specify another one\n" "${COGMENT_CLI_IMAGE}"
 fi
 
 if [[ -z "${COGMENT_ORCHESTRATOR_IMAGE}" ]]; then
-  COGMENT_ORCHESTRATOR_IMAGE="registry.gitlab.com/ai-r/cogment-cli/orchestrator:local"
+  COGMENT_ORCHESTRATOR_IMAGE="registry.gitlab.com/ai-r/cogment/cogment/orchestrator:local"
   printf "** Using default value '%s' for the orchestrator docker image to build, set COGMENT_ORCHESTRATOR_IMAGE to specify another one\n" "${COGMENT_ORCHESTRATOR_IMAGE}"
 fi
 
 if [[ -z "${COGMENT_TRIAL_DATASTORE_IMAGE}" ]]; then
-  COGMENT_TRIAL_DATASTORE_IMAGE="registry.gitlab.com/ai-r/cogment-cli/trial-datastore:local"
+  COGMENT_TRIAL_DATASTORE_IMAGE="registry.gitlab.com/ai-r/cogment/cogment/trial-datastore:local"
   printf "** Using default value '%s' for the trial datastore docker image to build, set COGMENT_TRIAL_DATASTORE_IMAGE to specify another one\n" "${COGMENT_TRIAL_DATASTORE_IMAGE}"
 fi
 
 if [[ -z "${COGMENT_MODEL_REGISTRY_IMAGE}" ]]; then
-  COGMENT_MODEL_REGISTRY_IMAGE="registry.gitlab.com/ai-r/cogment-cli/model-registry:local"
+  COGMENT_MODEL_REGISTRY_IMAGE="registry.gitlab.com/ai-r/cogment/cogment/model-registry:local"
   printf "** Using default value '%s' for the model registry docker image to build, set COGMENT_MODEL_REGISTRY_IMAGE to specify another one\n" "${COGMENT_MODEL_REGISTRY_IMAGE}"
 fi
 
