@@ -30,7 +30,8 @@ execute_process(
 
 message("Building cogment v${COGMENT_VERSION}@${COGMENT_GIT_HASH}")
 
-add_subdirectory(packages/api)
+set(COGMENT_API_DIR "${CMAKE_CURRENT_SOURCE_DIR}/packages/grpc_api")
+add_subdirectory(packages/grpc_api)
 
 if(COGMENT_EMBEDS_ORCHESTRATOR)
   add_subdirectory(packages/orchestrator)
@@ -39,4 +40,4 @@ else()
   add_custom_target(orchestrator_dylib COMMENT "Dummy target")
 endif()
 
-add_subdirectory(packages/cogment)
+add_subdirectory(packages/cli)

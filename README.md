@@ -42,11 +42,15 @@ docker pull cogment/cogment
 
 ## Developers
 
-This repository is organized in 2 different packages: [`orchestrator`](#orchestrator) is the orchestrator itself, developed in C++, [`cogment`](#cogment) is the host tool, developed in Go, it integrates the orchestrator and includes the other services and tools.
+This repository is organized in 3 different packages grouped the `packages` folder:
+
+- `grpc_api` is the gRPC api, consisting of protocol buffers `.proto` definition files,
+- `orchestrator` is the orchestrator library, developed in C++,
+- `cli` is the _host_ executable, developed in Go, it integrates the orchestrator and includes the other services and tools.
 
 A [CMake](https://cmake.org) based systems glues the build of both together
 
-#### Prerequisites
+### Prerequisites
 
 - Fully working **c++** build toolchain.
 - Fully working **go** setup (1.16), as described in the [official documentation](https://golang.org/doc/install).
@@ -71,15 +75,15 @@ Those scripts run CMake and create a build directory, per platform, in the `./bu
 ### Formatting & coding style
 
 - `orchestrator_lint` and `orchestrator_fix_lint` respectively check and fix the code formatting of the c++ orchestrator codebase using [`clang-format`](https://clang.llvm.org/docs/ClangFormat.html).
-- `cogment_lint` and `cogment_fix_lint` respectively check and fix the code formatting of the go cogment codebase using [`golangci-lint`](https://golangci-lint.run)
+- `cli_lint` and `cli_fix_lint` respectively check and fix the code formatting of the go cli codebase using [`golangci-lint`](https://golangci-lint.run)
 
 ### Test
 
-- `cogment_test` runs a suite of tests over the go cogment codebase.
+- `cli_test` runs a suite of tests over the go cli codebase.
 
 ### Benchmark
 
-- `cogment_benchmark` runs a suite of benchmarks over the go cogment codebase.
+- `cli_benchmark` runs a suite of benchmarks over the go cli codebase.
 
 ### Release process
 

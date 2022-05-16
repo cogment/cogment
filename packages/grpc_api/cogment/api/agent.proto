@@ -12,9 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef COGMENT_VERSIONS_H_INCLUDED
-#define COGMENT_VERSIONS_H_INCLUDED
+syntax = "proto3";
 
-#define COGMENT_VERSION "@COGMENT_VERSION@"
+package cogmentAPI;
 
-#endif
+import "cogment/api/common.proto";
+
+service ServiceActorSP {
+  // Expected metadata:
+  //   - trial-id: The id of the trial
+  rpc RunTrial(stream ActorRunTrialInput) returns (stream ActorRunTrialOutput) {}
+
+  // Expected metadata: None
+  rpc Version(VersionRequest) returns (VersionInfo) {}
+}

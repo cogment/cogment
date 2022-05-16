@@ -1,0 +1,223 @@
+// Copyright 2022 AI Redefined Inc. <dev+cogment@ai-r.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package cogmentAPI;
+
+import "google/protobuf/any.proto";
+
+// **************** VERSIONING ***************** //
+message VersionRequest {}
+
+message VersionInfo {
+  message Version {
+    string name = 1;
+    string version = 2;
+  }
+
+  repeated Version versions = 1;
+}
+
+// **************** CONFIGURATION ***************** //
+
+message TrialConfig {
+  bytes content = 1;
+}
+
+message ActorConfig {
+  bytes content = 1;
+}
+
+message EnvironmentConfig {
+  bytes content = 1;
+}
+
+message DatalogParams {
+  string endpoint = 1;
+  repeated string exclude_fields = 2;
+}
+
+message EnvironmentParams {
+  string name = 1;
+  string endpoint = 2;
+  string implementation = 3;
+  EnvironmentConfig config = 4;
+}
+
+message ActorParams {
+  string name = 1;
+  string actor_class = 2;
+  string endpoint = 3;  
+
+  // Specifies an implementation name to use. This is used to distinguish
+  // Between multiple implementations of the same actor class running on the same endpoint.
+  string implementation = 4;
+  ActorConfig config = 5;
+}
+
+message TrialParams {
+  // Client-provided configuration
+  TrialConfig trial_config = 1;
+  
+  DatalogParams datalog = 2;
+  EnvironmentParams environment = 3;
+  repeated ActorParams actors = 4;
+
+  // After that many steps happen, the trial is automatically ended.
+  uint32 max_steps = 5;
+
+  // After this amount of time (in seconds) has elapsed without any activity
+  // on a trial, that trial is elligible for garbage collection 
+  uint32 max_inactivity = 6;
+}
+
+// Represents the presence of an actor within a trial
+message TrialActor {
+  // The name of the actor.
+  string name = 1;
+
+  // Which actor class this actor belongs to. This has to match
+  // an entry in the project's cogment.yaml
+  string actor_class = 2;
+}
+
+// **************** OBSERVATIONS ***************** //
+message Observation {
+  uint64 tick_id = 1;
+  fixed64 timestamp = 2;
+
+  // Must match the type in the config's actor_classes->[i]->observation_space
+  bytes content = 3;
+}
+
+// **************** ACTIONS ***************** //
+message Action {
+  sint64 tick_id = 1;
+  fixed64 timestamp = 2;
+
+  // Must match the type in the config's actor_classes->[i]->action_space
+  bytes content = 3;
+}
+
+// **************** REWARDS ***************** //
+message RewardSource {
+  string sender_name = 1;  // Not needed when sending
+  float value = 2;
+  float confidence = 3;
+  google.protobuf.Any user_data = 4;
+}
+
+message Reward {
+  sint64 tick_id = 1;
+  string receiver_name = 2;  // Can contain wildcards when received by the Orchestrator
+  float value = 3;
+
+  // The individual rewards that were used to generate this aggregate reward.
+  // There must be at least one.
+  repeated RewardSource sources = 4;
+}
+
+// **************** MESSAGES ****************** //
+message Message {
+  sint64 tick_id = 1;
+  string sender_name = 2;  // Not needed when sending
+  string receiver_name = 3;  // Can contain wildcards when received by the Orchestrator
+  google.protobuf.Any payload = 4;
+}
+
+// **************** ACTORS ****************** //
+
+// Received by actor on RunTrial rpc call
+message ActorRunTrialInput {
+  CommunicationState state = 1;
+
+  oneof data {
+    // Should always be the first "normal" message in the stream
+    // Received by a service actor to initiate a connection. Received by a client actor in response to 'init_output'.
+    ActorInitialInput init_input = 2;
+
+    Observation observation = 3;
+    Reward reward = 4;
+    Message message = 5;
+    string details = 6;  // Used for unexpected situations.  E.g. reason for hard END state (without LAST/LAST_ACK)
+  }
+}
+
+// Sent by actor on 'RunTrial' rpc call
+message ActorRunTrialOutput {
+  CommunicationState state = 1;
+
+  oneof data {
+    // Should always be the first "normal" message in the stream
+    // Sent by a client actor to initiate a connection.  Sent by a service actor in response to 'init_input'.
+    ActorInitialOutput init_output = 2;
+
+    Action action = 3;
+    Reward reward = 4;
+    Message message = 5;
+    string details = 6;  // Used for unexpected situations.  E.g. reason for hard END state (without LAST/LAST_ACK)
+  }
+}
+
+message ActorInitialInput {
+  string actor_name = 1;
+  string actor_class = 2;
+
+  // Name of the actor implementation to use.
+  string impl_name = 3;
+
+  // Name of the environment in trial
+  string env_name = 4;
+
+  // Project-specific actor configuration.
+  ActorConfig config = 5;
+}
+
+message ActorInitialOutput {
+  // Not used for service actors
+  oneof slot_selection {
+    string actor_class = 1;  // Join at any available actor slot for that actor class
+    string actor_name = 2;  // Join at a specific actor_slot
+  }
+}
+
+// **************** OTHER ****************** //
+enum TrialState {
+  UNKNOWN = 0;
+  INITIALIZING = 1;
+  PENDING = 2;
+  RUNNING = 3;
+  TERMINATING = 4;
+  ENDED = 5;
+}
+
+enum CommunicationState {
+  UNKNOWN_COM_STATE = 0;
+  NORMAL = 1;  // Always contains data
+  HEARTBEAT = 2;  // No data. When received as incoming, must be responded in kind as outgoing.
+
+  // Soft end sequence: Orchestrator or Environment sends LAST, 
+  //                    exchange of (NORMAL) finalizing data,
+  //                    component sends LAST_ACK (component stops sending after this),
+  //                    Orchestrator sends (NORMAL) finalizing data,
+  //                    Orchestrator terminates communication with END.
+  // Hard end: Component or Orchestrator sends END (no LAST/LAST_ACK handshake).
+  //
+  // These communication states are not sent with data, except 'END' which may have a
+  // 'details' string.
+  LAST = 3;      // The trial is ending, last data is following.
+  LAST_ACK = 4;  // Last data has been sent, will not send anything after this, but still receiving.
+  END = 5;       // Final communication, the trial has ended.
+}

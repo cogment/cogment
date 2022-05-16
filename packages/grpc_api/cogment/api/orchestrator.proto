@@ -1,0 +1,130 @@
+// Copyright 2022 AI Redefined Inc. <dev+cogment@ai-r.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package cogmentAPI;
+
+import "cogment/api/common.proto";
+import "cogment/api/environment.proto";
+
+// This service is used to manage Trial lifecycle.
+service TrialLifecycleSP {
+
+  // Begin a new trial.
+  // Expected headers: None
+  rpc StartTrial(TrialStartRequest) returns (TrialStartReply) {}
+
+  // Terminate existing trial(s).
+  // Expected headers: 
+  // - trial-id <one or more>
+  rpc TerminateTrial(TerminateTrialRequest) returns (TerminateTrialReply) {}
+
+  // Get extra information about a specific trial.
+  // Expected headers: 
+  // - trial-id <zero or more>
+  rpc GetTrialInfo(TrialInfoRequest) returns (TrialInfoReply) {}
+
+  // Get information about the trials currently running in the orchestrator.
+  // The stream will start with all trials that match the filter.
+  // After that, it will contain a new message whenever a trial enters a filtered state.
+  // Expected headers: None
+  rpc WatchTrials(TrialListRequest) returns (stream TrialListEntry) {}
+
+  // Expected headers: None
+  rpc Version(VersionRequest) returns (VersionInfo) {}
+
+}
+
+// Encodes a request from a master to start a new trial.
+message TrialStartRequest {
+
+  oneof start_data {
+    // Trial config sent to the pre-trial hooks.
+    TrialConfig config = 1;
+
+    // Fully configured params for the trial (bypasses pre-trial hooks).
+    TrialParams params = 4;
+  }
+
+  // Identifier of the user starting the trial (for bookkeeping purposes)
+  string user_id = 2;
+
+  // If not empty, the Orchestrator will try to use this trial_id.
+  // If empty, a UUID will be created.
+  string trial_id_requested = 3;
+}
+
+// Encodes information about the environment as
+message TrialStartReply {
+  // The new trial identifier.
+  // If empty, the trial did not start because the suggested ID was not unique or acceptable.
+  string trial_id = 1;
+}
+
+message TerminateTrialRequest {
+  // If true, a hard END is performed (not clean, trial ends immediately).
+  // Otherwise the trial will cleanly end at the next completed tick.
+  bool hard_termination = 1;
+}
+
+message TerminateTrialReply {}
+
+message TrialInfoRequest {
+  // Request that the latest observations for that trial be provided.
+  bool get_latest_observation = 1;
+
+  // Request full list of active actors in the trial
+  bool get_actor_list = 2;
+}
+
+message TrialInfo {
+  string trial_id = 1;
+  TrialState state = 2;
+  string env_name = 3;
+  uint64 tick_id = 4;
+  fixed64 trial_duration = 5;  // In nanoseconds.  If not ended; duration so far.
+
+  // Only present if requested
+  ObservationSet latest_observation = 6;
+
+  // Empty if not requested
+  repeated TrialActor actors_in_trial = 7;
+}
+
+message TrialInfoReply {
+  repeated TrialInfo trial = 1;
+}
+
+message TrialListRequest {
+  // Only return trials that are in the specified states.
+  // If empty, every single trial will be returned.
+  repeated TrialState filter = 1;
+}
+
+message TrialListEntry {
+  string trial_id = 1;
+  TrialState state = 2;
+}
+
+// ----------------------------------------------------------------------------------------------------------
+
+service ClientActorSP {
+  // Expected metadata:
+  //   - trial-id: The id of the trial
+  rpc RunTrial(stream ActorRunTrialOutput) returns (stream ActorRunTrialInput) {}
+
+  // Expected metadata: None
+  rpc Version(VersionRequest) returns (VersionInfo) {}
+}

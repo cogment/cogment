@@ -1,0 +1,126 @@
+// Copyright 2022 AI Redefined Inc. <dev+cogment@ai-r.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package cogmentAPI;
+
+// API for model registry, it stores versioned model data and their metadata
+service ModelRegistrySP {
+  // Create or update a model
+  rpc CreateOrUpdateModel(CreateOrUpdateModelRequest) returns (CreateOrUpdateModelReply) {}
+  // Delete a model and its versions
+  rpc DeleteModel(DeleteModelRequest) returns (DeleteModelReply) {}
+  // Retrieve the the info of all or part of the models
+  rpc RetrieveModels(RetrieveModelsRequest) returns (RetrieveModelsReply) {}
+
+  // Create a model version and returns its information
+  rpc CreateVersion(stream CreateVersionRequestChunk) returns (CreateVersionReply) {}
+  // Retrieve the info of all or part of the versions of a model
+  rpc RetrieveVersionInfos(RetrieveVersionInfosRequest) returns (RetrieveVersionInfosReply) {}
+  // Retrieve the data of a model given or latest version
+  rpc RetrieveVersionData(RetrieveVersionDataRequest) returns (stream RetrieveVersionDataReplyChunk) {}
+}
+
+// Information about a model
+message ModelInfo {
+  string model_id = 1;
+  map<string, string> user_data = 2; // Key/Value metadata relative to the model
+}
+
+// Information about a version of a model
+message ModelVersionInfo {
+  string model_id = 1;
+  uint32 version_number = 2;
+  fixed64 creation_timestamp = 3; // When the model was created as nanosecond unix timestamp
+  bool archived = 4; // Is this version archived
+  string data_hash = 5; // SHA 256 hash (encoded in base64) of this version's data, can be used to validate the data and for caching purposes
+  fixed64 data_size = 6; // Size (in bytes) of this version's data
+  map<string, string> user_data = 7; // Key/Value metadata relative to the model version
+}
+
+message CreateOrUpdateModelRequest {
+  ModelInfo model_info = 1;
+}
+
+message CreateOrUpdateModelReply {}
+
+message RetrieveModelsRequest {
+  repeated string model_ids = 1; // Optional, list of desired model ids
+                                 // Leave emtpy to retrieve all models
+
+  uint32 models_count = 3; // Desired number of models in the reply, 0 means no limit
+  string model_handle = 4; // Leave empty for the initial request, use previous
+                           // use `RetrieveModelsReply.next_model_handle`
+                           // to access the next model
+}
+
+message RetrieveModelsReply {
+  repeated ModelInfo model_infos = 1;
+
+  string next_model_handle = 2;
+}
+
+message DeleteModelRequest {
+  string model_id = 1;
+}
+
+message DeleteModelReply {}
+
+message CreateVersionRequestChunk {
+  message Header {
+    ModelVersionInfo version_info = 1; // Information for the model version to create
+                                       // - `version_number` will be ignored
+                                       // - `data_hash` and `data_size` will be used to validate the received data
+  }
+  message Body {
+    bytes data_chunk = 1; // A chunk of the version data
+                          // All the chunks in the stream will be concatened
+  }
+  oneof msg {
+    Header header = 1; // Should be defined in the first messages in the stream
+    Body body = 2;     // Should be defined in the rest of the messages in the stream
+  }
+}
+
+message CreateVersionReply {
+  ModelVersionInfo version_info = 1;
+}
+
+message RetrieveVersionInfosRequest {
+  string model_id = 1;
+  repeated int32 version_numbers = 2; // Optional, list of desired version number (or -1 to denote the latest version)
+                                      // Leave emtpy to retrieve all versions of the given model
+
+  uint32 versions_count = 3; // Desired number of version infos in the reply, 0 means no limit
+  string version_handle = 4; // Leave empty for the initial request, use previous
+                             // use `RetrieveVersionInfosReply.next_version_handle`
+                             // to access the next version
+}
+
+message RetrieveVersionInfosReply {
+  repeated ModelVersionInfo version_infos = 1;
+
+  string next_version_handle = 2;
+}
+
+message RetrieveVersionDataRequest {
+  string model_id = 1;
+  int32 version_number = 2; // Desired version number or -1 to get the latest version
+}
+
+message RetrieveVersionDataReplyChunk {
+  bytes data_chunk = 1; // A chunk of the version data
+                        // All the chunks in the stream needs to be concatened
+}

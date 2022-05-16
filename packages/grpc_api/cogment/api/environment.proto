@@ -1,0 +1,107 @@
+// Copyright 2022 AI Redefined Inc. <dev+cogment@ai-r.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package cogmentAPI;
+
+import "cogment/api/common.proto";
+
+// This is the connection between the orchestrator and the Env backend.
+// This service is hosted on the backend executable, and contacted by the
+// orchestrator.
+// Expected metadata for all calls except `Version`:
+//   - trial-id: The id of the trial
+service EnvironmentSP {
+  rpc RunTrial(stream EnvRunTrialInput) returns (stream EnvRunTrialOutput) {}
+
+  rpc Version(VersionRequest) returns (VersionInfo) {}
+}
+
+
+// Encodes the observations for all actors within the environment.
+message ObservationSet {
+  sint64 tick_id = 1;
+  fixed64 timestamp = 2;
+
+  repeated bytes observations = 3;
+
+  // Maps actors to observations.  This list has the same number and order
+  // of items as the `EnvInitialInput.actors_in_trial` received on start.
+  // The values are indexes into the `observations` list.
+  // It is assumed that actors are only ever assigned observations that are
+  // members of their observation space.
+  repeated int32 actors_map = 4;
+}
+
+// Encodes the actions from all actors within the environment
+message ActionSet {
+  uint64 tick_id = 1;
+  fixed64 timestamp = 2;
+
+  // This list has the same number and order of items as the
+  // `EnvInitialInput.actors_in_trial` received on start.
+  // The bytes must match the type in the cog_settings actor_classes->action_space
+  repeated bytes actions = 3;
+}
+
+// Received by environment on RunTrial rpc call
+message EnvRunTrialInput {
+  CommunicationState state = 1;
+
+  oneof data {
+    // Should always be the first "normal" message in the stream
+    // Received by environment to initiate a connection.
+    EnvInitialInput init_input = 2;
+
+    ActionSet action_set = 3;
+    Message message = 4;
+    string details = 5;  // Used for unexpected situations.  E.g. reason for hard END state (without LAST/LAST_ACK)
+  }
+}
+
+// Sent by environment on 'RunTrial' rpc call
+message EnvRunTrialOutput {
+  CommunicationState state = 1;
+
+  oneof data {
+    // Should always be the first "normal" message in the stream
+    // Sent by environment in response to 'init_input'.
+    EnvInitialOutput init_output = 2;
+
+    ObservationSet observation_set = 3;
+    Reward reward = 4;
+    Message message = 5;
+    string details = 6;  // Used for unexpected situations.  E.g. reason for hard END state (without LAST/LAST_ACK)
+  }
+}
+
+message EnvInitialInput {
+  // Name of the environment
+  string name = 1;
+
+  // Name of the environment implementation to use.
+  string impl_name = 2;
+
+  // Initial tick id
+  uint64 tick_id = 3;
+
+  // Actors present in the trial.
+  repeated TrialActor actors_in_trial = 4;
+
+  // Project-specific environment configuration.
+  EnvironmentConfig config = 5;
+}
+
+message EnvInitialOutput {}

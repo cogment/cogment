@@ -12,9 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef COGMENT_VERSIONS_H_INCLUDED
-#define COGMENT_VERSIONS_H_INCLUDED
+package version
 
-#define COGMENT_VERSION "@COGMENT_VERSION@"
-
-#endif
+var Version = "@COGMENT_VERSION@"
+var Hash = "@COGMENT_GIT_HASH@"

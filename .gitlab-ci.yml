@@ -191,15 +191,15 @@ orchestrator_lint:
     - make orchestrator_lint_fix
     - git diff --exit-code
 
-cogment_lint:
+cli_lint:
   stage: build
   needs: ["build_linux_amd64"]
   extends: .base_linux_build
   script:
     - cd ./build/linux_amd64
-    - make cogment_lint
+    - make cli_lint
 
-cogment_test:
+cli_test:
   stage: build
   needs: ["build_linux_amd64"]
   extends: .base_linux_build
@@ -209,7 +209,7 @@ cogment_test:
   artifacts:
     when: always
     reports:
-      junit: ./packages/cogment/report.xml
+      junit: ./packages/cli/report.xml
 
 # INTERNAL AI-R HELPER - Publish the current version from the `develop` branch with the `latest` docker tag.
 push_docker_latest_to_gitlab:

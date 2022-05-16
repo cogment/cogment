@@ -327,11 +327,7 @@ void Orchestrator::Version(cogmentAPI::VersionInfo* out) {
   SPDLOG_TRACE("Orchestrator::Version()");
 
   auto ver = out->add_versions();
-  ver->set_name("orchestrator");
-  ver->set_version(COGMENT_ORCHESTRATOR_VERSION);
-
-  ver = out->add_versions();
-  ver->set_name("cogment-api");
-  ver->set_version(COGMENT_API_VERSION);
+  ver->set_name("cogment");
+  ver->set_version(COGMENT_VERSION);
 }
 }  // namespace cogment

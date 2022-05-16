@@ -151,8 +151,7 @@ ServedOrchestrator::ServedOrchestrator(const Options* options) :
     m_status_listener(m_status_listnener_ctx, m_status);
   }
 
-  spdlog::info("Cogment Orchestrator version [{}]", COGMENT_ORCHESTRATOR_VERSION);
-  spdlog::info("Cogment API version [{}]", COGMENT_API_VERSION);
+  spdlog::info("Cogment version [{}]", COGMENT_VERSION);
 
   std::shared_ptr<grpc::ServerCredentials> server_creds;
   std::shared_ptr<grpc::ChannelCredentials> client_creds;

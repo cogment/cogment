@@ -55,8 +55,6 @@ add_library(orchestrator_protos
   ${PROTO_SRC}
 )
 
-add_dependencies(orchestrator_protos api_retrieve)
-
 target_link_libraries(orchestrator_protos
 PUBLIC
     grpc++

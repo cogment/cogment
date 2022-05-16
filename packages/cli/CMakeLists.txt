@@ -21,7 +21,6 @@ else()
   COMMENT "Running the code generation phase"
   VERBATIM)
 endif()
-add_dependencies(cogment_code_generation api_retrieve)
 
 set(COGMENT_EXEC_RELPATH "build/cogment")
 if(${COGMENT_OS} MATCHES "windows")
@@ -45,21 +44,21 @@ add_custom_target(cogment_lint_fix
 )
 add_dependencies(cogment_lint_fix cogment_code_generation)
 
-add_custom_target(cogment_lint
+add_custom_target(cli_lint
   COMMAND golangci-lint run
   COMMENT "Running golangci-lint to check the format of 'cogment' files"
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   VERBATIM
 )
-add_dependencies(cogment_lint cogment_code_generation)
+add_dependencies(cli_lint cogment_code_generation)
 
-add_custom_target(cogment_test
+add_custom_target(cli_test
   COMMAND go test -v ./...
   COMMENT "Running 'cogment' tests"
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   VERBATIM
 )
-add_dependencies(cogment_test cogment_code_generation)
+add_dependencies(cli_test cogment_code_generation)
 
 add_custom_target(cogment_test_with_junit_report
   COMMAND rm -f test_failed.txt
@@ -72,10 +71,10 @@ add_custom_target(cogment_test_with_junit_report
 )
 add_dependencies(cogment_test_with_junit_report cogment_code_generation)
 
-add_custom_target(cogment_benchmark
+add_custom_target(cli_benchmark
   COMMAND go test ./... -run xxx -bench . -test.benchtime 60s
   COMMENT "Running 'cogment' benchmarks"
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   VERBATIM
 )
-add_dependencies(cogment_test cogment_code_generation)
+add_dependencies(cli_test cogment_code_generation)

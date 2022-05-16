@@ -1,0 +1,154 @@
+// Copyright 2022 AI Redefined Inc. <dev+cogment@ai-r.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package cogmentAPI;
+
+import "cogment/api/common.proto";
+import "cogment/api/environment.proto";
+
+import "google/protobuf/any.proto";
+
+service DatalogSP {
+  // Expected headers:
+  // - trial-id
+  // - user-id
+  rpc RunTrialDatalog(stream RunTrialDatalogInput) returns (stream RunTrialDatalogOutput) {}
+
+  // Expected headers: None
+  rpc Version(VersionRequest) returns (VersionInfo) {}
+}
+
+// Received by datalog service on rpc call
+message RunTrialDatalogInput {
+  oneof msg {
+    TrialParams trial_params = 1;
+    DatalogSample sample = 2;
+  }
+}
+
+// Sent by datalog service on rpc call
+message RunTrialDatalogOutput {}
+
+message SampleInfo {
+  uint64 tick_id = 1;
+  fixed64 timestamp = 2;
+  TrialState state = 3;
+
+  // Events that happened during this sample's tick.  E.g. Terminate call, agent disconnect, etc
+  repeated string special_events = 4;
+}
+
+message DatalogSample {
+  SampleInfo info = 1;              // Sample info
+  
+  ObservationSet observations = 2;  // Incoming observation from environment
+  repeated Action actions = 3;      // Incoming actions from actors
+  repeated Reward rewards = 4;      // Incoming rewards from environment and actors
+  repeated Message messages = 5;    // Incoming messages from environment and actors
+}
+
+
+// ************************************************************************************************
+// API 1.0 version of the log data.
+// This is provided to facilitate the extraction/deserialization of older (1.0) log data.
+// ************************************************************************************************
+
+message TrialConfig_v1 {
+  bytes content = 1;
+}
+
+message ActorConfig_v1 {
+  bytes content = 1;
+}
+
+message EnvironmentConfig_v1 {
+  bytes content = 1;
+}
+
+message EnvironmentParams_v1 {
+  string endpoint = 1;
+  EnvironmentConfig_v1 config = 2;
+  string implementation = 3;
+}
+
+message ActorParams_v1 {
+  string name = 1;
+  string actor_class = 2;
+  string endpoint = 3;  
+  string implementation = 4;
+  ActorConfig_v1 config = 5;
+}
+
+message TrialParams_v1 {
+  TrialConfig_v1 trial_config = 1;
+  EnvironmentParams_v1 environment = 2;
+  repeated ActorParams_v1 actors = 3;
+  uint32 max_steps = 4;
+  uint32 max_inactivity = 5;
+}
+
+message ObservationData_v1 {
+  bytes content = 1;
+  bool snapshot = 2;
+}
+
+message ObservationSet_v1 {
+  sint64 tick_id = 1;
+  fixed64 timestamp = 2;
+  repeated ObservationData_v1 observations = 3;
+  repeated int32 actors_map = 4;
+}
+
+message Action_v1 {
+  bytes content = 1;
+  sint64 tick_id = 2;
+}
+
+message RewardSource_v1 {
+  string sender_name = 1;
+  float value = 2;
+  float confidence = 3;
+  google.protobuf.Any user_data = 4;
+}
+
+message Reward_v1 {
+  string receiver_name = 1;
+  sint64 tick_id = 2;
+  float value = 3;
+  repeated RewardSource_v1 sources = 4;
+}
+
+message Message_v1 {
+  sint64 tick_id = 1;
+  string sender_name = 2;
+  string receiver_name = 3;
+  google.protobuf.Any payload = 4;
+}
+
+message DatalogSample_v1 {
+  string user_id = 1;
+  ObservationSet_v1 observations = 2;
+  repeated Action_v1 actions = 3;
+  repeated Reward_v1 rewards = 4;
+  repeated Message_v1 messages = 5;
+  TrialData_v1 trial_data = 6;
+}
+
+message TrialData_v1 {
+  uint64 tick_id = 1;
+  fixed64 timestamp = 2;
+  TrialState state = 3;
+}

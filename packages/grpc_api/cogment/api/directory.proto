@@ -1,0 +1,134 @@
+// Copyright 2022 AI Redefined Inc. <dev+cogment@ai-r.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package cogmentAPI;
+
+import "cogment/api/common.proto";
+
+// Used for directory (service discovery) and first line load balancing.
+service DirectorySP {
+
+  // Register as a service.
+  //  - There will be a one-to-one match between requests and replies
+  //  - Each request can succeed or fail individually
+  // Expected metadata:
+  //   - authentication-token (may be optional, at the discretion of the implementation).
+  rpc Register(stream RegisterRequest) returns (stream RegisterReply) {}
+
+  // Deregister a service.
+  //  - There will be a one-to-one match between requests and replies
+  //  - Each request can succeed or fail individually
+  // Expected metadata:
+  //   - authentication-token (required if it was used to register).
+  rpc Deregister(stream DeregisterRequest) returns (stream DeregisterReply) {}
+
+  // Inquire about registered services.
+  // Expected metadata:
+  //   - authentication-token (may be optional, at the discretion of the implemetation).
+  rpc Inquire(InquireRequest) returns (stream InquireReply) {}
+
+  // Expected metadata: None
+  rpc Version(VersionRequest) returns (VersionInfo) {}
+}
+
+message RegisterRequest {
+  // URL where to connect to the service.
+  ServiceEndpoint endpoint = 1;
+  ServiceDetails details = 2;
+}
+
+message RegisterReply {
+  enum Status {
+    UNKNOWN = 0;
+    OK = 1;
+    INTERNAL_ERROR = 2;
+  }
+  Status status = 1;
+
+  // Will be set upon failure
+  string error_msg = 2;
+
+  // Unique identifier for the service
+  uint64 service_id = 3;
+
+  // Required for altering service registration
+  string secret = 4;
+}
+
+message DeregisterRequest {
+  uint64 service_id = 1;
+  string secret = 2;  // Must match secret received in RegisterReply with the service_id
+}
+
+message DeregisterReply {
+  enum Status {
+    UNKNOWN = 0;
+    OK = 1;
+    INTERNAL_ERROR = 2;
+  }
+  Status status = 1;
+
+  // Will be set upon failure
+  string error_msg = 2;
+}
+
+message InquireRequest {
+  oneof inquiry {
+    // Request a specific registration ID
+    uint64 service_id = 1;
+
+    // All details given must match
+    ServiceDetails details = 2;
+  }
+}
+
+message InquireReply {
+  FullServiceData data = 1;
+}
+
+message ServiceEndpoint {
+  enum Protocol {
+    UNKNOWN = 0;
+    GRPC = 1;
+    GRPC_SSL = 2;
+    COGMENT = 3;
+  }
+
+  Protocol protocol = 1;
+  string hostname = 2;
+  uint32 port = 3;
+}
+
+message ServiceDetails {
+  ServiceType type = 1;
+  map<string, string> properties = 2;
+}
+
+message FullServiceData {
+  ServiceEndpoint endpoint = 1;
+  uint64 service_id = 2;
+  ServiceDetails details = 3;
+}
+
+enum ServiceType {
+  UNKNOWN_SERVICE = 0;
+  TRIAL_LIFE_CYCLE_SERVICE = 1;
+  CLIENT_ACTOR_CONNECTION_SERVICE = 2;
+  ACTOR_SERVICE = 3;
+  ENVIRONMENT_SERVICE = 4;
+  PRE_HOOK_SERVICE = 5;
+  DATALOG_SERVICE = 6;
+}

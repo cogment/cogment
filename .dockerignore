@@ -17,6 +17,6 @@
 /build
 /install
 /packages/orchestrator/lib/cogment/version.h
-/packages/cogment/version/version.go
-/packages/cogment/pkged.go
-/packages/cogment/services/orchestrator/lib
+/packages/cli/version/version.go
+/packages/cli/pkged.go
+/packages/cli/services/orchestrator/lib
