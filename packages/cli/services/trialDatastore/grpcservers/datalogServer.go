@@ -17,9 +17,11 @@ package grpcservers
 import (
 	"context"
 	"io"
+	"strings"
 
 	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/services/trialDatastore/backend"
+	"github.com/openlyinc/pointy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -31,20 +33,21 @@ type datalogServer struct {
 	backend backend.Backend
 }
 
-func actorIdxFromActorName(actorName string, actorIndices map[string]uint32) int32 {
-	actorIdx, found := actorIndices[actorName]
+func actorIndexFromActorName(actorName string, actorIndices map[string]uint32) int32 {
+	actorIndex, found := actorIndices[actorName]
 	if !found {
 		// If the actor is not found we consider it is the environment
 		// TODO maybe use the actual environment "actor name"
 		return -1
 	}
-	return int32(actorIdx)
+	return int32(actorIndex)
 }
 
 func trialSampleFromDatalogSample(
 	trialID string,
 	actorIndices map[string]uint32,
 	datalogSample *grpcapi.DatalogSample,
+	trialActors []*grpcapi.ActorParams,
 ) (*grpcapi.StoredTrialSample, error) {
 	// Base stuffs
 	sample := grpcapi.StoredTrialSample{
@@ -57,98 +60,159 @@ func trialSampleFromDatalogSample(
 		Payloads:     make([][]byte, 0),
 	}
 	// Initializing the actor samples
-	for actorIdx := range sample.ActorSamples {
-		sample.ActorSamples[actorIdx] = &grpcapi.StoredTrialActorSample{
-			Actor: uint32(actorIdx),
+	for actorIndex := range sample.ActorSamples {
+		sample.ActorSamples[actorIndex] = &grpcapi.StoredTrialActorSample{
+			Actor: uint32(actorIndex),
 		}
 	}
 	// Deal with the observations
 	if datalogSample.Observations != nil {
-		payloadIdxFromObsIdx := make([]uint32, len(datalogSample.Observations.Observations))
-		for obsIdx, obsData := range datalogSample.Observations.Observations {
+		payloadIndexFromObsIndex := make([]uint32, len(datalogSample.Observations.Observations))
+		for obsIndex, obsData := range datalogSample.Observations.Observations {
 			payload := obsData
-			payloadIdxFromObsIdx[obsIdx] = uint32(len(sample.Payloads))
+			payloadIndexFromObsIndex[obsIndex] = uint32(len(sample.Payloads))
 			sample.Payloads = append(sample.Payloads, payload)
 		}
-		for actorIdx, obsIdx := range datalogSample.Observations.ActorsMap {
-			sample.ActorSamples[actorIdx].Observation = &payloadIdxFromObsIdx[obsIdx]
+		for actorIndex, obsIndex := range datalogSample.Observations.ActorsMap {
+			sample.ActorSamples[actorIndex].Observation = &payloadIndexFromObsIndex[obsIndex]
 		}
 	}
 	// Deal with the actions
 	{
-		for actorIdx, action := range datalogSample.Actions {
+		for actorIndex, action := range datalogSample.Actions {
 			payload := action.Content
-			payloadIdx := uint32(len(sample.Payloads))
+			payloadIndex := uint32(len(sample.Payloads))
 			sample.Payloads = append(sample.Payloads, payload)
-			sample.ActorSamples[actorIdx].Action = &payloadIdx
+			sample.ActorSamples[actorIndex].Action = &payloadIndex
 		}
 	}
 	// Deal with the rewards
 	{
-		for actorIdx, reward := range datalogSample.Rewards {
-			sample.ActorSamples[actorIdx].Reward = &reward.Value
-			for _, sourceReward := range reward.Sources {
-				var payloadIdx *uint32
-				if sourceReward.UserData != nil && len(sourceReward.UserData.Value) > 0 {
-					*payloadIdx = uint32(len(sample.Payloads))
-					sample.Payloads = append(sample.Payloads, sourceReward.UserData.Value)
-				}
+		rewardAccumulator := make(map[uint32][]*grpcapi.RewardSource)
 
-				senderActorIdx := actorIdxFromActorName(sourceReward.SenderName, actorIndices)
-				receivedReward := grpcapi.StoredTrialActorSampleReward{
-					Sender:     senderActorIdx,
-					Reward:     sourceReward.Value,
-					Confidence: sourceReward.Confidence,
-					UserData:   payloadIdx,
-				}
-				sample.ActorSamples[actorIdx].ReceivedRewards = append(
-					sample.ActorSamples[actorIdx].ReceivedRewards,
-					&receivedReward,
-				)
+		for _, reward := range datalogSample.Rewards {
 
-				if senderActorIdx >= 0 {
-					sentReward := grpcapi.StoredTrialActorSampleReward{
-						Receiver:   int32(actorIdx),
-						Reward:     sourceReward.Value,
-						Confidence: sourceReward.Confidence,
-						UserData:   payloadIdx,
+			// Potential wildcards in receiver name
+			var rewardedActorIndices []uint32
+			splitName := strings.Split(reward.ReceiverName, ".")
+
+			if reward.ReceiverName == "*" || reward.ReceiverName == "*.*" {
+				for _, index := range actorIndices {
+					rewardedActorIndices = append(rewardedActorIndices, index)
+				}
+			} else if len(splitName) > 1 {
+				className := splitName[0]
+				actorName := splitName[1]
+
+				for index, actorParam := range trialActors {
+					if actorParam.GetActorClass() == className && (actorName == "*" || actorName == actorParam.Name) {
+						rewardedActorIndices = append(rewardedActorIndices, uint32(index))
 					}
-					sample.ActorSamples[senderActorIdx].SentRewards = append(
-						sample.ActorSamples[senderActorIdx].SentRewards,
-						&sentReward,
-					)
+				}
+			} else {
+				// Find actor sample that matches the reward
+				index, exists := actorIndices[reward.ReceiverName]
+				if exists {
+					rewardedActorIndices = append(rewardedActorIndices, index)
+				} else {
+					log.WithField("receiver_name", reward.ReceiverName).Debug(
+						"Unrecognized receiver name, not logging the reward")
 				}
 			}
+
+			for _, actorIndex := range rewardedActorIndices {
+
+				// Store the reward sources for aggregation later
+				_, exists := rewardAccumulator[actorIndex]
+				if !exists {
+					rewardAccumulator[actorIndex] = make([]*grpcapi.RewardSource, 0)
+				}
+
+				for _, sourceReward := range reward.Sources {
+					rewardAccumulator[actorIndex] = append(rewardAccumulator[actorIndex], sourceReward)
+
+					var payloadIndex *uint32
+					if sourceReward.UserData != nil && len(sourceReward.UserData.Value) > 0 {
+						*payloadIndex = uint32(len(sample.Payloads))
+						sample.Payloads = append(sample.Payloads, sourceReward.UserData.Value)
+					}
+
+					senderactorIndex := actorIndexFromActorName(sourceReward.SenderName, actorIndices)
+					receivedReward := grpcapi.StoredTrialActorSampleReward{
+						Sender:     senderactorIndex,
+						Reward:     sourceReward.Value,
+						Confidence: sourceReward.Confidence,
+						UserData:   payloadIndex,
+					}
+					sample.ActorSamples[actorIndex].ReceivedRewards = append(
+						sample.ActorSamples[actorIndex].ReceivedRewards,
+						&receivedReward,
+					)
+
+					if senderactorIndex >= 0 {
+						sentReward := grpcapi.StoredTrialActorSampleReward{
+							Receiver:   int32(actorIndex),
+							Reward:     sourceReward.Value,
+							Confidence: sourceReward.Confidence,
+							UserData:   payloadIndex,
+						}
+						sample.ActorSamples[senderactorIndex].SentRewards = append(
+							sample.ActorSamples[senderactorIndex].SentRewards,
+							&sentReward,
+						)
+					}
+				}
+			}
+		}
+
+		for actorIndex, sourcesList := range rewardAccumulator {
+
+			// The total reward for an actor is the average value weighted by the confidence
+			valueAccum := float32(0.0)
+			confidenceAccum := float32(0.0)
+
+			for _, source := range sourcesList {
+				if source.Confidence > 0 {
+					valueAccum += source.Value * source.Confidence
+					confidenceAccum += source.Confidence
+				}
+			}
+
+			if confidenceAccum > 0 {
+				valueAccum /= confidenceAccum
+			}
+
+			sample.ActorSamples[actorIndex].Reward = pointy.Float32(valueAccum)
 		}
 	}
 
 	// Deal with the messages
 	{
 		for _, message := range datalogSample.Messages {
-			payloadIdx := uint32(len(sample.Payloads))
+			payloadIndex := uint32(len(sample.Payloads))
 			sample.Payloads = append(sample.Payloads, message.Payload.Value)
 
-			receiverActorIdx := actorIdxFromActorName(message.ReceiverName, actorIndices)
-			senderActorIdx := actorIdxFromActorName(message.SenderName, actorIndices)
+			receiveractorIndex := actorIndexFromActorName(message.ReceiverName, actorIndices)
+			senderactorIndex := actorIndexFromActorName(message.SenderName, actorIndices)
 
-			if receiverActorIdx >= 0 {
+			if receiveractorIndex >= 0 {
 				receivedMessage := grpcapi.StoredTrialActorSampleMessage{
-					Sender:  senderActorIdx,
-					Payload: payloadIdx,
+					Sender:  senderactorIndex,
+					Payload: payloadIndex,
 				}
-				sample.ActorSamples[receiverActorIdx].ReceivedMessages = append(
-					sample.ActorSamples[receiverActorIdx].ReceivedMessages,
+				sample.ActorSamples[receiveractorIndex].ReceivedMessages = append(
+					sample.ActorSamples[receiveractorIndex].ReceivedMessages,
 					&receivedMessage,
 				)
 			}
 
-			if senderActorIdx >= 0 {
+			if senderactorIndex >= 0 {
 				sentMessage := grpcapi.StoredTrialActorSampleMessage{
-					Receiver: receiverActorIdx,
-					Payload:  payloadIdx,
+					Receiver: receiveractorIndex,
+					Payload:  payloadIndex,
 				}
-				sample.ActorSamples[senderActorIdx].SentMessages = append(
-					sample.ActorSamples[senderActorIdx].SentMessages,
+				sample.ActorSamples[senderactorIndex].SentMessages = append(
+					sample.ActorSamples[senderactorIndex].SentMessages,
 					&sentMessage,
 				)
 			}
@@ -196,8 +260,8 @@ func (s *datalogServer) RunTrialDatalog(stream grpcapi.DatalogSP_RunTrialDatalog
 		return err
 	}
 
-	for actorIdx, actorConfig := range trialParams.GetActors() {
-		actorIndices[actorConfig.Name] = uint32(actorIdx)
+	for actorIndex, actorConfig := range trialParams.GetActors() {
+		actorIndices[actorConfig.Name] = uint32(actorIndex)
 	}
 
 	for {
@@ -215,7 +279,7 @@ func (s *datalogServer) RunTrialDatalog(stream grpcapi.DatalogSP_RunTrialDatalog
 				"DatalogServer.RunTrialDatalog: body message is not of type \"cogment.DatalogSample\"",
 			)
 		}
-		trialSample, err := trialSampleFromDatalogSample(trialID, actorIndices, sample)
+		trialSample, err := trialSampleFromDatalogSample(trialID, actorIndices, sample, trialParams.GetActors())
 		if err != nil {
 			return status.Errorf(codes.Internal, "DatalogServer.RunTrialDatalog: internal error %q", err)
 		}

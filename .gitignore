@@ -9,3 +9,5 @@
 
 # Runtime output
 .cogment
+packages/cogment/build/cogment
+packages/cogment/grpcapi/cogment/api/
