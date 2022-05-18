@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.3.1 - 2022-05-18
+
 ### Changed
 
 - Cogment API definitions are now located in this repository and no longer retrieved from https://github.com/cogment/cogment-api
