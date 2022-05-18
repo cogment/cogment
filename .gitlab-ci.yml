@@ -387,6 +387,6 @@ publish_branch_to_github:
     - git checkout ${CI_COMMIT_BRANCH} # Checkout the branch not the sha1
     - git remote add downstream git@github.com:cogment/cogment.git
     - git fetch downstream ${CI_COMMIT_BRANCH}
-    - git push --tags downstream ${CI_COMMIT_BRANCH}:${CI_COMMIT_BRANCH}
+    - git push downstream ${CI_COMMIT_BRANCH}:${CI_COMMIT_BRANCH}
   only:
     - main
