@@ -345,14 +345,14 @@ publish_tag_to_github:
     - job: build_all_no_orchestrator
       artifacts: true
   image: ubuntu:focal
-  before_script:
+  script:
+    # Install dependencies (not a before_script we don't want to override .base_gh_ssh_agent.before_script)
     - apt update -y
     - apt-get install -y gnupg2 software-properties-common
     - apt-key adv --keyserver keyserver.ubuntu.com --recv-key C99B11DEB97541F0
     - apt-add-repository https://cli.github.com/packages
     - apt update -y
     - apt install gh -y
-  script:
     # Publish the tag
     - git checkout ${CI_COMMIT_BRANCH} # Checkout the branch not the sha1
     - git remote add downstream git@github.com:cogment/cogment.git
