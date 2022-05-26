@@ -133,7 +133,7 @@ func trialSampleFromDatalogSample(
 
 					var payloadIndex *uint32
 					if sourceReward.UserData != nil && len(sourceReward.UserData.Value) > 0 {
-						*payloadIndex = uint32(len(sample.Payloads))
+						payloadIndex = pointy.Uint32(uint32(len(sample.Payloads)))
 						sample.Payloads = append(sample.Payloads, sourceReward.UserData.Value)
 					}
 

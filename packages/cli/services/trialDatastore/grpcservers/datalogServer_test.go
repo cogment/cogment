@@ -27,6 +27,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/test/bufconn"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type datalogServerTestFixture struct {
@@ -178,6 +179,12 @@ func TestRunTrialDatalogSimple(t *testing.T) {
 	{
 		// Send a sample with multiple rewards for the same actor
 		// Test different combinations with the wildcard character '*'
+		// Send a test user_data as well
+		userData, err := anypb.New(&grpcapi.TrialActor{
+			Name:       "name",
+			ActorClass: "actor_class",
+		})
+		assert.NoError(t, err)
 		err = stream.Send(&grpcapi.RunTrialDatalogInput{
 			Msg: &grpcapi.RunTrialDatalogInput_Sample{
 				Sample: &grpcapi.DatalogSample{
@@ -191,6 +198,7 @@ func TestRunTrialDatalogSimple(t *testing.T) {
 						Sources: []*grpcapi.RewardSource{{
 							Value:      12,
 							Confidence: 1,
+							UserData:   userData,
 						}},
 					},
 						{
@@ -272,6 +280,8 @@ func TestRunTrialDatalogSimple(t *testing.T) {
 		assert.Equal(t, float32(16.0), *sample.ActorSamples[1].Reward)
 		assert.Equal(t, float32(12.0), *sample.ActorSamples[2].Reward)
 		assert.Equal(t, float32(20.0), *sample.ActorSamples[3].Reward)
+		assert.NotNil(t, sample.ActorSamples[3].ReceivedRewards[0].UserData)
+		assert.Nil(t, sample.ActorSamples[3].ReceivedRewards[1].UserData)
 	}
 	{
 		// Send a sample with an observation and an action
