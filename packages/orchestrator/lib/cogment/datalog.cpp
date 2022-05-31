@@ -26,19 +26,23 @@ namespace cogment {
 namespace {
 
 // Sample fields
-constexpr std::string_view OBSERVATION_FIELD_NAME("observation");
+constexpr std::string_view INFO_FIELD_NAME("info");
+constexpr std::string_view OBSERVATIONS_FIELD_NAME("observations");
 constexpr std::string_view ACTIONS_FIELD_NAME("actions");
 constexpr std::string_view REWARDS_FIELD_NAME("rewards");
 constexpr std::string_view MESSAGES_FIELD_NAME("messages");
-constexpr std::string_view INFO_FIELD_NAME("info");
+constexpr std::string_view DEFAULT_ACTORS_FIELD_NAME("default_actors");
+constexpr std::string_view UNAVAILABLE_ACTORS_FIELD_NAME("unavailable_actors");
 
-constexpr size_t OBSERVATIONS_FIELD = 0;
-constexpr size_t ACTIONS_FIELD = 1;
-constexpr size_t REWARDS_FIELD = 2;
-constexpr size_t MESSAGES_FIELD = 3;
-constexpr size_t INFO_FIELD = 4;
+constexpr size_t INFO_FIELD = 0;
+constexpr size_t OBSERVATIONS_FIELD = 1;
+constexpr size_t ACTIONS_FIELD = 2;
+constexpr size_t REWARDS_FIELD = 3;
+constexpr size_t MESSAGES_FIELD = 4;
+constexpr size_t DEFAULT_ACTORS_FIELD = 5;
+constexpr size_t UNAVAILABLE_ACTORS_FIELD = 6;
 
-constexpr size_t NB_FIELDS = 5;
+constexpr size_t NB_FIELDS = 7;
 
 }  // namespace
 
@@ -71,9 +75,12 @@ void DatalogServiceImpl::start(Trial* trial) {
   static_assert(NB_BITS >= NB_FIELDS);
   const auto& exclude = m_trial->params().datalog().exclude_fields();
   for (auto field : exclude) {
-    to_lower_case(&field);
+    to_lower_case(field);
 
-    if (field == OBSERVATION_FIELD_NAME) {
+    if (field == INFO_FIELD_NAME) {
+      m_exclude_fields.set(INFO_FIELD);
+    }
+    else if (field == OBSERVATIONS_FIELD_NAME) {
       m_exclude_fields.set(OBSERVATIONS_FIELD);
     }
     else if (field == ACTIONS_FIELD_NAME) {
@@ -85,8 +92,11 @@ void DatalogServiceImpl::start(Trial* trial) {
     else if (field == MESSAGES_FIELD_NAME) {
       m_exclude_fields.set(MESSAGES_FIELD);
     }
-    else if (field == INFO_FIELD_NAME) {
-      m_exclude_fields.set(INFO_FIELD);
+    else if (field == DEFAULT_ACTORS_FIELD_NAME) {
+      m_exclude_fields.set(DEFAULT_ACTORS_FIELD);
+    }
+    else if (field == UNAVAILABLE_ACTORS_FIELD_NAME) {
+      m_exclude_fields.set(UNAVAILABLE_ACTORS_FIELD);
     }
     else {
       spdlog::warn("Trial [{}] - Datalog excluded field [{}] is not a sample log field", m_trial->id(), field);
@@ -143,6 +153,9 @@ void DatalogServiceImpl::add_sample(cogmentAPI::DatalogSample&& sample) {
     dispatch_sample(std::move(sample));
   }
   else {
+    if (m_exclude_fields[INFO_FIELD]) {
+      sample.clear_info();
+    }
     if (m_exclude_fields[OBSERVATIONS_FIELD]) {
       sample.clear_observations();
     }
@@ -155,8 +168,11 @@ void DatalogServiceImpl::add_sample(cogmentAPI::DatalogSample&& sample) {
     if (m_exclude_fields[MESSAGES_FIELD]) {
       sample.clear_messages();
     }
-    if (m_exclude_fields[INFO_FIELD]) {
-      sample.clear_info();
+    if (m_exclude_fields[DEFAULT_ACTORS_FIELD]) {
+      sample.clear_default_actors();
+    }
+    if (m_exclude_fields[UNAVAILABLE_ACTORS_FIELD]) {
+      sample.clear_unavailable_actors();
     }
 
     dispatch_sample(std::move(sample));

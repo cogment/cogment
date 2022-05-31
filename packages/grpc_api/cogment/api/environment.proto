@@ -54,6 +54,10 @@ message ActionSet {
   // `EnvInitialInput.actors_in_trial` received on start.
   // The bytes must match the type in the cog_settings actor_classes->action_space
   repeated bytes actions = 3;
+
+  // Actor indexes (sorted) representing the actors that are not available.
+  // Unavailable actors do not send actions (i.e. the bytes field in `actions` is empty)
+  repeated uint32 unavailable_actors = 4;
 }
 
 // Received by environment on RunTrial rpc call
@@ -101,7 +105,7 @@ message EnvInitialInput {
   repeated TrialActor actors_in_trial = 4;
 
   // Project-specific environment configuration.
-  EnvironmentConfig config = 5;
+  SerializedMessage config = 5;
 }
 
 message EnvInitialOutput {}

@@ -76,6 +76,8 @@ public:
 
   virtual std::future<void> init();
 
+  bool is_disengaged() const { return m_disengaged; }  // Only makes sense for optional actors
+  void disengage();
   bool has_joined() const { return m_stream.has_stream(); }
   std::future<void> last_ack() { return m_last_ack_prom.get_future(); }
 
@@ -122,6 +124,8 @@ private:
 
   bool m_init_completed;
   std::promise<void> m_init_prom;
+
+  bool m_disengaged;  // Not participating in trial
 
   bool m_last_sent;
   bool m_last_ack_received;

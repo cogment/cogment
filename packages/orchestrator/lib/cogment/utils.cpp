@@ -132,7 +132,7 @@ public:
         catch (...) {
           spdlog::error("Threaded function [{}] failed", m_description);
         }
-        m_prom.set_value();
+        m_prom.set_value();  // No need for 'set_exception' for now
         m_executing_func = false;
       }
     }
@@ -187,6 +187,149 @@ std::shared_ptr<ThreadPool::ThreadControl>& ThreadPool::add_thread() {
 
   spdlog::debug("Nb of threads in pool: [{}]", m_thread_controls.size());
   return thr_control;
+}
+
+Watchdog::Watchdog(ThreadPool* pool) :
+    m_base_time(std::chrono::high_resolution_clock::now()), m_sec_count(0), m_running(true) {
+  m_time_thr = pool->push("Watchdog", [this]() {
+    while (m_running) {
+      const auto next = m_base_time + std::chrono::seconds(m_sec_count + 1);
+      std::this_thread::sleep_until(next);
+      m_sec_count++;
+
+      // Assuming it will take less than 1 sec to execute!
+      process_timeouts(m_sec_count);
+    }
+  });
+
+  m_execution_thr = pool->push("Watchdog callback execution", [this]() {
+    while (m_running) {
+      execute_functions();
+    }
+  });
+}
+
+Watchdog::~Watchdog() {
+  m_running = false;
+  m_execution_queue.push(FUNC_TYPE());
+  m_time_thr.wait();
+  m_execution_thr.wait();
+}
+
+void Watchdog::push(uint16_t timeout_sec, FUNC_TYPE&& func) {
+  if (!func) {
+    MakeException("Trying to set a watchdog function that is undefined");
+  }
+
+  if (timeout_sec > 0) {
+    const std::lock_guard lg(m_timed_queue_lock);
+    const uint64_t time_count = m_sec_count + timeout_sec;
+    m_time_queue.emplace(time_count, std::move(func));
+  }
+  else {
+    func();
+  }
+}
+
+void Watchdog::process_timeouts(uint64_t at_sec_count) {
+  const std::lock_guard lg(m_timed_queue_lock);
+
+  while (!m_time_queue.empty()) {
+    auto& top = const_cast<WatchEntry&>(m_time_queue.top());  // Const cast ok: we won't change the count
+
+    if (top.sec_count > at_sec_count) {
+      break;
+    }
+    else {
+      m_execution_queue.push(std::move(top.func));
+      m_time_queue.pop();
+    }
+  }
+}
+
+void Watchdog::execute_functions() {
+  auto func = m_execution_queue.pop();
+  if (!func) {
+    return;
+  }
+
+  SPDLOG_TRACE("Watchdog task execution at [{}] sec",
+               std::chrono::high_resolution_clock::now().time_since_epoch().count() * NANOS_INV);
+  try {
+    func();
+  }
+  catch (const std::exception& exc) {
+    spdlog::error("Watchdog function failed [{}]", exc.what());
+  }
+  catch (...) {
+    spdlog::error("Watchdog function failed");
+  }
+}
+
+MultiWait::MultiWait() : m_waiting(false) {}
+
+void MultiWait::push_back(float timeout_sec, FUT_TYPE&& fut) {
+  if (m_waiting) {
+    throw MakeException("Cannot add futures while waiting");
+  }
+  if (!fut.valid()) {
+    throw MakeException("Cannot add invalid futures");
+  }
+
+  const int64_t timeout_ns = timeout_sec * NANOS;
+  const size_t fut_index = m_futures.size();
+  m_wait_queue.emplace(timeout_ns, fut_index);
+  m_futures.emplace_back(std::move(fut));
+}
+
+std::vector<size_t> MultiWait::wait_for_all() {
+  static const auto zero = std::chrono::nanoseconds::zero();
+
+  m_waiting = true;
+  const auto base_time = std::chrono::high_resolution_clock::now();
+  std::vector<size_t> result;
+
+  for (; !m_wait_queue.empty(); m_wait_queue.pop()) {
+    auto& top = m_wait_queue.top();
+    auto& fut = m_futures[top.fut_index];
+
+    if (top.wait_time_ns < 0) {
+      fut.wait();
+
+      SPDLOG_TRACE("Required future seen initialized after [{}] sec",
+                   (std::chrono::high_resolution_clock::now() - base_time).count() * NANOS_INV);
+    }
+    else {
+      const auto wait_time = std::chrono::nanoseconds(top.wait_time_ns);
+      const auto now = std::chrono::high_resolution_clock::now();
+      auto more_wait = wait_time - (now - base_time);
+      if (more_wait < zero) {
+        more_wait = zero;
+      }
+
+      const auto fut_res = fut.wait_for(more_wait);
+
+      switch (fut_res) {
+      case std::future_status::deferred:
+        throw MakeException("Cannot accept deferred action in MultiWait futures");
+        break;
+      case std::future_status::ready:
+        SPDLOG_TRACE("Optional future (with timeout [{}]) seen initialized after [{}] sec", top.wait_time_ns,
+                     (std::chrono::high_resolution_clock::now() - base_time).count() * NANOS_INV);
+        break;
+      case std::future_status::timeout:
+        result.emplace_back(top.fut_index);
+        SPDLOG_TRACE("Optional future (with timeout [{}]) seen timed out after [{}] sec", top.wait_time_ns,
+                     (std::chrono::high_resolution_clock::now() - base_time).count() * NANOS_INV);
+        break;
+      }
+    }
+  }
+
+  m_futures.clear();
+  m_waiting = false;
+
+  return result;
 }
 
 }  // namespace cogment

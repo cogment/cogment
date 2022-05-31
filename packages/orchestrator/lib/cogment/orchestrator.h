@@ -59,6 +59,7 @@ public:
   StubPool<cogmentAPI::EnvironmentSP>* env_pool() { return &m_env_stubs; }
   StubPool<cogmentAPI::ServiceActorSP>* agent_pool() { return &m_agent_stubs; }
   ThreadPool& thread_pool() { return m_thread_pool; }
+  Watchdog& watchdog() { return m_watchdog; }
 
   const cogmentAPI::TrialParams& default_trial_params() const { return m_default_trial_params; }
 
@@ -106,6 +107,7 @@ private:
   std::future<void> m_delete_thread_fut;
 
   ThreadPool m_thread_pool;
+  Watchdog m_watchdog;
 };
 
 }  // namespace cogment

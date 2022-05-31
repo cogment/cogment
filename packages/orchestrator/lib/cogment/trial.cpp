@@ -92,6 +92,7 @@ Trial::Trial(Orchestrator* orch, const std::string& user_id, const std::string& 
     m_tick_id(0),
     m_tick_start_timestamp(0),
     m_nb_actors_acted(0),
+    m_nb_available_actors(0),
     m_max_steps(std::numeric_limits<uint64_t>::max()),
     m_max_inactivity(std::numeric_limits<uint64_t>::max()) {
   SPDLOG_TRACE("Trial [{}] - Constructor", m_id);
@@ -399,6 +400,59 @@ void Trial::prepare_datalog() {
   m_datalog->start(this);
 }
 
+void Trial::wait_for_actors() {
+  MultiWait actors_ready;
+
+  for (size_t index = 0; index < m_actors.size(); index++) {
+    auto& actor = m_actors[index];
+    auto& actor_params = m_params.actors(index);
+
+    std::future<void> init_fut;
+    try {
+      init_fut = actor->init();
+    }
+    catch (const std::exception& exc) {
+      if (!actor_params.optional()) {
+        throw MakeException("Required actor [{}] problem [{}]", actor->actor_name(), exc.what());
+      }
+
+      spdlog::debug("Trial [{}] - Optional actor [{}] connection problem [{}]", m_id, actor->actor_name(), exc.what());
+      std::promise<void> prom;
+      init_fut = prom.get_future();
+    }
+
+    if (!actor_params.optional() && actor_params.initial_connection_timeout() == 0.0) {
+      actors_ready.push_back(std::move(init_fut));
+    }
+    else {
+      actors_ready.push_back(actor_params.initial_connection_timeout(), std::move(init_fut));
+    }
+  }
+
+  auto timed_out_actors = actors_ready.wait_for_all();
+  SPDLOG_TRACE("Trial [{}] - Finished waiting for actors", m_id);
+
+  for (size_t index : timed_out_actors) {
+    auto& actor = m_actors[index];
+    auto& actor_params = m_params.actors(index);
+
+    if (!actor_params.optional()) {
+      throw MakeException("Required actor [{}] did not respond in time", actor->actor_name());
+    }
+    else {
+      spdlog::info("Trial [{}] - Optional actor [{}] did not respond in time", m_id, actor->actor_name());
+      actor->disengage();
+      SPDLOG_TRACE("Trial [{}] - Actor [{}] disengaged", m_id, actor->actor_name());
+    }
+  }
+  m_nb_available_actors = m_actors.size() - timed_out_actors.size();
+
+  // TODO: Remove this when/if we manage late actor connection or actor reconnection.
+  if (m_nb_available_actors == 0) {
+    throw MakeException("No actor available for trial");
+  }
+}
+
 void Trial::start(cogmentAPI::TrialParams&& params) {
   SPDLOG_TRACE("Trial [{}] - Starting", m_id);
 
@@ -431,19 +485,24 @@ void Trial::start(cogmentAPI::TrialParams&& params) {
 
   auto self = shared_from_this();
   m_orchestrator->thread_pool().push("Trial starting", [self]() {
+    bool actors_ready = false;
     try {
-      std::vector<std::future<void>> actors_ready;
-      for (const auto& actor : self->m_actors) {
-        actors_ready.push_back(actor->init());
-      }
+      self->wait_for_actors();
+      actors_ready = true;
+    }
+    catch (const std::exception& exc) {
+      spdlog::error("Trial [{}] - Failed to initialize actors [{}]", self->m_id, exc.what());
+    }
+    catch (...) {
+      spdlog::error("Trial [{}] - Failed to initialize actors for unknown reason", self->m_id);
+    }
 
-      // TODO: Limit the time we wait for actor and environment init. Should have a limit per actor.
-      for (size_t index = 0; index < actors_ready.size(); index++) {
-        SPDLOG_TRACE("Trial [{}] - Waiting on actor [{}]...", self->m_id, self->m_actors[index]->actor_name());
-        actors_ready[index].wait();
-      }
-      SPDLOG_TRACE("Trial [{}] - All actors started", self->m_id);
+    if (!actors_ready) {
+      self->terminate("Failed to initialize all actors");
+      return;
+    }
 
+    try {
       // TODO: We could start the environment first (before the actors), then wait here.  But then we would
       //       have to synchronize everything, or hold the first observations until all actors are init.
       self->m_env->init().wait();
@@ -451,10 +510,12 @@ void Trial::start(cogmentAPI::TrialParams&& params) {
       spdlog::debug("Trial [{}] - Started", self->m_id);
     }
     catch (const std::exception& exc) {
-      spdlog::error("Trial [{}] - Failed to start [{}]", self->m_id, exc.what());
+      spdlog::error("Trial [{}] - Failed to initialize environment [{}]", self->m_id, exc.what());
+      self->terminate("Failed to initialize environment");
     }
     catch (...) {
-      spdlog::error("Trial [{}] - Failed to start for unknown reason", self->m_id);
+      spdlog::error("Trial [{}] - Failed to initialize environment for unknown reason", self->m_id);
+      self->terminate("Failed to initialize environment");
     }
   });
 
@@ -604,16 +665,15 @@ void Trial::dispatch_observations(bool last) {
 
   const auto& observations = sample->observations();
 
-  std::uint32_t actor_index = 0;
-  for (const auto& actor : m_actors) {
+  for (size_t actor_index = 0; actor_index < m_actors.size(); actor_index++) {
+    const auto& actor = m_actors[actor_index];
+
     auto obs_index = observations.actors_map(actor_index);
     cogmentAPI::Observation obs;
     obs.set_tick_id(m_tick_id);
     obs.set_timestamp(observations.timestamp());
     *obs.mutable_content() = observations.observations(obs_index);
     actor->dispatch_tick(std::move(obs), last);
-
-    ++actor_index;
   }
 }
 
@@ -644,16 +704,33 @@ cogmentAPI::ActionSet Trial::make_action_set() {
 
   const std::lock_guard lg(m_sample_lock);
   auto& sample = m_step_data.back();
-  for (auto& act : sample.actions()) {
+  for (size_t index = 0; index < m_actors.size(); index++) {
+    auto& act = sample.actions(index);
+
     if (act.tick_id() == AUTO_TICK_ID || act.tick_id() == static_cast<int64_t>(m_tick_id)) {
       action_set.add_actions(act.content());
     }
-    else {
-      // The registered action is not for this tick
+    else if (act.tick_id() == NO_DATA_TICK_ID) {
+      // Actor is unavailable
 
-      // TODO: Synchronize with `actor_acted` about past/future actions
-      action_set.add_actions();  // Add default action
+      auto& actor_params = m_params.actors(index);
+      if (!actor_params.optional()) {
+        // Internal error
+        throw MakeException("Trial [{}] - Required actor [{}] has no action at tick [{}]", m_id,
+                            m_actors[index]->actor_name(), m_tick_id);
+      }
+
+      if (actor_params.has_default_action()) {
+        action_set.add_actions(actor_params.default_action().content());
+        sample.add_default_actors(index);
+      }
+      else {
+        action_set.add_actions();
+        action_set.add_unavailable_actors(index);
+        sample.add_unavailable_actors(index);
+      }
     }
+    // TODO: else -> handle the case of future/past actions, and synchronize with `actor_acted`.
   }
 
   return action_set;
@@ -906,10 +983,10 @@ void Trial::actor_acted(const std::string& actor_name, cogmentAPI::Action&& acti
 
   SPDLOG_TRACE("Trial [{}] - Actor [{}] received action for tick [{}].", m_id, actor_name, m_tick_id);
   *sample_action = std::move(action);
-
   const auto new_count = ++m_nb_actors_acted;
-  if (new_count == m_actors.size()) {
-    SPDLOG_TRACE("Trial [{}] - All actions received for tick [{}]", m_id, m_tick_id);
+
+  if (new_count == m_nb_available_actors) {
+    SPDLOG_TRACE("Trial [{}] - All available actions received for tick [{}]", m_id, m_tick_id);
 
     const bool last_actions = (m_tick_id >= m_max_steps || m_end_requested);
 
@@ -972,16 +1049,12 @@ ClientActor* Trial::get_join_candidate(const std::string& actor_name, const std:
     if (candidate == nullptr) {
       throw MakeException("Actor is not a 'client' type actor");
     }
-
-    if (candidate->has_joined()) {
-      throw MakeException("Actor has already joined");
-    }
   }
   else if (!actor_class.empty()) {
     for (auto& actor : m_actors) {
       if (!actor->has_joined() && actor->actor_class() == actor_class) {
         auto available_actor = dynamic_cast<ClientActor*>(actor.get());
-        if (available_actor != nullptr) {
+        if (available_actor != nullptr && !available_actor->is_disengaged()) {
           candidate = available_actor;
           break;
         }
@@ -989,11 +1062,18 @@ ClientActor* Trial::get_join_candidate(const std::string& actor_name, const std:
     }
 
     if (candidate == nullptr) {
-      throw MakeException("Could not find actor of class [{}] to join", actor_class);
+      throw MakeException("Could not find suitable actor of class [{}] to join", actor_class);
     }
   }
   else {
     throw MakeException("Must specify either actor name or actor class");
+  }
+
+  if (candidate->has_joined()) {
+    throw MakeException("Actor has already joined or is not participating in trial");
+  }
+  if (candidate->is_disengaged()) {
+    throw MakeException("Actor has been removed from the trial (probably due to timeout)");
   }
 
   return candidate;

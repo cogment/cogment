@@ -18,7 +18,7 @@ package cogmentAPI;
 
 import "google/protobuf/any.proto";
 
-// **************** VERSIONING ***************** //
+// **************** VERSIONING *****************
 message VersionRequest {}
 
 message VersionInfo {
@@ -30,17 +30,10 @@ message VersionInfo {
   repeated Version versions = 1;
 }
 
-// **************** CONFIGURATION ***************** //
+// **************** PARAMETERS *****************
 
-message TrialConfig {
-  bytes content = 1;
-}
-
-message ActorConfig {
-  bytes content = 1;
-}
-
-message EnvironmentConfig {
+// This is used for optional content.
+message SerializedMessage {
   bytes content = 1;
 }
 
@@ -53,7 +46,7 @@ message EnvironmentParams {
   string name = 1;
   string endpoint = 2;
   string implementation = 3;
-  EnvironmentConfig config = 4;
+  SerializedMessage config = 4;
 }
 
 message ActorParams {
@@ -64,12 +57,21 @@ message ActorParams {
   // Specifies an implementation name to use. This is used to distinguish
   // Between multiple implementations of the same actor class running on the same endpoint.
   string implementation = 4;
-  ActorConfig config = 5;
+  SerializedMessage config = 5;
+  
+  float initial_connection_timeout = 6;
+  float response_timeout = 7;
+
+  bool optional = 8;
+
+  // Action to send to environment if optional actor is unavailable.
+  // Must match the type in the spec's actor_classes->[i]->action_space
+  SerializedMessage default_action = 9;
 }
 
 message TrialParams {
   // Client-provided configuration
-  TrialConfig trial_config = 1;
+  SerializedMessage trial_config = 1;
   
   DatalogParams datalog = 2;
   EnvironmentParams environment = 3;
@@ -93,25 +95,25 @@ message TrialActor {
   string actor_class = 2;
 }
 
-// **************** OBSERVATIONS ***************** //
+// **************** OBSERVATIONS *****************
 message Observation {
   uint64 tick_id = 1;
   fixed64 timestamp = 2;
 
-  // Must match the type in the config's actor_classes->[i]->observation_space
+  // Must match the type in the spec's actor_classes->[i]->observation_space
   bytes content = 3;
 }
 
-// **************** ACTIONS ***************** //
+// **************** ACTIONS *****************
 message Action {
   sint64 tick_id = 1;
   fixed64 timestamp = 2;
 
-  // Must match the type in the config's actor_classes->[i]->action_space
+  // Must match the type in the spec's actor_classes->[i]->action_space
   bytes content = 3;
 }
 
-// **************** REWARDS ***************** //
+// **************** REWARDS *****************
 message RewardSource {
   string sender_name = 1;  // Not needed when sending
   float value = 2;
@@ -129,7 +131,7 @@ message Reward {
   repeated RewardSource sources = 4;
 }
 
-// **************** MESSAGES ****************** //
+// **************** MESSAGES ******************
 message Message {
   sint64 tick_id = 1;
   string sender_name = 2;  // Not needed when sending
@@ -137,7 +139,7 @@ message Message {
   google.protobuf.Any payload = 4;
 }
 
-// **************** ACTORS ****************** //
+// **************** ACTORS ******************
 
 // Received by actor on RunTrial rpc call
 message ActorRunTrialInput {
@@ -182,7 +184,7 @@ message ActorInitialInput {
   string env_name = 4;
 
   // Project-specific actor configuration.
-  ActorConfig config = 5;
+  SerializedMessage config = 5;
 }
 
 message ActorInitialOutput {
@@ -193,7 +195,7 @@ message ActorInitialOutput {
   }
 }
 
-// **************** OTHER ****************** //
+// **************** OTHER ******************
 enum TrialState {
   UNKNOWN = 0;
   INITIALIZING = 1;
@@ -220,4 +222,18 @@ enum CommunicationState {
   LAST = 3;      // The trial is ending, last data is following.
   LAST_ACK = 4;  // Last data has been sent, will not send anything after this, but still receiving.
   END = 5;       // Final communication, the trial has ended.
+}
+
+// **************** DEPRECATED *****************
+
+message TrialConfig {
+  bytes content = 1;
+}
+
+message ActorConfig {
+  bytes content = 1;
+}
+
+message EnvironmentConfig {
+  bytes content = 1;
 }

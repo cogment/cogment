@@ -25,7 +25,7 @@ import (
 )
 
 var trialParams *grpcapi.TrialParams = &grpcapi.TrialParams{
-	TrialConfig: &grpcapi.TrialConfig{
+	TrialConfig: &grpcapi.SerializedMessage{
 		Content: []byte("a trial config"),
 	},
 	MaxSteps:      12,
@@ -33,7 +33,7 @@ var trialParams *grpcapi.TrialParams = &grpcapi.TrialParams{
 	Environment: &grpcapi.EnvironmentParams{
 		Endpoint:       "grpc://environment:9000",
 		Implementation: "my-environment-implementation",
-		Config: &grpcapi.EnvironmentConfig{
+		Config: &grpcapi.SerializedMessage{
 			Content: []byte("an environment config"),
 		},
 	},
@@ -43,7 +43,7 @@ var trialParams *grpcapi.TrialParams = &grpcapi.TrialParams{
 			ActorClass:     "my-actor-class-1",
 			Endpoint:       "grpc://actor:9000",
 			Implementation: "my-actor-implementation",
-			Config: &grpcapi.ActorConfig{
+			Config: &grpcapi.SerializedMessage{
 				Content: []byte("an actor config"),
 			},
 		},
@@ -52,7 +52,7 @@ var trialParams *grpcapi.TrialParams = &grpcapi.TrialParams{
 			ActorClass:     "my-actor-class-2",
 			Endpoint:       "grpc://actor:9000",
 			Implementation: "my-actor-implementation",
-			Config: &grpcapi.ActorConfig{
+			Config: &grpcapi.SerializedMessage{
 				Content: []byte("another actor config"),
 			},
 		},

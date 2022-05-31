@@ -28,7 +28,7 @@ import (
 type Options struct {
 	LifecyclePort              uint
 	ActorPort                  uint
-	ActorHTTPPort              uint
+	ActorWebPort               uint
 	ParamsFile                 string
 	DirectoryServicesEndpoints []string
 	PretrialHooksEndpoits      []string
@@ -43,7 +43,7 @@ type Options struct {
 var DefaultOptions = Options{
 	LifecyclePort:              9000,
 	ActorPort:                  9000,
-	ActorHTTPPort:              0,
+	ActorWebPort:               0,
 	ParamsFile:                 "",
 	DirectoryServicesEndpoints: []string{},
 	PretrialHooksEndpoits:      []string{},
@@ -105,10 +105,10 @@ func Run(ctx context.Context, options Options) error {
 		})
 	})
 
-	if options.ActorHTTPPort > 0 {
+	if options.ActorWebPort > 0 {
 		proxyOptions := proxy.Options{
 			BackendPort: options.ActorPort,
-			HTTPPort:    options.ActorHTTPPort,
+			WebPort:     options.ActorWebPort,
 		}
 		g.Go(func() error {
 			select {

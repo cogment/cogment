@@ -45,7 +45,7 @@ Environment::Environment(Trial* owner, const cogmentAPI::EnvironmentParams& para
 }
 
 Environment::~Environment() {
-  SPDLOG_TRACE("~Environment(): [{}]", m_trial->id());
+  SPDLOG_TRACE("~Environment(): [{}] [{}]", m_trial->id(), m_name);
 
   finish_stream();
 
@@ -87,7 +87,7 @@ void Environment::send_message(const cogmentAPI::Message& message, uint64_t tick
 }
 
 void Environment::read_init_data() {
-  SPDLOG_TRACE("Environment read_init_data");
+  SPDLOG_TRACE("Environment::read_init_data(): [{}] [{}]", m_trial->id(), m_name);
 
   for (cogmentAPI::EnvRunTrialOutput data; m_stream_valid && m_stream->Read(&data); data.Clear()) {
     const auto state = data.state();
@@ -105,7 +105,7 @@ void Environment::read_init_data() {
 
     case cogmentAPI::CommunicationState::HEARTBEAT: {
       if (data_case == cogmentAPI::EnvRunTrialOutput::DataCase::kDetails) {
-        spdlog::info("Heartbeat requested from environment: [{}]", data.details());
+        spdlog::info("Trial [{}] - Environment [{}] Requested hearbeat [{}]", m_trial->id(), m_name, data.details());
       }
       cogmentAPI::EnvRunTrialInput msg;
       msg.set_state(cogmentAPI::CommunicationState::HEARTBEAT);
@@ -114,25 +114,27 @@ void Environment::read_init_data() {
     }
 
     case cogmentAPI::CommunicationState::LAST: {
-      throw MakeException("Unexpected reception of communication state (LAST) from environment");
+      throw MakeException("Unexpected reception of communication state (LAST) during init");
     }
 
     case cogmentAPI::CommunicationState::LAST_ACK: {
-      throw MakeException("Unexpected reception of communication state (LAST_ACK) from environment");
+      throw MakeException("Unexpected reception of communication state (LAST_ACK) during init");
     }
 
     case cogmentAPI::CommunicationState::END: {
       if (data_case == cogmentAPI::EnvRunTrialOutput::DataCase::kDetails) {
-        spdlog::error("Unexpected end of communication (END) from environment: [{}]", data.details());
+        spdlog::error("Trial [{}] - Environment [{}] Unexpected end of communication (END) [{}]", m_trial->id(), m_name,
+                      data.details());
       }
       else {
-        spdlog::error("Unexpected end of communication (END) from environment");
+        spdlog::error("Trial [{}] - Environment [{}] Unexpected end of communication (END)", m_trial->id(), m_name);
       }
       m_stream_valid = false;
+      break;
     }
 
     default:
-      throw MakeException("Unknown communication state [{}] received from environment", static_cast<int>(state));
+      throw MakeException("Unknown communication state [{}] received during init", static_cast<int>(state));
     }
   }
 
@@ -301,6 +303,7 @@ void Environment::run(std::unique_ptr<StreamType> stream) {
   m_incoming_thread = m_trial->thread_pool().push("Environment incoming data", [this]() {
     try {
       read_init_data();
+      SPDLOG_TRACE("Trial [{}] - Environment [{}] init data read", m_trial->id(), m_name);
 
       if (m_stream_valid) {
         m_init_prom.set_value();
@@ -324,7 +327,9 @@ void Environment::run(std::unique_ptr<StreamType> stream) {
 std::future<void> Environment::init() {
   SPDLOG_TRACE("Trial [{}] - Environment::init(): [{}]", m_trial->id(), m_name);
 
-  run(m_stub_entry->get_stub().RunTrial(&m_context));
+  auto stream = m_stub_entry->get_stub().RunTrial(&m_context);
+  run(std::move(stream));
+  SPDLOG_TRACE("Trial [{}] - Environment [{}] run returned", m_trial->id(), m_name);
 
   return m_init_prom.get_future();
 }

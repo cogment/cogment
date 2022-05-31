@@ -17,7 +17,8 @@ RUN apt-get update && apt-get install -y \
   lsb-release \
   software-properties-common \
   unzip \
-  wget
+  wget \
+  shellcheck
 
 # Install clang-format v10
 RUN curl --silent  https://apt.llvm.org/llvm-snapshot.gpg.key|apt-key add - && \
@@ -30,13 +31,16 @@ RUN curl --silent  https://apt.llvm.org/llvm-snapshot.gpg.key|apt-key add - && \
 RUN curl -L --silent https://github.com/Kitware/CMake/releases/download/v3.22.3/cmake-3.22.3-linux-x86_64.sh --output install-cmake.sh && \
   sh install-cmake.sh --prefix=/usr/local/ --exclude-subdir
 
-# Install Go v1.16.15
-RUN curl -L --silent https://go.dev/dl/go1.16.15.linux-amd64.tar.gz --output go-linux-amd64.tar.gz && \
+# Install Go v1.17.10
+RUN curl -L --silent https://go.dev/dl/go1.17.10.linux-amd64.tar.gz --output go-linux-amd64.tar.gz && \
   tar -C /usr/local -xzf go-linux-amd64.tar.gz
 
-ENV GOPATH=/root/go
+ENV GOPATH=/opt/go
 ENV PATH=${PATH}:/usr/local/go/bin:${GOPATH}/bin
 
 RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.42.0
+
+# Install shfmt v3
+RUN go install mvdan.cc/sh/v3/cmd/shfmt@latest
 
 WORKDIR /workspace

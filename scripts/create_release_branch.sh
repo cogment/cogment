@@ -6,7 +6,7 @@
 # Should be executed by the release manager to initiate the finalization work on a particular release
 ####
 
-# shellcheck disable=SC1091
+# shellcheck disable=SC1091,SC1090
 source "$(dirname "${BASH_SOURCE[0]}")/commons.sh"
 
 function usage() {

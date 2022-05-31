@@ -103,8 +103,7 @@ void fake_url_parser(const std::string_view in_url, EndpointData* data) {
 
   data->original_endpoint = std::string(in_url);
 
-  std::string low_url = data->original_endpoint;
-  to_lower_case(&low_url);
+  const std::string low_url = to_lower_case(data->original_endpoint);
   std::string_view url = low_url;
 
   auto res = std::find_if(url.begin(), url.end(), [](unsigned char val) -> char {

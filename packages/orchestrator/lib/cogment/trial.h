@@ -91,6 +91,7 @@ private:
   void prepare_actors();
   void prepare_environment();
   void prepare_datalog();
+  void wait_for_actors();
   cogmentAPI::DatalogSample& make_new_sample();
   cogmentAPI::DatalogSample* get_last_sample();
   void flush_samples();
@@ -128,6 +129,7 @@ private:
   uint64_t m_tick_id;
   uint64_t m_tick_start_timestamp;
   std::atomic_uint m_nb_actors_acted;
+  size_t m_nb_available_actors;
   uint64_t m_max_steps;
   uint64_t m_max_inactivity;
 

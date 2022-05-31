@@ -27,6 +27,7 @@
 #include <utility>
 #include <condition_variable>
 #include <algorithm>
+#include <chrono>
 
 namespace cogment {
 
@@ -73,11 +74,21 @@ grpc::Status MakeErrorStatus(const char* format, Args&&... args) {
   }
 }
 
-template <class T>
-void to_lower_case(T* container) {
-  std::transform(container->begin(), container->end(), container->begin(), [](unsigned char val) -> char {
-    return std::tolower(val);
-  });
+inline std::string& to_lower_case(std::string&& str) {
+  for (auto& val : str) {
+    val = static_cast<char>(std::tolower(static_cast<unsigned char>(val)));
+  }
+
+  return str;
+}
+
+inline std::string to_lower_case(std::string_view str) {
+  std::string result(str.size(), '\0');
+  for (size_t index = 0; index < str.size(); index++) {
+    result[index] = static_cast<char>(std::tolower(static_cast<unsigned char>(str[index])));
+  }
+
+  return result;
 }
 
 // Return only the first instance of the key if there are more
@@ -163,6 +174,70 @@ private:
   std::vector<std::thread> m_thread_pool;
   std::vector<std::shared_ptr<ThreadControl>> m_thread_controls;
   std::mutex m_push_lock;
+};
+
+// Minimal: Hardcoded to 1 sec period and integer timeouts.
+// Vulnerable to action function problems.
+// Action functions should ideally be simple and fast.
+class Watchdog {
+public:
+  using FUNC_TYPE = std::function<void()>;
+
+  Watchdog(ThreadPool* pool);
+  ~Watchdog();
+  void push(uint16_t timeout_sec, FUNC_TYPE&& func);
+
+private:
+  struct WatchEntry {
+    uint64_t sec_count;
+    FUNC_TYPE func;
+
+    WatchEntry(uint16_t cc, FUNC_TYPE&& ff) : sec_count(cc), func(std::move(ff)) {}
+    bool operator>(const WatchEntry& right) const { return (sec_count > right.sec_count); }
+  };
+
+  void process_timeouts(uint64_t at_sec_count);
+  void execute_functions();
+
+  const std::chrono::time_point<std::chrono::high_resolution_clock> m_base_time;
+  uint64_t m_sec_count;
+  bool m_running;
+
+  std::future<void> m_time_thr;
+  std::mutex m_timed_queue_lock;
+  std::priority_queue<WatchEntry, std::vector<WatchEntry>, std::greater<WatchEntry>> m_time_queue;
+
+  std::future<void> m_execution_thr;
+  ThrQueue<FUNC_TYPE> m_execution_queue;
+};
+
+// Minimal class to wait for multiple futures with varied timeouts.
+class MultiWait {
+  using FUT_TYPE = std::future<void>;
+
+public:
+  MultiWait();
+
+  // timeout < 0 for no time out (i.e. infinite wait).
+  // The waiting is serial and ordered from the smaller timeouts to the larger.
+  void push_back(float timeout_sec, FUT_TYPE&& fut);
+  void push_back(FUT_TYPE&& fut) { push_back(-1.0f, std::move(fut)); };
+
+  // Return: List of indexes of futures that timed out (not in any particular order).
+  std::vector<size_t> wait_for_all();
+
+private:
+  struct FutEntry {
+    int64_t wait_time_ns;
+    size_t fut_index;
+
+    FutEntry(int64_t wt, size_t index) : wait_time_ns(wt), fut_index(index) {}
+    bool operator>(const FutEntry& right) const { return (wait_time_ns > right.wait_time_ns); }
+  };
+
+  std::priority_queue<FutEntry, std::vector<FutEntry>, std::greater<FutEntry>> m_wait_queue;
+  std::vector<FUT_TYPE> m_futures;
+  bool m_waiting;
 };
 
 }  // namespace cogment

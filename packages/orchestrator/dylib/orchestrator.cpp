@@ -124,8 +124,7 @@ ServedOrchestrator::ServedOrchestrator(const Options* options) :
     spdlog::set_default_logger(spdlog::stdout_color_mt("console"));
   }
 
-  std::string log_level = options->log_level;
-  cogment::to_lower_case(&log_level);
+  const std::string log_level = cogment::to_lower_case(options->log_level);
   try {
     if (!log_level.empty()) {
       const auto level_setting = spdlog::level::from_str(log_level);
@@ -136,15 +135,20 @@ ServedOrchestrator::ServedOrchestrator(const Options* options) :
       }
 
       spdlog::set_level(level_setting);
+      spdlog::info("Log level set to [{}]", log_level);
+    }
+    else {
+      spdlog::set_level(spdlog::level::info);
+      spdlog::info("Log level set to default 'info'");
     }
   }
   catch (const std::exception& exc) {
     spdlog::set_level(spdlog::level::info);
-    spdlog::info("Failed to set log level to \"{}\", defaulting to \"info\": {}", log_level, exc.what());
+    spdlog::warn("Failed to set log level to [{}], defaulting to 'info': {}", log_level, exc.what());
   }
   catch (...) {
     spdlog::set_level(spdlog::level::info);
-    spdlog::info("Failed to set log level to \"{}\", defaulting to \"info\".", log_level);
+    spdlog::warn("Failed to set log level to [{}], defaulting to 'info'", log_level);
   }
 
   if (m_status_listener) {

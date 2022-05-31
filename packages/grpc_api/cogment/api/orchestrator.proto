@@ -52,7 +52,7 @@ message TrialStartRequest {
 
   oneof start_data {
     // Trial config sent to the pre-trial hooks.
-    TrialConfig config = 1;
+    SerializedMessage config = 1;
 
     // Fully configured params for the trial (bypasses pre-trial hooks).
     TrialParams params = 4;

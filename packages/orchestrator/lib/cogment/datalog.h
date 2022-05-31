@@ -51,7 +51,7 @@ public:
   void add_sample(cogmentAPI::DatalogSample&& data) override;
 
 private:
-  static constexpr size_t NB_BITS = 5;
+  static constexpr size_t NB_BITS = 7;
   void dispatch_sample(cogmentAPI::DatalogSample&& data);
 
   StubEntryType m_stub_entry;

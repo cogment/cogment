@@ -58,6 +58,17 @@ message DatalogSample {
   repeated Action actions = 3;      // Incoming actions from actors
   repeated Reward rewards = 4;      // Incoming rewards from environment and actors
   repeated Message messages = 5;    // Incoming messages from environment and actors
+  
+  // The following actors do not have an action in this sample (i.e. 'Action' contains undefined values).
+  // These are lists of actor indexes (sorted) representing the actors that are not available,
+  // The lists are mutually exclusive.
+
+  // For these actors, the environment received their default action (see parameters).
+  repeated uint32 default_actors = 6;
+
+  // These actors do not have a default action, thus the observations for these actors
+  // are also undefined (i.e. the index of observation in 'actors_map' is undefined).
+  repeated uint32 unavailable_actors = 7;
 }
 
 

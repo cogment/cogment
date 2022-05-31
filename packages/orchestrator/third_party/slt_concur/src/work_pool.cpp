@@ -10,20 +10,16 @@ namespace {
 thread_local Work_pool* current_pool = nullptr;
 }
 
-Announced_job::Announced_job(Work_pool* pool) : pool_(pool) {
-  pool_->queued_jobs++;
-}
+Announced_job::Announced_job(Work_pool* pool) : pool_(pool) { pool_->queued_jobs++; }
 
 Announced_job::Announced_job(Announced_job&& rhs) {
   pool_ = rhs.pool_;
   rhs.pool_ = nullptr;
 }
 
-Announced_job::Announced_job(const Announced_job&) {
-  assert(false);
-}
+Announced_job::Announced_job(const Announced_job&) { assert(false); }
 
-Announced_job& Announced_job::operator=(const Announced_job&){
+Announced_job& Announced_job::operator=(const Announced_job&) {
   assert(false);
   return *this;
 }
@@ -48,12 +44,10 @@ void Announced_job::push(job_type job) {
   pool_ = nullptr;
 }
 
-Work_pool* Work_pool::current() {
-  return current_pool;
-}
+Work_pool* Work_pool::current() { return current_pool; }
 
-Work_pool::Work_pool(std::size_t min_workers, std::size_t max_workers)
-    : min_workers_(min_workers), max_workers_(max_workers), queued_jobs(0) {
+Work_pool::Work_pool(std::size_t min_workers, std::size_t max_workers) :
+    min_workers_(min_workers), max_workers_(max_workers), queued_jobs(0) {
   for (std::size_t i = 0; i < min_workers; ++i) {
     workers_.emplace_back(&Work_pool::worker_main, this);
   }
@@ -82,9 +76,7 @@ void Work_pool::push_job(job_type job) {
   }
 }
 
-void Work_pool::make_current() {
-  current_pool = this;
-}
+void Work_pool::make_current() { current_pool = this; }
 
 void Work_pool::worker_main() {
   make_current();
@@ -113,7 +105,9 @@ int Work_pool::job_done_() {
 
 void Work_pool::wait_idle() {
   std::unique_lock<std::mutex> l(mutex_);
-  idle_var.wait(l, [this] { return queued_jobs == 0; });
+  idle_var.wait(l, [this] {
+    return queued_jobs == 0;
+  });
 }
 }  // namespace concur
 }  // namespace slt

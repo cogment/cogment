@@ -37,7 +37,9 @@ public:
     }
     return false;
   }
-  bool finish() override { return m_stream->Finish().ok(); }
+
+  // gRPC blocks on Finish until all messages are read, so we don't.
+  bool finish() override { return true; }
 
 private:
   std::unique_ptr<StreamType> m_stream;

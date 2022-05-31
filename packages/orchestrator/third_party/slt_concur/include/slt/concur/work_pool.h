@@ -17,9 +17,9 @@ class Work_pool;
 class Announced_job {
   friend class Work_pool;
 
- public:
+public:
   using job_type = std::function<void()>;
-  
+
   Announced_job(Announced_job&&);
   Announced_job& operator=(Announced_job&&);
   Announced_job(const Announced_job&);
@@ -27,13 +27,13 @@ class Announced_job {
   ~Announced_job();
   void push(job_type job);
 
- private:
+private:
   Announced_job(Work_pool* pool);
   Work_pool* pool_ = nullptr;
 };
 
 class Work_pool {
- public:
+public:
   using job_type = std::function<void()>;
 
   Work_pool(std::size_t min_workers, std::size_t max_workers);
@@ -52,11 +52,11 @@ class Work_pool {
   // Announce that a job may be added to the pool. the pool's wait_idle
   // will block until the announced job has been performed or cancelled.
   Announced_job announce_job() { return Announced_job(this); }
-  
+
   // Blocks until the pool is empty of queued and announced jobs.
   void wait_idle();
 
- private:
+private:
   void worker_main();
   int job_done_();
   std::mutex mutex_;

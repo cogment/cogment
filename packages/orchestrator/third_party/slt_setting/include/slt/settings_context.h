@@ -5,7 +5,7 @@
 
 namespace slt {
 class [[nodiscard]] Settings_context {
- public:
+public:
   Settings_context(std::string app_name, int argc, const char* argv[]);
   ~Settings_context();
 
@@ -13,10 +13,10 @@ class [[nodiscard]] Settings_context {
   void print_usage(bool to_stderr) const;
 
   void validate_all();
- 
- private:
+
+private:
   void load_from_args(int argc, const char* argv[]);
-  void load_from_env(); 
+  void load_from_env();
 
   std::string app_name_;
 };

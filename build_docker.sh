@@ -68,6 +68,7 @@ docker run \
   --rm \
   --volume="${BUILD_DIR}":/workspace/build/linux_amd64 \
   --volume="${INSTALL_DIR}":/workspace/install/linux_amd64 \
+  --env COGMENT_BUILD_TYPE="${COGMENT_BUILD_TYPE}" \
   "${COGMENT_BUILD_IMAGE}"
 
 # Build the cogment image

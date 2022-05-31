@@ -15,7 +15,7 @@
 #include "slt/settings_context.h"
 
 #ifdef __GNUG__
-#include <cxxabi.h>
+  #include <cxxabi.h>
 #endif
 
 namespace slt {
@@ -52,12 +52,12 @@ struct Settings_error : public std::runtime_error {
 };
 
 class Setting_base {
- public:
+public:
   template <typename T>
-  Setting_base(Setting_builder<T>& builder)
-      : description_(std::move(builder.description)),
-        arg_(std::move(builder.arg)),
-        env_var_(std::move(builder.env_var)) {}
+  Setting_base(Setting_builder<T>& builder) :
+      description_(std::move(builder.description)),
+      arg_(std::move(builder.arg)),
+      env_var_(std::move(builder.env_var)) {}
 
   virtual ~Setting_base() {}
 
@@ -71,10 +71,10 @@ class Setting_base {
   virtual bool is_valid() const = 0;
   virtual std::string get_string() const = 0;
 
- protected:
+protected:
   static void register_setting(Setting_base*);
 
- private:
+private:
   std::string description_;
 
   std::optional<std::string> arg_;
@@ -102,15 +102,11 @@ struct Setting_value_assign {
 template <class CharT, class Traits, class Allocator>
 struct Setting_value_assign<std::basic_string<CharT, Traits, Allocator>> {
   static std::basic_string<CharT, Traits, Allocator> assign(std::string_view val) {
-
     return std::basic_string<CharT, Traits, Allocator>(val);
   }
 
-  static std::string to_string(const std::basic_string<CharT, Traits, Allocator>& val) {
-    return "\"" + val + "\""; 
-  }
+  static std::string to_string(const std::basic_string<CharT, Traits, Allocator>& val) { return "\"" + val + "\""; }
 };
-
 
 template <typename T>
 struct Setting_value_assign<std::vector<T>> {
@@ -129,13 +125,9 @@ struct Setting_value_assign<std::vector<T>> {
 
 template <>
 struct Setting_value_assign<bool> {
-  static bool assign(std::string_view val) {
-    return val == "true" || val == "1";
-  }
+  static bool assign(std::string_view val) { return val == "true" || val == "1"; }
 
-  static std::string to_string(const bool& val) {
-    return val ? "true" : "false";
-  }
+  static std::string to_string(const bool& val) { return val ? "true" : "false"; }
 };
 
 template <typename Setting_T>
@@ -143,14 +135,14 @@ struct Setting_help_string {
   using value_type = typename Setting_T::value_type;
 
   static void print(const Setting_T& setting, std::ostream& dst) {
-    dst << "  <" << type_name<value_type>::get()
-        << "> : " << setting.description() << "\n";
+    dst << "  <" << type_name<value_type>::get() << "> : " << setting.description() << "\n";
 
     dst << "    Default:  " << Setting_value_assign<value_type>::to_string(setting.get_default()) << "\n";
     if (setting.arg()) {
       if constexpr (std::is_same_v<value_type, bool>) {
         dst << "    From Arg: --[no_]" << *setting.arg() << "\n";
-      } else {
+      }
+      else {
         dst << "    From Arg: --" << *setting.arg() << "=<value>\n";
       }
     }
@@ -171,14 +163,14 @@ struct Setting_help_string {
 // after the core has shut down.
 template <typename T>
 class [[nodiscard]] Setting : public Setting_base {
- public:
+public:
   using value_type = T;
 
-  Setting(Setting_builder<T> builder)
-      : Setting_base(builder),
-        default_(std::move(builder.default_val)),
-        value_(default_),
-        validator_(std::move(builder.validator)) {
+  Setting(Setting_builder<T> builder) :
+      Setting_base(builder),
+      default_(std::move(builder.default_val)),
+      value_(default_),
+      validator_(std::move(builder.validator)) {
     register_setting(this);
   }
 
@@ -186,28 +178,20 @@ class [[nodiscard]] Setting : public Setting_base {
   T const& get() const { return value_; }
 
   // Sets the value of the setting.
-  void set(T v) { 
-    if(validator_ && !validator_(v)) {
+  void set(T v) {
+    if (validator_ && !validator_(v)) {
       throw Settings_error("validation failure");
     }
-    value_ = std::move(v); 
+    value_ = std::move(v);
   }
 
-  bool is_valid() const override {
-    return validator_ == nullptr || validator_(value_);
-  }
+  bool is_valid() const override { return validator_ == nullptr || validator_(value_); }
 
-  void set_from_string(std::string_view val) override {
-    set( detail::Setting_value_assign<T>::assign(val));
-  }
+  void set_from_string(std::string_view val) override { set(detail::Setting_value_assign<T>::assign(val)); }
 
-  void print_help(std::ostream & dst) const override {
-    detail::Setting_help_string<Setting<T>>::print(*this, dst);
-  }
+  void print_help(std::ostream & dst) const override { detail::Setting_help_string<Setting<T>>::print(*this, dst); }
 
-  std::string get_string() const override {
-    return detail::Setting_value_assign<T>::to_string(value_);
-  }
+  std::string get_string() const override { return detail::Setting_value_assign<T>::to_string(value_); }
 
   // Resets the setting to whatever its default is.
   void reset() override { value_ = default_; }
@@ -219,10 +203,9 @@ class [[nodiscard]] Setting : public Setting_base {
     value_ = default_;
   }
 
-  const T & get_default() const {
-    return default_;
-  }
- private:
+  const T& get_default() const { return default_; }
+
+private:
   T default_;
   T value_;
   std::function<bool(const T&)> validator_;

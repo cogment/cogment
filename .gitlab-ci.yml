@@ -4,8 +4,8 @@ stages:
 
 shellcheck:
   stage: build
-  needs: []
-  image: koalaman/shellcheck-alpine:stable
+  needs: ["build_docker"]
+  image: !reference [build_docker, variables, COGMENT_BUILD_ENVIRONMENT_IMAGE]
   before_script:
     - shellcheck --version
   script:
@@ -13,8 +13,8 @@ shellcheck:
 
 shfmt:
   stage: build
-  needs: []
-  image: mvdan/shfmt:v3.1.0-alpine
+  needs: ["build_docker"]
+  image: !reference [build_docker, variables, COGMENT_BUILD_ENVIRONMENT_IMAGE]
   before_script:
     - shfmt -version
   script:
@@ -40,9 +40,10 @@ apache_licenses_check:
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
     - docker login -u $DOCKER_HUB_USERNAME -p $DOCKER_HUB_TOKEN
   cache:
-    - key: cmake-docker-build-cache
+    - key: cmake-docker-build-cache-deps
       paths:
-        - build/linux_amd64
+        - build/linux_amd64/_deps
+        - build/linux_amd64/lib
 
 build_docker:
   stage: build

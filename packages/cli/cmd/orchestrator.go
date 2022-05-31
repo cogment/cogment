@@ -31,7 +31,7 @@ var orchestratorViper = viper.New()
 
 var orchestratorLifecyclePortKey = "lifecycle_port"
 var orchestratorActorPortKey = "actor_port"
-var orchestratorActorHTTPPortKey = "actor_http_port"
+var orchestratorActorWebPortKey = "actor_web_port"
 var orchestratorParamsFileKey = "params"
 var orchestratorDirectoryServicesKey = "directory_services"
 var orchestratorPretrialHooksKey = "pre_trial_hooks"
@@ -56,7 +56,7 @@ var orchestratorCmd = &cobra.Command{
 		options := orchestrator.Options{
 			LifecyclePort:              orchestratorViper.GetUint(orchestratorLifecyclePortKey),
 			ActorPort:                  orchestratorViper.GetUint(orchestratorActorPortKey),
-			ActorHTTPPort:              orchestratorViper.GetUint(orchestratorActorHTTPPortKey),
+			ActorWebPort:               orchestratorViper.GetUint(orchestratorActorWebPortKey),
 			ParamsFile:                 orchestratorViper.GetString(orchestratorParamsFileKey),
 			DirectoryServicesEndpoints: orchestratorViper.GetStringSlice(orchestratorDirectoryServicesKey),
 			PretrialHooksEndpoits:      orchestratorViper.GetStringSlice(orchestratorPretrialHooksKey),
@@ -109,11 +109,11 @@ func init() {
 		"The port to listen for trial actors on",
 	)
 
-	orchestratorViper.SetDefault(orchestratorActorHTTPPortKey, orchestrator.DefaultOptions.ActorHTTPPort)
-	_ = orchestratorViper.BindEnv(orchestratorActorHTTPPortKey, "COGMENT_WEB_PROXY_PORT")
+	orchestratorViper.SetDefault(orchestratorActorWebPortKey, orchestrator.DefaultOptions.ActorWebPort)
+	_ = orchestratorViper.BindEnv(orchestratorActorWebPortKey, "COGMENT_WEB_PROXY_PORT")
 	orchestratorCmd.Flags().Uint(
-		orchestratorActorHTTPPortKey,
-		orchestratorViper.GetUint(orchestratorActorHTTPPortKey),
+		orchestratorActorWebPortKey,
+		orchestratorViper.GetUint(orchestratorActorWebPortKey),
 		"The port on which grpc web proxy listens and forwards to the trial actors port (disabled if 0)",
 	)
 

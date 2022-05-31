@@ -45,7 +45,7 @@ var (
 
 type Options struct {
 	BackendPort uint
-	HTTPPort    uint
+	WebPort     uint
 }
 
 // This functions is the equivalent of https://github.com/improbable-eng/grpc-web/blob/v0.14.1/go/grpcwebproxy/main.go
@@ -54,7 +54,7 @@ type Options struct {
 // 	- run_tls_server=false
 //	- allow_all_origins=true
 //	- use_websockets=true
-//	- server_http_debug_port=options.HTTPPort
+//	- server_http_debug_port=options.WebPort
 func Run(ctx context.Context, options Options) error {
 	backendHostPort := fmt.Sprintf("localhost:%d", options.BackendPort)
 	grpcServer, err := buildGrpcProxyServer(backendHostPort)
@@ -76,10 +76,10 @@ func Run(ctx context.Context, options Options) error {
 			wrappedGrpc.ServeHTTP(resp, req)
 		}),
 	}
-	httpAddr := fmt.Sprintf("0.0.0.0:%d", options.HTTPPort)
-	listener, err := net.Listen("tcp", httpAddr)
+	webAddr := fmt.Sprintf("0.0.0.0:%d", options.WebPort)
+	listener, err := net.Listen("tcp", webAddr)
 	if err != nil {
-		return fmt.Errorf("unable to listen on port %d: %w", options.HTTPPort, err)
+		return fmt.Errorf("unable to listen on port %d: %w", options.WebPort, err)
 	}
 	httpListener := conntrack.NewListener(listener,
 		conntrack.TrackWithName("http"),

@@ -6,7 +6,7 @@
 # Should be executed by the release manager to finalize a release and re-init the develop branch
 ####
 
-# shellcheck disable=SC1091
+# shellcheck disable=SC1091,SC1090
 source "$(dirname "${BASH_SOURCE[0]}")/commons.sh"
 
 function usage() {

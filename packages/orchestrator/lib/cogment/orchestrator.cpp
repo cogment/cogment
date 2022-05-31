@@ -35,13 +35,15 @@ Orchestrator::Orchestrator(cogmentAPI::TrialParams default_trial_params, uint32_
     m_log_stubs(&m_channel_pool),
     m_env_stubs(&m_channel_pool),
     m_agent_stubs(&m_channel_pool),
-    m_gc_countdown(gc_frequency) {
+    m_gc_countdown(gc_frequency),
+    m_thread_pool(),
+    m_watchdog(&m_thread_pool) {
   SPDLOG_TRACE("Orchestrator()");
 
   // TODO: Transform this into a "garbage collection" thread so the gc could
   //       also be triggered by time, in order to prevent old ended
   //       or stale trials from lingering if no new trials are started.
-  m_delete_thread_fut = thread_pool().push("Orchestrator trial deletion", [this]() {
+  m_delete_thread_fut = m_thread_pool.push("Orchestrator trial deletion", [this]() {
     while (true) {
       try {  // overkill
         auto trial = m_trials_to_delete.pop();

@@ -152,7 +152,7 @@ bool Actor::read_init_data(ActorStream* stream, cogmentAPI::ActorInitialOutput* 
         return true;
       }
       else {
-        throw MakeException("Data [{}] received from before init data", static_cast<int>(data_case));
+        throw MakeException("Data [{}] received before init data", static_cast<int>(data_case));
       }
     }
 
@@ -202,6 +202,7 @@ Actor::Actor(Trial* owner, const cogmentAPI::ActorParams& params, bool read_init
     m_impl(params.implementation()),
     m_has_config(params.has_config()),
     m_init_completed(false),
+    m_disengaged(false),
     m_last_sent(false),
     m_last_ack_received(false),
     m_finished(false) {
@@ -229,6 +230,12 @@ Actor::~Actor() {
   }
 }
 
+void Actor::disengage() {
+  m_disengaged = true;
+  m_last_ack_prom.set_value();
+  finish_stream();
+}
+
 void Actor::write_to_stream(ActorStream::InputType&& data) {
   if (!m_stream.write(std::move(data))) {
     throw MakeException("Actor stream has closed");
@@ -236,6 +243,10 @@ void Actor::write_to_stream(ActorStream::InputType&& data) {
 }
 
 void Actor::add_reward_src(const cogmentAPI::RewardSource& source, TickIdType tick_id) {
+  if (m_disengaged) {
+    return;
+  }
+
   const std::lock_guard lg(m_reward_lock);
   auto& rew = m_reward_accumulator[tick_id];
   auto new_src = rew.add_sources();
@@ -243,6 +254,10 @@ void Actor::add_reward_src(const cogmentAPI::RewardSource& source, TickIdType ti
 }
 
 void Actor::send_message(const cogmentAPI::Message& message, TickIdType tick_id) {
+  if (m_disengaged) {
+    return;
+  }
+
   cogmentAPI::Message msg(message);
   msg.set_tick_id(tick_id);
   msg.set_receiver_name(m_name);  // Because of possible wildcards in message receiver
@@ -251,6 +266,10 @@ void Actor::send_message(const cogmentAPI::Message& message, TickIdType tick_id)
 }
 
 void Actor::dispatch_tick(cogmentAPI::Observation&& obs, bool final_tick) {
+  if (m_disengaged) {
+    return;
+  }
+
   RewardAccumulator reward_acc;
   {
     const std::lock_guard lg(m_reward_lock);
@@ -412,6 +431,10 @@ void Actor::process_incoming_data(ActorStream::OutputType&& data) {
 
 void Actor::process_incoming_stream() {
   for (ActorStream::OutputType data; m_stream.read(&data); data.Clear()) {
+    if (m_disengaged) {
+      return;
+    }
+
     try {
       process_incoming_data(std::move(data));
     }
