@@ -60,7 +60,7 @@ add_custom_target(cli_test
 )
 add_dependencies(cli_test cogment_code_generation)
 
-add_custom_target(cogment_test_with_junit_report
+add_custom_target(cli_test_with_junit_report
   COMMAND rm -f test_failed.txt
   COMMAND go test -v ./... 2>&1 > raw_report.txt || echo test_failed > test_failed.txt
   COMMAND go run github.com/jstemmer/go-junit-report < raw_report.txt > report.xml
@@ -69,7 +69,7 @@ add_custom_target(cogment_test_with_junit_report
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   VERBATIM
 )
-add_dependencies(cogment_test_with_junit_report cogment_code_generation)
+add_dependencies(cli_test_with_junit_report cogment_code_generation)
 
 add_custom_target(cli_benchmark
   COMMAND go test ./... -run xxx -bench . -test.benchtime 60s

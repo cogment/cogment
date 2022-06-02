@@ -28,8 +28,21 @@ cmake \
   -DCOGMENT_OS=linux \
   -DCOGMENT_ARCH=amd64 \
   "${ROOT_DIR}"
-make -j"$(nproc)"
 
-make install
+case $1 in
+  "build" | "")
+    make -j"$(nproc)"
+    make install
+    ;;
+  "lint")
+    make cli_lint orchestrator_lint
+    ;;
+  "test")
+    make cli_test
+    ;;
+  "test_ci")
+    make cli_test_with_junit_report
+    ;;
+esac
 
 popd

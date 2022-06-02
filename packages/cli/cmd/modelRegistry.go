@@ -46,7 +46,7 @@ var registryCmd = &cobra.Command{
 			GrpcReflection:           registryViper.GetBool(registryGrpcReflectionKey),
 			ArchiveDir:               registryViper.GetString(registryArchiveDirKey),
 			CacheMaxItems:            registryViper.GetInt(registryCacheMaxItemsKey),
-			SentVersionDataChunkSize: registryViper.GetUint32(registrySentVersionChunkSizeKey),
+			SentVersionDataChunkSize: registryViper.GetInt(registrySentVersionChunkSizeKey),
 		}
 
 		return modelRegistry.Run(options)
@@ -89,9 +89,9 @@ func init() {
 		registrySentVersionChunkSizeKey,
 		"COGMENT_MODEL_REGISTRY_SENT_MODEL_VERSION_DATA_CHUNK_SIZE",
 	)
-	registryCmd.Flags().Uint32(
+	registryCmd.Flags().Int(
 		registrySentVersionChunkSizeKey,
-		registryViper.GetUint32(registrySentVersionChunkSizeKey),
+		registryViper.GetInt(registrySentVersionChunkSizeKey),
 		"The size of the model version data chunk sent by the server (in bytes)",
 	)
 

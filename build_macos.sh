@@ -18,6 +18,21 @@ cmake \
   -DCOGMENT_OS=darwin \
   -DCOGMENT_ARCH=amd64 \
   "${ROOT_DIR}"
-make -j"$(sysctl -n hw.ncpu)"
-make install
+
+case $1 in
+  "build" | "")
+    make -j"$(sysctl -n hw.ncpu)"
+    make install
+    ;;
+  "lint")
+    make cli_lint orchestrator_lint
+    ;;
+  "test")
+    make cli_test
+    ;;
+  "test_ci")
+    make cli_test_with_junit_report
+    ;;
+esac
+
 popd

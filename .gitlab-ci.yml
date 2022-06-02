@@ -40,7 +40,7 @@ apache_licenses_check:
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
     - docker login -u $DOCKER_HUB_USERNAME -p $DOCKER_HUB_TOKEN
   cache:
-    - key: cmake-docker-build-cache-deps
+    - key: cmake-docker-dependencies-cache
       paths:
         - build/linux_amd64/_deps
         - build/linux_amd64/lib
@@ -83,9 +83,10 @@ build_docker:
     - key: go-dependencies-cache
       paths:
         - .go/pkg/mod/
-    - key: cmake-linux-amd64-build-cache
+    - key: cmake-linux-amd64-dependencies-cache
       paths:
-        - build/linux_amd64
+        - build/linux_amd64/_deps
+        - build/linux_amd64/lib
 
 build_all_no_orchestrator:
   stage: build
@@ -133,9 +134,10 @@ build_linux_amd64:
     - export PATH=$PATH:$(go env GOPATH)/bin
     - brew install cmake
   cache:
-    - key: cmake-macos-amd64-build-cache
+    - key: cmake-macos-amd64-dependencies-cache
       paths:
-        - build/macos_amd64
+        - build/macos_amd64/_deps
+        - build/macos_amd64/lib
 
 build_macos_amd64:
   stage: build
@@ -165,9 +167,10 @@ build_macos_amd64:
     - go version
     - cmake --version
   cache:
-    - key: cmake-windows-amd64-build-cache
+    - key: cmake-windows-amd64-dependencies-cache
       paths:
-        - build/windows_amd64
+        - build/windows_amd64/_deps
+        - build/windows_amd64/lib
 
 build_windows_amd64:
   stage: build
@@ -183,30 +186,19 @@ build_windows_amd64:
     paths:
       - ./install/windows_amd64/
 
-orchestrator_lint:
+lint:
   stage: build
   needs: ["build_linux_amd64"]
   extends: .base_linux_build
   script:
-    - cd ./build/linux_amd64
-    - make orchestrator_lint_fix
-    - git diff --exit-code
+    - ./build_linux.sh lint
 
-cli_lint:
+test:
   stage: build
   needs: ["build_linux_amd64"]
   extends: .base_linux_build
   script:
-    - cd ./build/linux_amd64
-    - make cli_lint
-
-cli_test:
-  stage: build
-  needs: ["build_linux_amd64"]
-  extends: .base_linux_build
-  script:
-    - cd ./build/linux_amd64
-    - make cogment_test_with_junit_report
+    - ./build_linux.sh test_ci
   artifacts:
     when: always
     reports:

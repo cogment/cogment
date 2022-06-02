@@ -77,9 +77,13 @@ Those scripts run CMake and create a build directory, per platform, in the `./bu
 - `orchestrator_lint` and `orchestrator_fix_lint` respectively check and fix the code formatting of the c++ orchestrator codebase using [`clang-format`](https://clang.llvm.org/docs/ClangFormat.html).
 - `cli_lint` and `cli_fix_lint` respectively check and fix the code formatting of the go cli codebase using [`golangci-lint`](https://golangci-lint.run)
 
+> `./build_linux.sh lint` or `./build_macos.sh lint` can be used as a shortcut to run both linters.
+
 ### Test
 
 - `cli_test` runs a suite of tests over the go cli codebase.
+
+> `./build_linux.sh test` or `./build_macos.sh test` can be used as a shortcut to run tests.
 
 ### Benchmark
 

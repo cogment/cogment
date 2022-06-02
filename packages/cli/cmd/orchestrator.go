@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -53,10 +54,16 @@ var orchestratorCmd = &cobra.Command{
 			return err
 		}
 
+		actorWebPort := orchestratorViper.GetUint(orchestratorActorWebPortKey)
+		if actorWebPort == orchestrator.DefaultOptions.ActorWebPort {
+			// Fallback to the deprecated flag if needed
+			actorWebPort = orchestratorViper.GetUint("actor_http_port")
+		}
+
 		options := orchestrator.Options{
 			LifecyclePort:              orchestratorViper.GetUint(orchestratorLifecyclePortKey),
 			ActorPort:                  orchestratorViper.GetUint(orchestratorActorPortKey),
-			ActorWebPort:               orchestratorViper.GetUint(orchestratorActorWebPortKey),
+			ActorWebPort:               actorWebPort,
 			ParamsFile:                 orchestratorViper.GetString(orchestratorParamsFileKey),
 			DirectoryServicesEndpoints: orchestratorViper.GetStringSlice(orchestratorDirectoryServicesKey),
 			PretrialHooksEndpoits:      orchestratorViper.GetStringSlice(orchestratorPretrialHooksKey),
@@ -116,6 +123,15 @@ func init() {
 		orchestratorViper.GetUint(orchestratorActorWebPortKey),
 		"The port on which grpc web proxy listens and forwards to the trial actors port (disabled if 0)",
 	)
+	orchestratorCmd.Flags().Uint(
+		"actor_http_port",
+		orchestratorViper.GetUint(orchestratorActorWebPortKey),
+		"",
+	)
+	_ = orchestratorCmd.Flags().MarkDeprecated(
+		"actor_http_port",
+		fmt.Sprintf("please use --%s instead", orchestratorActorWebPortKey),
+	)
 
 	_ = orchestratorViper.BindEnv(orchestratorParamsFileKey, "COGMENT_DEFAULT_PARAMS_FILE")
 	orchestratorCmd.Flags().String(
@@ -143,7 +159,7 @@ func init() {
 	orchestratorViper.SetDefault(orchestratorPrometheusPortKey, orchestrator.DefaultOptions.PrometheusPort)
 	_ = orchestratorViper.BindEnv(
 		orchestratorPrometheusPortKey,
-		"COGMENT_ORCHestrator_PROMETHEUS_PORT",
+		"COGMENT_ORCHESTRATOR_PROMETHEUS_PORT",
 		"PROMETHEUS_PORT",
 	)
 	orchestratorCmd.Flags().Uint(

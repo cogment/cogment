@@ -22,7 +22,6 @@ import (
 	"github.com/cogment/cogment/services/modelRegistry/backend/fileSystem"
 	"github.com/cogment/cogment/services/modelRegistry/backend/memoryCache"
 	"github.com/cogment/cogment/services/modelRegistry/grpcservers"
-	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -32,7 +31,7 @@ type Options struct {
 	GrpcReflection           bool
 	ArchiveDir               string
 	CacheMaxItems            int
-	SentVersionDataChunkSize uint32
+	SentVersionDataChunkSize int
 }
 
 var DefaultOptions = Options{
@@ -53,7 +52,7 @@ func Run(options Options) error {
 	server := grpc.NewServer(opts...)
 	modelRegistryServer, err := grpcservers.RegisterModelRegistryServer(
 		server,
-		viper.GetInt("SENT_MODEL_VERSION_DATA_CHUNK_SIZE"),
+		options.SentVersionDataChunkSize,
 	)
 	if err != nil {
 		return err

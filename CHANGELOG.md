@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Added
+
+- Introduce handling of actor not connecting at the start of a trial. `ActorParams` has been extended to let the user define the expected behavior.
+
+### Changed
+
+- Make `ModelRegistry` gRPC server less verbose
+- Rename orchestrator cli option `--actor_http_port` to `--actor_web_port`, `--actor_http_port` is still supported but deprecated
+
+### Fixed
+
+- Fix `ModelRegistry.RetrieveVersionData` gRPC method sending an infinite number of chunks of 0 bytes
+
 ## v2.3.3 - 2022-05-26
 
 ### Fixed

@@ -16,12 +16,14 @@ package grpcservers
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"strconv"
 	"time"
 
 	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/services/modelRegistry/backend"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -61,7 +63,12 @@ func (s *ModelRegistryServer) CreateOrUpdateModel(
 	ctx context.Context,
 	req *grpcapi.CreateOrUpdateModelRequest,
 ) (*grpcapi.CreateOrUpdateModelReply, error) {
-	log.Printf("CreateOrUpdateModel(req={ModelId: %q, UserData: %#v})\n", req.ModelInfo.ModelId, req.ModelInfo.UserData)
+	log := log.WithFields(logrus.Fields{
+		"model_id": req.ModelInfo.ModelId,
+		"method":   "CreateOrUpdateModel",
+	})
+
+	log.Debug("Call received")
 
 	modelInfo := backend.ModelInfo{
 		ModelID:  req.ModelInfo.ModelId,
@@ -75,6 +82,7 @@ func (s *ModelRegistryServer) CreateOrUpdateModel(
 
 	_, err = b.CreateOrUpdateModel(modelInfo)
 	if err != nil {
+		log.WithField("error", err).Error("Unexpected error while creating model")
 		return nil, status.Errorf(codes.Internal, "unexpected error while creating model %q: %s", modelInfo.ModelID, err)
 	}
 
@@ -85,7 +93,12 @@ func (s *ModelRegistryServer) DeleteModel(
 	ctx context.Context,
 	req *grpcapi.DeleteModelRequest,
 ) (*grpcapi.DeleteModelReply, error) {
-	log.Printf("DeleteModel(req={ModelId: %q})\n", req.ModelId)
+	log := log.WithFields(logrus.Fields{
+		"model_id": req.ModelId,
+		"method":   "DeleteModel",
+	})
+
+	log.Debug("Call received")
 
 	b, err := s.backendPromise.Await(ctx)
 	if err != nil {
@@ -97,6 +110,7 @@ func (s *ModelRegistryServer) DeleteModel(
 		if _, ok := err.(*backend.UnknownModelError); ok {
 			return nil, status.Errorf(codes.NotFound, "%s", err)
 		}
+		log.WithField("error", err).Error("Unexpected error while deleting model")
 		return nil, status.Errorf(codes.Internal, "unexpected error while deleting model %q: %s", req.ModelId, err)
 	}
 
@@ -107,10 +121,14 @@ func (s *ModelRegistryServer) RetrieveModels(
 	ctx context.Context,
 	req *grpcapi.RetrieveModelsRequest,
 ) (*grpcapi.RetrieveModelsReply, error) {
-	log.Printf(
-		"RetrieveModels(req={ModelIds: %#v, ModelsCount: %d, ModelHandle: %q})\n",
-		req.ModelIds, req.ModelsCount, req.ModelHandle,
-	)
+	log := log.WithFields(logrus.Fields{
+		"model_ids":    req.ModelIds,
+		"models_count": req.ModelsCount,
+		"model_handle": req.ModelHandle,
+		"method":       "RetrieveModels",
+	})
+
+	log.Debug("Call received")
 
 	offset := 0
 	if req.ModelHandle != "" {
@@ -137,6 +155,7 @@ func (s *ModelRegistryServer) RetrieveModels(
 		// Retrieve all models
 		modelInfos, err := b.ListModels(offset, int(req.ModelsCount))
 		if err != nil {
+			log.WithField("error", err).Error("Unexpected error while retrieving models")
 			return nil, status.Errorf(codes.Internal, "unexpected error while retrieving models: %s", err)
 		}
 
@@ -155,6 +174,7 @@ func (s *ModelRegistryServer) RetrieveModels(
 				if _, ok := err.(*backend.UnknownModelError); ok {
 					return nil, status.Errorf(codes.NotFound, "%s", err)
 				}
+				log.WithField("error", err).Error("Unexpected error while retrieving models")
 				return nil, status.Errorf(codes.Internal, `unexpected error while retrieving models: %s`, err)
 			}
 
@@ -172,7 +192,11 @@ func (s *ModelRegistryServer) RetrieveModels(
 }
 
 func (s *ModelRegistryServer) CreateVersion(inStream grpcapi.ModelRegistrySP_CreateVersionServer) error {
-	log.Printf("CreateVersion(stream=...)\n")
+	log := log.WithFields(logrus.Fields{
+		"method": "CreateVersion",
+	})
+
+	log.Debug("Call received")
 
 	firstChunk, err := inStream.Recv()
 	if err == io.EOF {
@@ -248,6 +272,7 @@ func (s *ModelRegistryServer) CreateVersion(inStream grpcapi.ModelRegistrySP_Cre
 		UserData:          receivedVersionInfo.UserData,
 	})
 	if err != nil {
+		log.WithField("error", err).Error("Unexpected error while creating a version")
 		return status.Errorf(
 			codes.Internal,
 			"unexpected error while creating a version for model %q: %s",
@@ -263,10 +288,15 @@ func (s *ModelRegistryServer) RetrieveVersionInfos(
 	ctx context.Context,
 	req *grpcapi.RetrieveVersionInfosRequest,
 ) (*grpcapi.RetrieveVersionInfosReply, error) {
-	log.Printf(
-		"RetrieveVersionInfos(req={ModelId: %q, VersionNumbers: %#v, VersionsCount: %d, VersionHandle: %q})\n",
-		req.ModelId, req.VersionNumbers, req.VersionsCount, req.VersionHandle,
-	)
+	log := log.WithFields(logrus.Fields{
+		"model_id":        req.ModelId,
+		"versions_number": req.VersionNumbers,
+		"versions_count":  req.VersionsCount,
+		"version_handle":  req.VersionHandle,
+		"method":          "RetrieveVersionInfos",
+	})
+
+	log.Debug("Call received")
 
 	initialVersionNumber := uint(0)
 	if req.VersionHandle != "" {
@@ -294,7 +324,11 @@ func (s *ModelRegistryServer) RetrieveVersionInfos(
 			if _, ok := err.(*backend.UnknownModelError); ok {
 				return nil, status.Errorf(codes.NotFound, "%s", err)
 			}
-			return nil, status.Errorf(codes.Internal, "unexpected error while deleting model %q: %s", req.ModelId, err)
+			log.WithField("error", err).Error("Unexpected error while listing versions")
+			return nil, status.Errorf(
+				codes.Internal,
+				"unexpected error while listing versions for model %q: %s", req.ModelId, err,
+			)
 		}
 
 		pbVersionInfos := []*grpcapi.ModelVersionInfo{}
@@ -327,6 +361,10 @@ func (s *ModelRegistryServer) RetrieveVersionInfos(
 			if _, ok := err.(*backend.UnknownModelVersionError); ok {
 				return nil, status.Errorf(codes.NotFound, "%s", err)
 			}
+			log.WithFields(logrus.Fields{
+				"version_number": versionNumber,
+				"error":          err,
+			}).Error("Unexpected error while retrieving version info")
 			return nil, status.Errorf(
 				codes.Internal,
 				`unexpected error while retrieving version "%d" for model %q: %s`,
@@ -349,7 +387,13 @@ func (s *ModelRegistryServer) RetrieveVersionData(
 	req *grpcapi.RetrieveVersionDataRequest,
 	outStream grpcapi.ModelRegistrySP_RetrieveVersionDataServer,
 ) error {
-	log.Printf("RetrieveVersionData(req={ModelId: %q, VersionNumber: %d})\n", req.ModelId, req.VersionNumber)
+	log := log.WithFields(logrus.Fields{
+		"model_id":       req.ModelId,
+		"version_number": req.VersionNumber,
+		"method":         "RetrieveVersionData",
+	})
+
+	log.Debug("Call received")
 
 	b, err := s.backendPromise.Await(outStream.Context())
 	if err != nil {
@@ -364,6 +408,7 @@ func (s *ModelRegistryServer) RetrieveVersionData(
 		if _, ok := err.(*backend.UnknownModelVersionError); ok {
 			return status.Errorf(codes.NotFound, "%s", err)
 		}
+		log.WithField("error", err).Error("Unexpected error while retrieving version data")
 		return status.Errorf(
 			codes.Internal,
 			`unexpected error while retrieving version "%d" for model %q: %s`,
@@ -396,6 +441,11 @@ func RegisterModelRegistryServer(
 	grpcServer grpc.ServiceRegistrar,
 	sentModelVersionDataChunkSize int,
 ) (*ModelRegistryServer, error) {
+	if sentModelVersionDataChunkSize <= 0 {
+		return nil, fmt.Errorf(
+			"Unable to create the model registry server, `sentModelVersionDataChunkSize` needs to strictly positive",
+		)
+	}
 	server := &ModelRegistryServer{
 		sentModelVersionDataChunkSize: sentModelVersionDataChunkSize,
 	}
