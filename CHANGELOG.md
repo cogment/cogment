@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.4.0 - 2022-06-02
+
 ### Added
 
 - Introduce handling of actor not connecting at the start of a trial. `ActorParams` has been extended to let the user define the expected behavior.
