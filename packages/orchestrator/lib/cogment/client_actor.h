@@ -47,6 +47,8 @@ class ClientActor : public Actor {
 public:
   ClientActor(Trial* owner, const cogmentAPI::ActorParams& params);
 
+  std::future<void> init() override;
+
   static void run_an_actor(std::shared_ptr<Trial>&& trial_requested, ServerStream::StreamType* stream);
 };
 

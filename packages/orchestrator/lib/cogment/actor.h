@@ -74,9 +74,9 @@ public:
   Actor(Trial* owner, const cogmentAPI::ActorParams& params, bool read_init);
   virtual ~Actor();
 
-  virtual std::future<void> init();
+  virtual std::future<void> init() = 0;
 
-  bool is_disengaged() const { return m_disengaged; }  // Only makes sense for optional actors
+  bool is_disengaged() const { return m_disengaged; }
   void disengage();
   bool has_joined() const { return m_stream.has_stream(); }
   std::future<void> last_ack() { return m_last_ack_prom.get_future(); }
@@ -84,6 +84,10 @@ public:
   Trial* trial() const { return m_trial; }
   const std::string& actor_name() const { return m_name; }
   const std::string& actor_class() const { return m_actor_class; }
+  bool is_optional() const { return m_params.optional(); }
+  float initial_connection_timeout() { return m_params.initial_connection_timeout(); }
+  bool has_default_action() { return m_params.has_default_action(); }
+  const std::string& default_action() { return m_params.default_action().content(); }
 
   void add_reward_src(const cogmentAPI::RewardSource& source, TickIdType tick_id);
   void send_message(const cogmentAPI::Message& message, TickIdType tick_id);
@@ -93,29 +97,40 @@ public:
 
 protected:
   static bool read_init_data(ActorStream* stream, cogmentAPI::ActorInitialOutput* out);
-  std::future<void> run(std::unique_ptr<ActorStream> stream);
+  std::future<void> run(std::function<std::unique_ptr<ActorStream>()> stream_func);
+  std::future<void> get_run_init_fut() { return m_init_prom.get_future(); }
 
 private:
+  template <class... Args>
+  void connection_error(const char* format, Args&&... args) {
+    if (is_optional()) {
+      spdlog::info(format, std::forward<Args>(args)...);
+    }
+    else {
+      spdlog::error(format, std::forward<Args>(args)...);
+    }
+    disengage();
+  }
+
   void write_to_stream(ActorStream::InputType&& data);
   void dispatch_init_data();
   void dispatch_observation(cogmentAPI::Observation&& obs, bool last);
   void dispatch_reward(cogmentAPI::Reward&& reward);
   void dispatch_message(cogmentAPI::Message&& message);
+  bool process_initialization();
   void process_incoming_state(cogmentAPI::CommunicationState in_state, const std::string* details);
   void process_incoming_data(ActorStream::OutputType&& data);
   void process_incoming_stream();
   void finish_stream();
 
-  bool m_wait_for_init_data;
+  const bool m_wait_for_init_data;
 
   ManagedStream m_stream;
 
   Trial* const m_trial;
-  const std::string m_name;
-  const std::string m_actor_class;
-  const std::string m_impl;
-  std::string m_config_data;
-  bool m_has_config;
+  const cogmentAPI::ActorParams& m_params;
+  const std::string& m_name;
+  const std::string& m_actor_class;
 
   std::mutex m_reward_lock;
   RewardAccumulator m_reward_accumulator;
@@ -125,7 +140,7 @@ private:
   bool m_init_completed;
   std::promise<void> m_init_prom;
 
-  bool m_disengaged;  // Not participating in trial
+  std::atomic_bool m_disengaged;
 
   bool m_last_sent;
   bool m_last_ack_received;

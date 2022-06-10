@@ -15,6 +15,7 @@
 #ifndef NDEBUG
   #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
 #endif
+#define SPDLOG_TRACEDEBUG SPDLOG_TRACE
 
 #include "cogment/utils.h"
 
@@ -268,7 +269,7 @@ void Watchdog::execute_functions() {
 
 MultiWait::MultiWait() : m_waiting(false) {}
 
-void MultiWait::push_back(float timeout_sec, FUT_TYPE&& fut) {
+void MultiWait::push_back(float timeout_sec, FUT_TYPE&& fut, std::string_view descr) {
   if (m_waiting) {
     throw MakeException("Cannot add futures while waiting");
   }
@@ -278,12 +279,14 @@ void MultiWait::push_back(float timeout_sec, FUT_TYPE&& fut) {
 
   const int64_t timeout_ns = timeout_sec * NANOS;
   const size_t fut_index = m_futures.size();
-  m_wait_queue.emplace(timeout_ns, fut_index);
   m_futures.emplace_back(std::move(fut));
+  m_wait_queue.emplace(timeout_ns, fut_index, descr);
 }
 
 std::vector<size_t> MultiWait::wait_for_all() {
   static const auto zero = std::chrono::nanoseconds::zero();
+
+  SPDLOG_TRACEDEBUG("starting to wait");
 
   m_waiting = true;
   const auto base_time = std::chrono::high_resolution_clock::now();
@@ -294,10 +297,11 @@ std::vector<size_t> MultiWait::wait_for_all() {
     auto& fut = m_futures[top.fut_index];
 
     if (top.wait_time_ns < 0) {
+      SPDLOG_TRACEDEBUG("Waiting indefinitely for [{}]", top.description);
       fut.wait();
 
-      SPDLOG_TRACE("Required future seen initialized after [{}] sec",
-                   (std::chrono::high_resolution_clock::now() - base_time).count() * NANOS_INV);
+      SPDLOG_TRACEDEBUG("Required [{}] seen ready after [{}] sec", top.description,
+                        (std::chrono::high_resolution_clock::now() - base_time).count() * NANOS_INV);
     }
     else {
       const auto wait_time = std::chrono::nanoseconds(top.wait_time_ns);
@@ -307,20 +311,26 @@ std::vector<size_t> MultiWait::wait_for_all() {
         more_wait = zero;
       }
 
+      SPDLOG_TRACEDEBUG("Timed waiting for [{}]", top.description);
       const auto fut_res = fut.wait_for(more_wait);
 
       switch (fut_res) {
       case std::future_status::deferred:
-        throw MakeException("Cannot accept deferred action in MultiWait futures");
+        throw MakeException("Cannot accept deferred action for [{}] in MultiWait", top.description);
         break;
       case std::future_status::ready:
-        SPDLOG_TRACE("Optional future (with timeout [{}]) seen initialized after [{}] sec", top.wait_time_ns,
-                     (std::chrono::high_resolution_clock::now() - base_time).count() * NANOS_INV);
+        SPDLOG_TRACEDEBUG("Optional [{}] (with timeout [{}]) seen ready after [{}] sec", top.description,
+                          top.wait_time_ns * NANOS_INV,
+                          (std::chrono::high_resolution_clock::now() - base_time).count() * NANOS_INV);
         break;
       case std::future_status::timeout:
         result.emplace_back(top.fut_index);
-        SPDLOG_TRACE("Optional future (with timeout [{}]) seen timed out after [{}] sec", top.wait_time_ns,
-                     (std::chrono::high_resolution_clock::now() - base_time).count() * NANOS_INV);
+        SPDLOG_TRACEDEBUG("Optional [{}] (with timeout [{}]) seen timed out after [{}] sec", top.description,
+                          top.wait_time_ns * NANOS_INV,
+                          (std::chrono::high_resolution_clock::now() - base_time).count() * NANOS_INV);
+        break;
+      default:
+        throw MakeException("Failed to wait for [{}] in MultiWait", top.description);
         break;
       }
     }

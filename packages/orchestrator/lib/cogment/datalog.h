@@ -59,6 +59,7 @@ private:
       m_stream;
   grpc::ClientContext m_context;
   bool m_stream_valid;
+  bool m_error_reported;
   Trial* m_trial;
   std::future<void> m_incoming_thread;
   std::bitset<NB_BITS> m_exclude_fields;

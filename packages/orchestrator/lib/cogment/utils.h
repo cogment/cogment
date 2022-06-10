@@ -44,15 +44,20 @@ std::string_view trim(std::string_view in);
 // Unix epoch time in nanoseconds
 uint64_t Timestamp();
 
+// TODO: Update (or replace) to use std::format (C++20)
+template <class... Args>
+std::string MakeString(const char* format, Args&&... args) {
+  return fmt::format(format, std::forward<Args>(args)...);
+}
+
 class CogmentError : public COGMENT_ERROR_BASE_TYPE {
   using COGMENT_ERROR_BASE_TYPE::COGMENT_ERROR_BASE_TYPE;
 };
 
-// TODO: Update to use std::format (C++20)
 template <class EXC = CogmentError, class... Args>
 EXC MakeException(const char* format, Args&&... args) {
   try {
-    std::string val = fmt::format(format, std::forward<Args>(args)...);
+    std::string val = MakeString(format, std::forward<Args>(args)...);
     spdlog::debug("**Exception generated**: {}", val);
     return EXC(val);
   }
@@ -61,11 +66,10 @@ EXC MakeException(const char* format, Args&&... args) {
   }
 }
 
-// TODO: Update to use std::format (C++20)
 template <class... Args>
 grpc::Status MakeErrorStatus(const char* format, Args&&... args) {
   try {
-    std::string val = fmt::format(format, std::forward<Args>(args)...);
+    std::string val = MakeString(format, std::forward<Args>(args)...);
     spdlog::error("gRPC failed status returned: {}", val);
     return grpc::Status(grpc::StatusCode::UNKNOWN, val);
   }
@@ -220,8 +224,8 @@ public:
 
   // timeout < 0 for no time out (i.e. infinite wait).
   // The waiting is serial and ordered from the smaller timeouts to the larger.
-  void push_back(float timeout_sec, FUT_TYPE&& fut);
-  void push_back(FUT_TYPE&& fut) { push_back(-1.0f, std::move(fut)); };
+  void push_back(float timeout_sec, FUT_TYPE&& fut, std::string_view descr);
+  void push_back(FUT_TYPE&& fut, std::string_view descr) { push_back(-1.0f, std::move(fut), descr); };
 
   // Return: List of indexes of futures that timed out (not in any particular order).
   std::vector<size_t> wait_for_all();
@@ -230,14 +234,54 @@ private:
   struct FutEntry {
     int64_t wait_time_ns;
     size_t fut_index;
+    std::string_view description;  // Can be dangerous, but it works the way we use it.
 
-    FutEntry(int64_t wt, size_t index) : wait_time_ns(wt), fut_index(index) {}
+    FutEntry(int64_t wt, size_t index, std::string_view descr) :
+        wait_time_ns(wt), fut_index(index), description(descr) {}
     bool operator>(const FutEntry& right) const { return (wait_time_ns > right.wait_time_ns); }
   };
 
   std::priority_queue<FutEntry, std::vector<FutEntry>, std::greater<FutEntry>> m_wait_queue;
   std::vector<FUT_TYPE> m_futures;
   bool m_waiting;
+};
+
+class SimpleSignal {
+public:
+  void deactivate() {
+    std::unique_lock ul(m_lock);
+    m_active = false;
+    m_signalled = true;
+    m_cond.notify_all();
+  }
+
+  void signal() {
+    std::unique_lock ul(m_lock);
+    if (m_active && !m_signalled) {
+      m_signalled = true;
+      ul.unlock();
+      m_cond.notify_one();
+    }
+  }
+
+  bool wait() {
+    std::unique_lock ul(m_lock);
+    if (m_active) {
+      m_cond.wait(ul, [this] {
+        return m_signalled;
+      });
+      if (!m_signalled)
+        throw MakeException("Spurious waking of condition variable!!!!");
+      m_signalled = !m_active;
+    }
+    return m_active;
+  }
+
+private:
+  std::mutex m_lock;
+  std::condition_variable m_cond;
+  bool m_signalled = false;
+  bool m_active = true;
 };
 
 }  // namespace cogment

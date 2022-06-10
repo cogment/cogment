@@ -32,15 +32,21 @@ ServiceActor::ServiceActor(Trial* owner, const cogmentAPI::ActorParams& params, 
 std::future<void> ServiceActor::init() {
   SPDLOG_TRACE("ServiceActor::init(): [{}] [{}]", trial()->id(), actor_name());
 
-  auto grpc_stream = m_stub_entry->get_stub().RunTrial(&m_context);
-  auto stream = std::make_unique<ClientStream>(std::move(grpc_stream));
-
-  // TODO: The problem here is that this stream will outlive the context. And less importantly
+  // TODO: Here this stream will outlive the context. And less importantly
   //       (because it is kept in the orchestrator) it will outlive the stub entry.
   //       We could move them in the ClientStream!
-  run(std::move(stream));
+  run([this]() -> std::unique_ptr<ActorStream> {
+    auto grpc_stream = m_stub_entry->get_stub().RunTrial(&m_context);
+    SPDLOG_TRACE("Trial [{}] - ServiceActor [{}] RunTrial returned", trial()->id(), actor_name());
+    if (grpc_stream == nullptr) {
+      throw MakeException("RunTrial RPC failed");
+    }
+    auto stream = std::make_unique<ClientStream>(std::move(grpc_stream));
 
-  return Actor::init();
+    return stream;
+  });
+
+  return get_run_init_fut();
 }
 
 }  // namespace cogment

@@ -23,6 +23,8 @@
 
 namespace {
 
+const std::string EMPTY;
+
 float compute_reward_value(const cogmentAPI::Reward& reward) {
   float value_accum = 0.0f;
   float confidence_accum = 0.0f;
@@ -50,9 +52,13 @@ namespace cogment {
 void ManagedStream::operator=(std::unique_ptr<ActorStream> stream) {
   // Testing the locks is very hard due to spurious false return of try_lock.
   // In our use case, this following test is good enough.
-  if (has_stream()) {
-    throw MakeException("Cannot overwrite an established managed stream");
+  if (m_stream != nullptr) {
+    throw MakeException("Cannot overwrite an established managed actor stream");
   }
+  if (stream == nullptr) {
+    throw MakeException("Invalid actor stream");
+  }
+
   m_stream = std::move(stream);
   m_stream_valid = true;
 }
@@ -197,24 +203,21 @@ bool Actor::read_init_data(ActorStream* stream, cogmentAPI::ActorInitialOutput* 
 Actor::Actor(Trial* owner, const cogmentAPI::ActorParams& params, bool read_init) :
     m_wait_for_init_data(read_init),
     m_trial(owner),
+    m_params(params),
     m_name(params.name()),
     m_actor_class(params.actor_class()),
-    m_impl(params.implementation()),
-    m_has_config(params.has_config()),
     m_init_completed(false),
     m_disengaged(false),
     m_last_sent(false),
     m_last_ack_received(false),
     m_finished(false) {
-  if (m_has_config) {
-    m_config_data = params.config().content();
-  }
-  SPDLOG_TRACE("Actor(): [{}] [{}] [{}] [{}]", m_trial->id(), m_name, m_actor_class, m_impl);
+  SPDLOG_TRACE("Actor(): [{}] [{}] [{}] [{}]", m_trial->id(), m_name, m_actor_class, params.implementation());
 }
 
 Actor::~Actor() {
   SPDLOG_TRACE("~Actor(): [{}] [{}]", m_trial->id(), m_name);
 
+  m_disengaged = true;
   finish_stream();
 
   if (!m_init_completed) {
@@ -231,14 +234,14 @@ Actor::~Actor() {
 }
 
 void Actor::disengage() {
-  m_disengaged = true;
-  m_last_ack_prom.set_value();
-  finish_stream();
+  if (!m_disengaged.exchange(true)) {
+    m_trial->actor_disengaging(*this);
+  }
 }
 
 void Actor::write_to_stream(ActorStream::InputType&& data) {
   if (!m_stream.write(std::move(data))) {
-    throw MakeException("Actor stream has closed");
+    throw MakeException("Actor stream failure");
   }
 }
 
@@ -262,7 +265,15 @@ void Actor::send_message(const cogmentAPI::Message& message, TickIdType tick_id)
   msg.set_tick_id(tick_id);
   msg.set_receiver_name(m_name);  // Because of possible wildcards in message receiver
 
-  dispatch_message(std::move(msg));
+  try {
+    dispatch_message(std::move(msg));
+  }
+  catch (const std::exception& exc) {
+    connection_error("Trial [{}] - Actor [{}]: Failed to send message [{}]", m_trial->id(), m_name, exc.what());
+  }
+  catch (...) {
+    connection_error("Trial [{}] - Actor [{}]: Failed to send message", m_trial->id(), m_name);
+  }
 }
 
 void Actor::dispatch_tick(cogmentAPI::Observation&& obs, bool final_tick) {
@@ -291,11 +302,33 @@ void Actor::dispatch_tick(cogmentAPI::Observation&& obs, bool final_tick) {
     dispatch_observation(std::move(obs), final_tick);
   }
   catch (const std::exception& exc) {
-    spdlog::error("Trial [{}] - Actor [{}]: Failed to process outgoing data [{}]", m_trial->id(), m_name, exc.what());
+    connection_error("Trial [{}] - Actor [{}]: Failed to process outgoing data [{}]", m_trial->id(), m_name,
+                     exc.what());
   }
   catch (...) {
-    spdlog::error("Trial [{}] - Actor [{}]: Failed to process outgoing data", m_trial->id(), m_name);
+    connection_error("Trial [{}] - Actor [{}]: Failed to process outgoing data", m_trial->id(), m_name);
   }
+}
+
+bool Actor::process_initialization() {
+  bool result = false;
+
+  dispatch_init_data();
+
+  if (m_wait_for_init_data) {
+    result = (m_stream.is_valid() && read_init_data(m_stream.actor_stream_ptr(), nullptr));
+  }
+  else {
+    result = true;
+  }
+
+  if (result) {
+    m_init_prom.set_value();
+    m_init_completed = true;
+    spdlog::debug("Trial [{}] - Actor [{}] init complete", m_trial->id(), m_name);
+  }
+
+  return result;
 }
 
 void Actor::process_incoming_state(cogmentAPI::CommunicationState in_state, const std::string* details) {
@@ -432,67 +465,55 @@ void Actor::process_incoming_data(ActorStream::OutputType&& data) {
 void Actor::process_incoming_stream() {
   for (ActorStream::OutputType data; m_stream.read(&data); data.Clear()) {
     if (m_disengaged) {
-      return;
+      break;
     }
 
-    try {
-      process_incoming_data(std::move(data));
-    }
-    catch (const std::exception& exc) {
-      spdlog::error("Trial [{}] - Actor [{}] failed to process incoming data [{}]", m_trial->id(), m_name, exc.what());
-    }
-    catch (...) {
-      spdlog::error("Trial [{}] - Actor [{}] failed to process incoming data", m_trial->id(), m_name);
-    }
+    process_incoming_data(std::move(data));
   }
 
   SPDLOG_DEBUG("Trial [{}] - Actor [{}] finished reading stream", m_trial->id(), m_name);
 }
 
-std::future<void> Actor::run(std::unique_ptr<ActorStream> stream) {
+// We use a lambda so we can call it inside the thread since it can be slow to
+// get the stream in case of errors.
+std::future<void> Actor::run(std::function<std::unique_ptr<ActorStream>()> stream_func) {
   SPDLOG_TRACE("Trial [{}] - Actor [{}] run", m_trial->id(), m_name);
 
   if (m_stream.has_stream()) {
     throw MakeException("Actor already running");
   }
-  m_stream = std::move(stream);
 
-  dispatch_init_data();
+  m_incoming_thread =
+      m_trial->thread_pool().push("Actor incoming data", [this, stream_func = std::move(stream_func)]() {
+        bool init_success = false;
+        try {
+          m_stream = stream_func();
+          init_success = process_initialization();
+        }
+        catch (const std::exception& exc) {
+          connection_error("Trial [{}] - Actor [{}] failed to initialize [{}]", m_trial->id(), m_name, exc.what());
+        }
+        catch (...) {
+          connection_error("Trial [{}] - Actor [{}] failed to initialize", m_trial->id(), m_name);
+        }
 
-  m_incoming_thread = m_trial->thread_pool().push("Actor incoming data", [this]() {
-    try {
-      bool init_success;
-      if (m_wait_for_init_data) {
-        init_success = m_stream.is_valid() && read_init_data(m_stream.actor_stream_ptr(), nullptr);
-      }
-      else {
-        init_success = true;
-      }
+        // This is separate to have a better error output in case of exception.
+        try {
+          if (init_success) {
+            process_incoming_stream();
+          }
+        }
+        catch (const std::exception& exc) {
+          connection_error("Trial [{}] - Actor [{}] failed to process stream [{}]", m_trial->id(), m_name, exc.what());
+        }
+        catch (...) {
+          connection_error("Trial [{}] - Actor [{}] failed to process stream", m_trial->id(), m_name);
+        }
 
-      if (init_success) {
-        m_init_prom.set_value();
-        m_init_completed = true;
-        spdlog::debug("Trial [{}] - Actor [{}] init complete", m_trial->id(), m_name);
-
-        process_incoming_stream();
-      }
-    }
-    catch (const std::exception& exc) {
-      spdlog::error("Trial [{}] - Actor [{}] failed to process stream [{}]", m_trial->id(), m_name, exc.what());
-    }
-    catch (...) {
-      spdlog::error("Trial [{}] - Actor [{}] failed to process stream", m_trial->id(), m_name);
-    }
-
-    finish_stream();
-  });
+        disengage();
+      });
 
   return m_finished_prom.get_future();
-}
-
-std::future<void> Actor::init() {
-  SPDLOG_TRACE("Actor::init(): [{}] [{}]", m_trial->id(), m_name);
-  return m_init_prom.get_future();
 }
 
 void Actor::dispatch_observation(cogmentAPI::Observation&& observation, bool last) {
@@ -531,10 +552,10 @@ void Actor::dispatch_init_data() {
 
   init_data->set_actor_name(m_name);
   init_data->set_actor_class(m_actor_class);
-  init_data->set_impl_name(m_impl);
+  init_data->set_impl_name(m_params.implementation());
   init_data->set_env_name(m_trial->env_name());
-  if (m_has_config) {
-    init_data->mutable_config()->set_content(m_config_data);
+  if (m_params.has_config()) {
+    init_data->mutable_config()->set_content(m_params.config().content());
   }
 
   write_to_stream(std::move(msg));
@@ -559,9 +580,12 @@ void Actor::trial_ended(std::string_view details) {
 }
 
 void Actor::finish_stream() {
-  m_stream.finish();
-
   if (!m_finished.exchange(true)) {
+    try {
+      m_stream.finish();
+    }
+    catch (...) {
+    }
     m_finished_prom.set_value();
   }
 }

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Added
+
+- Handling of actor diconnecting during a trial actor to parameters..
+
 ## v2.4.0 - 2022-06-02
 
 ### Added

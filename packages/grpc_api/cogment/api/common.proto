@@ -55,12 +55,13 @@ message ActorParams {
   string endpoint = 3;  
 
   // Specifies an implementation name to use. This is used to distinguish
-  // Between multiple implementations of the same actor class running on the same endpoint.
+  // Between multiple implementations of the same actor class.
   string implementation = 4;
   SerializedMessage config = 5;
   
+  // 0 is no timeout
   float initial_connection_timeout = 6;
-  float response_timeout = 7;
+  float response_timeout = 7;  // Unused
 
   bool optional = 8;
 

@@ -215,7 +215,7 @@ cogmentAPI::TrialParams Orchestrator::m_perform_pre_hooks(cogmentAPI::TrialParam
 
 void Orchestrator::m_perform_trial_gc() {
   m_gc_countdown--;
-  if (m_gc_countdown != 0) {
+  if (m_gc_countdown > 0) {
     return;
   }
   m_gc_countdown.store(m_gc_frequency);
@@ -261,8 +261,8 @@ void Orchestrator::m_perform_trial_gc() {
     m_gc_metrics->Observe(static_cast<double>(duration) * NANOS_INV);
   }
 
-  spdlog::debug("Garbage collection of ended [{}] ([{}] new) and stale [{}] trials", m_trials_to_delete.size(),
-                nb_deleted_trials, stale_trials.size());
+  spdlog::debug("Garbage collection of newly ended [{}] ([{}] in process pipe) and stale [{}] trials",
+                nb_deleted_trials, m_trials_to_delete.size(), stale_trials.size());
   SPDLOG_TRACE("Garbage collection done");
 }
 

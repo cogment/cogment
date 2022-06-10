@@ -62,15 +62,21 @@ void ClientActor::run_an_actor(std::shared_ptr<Trial>&& trial_requested, ServerS
     init_data.Clear();
     trial.reset();
 
-    // Since the only clean way to close a stream on the server side (with the sync grpc API) is
-    // to return: the run has to be in a thread so we can return without waiting for the stream.
-    std::unique_ptr<ActorStream> stream(server_stream.release());
-    auto run_fut = actor->run(std::move(stream));
+    auto run_fut = actor->run([stream_ptr = server_stream.release()]() {
+      return std::unique_ptr<ActorStream>(stream_ptr);
+    });
 
+    // Since the only clean way to close a stream on the server side (with the sync grpc API) is
+    // to return: we need to be able to return without waiting for the stream.
     run_fut.wait();
   }
 }
 
 ClientActor::ClientActor(Trial* owner, const cogmentAPI::ActorParams& params) : Actor(owner, params, false) {}
+
+std::future<void> ClientActor::init() {
+  SPDLOG_TRACE("ClientActor::init(): [{}] [{}]", trial()->id(), actor_name());
+  return get_run_init_fut();
+}
 
 }  // namespace cogment

@@ -314,27 +314,13 @@ void test_reply(const cogmentAPI::FullServiceData& reply, const EndpointData& re
 std::string EndpointData::debug_string() const {
   std::string result;
 
-  result += "original endpoint [" + original_endpoint + "]  ";
-  result += "address [" + std::string(address) + "]  ";
-
-  result += "scheme [";
-  result += std::to_string(scheme);
-  result += "]  ";
-
-  result += "host [";
-  result += std::to_string(host);
-  result += "]  ";
-
-  result += "path [";
-  result += std::to_string(path);
-  result += "]  ";
+  result += MakeString("original endpoint [{}] address [{}]", original_endpoint, address);
+  result += MakeString("  scheme [{}]", scheme);
+  result += MakeString("  host [{}]", host);
+  result += MakeString("  path [{}]", path);
 
   for (auto& prop : query) {
-    result += "prop [";
-    result += prop.first;
-    result += "]=[";
-    result += prop.second;
-    result += "]  ";
+    result += MakeString("  prop [{}]=[{}]", prop.first, prop.second);
   }
 
   return result;
@@ -552,9 +538,7 @@ std::string Directory::get_address(const EndpointData& data) const {
 
   case cogmentAPI::ServiceEndpoint::COGMENT: {
     if (address != CLIENT_ACTOR_ADDRESS) {
-      std::string bad_endpoint(COGMENT);
-      bad_endpoint += "://" + address;
-      throw MakeException("Unhandled endpoint from directory [{}]: [{}]", context.peer(), bad_endpoint);
+      throw MakeException("Unhandled endpoint from directory [{}]: {}://{}", context.peer(), COGMENT, address);
     }
     break;
   }

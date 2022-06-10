@@ -15,6 +15,7 @@
 #ifndef NDEBUG
   #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
 #endif
+#define SPDLOG_TRACEDEBUG SPDLOG_TRACE
 
 #include "cogment/trial.h"
 #include "cogment/orchestrator.h"
@@ -79,6 +80,11 @@ cogmentAPI::TrialState get_trial_api_state(Trial::InternalState state) {
   throw MakeException<std::out_of_range>("Unknown trial state for api: [{}]", static_cast<int>(state));
 }
 
+std::shared_ptr<Trial> Trial::make(Orchestrator* orch, const std::string& user_id, const std::string& id,
+                                   const Metrics& met) {
+  return std::shared_ptr<Trial>(new Trial(orch, user_id, id, met));
+}
+
 Trial::Trial(Orchestrator* orch, const std::string& user_id, const std::string& id, const Metrics& met) :
     m_id(id),
     m_user_id(user_id),
@@ -86,19 +92,36 @@ Trial::Trial(Orchestrator* orch, const std::string& user_id, const std::string& 
     m_end_timestamp(0),
     m_orchestrator(orch),
     m_metrics(met),
+    m_nb_actors_acted(0),
+    m_nb_available_actors(0),
+    m_last_action_tick(-1),
     m_state(InternalState::unknown),
     m_env_last_obs(false),
     m_end_requested(false),
     m_tick_id(0),
     m_tick_start_timestamp(0),
-    m_nb_actors_acted(0),
-    m_nb_available_actors(0),
     m_max_steps(std::numeric_limits<uint64_t>::max()),
     m_max_inactivity(std::numeric_limits<uint64_t>::max()) {
   SPDLOG_TRACE("Trial [{}] - Constructor", m_id);
 
   set_state(InternalState::initializing);
   refresh_activity();
+
+  m_actions_thread = m_orchestrator->thread_pool().push("Action processing", [this]() {
+    while (m_action_signal.wait()) {
+      try {
+        process_actions();
+      }
+      catch (const std::exception& exc) {
+        spdlog::error("Trial [{}] - Failed to process actions [{}]", m_id, exc.what());
+        terminate(MakeString("Action processing requirement failure [{}]", exc.what()));
+      }
+      catch (...) {
+        spdlog::error("Trial [{}] - Failed to process actions", m_id);
+        terminate("Action processing requirement failure");
+      }
+    }
+  });
 }
 
 Trial::~Trial() {
@@ -107,6 +130,9 @@ Trial::~Trial() {
   if (m_state != InternalState::unknown && m_state != InternalState::ended) {
     spdlog::error("Trial [{}] - Destroying trial before it is ended [{}]", m_id, get_trial_state_string(m_state));
   }
+
+  m_action_signal.deactivate();
+  m_actions_thread.wait();
 
   // Destroy components while this trial instance still exists
   m_env.reset();
@@ -211,7 +237,7 @@ cogmentAPI::DatalogSample& Trial::make_new_sample() {
 
   auto info = sample.mutable_info();
   info->set_tick_id(m_tick_id);
-  info->set_timestamp(tick_start);  // Changed later if first sample
+  info->set_timestamp(tick_start);  // Changed later if this is the first sample
 
   return sample;
 }
@@ -241,14 +267,14 @@ void Trial::prepare_actors() {
     throw MakeException("Environment not ready for actors");
   }
 
-  for (const auto& actor_info : m_params.actors()) {
-    auto& endpoint = actor_info.endpoint();
-    auto& name = actor_info.name();
-    auto& actor_class = actor_info.actor_class();
-    auto& implementation = actor_info.implementation();
+  for (const auto& actor_params : m_params.actors()) {
+    auto& endpoint = actor_params.endpoint();
+    auto& name = actor_params.name();
+    auto& actor_class = actor_params.actor_class();
+    auto& implementation = actor_params.implementation();
 
     if (endpoint.empty() || name.empty() || actor_class.empty()) {
-      throw MakeException("Actor [{}] not fully defined in parameters", name);
+      throw MakeException("Actor [{}] not fully defined in parameters [{}] [{}]", name, actor_class, endpoint);
     }
     if (name == m_env->name()) {
       throw MakeException("Actor name cannot be the same as environment name [{}]", m_env->name());
@@ -258,7 +284,7 @@ void Trial::prepare_actors() {
     if (endpoint == DEPRECATED_CLIENT_ENDPOINT) {
       spdlog::warn("Client actor endpoint must be 'cogment://client' in the parameters [{}]", endpoint);
 
-      auto client_actor = std::make_unique<ClientActor>(this, actor_info);
+      auto client_actor = std::make_unique<ClientActor>(this, actor_params);
       m_actors.emplace_back(std::move(client_actor));
     }
     else {
@@ -295,12 +321,12 @@ void Trial::prepare_actors() {
       }
 
       if (address == CLIENT_ACTOR_ADDRESS) {
-        auto client_actor = std::make_unique<ClientActor>(this, actor_info);
+        auto client_actor = std::make_unique<ClientActor>(this, actor_params);
         m_actors.emplace_back(std::move(client_actor));
       }
       else {
         auto stub_entry = m_orchestrator->agent_pool()->get_stub_entry(address);
-        auto agent_actor = std::make_unique<ServiceActor>(this, actor_info, stub_entry);
+        auto agent_actor = std::make_unique<ServiceActor>(this, actor_params, stub_entry);
         m_actors.emplace_back(std::move(agent_actor));
       }
     }
@@ -310,6 +336,9 @@ void Trial::prepare_actors() {
       throw MakeException("Actor name is not unique [{}]", name);
     }
   }
+
+  m_nb_available_actors = m_actors.size();
+  SPDLOG_DEBUG("Trial [{}] - [{}] actors specified", m_id, m_actors.size());
 }
 
 void Trial::prepare_environment() {
@@ -402,54 +431,56 @@ void Trial::prepare_datalog() {
 
 void Trial::wait_for_actors() {
   MultiWait actors_ready;
+  std::vector<std::promise<void>> failed_init;
 
+  SPDLOG_TRACEDEBUG("Trial [{}] - Init actors for wait", m_id);
   for (size_t index = 0; index < m_actors.size(); index++) {
     auto& actor = m_actors[index];
-    auto& actor_params = m_params.actors(index);
 
     std::future<void> init_fut;
     try {
       init_fut = actor->init();
     }
     catch (const std::exception& exc) {
-      if (!actor_params.optional()) {
-        throw MakeException("Required actor [{}] problem [{}]", actor->actor_name(), exc.what());
+      if (!actor->is_optional()) {
+        throw MakeException("Required actor [{}] init failed [{}]", actor->actor_name(), exc.what());
       }
-
-      spdlog::debug("Trial [{}] - Optional actor [{}] connection problem [{}]", m_id, actor->actor_name(), exc.what());
-      std::promise<void> prom;
-      init_fut = prom.get_future();
+      spdlog::info("Trial [{}] - Optional actor [{}] init failed [{}]", m_id, actor->actor_name(), exc.what());
     }
 
-    if (!actor_params.optional() && actor_params.initial_connection_timeout() == 0.0) {
-      actors_ready.push_back(std::move(init_fut));
+    if (init_fut.valid()) {
+      if (!actor->is_optional() && actor->initial_connection_timeout() == 0.0f) {
+        actors_ready.push_back(std::move(init_fut), actor->actor_name());
+      }
+      else {
+        actors_ready.push_back(actor->initial_connection_timeout(), std::move(init_fut), actor->actor_name());
+      }
     }
     else {
-      actors_ready.push_back(actor_params.initial_connection_timeout(), std::move(init_fut));
+      failed_init.emplace_back();
+      actors_ready.push_back(0.0f, failed_init.back().get_future(), actor->actor_name());
     }
   }
 
+  SPDLOG_TRACEDEBUG("Trial [{}] - Starting to wait for actors", m_id);
   auto timed_out_actors = actors_ready.wait_for_all();
-  SPDLOG_TRACE("Trial [{}] - Finished waiting for actors", m_id);
+  SPDLOG_TRACEDEBUG("Trial [{}] - Finished waiting for actors", m_id);
 
   for (size_t index : timed_out_actors) {
     auto& actor = m_actors[index];
-    auto& actor_params = m_params.actors(index);
 
-    if (!actor_params.optional()) {
+    if (!actor->is_optional()) {
       throw MakeException("Required actor [{}] did not respond in time", actor->actor_name());
     }
     else {
       spdlog::info("Trial [{}] - Optional actor [{}] did not respond in time", m_id, actor->actor_name());
       actor->disengage();
-      SPDLOG_TRACE("Trial [{}] - Actor [{}] disengaged", m_id, actor->actor_name());
     }
   }
-  m_nb_available_actors = m_actors.size() - timed_out_actors.size();
 
-  // TODO: Remove this when/if we manage late actor connection or actor reconnection.
-  if (m_nb_available_actors == 0) {
-    throw MakeException("No actor available for trial");
+  SPDLOG_DEBUG("Trial [{}] - [{}] actors available to start", m_id, m_nb_available_actors.load());
+  if (m_nb_available_actors <= 0) {
+    spdlog::warn("Trial [{}] - No active actor in the trial [{}]", m_id, m_nb_available_actors.load());
   }
 }
 
@@ -673,6 +704,7 @@ void Trial::dispatch_observations(bool last) {
     obs.set_tick_id(m_tick_id);
     obs.set_timestamp(observations.timestamp());
     *obs.mutable_content() = observations.observations(obs_index);
+
     actor->dispatch_tick(std::move(obs), last);
   }
 }
@@ -713,15 +745,13 @@ cogmentAPI::ActionSet Trial::make_action_set() {
     else if (act.tick_id() == NO_DATA_TICK_ID) {
       // Actor is unavailable
 
-      auto& actor_params = m_params.actors(index);
-      if (!actor_params.optional()) {
-        // Internal error
-        throw MakeException("Trial [{}] - Required actor [{}] has no action at tick [{}]", m_id,
-                            m_actors[index]->actor_name(), m_tick_id);
+      auto& actor = m_actors[index];
+      if (!actor->is_optional()) {
+        throw MakeException("Required actor [{}] disconnected", actor->actor_name());
       }
 
-      if (actor_params.has_default_action()) {
-        action_set.add_actions(actor_params.default_action().content());
+      if (actor->has_default_action()) {
+        action_set.add_actions(actor->default_action());
         sample.add_default_actors(index);
       }
       else {
@@ -776,7 +806,13 @@ void Trial::finalize_actors() {
   std::vector<std::future<void>> actors_last_ack;
   actors_last_ack.reserve(m_actors.size());
   for (auto& actor : m_actors) {
-    actors_last_ack.emplace_back(actor->last_ack());
+    if (!actor->is_disengaged()) {
+      actors_last_ack.emplace_back(actor->last_ack());
+    }
+    else {
+      std::promise<void> auto_ready;  // The future will be ready after this is destroyed
+      actors_last_ack.emplace_back(auto_ready.get_future());
+    }
   }
 
   for (size_t index = 0; index < actors_last_ack.size(); index++) {
@@ -943,84 +979,143 @@ void Trial::env_observed(const std::string& env_name, cogmentAPI::ObservationSet
   }
 }
 
-void Trial::actor_acted(const std::string& actor_name, cogmentAPI::Action&& action) {
+void Trial::actor_acted(const std::string& name, cogmentAPI::Action&& action) {
   const std::shared_lock lg(m_terminating_lock);
   refresh_activity();
 
   if (m_state < InternalState::pending) {
-    spdlog::warn("Trial [{}] - Actor [{}] too early in trial to receive action.", m_id, actor_name);
+    spdlog::warn("Trial [{}] - Actor [{}] too early in trial to receive action.", m_id, name);
     return;
   }
   if (m_state == InternalState::ended) {
-    spdlog::info("Trial [{}] - Actor [{}] action arrived after end of trial. Data will be dropped.", m_id, actor_name);
+    spdlog::info("Trial [{}] - Actor [{}] action arrived after end of trial. Data will be dropped.", m_id, name);
     return;
   }
 
-  const auto itor = m_actor_indexes.find(actor_name);
+  const auto itor = m_actor_indexes.find(name);
   if (itor == m_actor_indexes.end()) {
-    spdlog::error("Trial [{}] - Unknown actor [{}] for action received.", m_id, actor_name);
+    spdlog::error("Trial [{}] - Unknown actor [{}] for action received.", m_id, name);
     return;
   }
   const auto actor_index = itor->second;
 
   auto sample = get_last_sample();
   if (sample == nullptr) {
-    spdlog::debug("Trial [{}] - State [{}]. Action from [{}] lost", m_id, get_trial_state_string(m_state), actor_name);
-    return;
-  }
-  auto sample_action = sample->mutable_actions(actor_index);
-  if (sample_action->tick_id() != NO_DATA_TICK_ID) {
-    spdlog::warn("Trial [{}] - Actor [{}] multiple actions received for same step. Only the first one will be used.",
-                 m_id, actor_name);
+    spdlog::debug("Trial [{}] - State [{}]. Action from [{}] lost", m_id, get_trial_state_string(m_state), name);
     return;
   }
 
   // TODO: Determine what we want to do in case of actions in the past or future
   if (action.tick_id() != AUTO_TICK_ID && action.tick_id() != static_cast<int64_t>(m_tick_id)) {
-    spdlog::warn("Trial [{}] - Actor [{}] invalid action step: [{}] vs [{}]. Default action will be used.", m_id,
-                 actor_name, action.tick_id(), m_tick_id);
+    spdlog::error("Trial [{}] - Actor [{}] invalid action step: [{}] vs [{}]. Action ignored.", m_id, name,
+                  action.tick_id(), m_tick_id);
+    return;
   }
 
-  SPDLOG_TRACE("Trial [{}] - Actor [{}] received action for tick [{}].", m_id, actor_name, m_tick_id);
+  auto sample_action = sample->mutable_actions(actor_index);
+  if (sample_action->tick_id() != NO_DATA_TICK_ID) {
+    spdlog::warn("Trial [{}] - Actor [{}] multiple actions received for the same step [{}]/[{}]/[{}]."
+                 " Only the first one will be used.",
+                 m_id, name, m_tick_id, sample_action->tick_id(), action.tick_id());
+    return;
+  }
+
+  SPDLOG_TRACE("Trial [{}] - Actor [{}] received action for tick [{}].", m_id, name, m_tick_id);
   *sample_action = std::move(action);
-  const auto new_count = ++m_nb_actors_acted;
 
-  if (new_count == m_nb_available_actors) {
-    SPDLOG_TRACE("Trial [{}] - All available actions received for tick [{}]", m_id, m_tick_id);
+  m_nb_actors_acted++;
+  m_action_signal.signal();
+}
 
-    const bool last_actions = (m_tick_id >= m_max_steps || m_end_requested);
+void Trial::process_actions() {
+  const ptrdiff_t nb_actions = m_nb_actors_acted;
+  const ptrdiff_t nb_actors = m_nb_available_actors;
+  if (nb_actions < nb_actors) {
+    return;
+  }
+  if (m_last_action_tick >= static_cast<int64_t>(m_tick_id)) {
+    SPDLOG_DEBUG("Trial [{}] - Action processing spurious timing call at [{}]", m_id, m_tick_id);
+    return;
+  }
+  m_last_action_tick = m_tick_id;
 
-    if (!last_actions) {
-      m_env->dispatch_actions(make_action_set(), false);
+  const std::shared_lock lg(m_terminating_lock);
+  if (m_state == InternalState::ended) {
+    SPDLOG_DEBUG("Trial [{}] - Action processing after end of trial.", m_id);
+    return;
+  }
 
-      // Here because we want this metric to be outside the first and last tick (i.e. overhead)
-      if (m_metrics.tick_duration != nullptr) {
-        if (m_tick_start_timestamp > 0) {
-          const uint64_t end = Timestamp();
-          m_metrics.tick_duration->Observe(static_cast<double>(end - m_tick_start_timestamp) * NANOS_INV);
-          m_tick_start_timestamp = end;
-        }
-        else {
-          m_tick_start_timestamp = Timestamp();
-        }
-      }
-    }
-    else {
-      // To signal the end to the environment. The end will come with the "last" observations.
-      set_state(InternalState::terminating);
+  SPDLOG_TRACE("Trial [{}] - All available actions [{}] received for step [{}]", m_id, nb_actions, m_tick_id);
 
-      if (m_end_requested) {
-        spdlog::info("Trial [{}] - Ending on request", m_id);
+  if (nb_actions > nb_actors) {
+    // Indicate an internal error
+    spdlog::warn("Trial [{}] - More actions received than available actors ([{}]/[{}]) for step [{}]", m_id, nb_actions,
+                 nb_actors, m_tick_id);
+  }
+
+  const bool last_actions = (m_tick_id >= m_max_steps || m_end_requested);
+
+  if (!last_actions) {
+    m_env->dispatch_actions(make_action_set(), false);
+
+    // Here because we want this metric to be outside the first and last tick (i.e. overhead)
+    if (m_metrics.tick_duration != nullptr) {
+      if (m_tick_start_timestamp > 0) {
+        const uint64_t end = Timestamp();
+        m_metrics.tick_duration->Observe(static_cast<double>(end - m_tick_start_timestamp) * NANOS_INV);
+        m_tick_start_timestamp = end;
       }
       else {
-        new_special_event("Maximum number of steps reached");
-        spdlog::info("Trial [{}] - Ending on configured maximum number of steps [{}]", m_id, m_max_steps);
+        m_tick_start_timestamp = Timestamp();
       }
-
-      SPDLOG_DEBUG("Trial [{}] - Sending last actions to environment [{}]", m_id, m_env->name());
-      m_env->dispatch_actions(make_action_set(), true);
     }
   }
+  else {
+    // To signal the end to the environment. The end will come with the "last" observations.
+    set_state(InternalState::terminating);
+
+    if (m_end_requested) {
+      spdlog::info("Trial [{}] - Ending on request at step [{}]", m_id, m_tick_id);
+    }
+    else {
+      new_special_event("Maximum number of steps reached");
+      spdlog::info("Trial [{}] - Ending on configured maximum number of steps [{}]", m_id, m_max_steps);
+    }
+
+    SPDLOG_DEBUG("Trial [{}] - Sending last actions to environment [{}]", m_id, m_env->name());
+    m_env->dispatch_actions(make_action_set(), true);
+  }
+}
+
+// Disengaging a required actor will kill the trial with a disconnected error.
+void Trial::actor_disengaging(const Actor& actor) {
+  if (m_state >= InternalState::terminating) {
+    SPDLOG_TRACE("Trial [{}] - Not disengaging actor [{}] at end of trial", m_id, actor.actor_name());
+    return;
+  }
+  SPDLOG_DEBUG("Trial [{}] - Actor [{}] disengaging", m_id, actor.actor_name());
+
+  // We need to reset/remove the current action (in case there is one).
+  const auto itor = m_actor_indexes.find(actor.actor_name());
+  if (itor == m_actor_indexes.end()) {
+    spdlog::error("Trial [{}] - Unknown actor [{}] to disengage.", m_id, actor.actor_name());
+    return;
+  }
+  const auto actor_index = itor->second;
+
+  auto sample = get_last_sample();
+  if (sample == nullptr) {
+    return;
+  }
+  auto sample_action = sample->mutable_actions(actor_index);
+  sample_action->set_tick_id(NO_DATA_TICK_ID);
+
+  m_nb_available_actors--;
+  SPDLOG_TRACEDEBUG("Trial [{}] - Actor disengaged, [{}] actors left available", m_id, m_nb_available_actors.load());
+  if (m_nb_available_actors < 0) {
+    spdlog::warn("Trial [{}] - Too many actors disengaged [{}]", m_id, m_nb_available_actors.load());
+  }
+  m_action_signal.signal();
 }
 
 ClientActor* Trial::get_join_candidate(const std::string& actor_name, const std::string& actor_class) const {

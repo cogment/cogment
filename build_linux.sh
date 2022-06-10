@@ -31,16 +31,20 @@ cmake \
 
 case $1 in
   "build" | "")
+    printf "Make and install...\n"
     make -j"$(nproc)"
     make install
     ;;
   "lint")
+    printf "Performing lint...\n"
     make cli_lint orchestrator_lint
     ;;
   "test")
+    printf "Performing tests...\n"
     make cli_test
     ;;
   "test_ci")
+    printf "Performing full tests...\n"
     make cli_test_with_junit_report
     ;;
 esac

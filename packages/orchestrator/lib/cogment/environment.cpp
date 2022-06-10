@@ -74,7 +74,7 @@ void Environment::write_to_stream(cogmentAPI::EnvRunTrialInput&& data) {
     }
   }
   else {
-    throw MakeException("Environment stream has closed");
+    throw MakeException("Environment stream failure");
   }
 }
 

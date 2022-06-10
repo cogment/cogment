@@ -47,7 +47,7 @@ constexpr size_t NB_FIELDS = 7;
 }  // namespace
 
 DatalogServiceImpl::DatalogServiceImpl(StubEntryType stub_entry) :
-    m_stub_entry(std::move(stub_entry)), m_stream_valid(false) {
+    m_stub_entry(std::move(stub_entry)), m_stream_valid(false), m_error_reported(false) {
   SPDLOG_TRACE("DatalogServiceImpl");
 }
 
@@ -133,18 +133,30 @@ void DatalogServiceImpl::start(Trial* trial) {
 }
 
 void DatalogServiceImpl::dispatch_sample(cogmentAPI::DatalogSample&& data) {
-  if (m_stream_valid) {
-    cogmentAPI::RunTrialDatalogInput msg;
-    *msg.mutable_sample() = std::move(data);
-    m_stream_valid = m_stream->Write(msg);
+  try {
+    if (m_stream_valid) {
+      m_error_reported = false;
+
+      cogmentAPI::RunTrialDatalogInput msg;
+      *msg.mutable_sample() = std::move(data);
+      m_stream_valid = m_stream->Write(msg);
+    }
+    else if (!m_error_reported) {
+      m_error_reported = true;
+
+      if (m_stream != nullptr) {
+        throw MakeException("DatalogService stream stopped");
+      }
+      else {
+        throw MakeException("DatalogService is not started");
+      }
+    }
   }
-  else {
-    if (m_stream != nullptr) {
-      throw MakeException("DatalogService stream stopped");
-    }
-    else {
-      throw MakeException("DatalogService is not started");
-    }
+  catch (const std::exception& exc) {
+    spdlog::error("Trial [{}] - Datalog failure [{}]", m_trial->id(), exc.what());
+  }
+  catch (...) {
+    spdlog::error("Trial [{}] - Datalog failure", m_trial->id());
   }
 }
 

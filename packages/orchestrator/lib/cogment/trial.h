@@ -47,16 +47,15 @@ public:
     prometheus::Summary* tick_duration = nullptr;
   };
 
+  // To manage self shared
   static std::shared_ptr<Trial> make(Orchestrator* orch, const std::string& user_id, const std::string& id,
-                                     const Metrics& met) {
-    return std::shared_ptr<Trial>(new Trial(orch, user_id, id, met));
-  }
-  ~Trial();
-
+                                     const Metrics& met);
   Trial(Trial&&) = delete;
   Trial& operator=(Trial&&) = delete;
   Trial(const Trial&) = delete;
   Trial& operator=(const Trial&) = delete;
+
+  ~Trial();
 
   const std::string& id() const { return m_id; }
   const std::string& user_id() const { return m_user_id; }
@@ -79,9 +78,10 @@ public:
   bool is_stale();
 
   void env_observed(const std::string& env_name, cogmentAPI::ObservationSet&& obs, bool last);
-  void actor_acted(const std::string& actor_name, cogmentAPI::Action&& action);
+  void actor_acted(const std::string& name, cogmentAPI::Action&& action);
   void reward_received(const std::string& source, cogmentAPI::Reward&& reward);
   void message_received(const std::string& source, cogmentAPI::Message&& message);
+  void actor_disengaging(const Actor& actor);
 
   void set_info(cogmentAPI::TrialInfo* info, bool with_observations, bool with_actors);
 
@@ -92,6 +92,7 @@ private:
   void prepare_environment();
   void prepare_datalog();
   void wait_for_actors();
+  void process_actions();
   cogmentAPI::DatalogSample& make_new_sample();
   cogmentAPI::DatalogSample* get_last_sample();
   void flush_samples();
@@ -117,6 +118,12 @@ private:
   Orchestrator* m_orchestrator;
   Metrics m_metrics;
 
+  std::future<void> m_actions_thread;
+  SimpleSignal m_action_signal;
+  std::atomic_ptrdiff_t m_nb_actors_acted;
+  std::atomic_ptrdiff_t m_nb_available_actors;
+  int64_t m_last_action_tick;
+
   std::mutex m_state_lock;
   std::mutex m_sample_lock;
   std::mutex m_reward_lock;
@@ -128,8 +135,6 @@ private:
   bool m_end_requested;
   uint64_t m_tick_id;
   uint64_t m_tick_start_timestamp;
-  std::atomic_uint m_nb_actors_acted;
-  size_t m_nb_available_actors;
   uint64_t m_max_steps;
   uint64_t m_max_inactivity;
 
