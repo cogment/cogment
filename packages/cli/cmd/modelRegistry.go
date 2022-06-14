@@ -15,10 +15,12 @@
 package cmd
 
 import (
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"github.com/cogment/cogment/services/modelRegistry"
+	"github.com/cogment/cogment/version"
 )
 
 // registryViper represents the configuration of the model_registry command
@@ -40,6 +42,11 @@ var registryCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+
+		log.WithFields(logrus.Fields{
+			"version": version.Version,
+			"hash":    version.Hash,
+		}).Info("starting the model registry service")
 
 		options := modelRegistry.Options{
 			Port:                     registryViper.GetUint(registryPortKey),

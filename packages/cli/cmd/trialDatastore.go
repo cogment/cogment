@@ -15,10 +15,12 @@
 package cmd
 
 import (
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"github.com/cogment/cogment/services/trialDatastore"
+	"github.com/cogment/cogment/version"
 )
 
 // datastoreViper represents the configuration of the trial_datastore command
@@ -39,6 +41,11 @@ var datastoreCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+
+		log.WithFields(logrus.Fields{
+			"version": version.Version,
+			"hash":    version.Hash,
+		}).Info("starting the trial datastore service")
 
 		options := trialDatastore.Options{
 			Storage:                     trialDatastore.Memory,

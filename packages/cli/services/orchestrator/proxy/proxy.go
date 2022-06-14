@@ -21,11 +21,9 @@ import (
 	_ "net/http/pprof" // register in DefaultServerMux
 	"time"
 
+	"github.com/cogment/cogment/services/utils"
 	"github.com/sirupsen/logrus"
 
-	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
-	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
-	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	"github.com/mwitkow/go-conntrack"
 	"github.com/mwitkow/grpc-proxy/proxy"
@@ -87,7 +85,7 @@ func Run(ctx context.Context, options Options) error {
 		conntrack.TrackWithTracing(),
 	)
 
-	log.WithField("address", httpListener.Addr().String()).Info("http grpcweb proxy listening")
+	log.WithField("address", httpListener.Addr().String()).Info("server listening")
 
 	httpRes := make(chan error)
 	go func() {
@@ -118,7 +116,6 @@ func Run(ctx context.Context, options Options) error {
 func buildGrpcProxyServer(backendHostPort string) (*grpc.Server, error) {
 	// gRPC-wide changes.
 	grpc.EnableTracing = true
-	grpc_logrus.ReplaceGrpcLogger(log)
 
 	// gRPC proxy logic.
 	backendConn, err := dialBackendOrFail(backendHostPort)
@@ -138,18 +135,11 @@ func buildGrpcProxyServer(backendHostPort string) (*grpc.Server, error) {
 		return outCtx, backendConn, nil
 	}
 	// Server with logging and monitoring enabled.
-	return grpc.NewServer(
+	return utils.NewGrpcServer(
+		false,
 		grpc.CustomCodec(proxy.Codec()), //nolint
 		grpc.UnknownServiceHandler(proxy.TransparentHandler(director)),
 		grpc.MaxRecvMsgSize(maxCallRecvMsgSize),
-		grpc_middleware.WithUnaryServerChain(
-			grpc_logrus.UnaryServerInterceptor(log),
-			grpc_prometheus.UnaryServerInterceptor,
-		),
-		grpc_middleware.WithStreamServerChain(
-			grpc_logrus.StreamServerInterceptor(log),
-			grpc_prometheus.StreamServerInterceptor,
-		),
 	), nil
 }
 

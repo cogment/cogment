@@ -81,6 +81,7 @@ import (
 
 	"github.com/cogment/cogment/services/utils"
 	"github.com/markbates/pkger/pkging"
+	"github.com/sirupsen/logrus"
 )
 
 // Wapper around the dynamically loaded orchestrator (requires CGO)
@@ -97,7 +98,7 @@ func newWrapperFromLibrary(libraryName string, libraryFile pkging.File) (Wrapper
 		return nil, err
 	}
 
-	log.WithField("path", dynamicLibrary.libLocalPath).Info("orchestrator service dynamic library unpacked and loaded")
+	log.WithField("path", dynamicLibrary.libLocalPath).Debug("orchestrator service dynamic library unpacked and loaded")
 
 	w := &wrapper{
 		dynamicLibrary:       *dynamicLibrary,
@@ -117,7 +118,25 @@ func newWrapperFromLibrary(libraryName string, libraryFile pkging.File) (Wrapper
 	if err != nil {
 		return nil, err
 	}
-	levelCStr := C.CString("debug")
+	var spdlogLevel string
+	switch log.Logger.GetLevel() {
+	case logrus.TraceLevel:
+		spdlogLevel = "trace"
+	case logrus.DebugLevel:
+		spdlogLevel = "debug"
+	case logrus.InfoLevel:
+		spdlogLevel = "info"
+	case logrus.WarnLevel:
+		spdlogLevel = "warning"
+	case logrus.ErrorLevel:
+		spdlogLevel = "error"
+	case logrus.FatalLevel:
+		spdlogLevel = "critical"
+	case logrus.PanicLevel:
+		// Panic level is meaningless in C++
+		spdlogLevel = "off"
+	}
+	var levelCStr = C.CString(spdlogLevel)
 	defer C.free(unsafe.Pointer(levelCStr))
 	C.call_set_logging_options_fun(setLoggingFun, w.optionsPtr, levelCStr, nil, c_log_callback)
 
@@ -235,7 +254,6 @@ func (w *wrapper) Start() error {
 		return err
 	}
 
-	log.Info("starting the orchestrator service...")
 	w.orchestratorPtr = C.call_orchestrator_create_fun(createAndStartPtr, w.optionsPtr)
 	if w.orchestratorPtr == nil {
 		return fmt.Errorf("unable to create the orchestrator datastructure")
@@ -253,7 +271,7 @@ func (w *wrapper) Wait() error {
 		return err
 	}
 
-	log.Info("waiting the orchestrator service to finish...")
+	log.Debug("waiting for the orchestrator service to finish...")
 	exitCode := C.call_orchestrator_wait_fun(waitPtr, w.orchestratorPtr)
 	log.WithField("exitCode", exitCode).Debug("orchestrator service finished")
 	if exitCode < 0 {

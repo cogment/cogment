@@ -43,13 +43,15 @@ func isValidLogFormat(desiredFormat logFormat) bool {
 	return false
 }
 
-var expectedLogLevels []string
+const LogLevelOff = "off"
 
-func init() {
-	expectedLogLevels = make([]string, 0)
-	for _, level := range logrus.AllLevels {
-		expectedLogLevels = append(expectedLogLevels, level.String())
-	}
+var expectedLogLevels = []string{
+	logrus.TraceLevel.String(),
+	logrus.DebugLevel.String(),
+	logrus.InfoLevel.String(),
+	logrus.WarnLevel.String(),
+	logrus.ErrorLevel.String(),
+	LogLevelOff,
 }
 
 func configureLog(cfg *viper.Viper) error {
@@ -92,17 +94,26 @@ func configureLog(cfg *viper.Viper) error {
 		return nil
 	}
 
-	logLevel, err := logrus.ParseLevel(cfg.GetString(servicesLogLevelKey))
-	if err != nil {
-		err := fmt.Errorf(
-			"invalid log level specified %q expecting one of %v",
-			cfg.GetString(servicesLogLevelKey),
-			expectedLogLevels,
-		)
-		log.WithField("error", err).Error("Unable to configure logging")
-		return err
+	logLevelStr := cfg.GetString(servicesLogLevelKey)
+	for _, expectedLogLevel := range expectedLogLevels {
+		if expectedLogLevel == logLevelStr {
+			if logLevelStr == LogLevelOff {
+				// Setting the level to "panic" (ie assertion failures)
+				logrus.SetLevel(logrus.PanicLevel)
+				return nil
+			}
+			logLevel, err := logrus.ParseLevel(logLevelStr)
+			if err != nil {
+				// Unexpected error
+				return err
+			}
+			logrus.SetLevel(logLevel)
+			return nil
+		}
 	}
-	logrus.SetLevel(logLevel)
-
-	return nil
+	return fmt.Errorf(
+		"invalid log level specified %q expecting one of %v",
+		cfg.GetString(servicesLogLevelKey),
+		expectedLogLevels,
+	)
 }

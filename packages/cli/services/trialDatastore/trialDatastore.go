@@ -22,6 +22,7 @@ import (
 	"github.com/cogment/cogment/services/trialDatastore/backend/boltBackend"
 	"github.com/cogment/cogment/services/trialDatastore/backend/memoryBackend"
 	"github.com/cogment/cogment/services/trialDatastore/grpcservers"
+	"github.com/cogment/cogment/services/utils"
 )
 
 type StorageType int
@@ -48,8 +49,6 @@ var DefaultOptions = Options{
 }
 
 func Run(options Options) error {
-	log.Info("initializing the trial datastore...")
-
 	var backend backend.Backend
 	switch options.Storage {
 	case File:
@@ -72,7 +71,7 @@ func Run(options Options) error {
 	if err != nil {
 		return fmt.Errorf("unable to listen to tcp port %d: %w", options.Port, err)
 	}
-	server := grpcservers.CreateGrpcServer(options.GrpcReflection)
+	server := utils.NewGrpcServer(options.GrpcReflection)
 	err = grpcservers.RegisterTrialDatastoreServer(server, backend)
 	if err != nil {
 		return err
@@ -81,7 +80,7 @@ func Run(options Options) error {
 	if err != nil {
 		return err
 	}
-	log.WithField("port", options.Port).Info("trial datastore service starts...\n")
+	log.WithField("port", options.Port).Info("server listening")
 	err = server.Serve(listener)
 	return err
 }

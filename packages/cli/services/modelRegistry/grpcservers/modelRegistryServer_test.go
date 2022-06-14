@@ -26,6 +26,7 @@ import (
 	"github.com/cogment/cogment/services/modelRegistry/backend"
 	"github.com/cogment/cogment/services/modelRegistry/backend/fileSystem"
 	"github.com/cogment/cogment/services/modelRegistry/backend/memoryCache"
+	"github.com/cogment/cogment/services/utils"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -53,7 +54,7 @@ viverra nulla ut metus varius laoreet.`)
 
 func createContext(t *testing.T, sentModelVersionDataChunkSize int) (testContext, error) {
 	listener := bufconn.Listen(1024 * 1024)
-	server := grpc.NewServer()
+	server := utils.NewGrpcServer(false)
 	archiveBackend, err := fileSystem.CreateBackend(t.TempDir())
 	if err != nil {
 		return testContext{}, err

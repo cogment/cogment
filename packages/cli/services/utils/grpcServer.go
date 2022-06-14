@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package grpcservers
+package utils
 
 import (
 	"sync"
@@ -20,6 +20,7 @@ import (
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
 	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -48,49 +49,45 @@ func grpcCodeToLogrusLevel(code codes.Code) logrus.Level {
 	}
 }
 
-func offsetLevel(level logrus.Level, offset int) logrus.Level {
-	levelValue := int(level)
-	offsetValue := levelValue + offset
-	if offsetValue < int(logrus.PanicLevel) {
-		return logrus.PanicLevel
-	}
-	if offsetValue > int(logrus.TraceLevel) {
-		return logrus.TraceLevel
-	}
-	return logrus.Level(offsetValue)
-}
+var internalGrpcLoggerSettingSingleton sync.Once
 
-var replaceInternalGrpcLoggerSingleton sync.Once
+func NewGrpcServer(enableReflection bool, opts ...grpc.ServerOption) *grpc.Server {
+	log := logrus.WithField("component", "grpc-server")
+	internalGrpcLoggerSettingSingleton.Do(func() {
+		// This should be done only once
 
-func CreateGrpcServer(enableReflection bool) *grpc.Server {
-	globalLogLevel := logrus.GetLevel()
+		// Creating a logger dedicated to internal logging with the same settings as the default one
+		internalLog := logrus.New()
+		internalLog.SetOutput(logrus.StandardLogger().Out)
+		internalLog.SetFormatter(logrus.StandardLogger().Formatter)
 
-	replaceInternalGrpcLoggerSingleton.Do(func() {
-		// Replacing the internal grpc logger
-		grpcServerLog := logrus.New()
-		// This is really verbose so we set it one level above the global logger's
-		grpcServerLog.SetLevel(offsetLevel(globalLogLevel, -1))
-		grpcServerEntry := logrus.NewEntry(grpcServerLog)
-		// This should be done only once before any call to `CreateGrpcServer`
-		grpc_logrus.ReplaceGrpcLogger(grpcServerEntry)
+		// gRPC is quite verbose, only unleash it on debug or below
+		internalLog.SetLevel(logrus.ErrorLevel)
+		if logrus.StandardLogger().GetLevel() >= logrus.DebugLevel {
+			internalLog.SetLevel(logrus.StandardLogger().GetLevel())
+		}
+
+		grpc_logrus.ReplaceGrpcLogger(internalLog.WithField("component", "grpc-server/internal"))
 	})
 
-	// Logging calls
-	grpcCallsLog := logrus.New()
-	grpcCallsLog.SetLevel(globalLogLevel)
-	grpcCallsEntry := logrus.NewEntry(grpcCallsLog)
 	grpcLogrusOpts := []grpc_logrus.Option{
 		grpc_logrus.WithLevels(grpcCodeToLogrusLevel),
 	}
-	server := grpc.NewServer(
+
+	grpcServerOpts := append(opts,
 		grpc_middleware.WithUnaryServerChain(
 			grpc_ctxtags.UnaryServerInterceptor(grpc_ctxtags.WithFieldExtractor(grpc_ctxtags.CodeGenRequestFieldExtractor)),
-			grpc_logrus.UnaryServerInterceptor(grpcCallsEntry, grpcLogrusOpts...),
+			grpc_logrus.UnaryServerInterceptor(logrus.WithField("component", "grpc-server/call"), grpcLogrusOpts...),
+			grpc_prometheus.UnaryServerInterceptor,
 		),
 		grpc_middleware.WithStreamServerChain(
 			grpc_ctxtags.StreamServerInterceptor(grpc_ctxtags.WithFieldExtractor(grpc_ctxtags.CodeGenRequestFieldExtractor)),
-			grpc_logrus.StreamServerInterceptor(grpcCallsEntry, grpcLogrusOpts...),
+			grpc_logrus.StreamServerInterceptor(logrus.WithField("component", "grpc-server/call"), grpcLogrusOpts...),
+			grpc_prometheus.StreamServerInterceptor,
 		),
+	)
+	server := grpc.NewServer(
+		grpcServerOpts...,
 	)
 
 	if enableReflection {

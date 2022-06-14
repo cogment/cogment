@@ -35,28 +35,37 @@ import (
 // Pointer to a C function able to be used as a callback for the orchestrator's logger
 var c_log_callback unsafe.Pointer = C.log_callback
 
+const (
+	SpdlogLevelTrace    int = 0
+	SpdlogLevelDebug    int = 1
+	SpdlogLevelInfo     int = 2
+	SpdlogLevelWarn     int = 3
+	SpdlogLevelError    int = 4
+	SpdlogLevelCritical int = 5
+)
+
 //export log_callback
 func log_callback(_ctx unsafe.Pointer, _loggerName *C.char, level C.int, timestamp C.time_t, threadId C.size_t, fileName *C.char, lineNum C.int, functionName *C.char, message *C.char) {
 	var logLevel logrus.Level
 	// Mapping between the orchestrator levels (ie. spdlog's)
-	switch level {
+	switch int(level) {
 	default:
 		fallthrough
-	case 0:
+	case SpdlogLevelTrace:
 		logLevel =
 			logrus.TraceLevel
-	case 1:
+	case SpdlogLevelDebug:
 		logLevel =
 			logrus.DebugLevel
-	case 2:
+	case SpdlogLevelInfo:
 		logLevel =
 			logrus.InfoLevel
-	case 3:
+	case SpdlogLevelWarn:
 		logLevel = logrus.WarnLevel
-	case 4:
-		fallthrough
-	case 5:
+	case SpdlogLevelError:
 		logLevel = logrus.ErrorLevel
+	case SpdlogLevelCritical:
+		logLevel = logrus.FatalLevel
 	}
 	logger := log.WithTime(time.Unix(int64(timestamp), 0)).WithFields(logrus.Fields{
 		"thread": threadId,

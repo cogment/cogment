@@ -21,10 +21,12 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"github.com/cogment/cogment/services/orchestrator"
+	"github.com/cogment/cogment/version"
 )
 
 // orchestratorViper represents the configuration of the orchestrator command
@@ -54,6 +56,11 @@ var orchestratorCmd = &cobra.Command{
 			return err
 		}
 
+		log.WithFields(logrus.Fields{
+			"version": version.Version,
+			"hash":    version.Hash,
+		}).Info("starting the orchestrator service")
+
 		actorWebPort := orchestratorViper.GetUint(orchestratorActorWebPortKey)
 		if actorWebPort == orchestrator.DefaultOptions.ActorWebPort {
 			// Fallback to the deprecated flag if needed
@@ -81,7 +88,7 @@ var orchestratorCmd = &cobra.Command{
 		signal.Notify(interruptChan, os.Interrupt, syscall.SIGTERM)
 		go func() {
 			<-interruptChan
-			log.Info("received interruption signal")
+			log.Debug("received interruption signal")
 			cancel()
 		}()
 

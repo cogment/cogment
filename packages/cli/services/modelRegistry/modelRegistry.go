@@ -22,8 +22,7 @@ import (
 	"github.com/cogment/cogment/services/modelRegistry/backend/fileSystem"
 	"github.com/cogment/cogment/services/modelRegistry/backend/memoryCache"
 	"github.com/cogment/cogment/services/modelRegistry/grpcservers"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
+	"github.com/cogment/cogment/services/utils"
 )
 
 type Options struct {
@@ -43,13 +42,11 @@ var DefaultOptions = Options{
 }
 
 func Run(options Options) error {
-	log.Info("initializing the model registry...")
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", options.Port))
 	if err != nil {
 		return fmt.Errorf("unable to listen to tcp port %d: %v", options.Port, err)
 	}
-	var opts []grpc.ServerOption
-	server := grpc.NewServer(opts...)
+	server := utils.NewGrpcServer(options.GrpcReflection)
 	modelRegistryServer, err := grpcservers.RegisterModelRegistryServer(
 		server,
 		options.SentVersionDataChunkSize,
@@ -86,12 +83,7 @@ func Run(options Options) error {
 		}
 	}()
 
-	if options.GrpcReflection {
-		reflection.Register(server)
-		log.Printf("gRPC reflection registered")
-	}
-
-	log.WithField("port", options.Port).Info("model registry service starts...\n")
+	log.WithField("port", options.Port).Info("server listening")
 	err = server.Serve(listener)
 	if err != nil {
 		return fmt.Errorf("unexpected error while serving grpc services: %v", err)

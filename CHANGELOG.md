@@ -9,7 +9,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Handling of actor diconnecting during a trial actor to parameters..
+- Handle actors disconnecting during a trial according to parameters from `ActorParams`.
+
+### Fixed
+
+- gRPC internal logs are properly formatted to json when desired
+- Reduce the verbosity of gRPC internal logs
+- Pass the proper log level to the orchestrator
 
 ## v2.4.0 - 2022-06-02
 

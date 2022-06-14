@@ -135,11 +135,9 @@ ServedOrchestrator::ServedOrchestrator(const Options* options) :
       }
 
       spdlog::set_level(level_setting);
-      spdlog::info("Log level set to [{}]", log_level);
     }
     else {
       spdlog::set_level(spdlog::level::info);
-      spdlog::info("Log level set to default 'info'");
     }
   }
   catch (const std::exception& exc) {
@@ -154,8 +152,6 @@ ServedOrchestrator::ServedOrchestrator(const Options* options) :
   if (m_status_listener) {
     m_status_listener(m_status_listnener_ctx, m_status);
   }
-
-  spdlog::info("Cogment version [{}]", COGMENT_VERSION);
 
   std::shared_ptr<grpc::ServerCredentials> server_creds;
   std::shared_ptr<grpc::ChannelCredentials> client_creds;
@@ -235,7 +231,7 @@ ServedOrchestrator::ServedOrchestrator(const Options* options) :
     }
   }
   else {
-    spdlog::info("No default parameters.");
+    spdlog::debug("No default parameters.");
   }
   auto params = cogment::load_params(params_yaml);
 
