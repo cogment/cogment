@@ -339,7 +339,7 @@ bool Directory::is_context_endpoint(const EndpointData& data) const {
           data.path == EndpointData::PathType::EMPTY_PATH);
 }
 
-std::string Directory::get_address(const EndpointData& data) const {
+std::string Directory::get_address(std::string_view name, const EndpointData& data) const {
   SPDLOG_DEBUG("Get address from directory with: [{}]", data.debug_string());
 
   switch (data.scheme) {
@@ -551,7 +551,8 @@ std::string Directory::get_address(const EndpointData& data) const {
   }
   }
 
-  spdlog::debug("Directory result for [{}] from [{}]: [{}]", data.original_endpoint, context.peer(), address);
+  spdlog::debug("Directory result for [{}] [{}] from [{}]: [{}]", name, data.original_endpoint, context.peer(),
+                address);
 
   // Little hack to differentiate a host named client and a client endpoint:
   //   "client:XXX" -> a host named "client" (i.e. with a port number XXX)

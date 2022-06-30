@@ -53,7 +53,7 @@ class ServiceActor : public Actor {
 public:
   ServiceActor(Trial* owner, const cogmentAPI::ActorParams& params, StubEntryType stub_entry);
 
-  std::future<void> init() override;
+  std::future<bool> init() override;
 
 private:
   StubEntryType m_stub_entry;

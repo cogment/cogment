@@ -61,7 +61,7 @@ message ActorParams {
   
   // 0 is no timeout
   float initial_connection_timeout = 6;
-  float response_timeout = 7;  // Unused
+  float response_timeout = 7;
 
   bool optional = 8;
 

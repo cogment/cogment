@@ -101,7 +101,7 @@ private:
   void new_obs(cogmentAPI::ObservationSet&& new_obs);
   void new_special_event(std::string_view desc);
   void dispatch_observations(bool last);
-  void cycle_buffer();
+  void balance_sample_bufer();
   cogmentAPI::ActionSet make_action_set();
   void dispatch_env_messages();
   bool finalize_env();
@@ -140,8 +140,10 @@ private:
 
   std::unique_ptr<Environment> m_env;
   std::vector<std::unique_ptr<Actor>> m_actors;
-  std::unordered_map<std::string, uint32_t> m_actor_indexes;
+  std::unordered_map<std::string, uint32_t> m_actor_indexes;  // (name, index)
   uint64_t m_last_activity;
+
+  TimeoutRunner m_response_timeouts;
 
   std::deque<cogmentAPI::DatalogSample> m_step_data;
   std::unique_ptr<DatalogService> m_datalog;

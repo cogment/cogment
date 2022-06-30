@@ -29,7 +29,7 @@ ServiceActor::ServiceActor(Trial* owner, const cogmentAPI::ActorParams& params, 
   m_context.AddMetadata("trial-id", trial()->id());
 }
 
-std::future<void> ServiceActor::init() {
+std::future<bool> ServiceActor::init() {
   SPDLOG_TRACE("ServiceActor::init(): [{}] [{}]", trial()->id(), actor_name());
 
   // TODO: Here this stream will outlive the context. And less importantly

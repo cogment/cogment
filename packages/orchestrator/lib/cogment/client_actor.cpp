@@ -74,7 +74,7 @@ void ClientActor::run_an_actor(std::shared_ptr<Trial>&& trial_requested, ServerS
 
 ClientActor::ClientActor(Trial* owner, const cogmentAPI::ActorParams& params) : Actor(owner, params, false) {}
 
-std::future<void> ClientActor::init() {
+std::future<bool> ClientActor::init() {
   SPDLOG_TRACE("ClientActor::init(): [{}] [{}]", trial()->id(), actor_name());
   return get_run_init_fut();
 }

@@ -74,7 +74,7 @@ public:
   Actor(Trial* owner, const cogmentAPI::ActorParams& params, bool read_init);
   virtual ~Actor();
 
-  virtual std::future<void> init() = 0;
+  virtual std::future<bool> init() = 0;
 
   bool is_disengaged() const { return m_disengaged; }
   void disengage();
@@ -98,7 +98,7 @@ public:
 protected:
   static bool read_init_data(ActorStream* stream, cogmentAPI::ActorInitialOutput* out);
   std::future<void> run(std::function<std::unique_ptr<ActorStream>()> stream_func);
-  std::future<void> get_run_init_fut() { return m_init_prom.get_future(); }
+  std::future<bool> get_run_init_fut() { return m_init_prom.get_future(); }
 
 private:
   template <class... Args>
@@ -117,7 +117,7 @@ private:
   void dispatch_observation(cogmentAPI::Observation&& obs, bool last);
   void dispatch_reward(cogmentAPI::Reward&& reward);
   void dispatch_message(cogmentAPI::Message&& message);
-  bool process_initialization();
+  bool process_initialization(const std::function<std::unique_ptr<ActorStream>()>& stream_func);
   void process_incoming_state(cogmentAPI::CommunicationState in_state, const std::string* details);
   void process_incoming_data(ActorStream::OutputType&& data);
   void process_incoming_stream();
@@ -138,7 +138,7 @@ private:
   std::future<void> m_incoming_thread;
 
   bool m_init_completed;
-  std::promise<void> m_init_prom;
+  std::promise<bool> m_init_prom;
 
   std::atomic_bool m_disengaged;
 

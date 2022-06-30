@@ -108,7 +108,7 @@ std::shared_ptr<Trial> Orchestrator::start_trial(cogmentAPI::TrialParams&& param
     trial_id_req.assign(generate_uuid_v4());
   }
   else {
-    // We pre-check the uniqueness to save some processing.
+    // We pre-check the uniqueness to save some processing in most conflict cases.
     const std::lock_guard lg(m_trials_mutex);
     if (m_trials.find(trial_id_req) != m_trials.end()) {
       return nullptr;
@@ -181,7 +181,7 @@ void Orchestrator::add_prehook(const std::string& user_url) {
 
   std::string address;
   try {
-    address = m_directory.get_address(data);
+    address = m_directory.get_address("pre-hook", data);
   }
   catch (const CogmentError& exc) {
     throw MakeException("Pre-trial hook endpoint error: [{}]", exc.what());

@@ -15,7 +15,6 @@
 #ifndef NDEBUG
   #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
 #endif
-#define SPDLOG_TRACEDEBUG SPDLOG_TRACE
 
 #include "cogment/utils.h"
 
@@ -37,14 +36,12 @@ uint64_t Timestamp() {
   }
 }
 #else
-  #include <chrono>
-
-// Fallback to "std::chrono", inspired by https://stackoverflow.com/a/31258680
 uint64_t Timestamp() {
-  auto now_system = std::chrono::system_clock::now();
-  auto now_nano = std::chrono::time_point_cast<std::chrono::nanoseconds>(now_system);
-  auto ts_nano = now_nano.time_since_epoch();
-  return ts_nano.count();
+  // If assert fails, need to cast to nanoseconds -> chrono::time_point_cast
+  static_assert(std::is_same_v<std::chrono::high_resolution_clock::duration, std::chrono::nanoseconds>);
+
+  const auto now = std::chrono::high_resolution_clock::now();
+  return now.time_since_epoch().count();
 }
 #endif
 
@@ -190,15 +187,14 @@ std::shared_ptr<ThreadPool::ThreadControl>& ThreadPool::add_thread() {
   return thr_control;
 }
 
-Watchdog::Watchdog(ThreadPool* pool) :
-    m_base_time(std::chrono::high_resolution_clock::now()), m_sec_count(0), m_running(true) {
+Watchdog::Watchdog(ThreadPool* pool) : m_base_time(std::chrono::steady_clock::now()), m_sec_count(0), m_running(true) {
   m_time_thr = pool->push("Watchdog", [this]() {
     while (m_running) {
-      const auto next = m_base_time + std::chrono::seconds(m_sec_count + 1);
-      std::this_thread::sleep_until(next);
+      const auto next_count = m_base_time + std::chrono::seconds(m_sec_count + RESOLUTION);
+      std::this_thread::sleep_until(next_count);
       m_sec_count++;
 
-      // Assuming it will take less than 1 sec to execute!
+      // Assuming it will take less than the resolution to execute!
       process_timeouts(m_sec_count);
     }
   });
@@ -212,23 +208,29 @@ Watchdog::Watchdog(ThreadPool* pool) :
 
 Watchdog::~Watchdog() {
   m_running = false;
-  m_execution_queue.push(FUNC_TYPE());
+  m_execution_queue.push({});
   m_time_thr.wait();
   m_execution_thr.wait();
 }
 
-void Watchdog::push(uint16_t timeout_sec, FUNC_TYPE&& func) {
+void Watchdog::push(uint16_t timeout_sec, bool auto_repeat, FUNC_TYPE&& func) {
   if (!func) {
     MakeException("Trying to set a watchdog function that is undefined");
   }
 
-  if (timeout_sec > 0) {
+  if (timeout_sec != 0) {
     const std::lock_guard lg(m_timed_queue_lock);
     const uint64_t time_count = m_sec_count + timeout_sec;
-    m_time_queue.emplace(time_count, std::move(func));
+
+    if (auto_repeat) {
+      m_time_queue.emplace(time_count, timeout_sec, std::move(func));
+    }
+    else {
+      m_time_queue.emplace(time_count, 0, std::move(func));
+    }
   }
   else {
-    func();
+    MakeException("Cannot set a watchdog without proper timeout (>0)");
   }
 }
 
@@ -236,34 +238,52 @@ void Watchdog::process_timeouts(uint64_t at_sec_count) {
   const std::lock_guard lg(m_timed_queue_lock);
 
   while (!m_time_queue.empty()) {
-    auto& top = const_cast<WatchEntry&>(m_time_queue.top());  // Const cast ok: we won't change the count
-
-    if (top.sec_count > at_sec_count) {
+    if (m_time_queue.top().entry->sec_count > at_sec_count) {
       break;
     }
     else {
-      m_execution_queue.push(std::move(top.func));
+      auto entry_proxy = m_time_queue.top();
       m_time_queue.pop();
+
+      if (!entry_proxy.entry->enabled) {
+        SPDLOG_TRACE("The disabled watchdog task was removed");
+        continue;
+      }
+
+      m_execution_queue.push(entry_proxy.entry);
+
+      const auto next_timeout = entry_proxy.entry->next_timeout;
+      if (next_timeout != 0) {
+        entry_proxy.entry->sec_count = at_sec_count + next_timeout;
+        m_time_queue.emplace(entry_proxy);
+      }
     }
   }
 }
 
 void Watchdog::execute_functions() {
-  auto func = m_execution_queue.pop();
-  if (!func) {
+  auto entry = m_execution_queue.pop();
+  if (entry == nullptr || !entry->enabled) {
     return;
   }
 
   SPDLOG_TRACE("Watchdog task execution at [{}] sec",
-               std::chrono::high_resolution_clock::now().time_since_epoch().count() * NANOS_INV);
+               std::chrono::steady_clock::now().time_since_epoch().count() * NANOS_INV);
+
+  bool continue_repeat = false;
   try {
-    func();
+    continue_repeat = entry->func();
   }
   catch (const std::exception& exc) {
     spdlog::error("Watchdog function failed [{}]", exc.what());
   }
   catch (...) {
     spdlog::error("Watchdog function failed");
+  }
+
+  if (!continue_repeat) {
+    SPDLOG_TRACE("Watchdog function returned false; disabling task");
+    entry->enabled = false;
   }
 }
 
@@ -286,52 +306,64 @@ void MultiWait::push_back(float timeout_sec, FUT_TYPE&& fut, std::string_view de
 std::vector<size_t> MultiWait::wait_for_all() {
   static const auto zero = std::chrono::nanoseconds::zero();
 
-  SPDLOG_TRACEDEBUG("starting to wait");
+  SPDLOG_TRACE("starting to wait");
 
   m_waiting = true;
-  const auto base_time = std::chrono::high_resolution_clock::now();
-  std::vector<size_t> result;
+  const auto base_time = std::chrono::steady_clock::now();
+  std::vector<size_t> failed_timed_out;
 
   for (; !m_wait_queue.empty(); m_wait_queue.pop()) {
     auto& top = m_wait_queue.top();
     auto& fut = m_futures[top.fut_index];
 
     if (top.wait_time_ns < 0) {
-      SPDLOG_TRACEDEBUG("Waiting indefinitely for [{}]", top.description);
-      fut.wait();
+      SPDLOG_TRACE("Waiting indefinitely for [{}]", top.description);
+      const auto ready = fut.get();
 
-      SPDLOG_TRACEDEBUG("Required [{}] seen ready after [{}] sec", top.description,
-                        (std::chrono::high_resolution_clock::now() - base_time).count() * NANOS_INV);
+      if (!ready) {
+        failed_timed_out.emplace_back(top.fut_index);
+      }
+
+      SPDLOG_TRACE("[{}] seen ready [{}] after [{}] sec", top.description, ready,
+                   (std::chrono::steady_clock::now() - base_time).count() * NANOS_INV);
     }
     else {
+      SPDLOG_TRACE("Timed waiting for [{}]", top.description);
+
       const auto wait_time = std::chrono::nanoseconds(top.wait_time_ns);
-      const auto now = std::chrono::high_resolution_clock::now();
+      const auto now = std::chrono::steady_clock::now();
       auto more_wait = wait_time - (now - base_time);
       if (more_wait < zero) {
         more_wait = zero;
       }
 
-      SPDLOG_TRACEDEBUG("Timed waiting for [{}]", top.description);
       const auto fut_res = fut.wait_for(more_wait);
 
       switch (fut_res) {
-      case std::future_status::deferred:
+      case std::future_status::deferred: {
         throw MakeException("Cannot accept deferred action for [{}] in MultiWait", top.description);
         break;
-      case std::future_status::ready:
-        SPDLOG_TRACEDEBUG("Optional [{}] (with timeout [{}]) seen ready after [{}] sec", top.description,
-                          top.wait_time_ns * NANOS_INV,
-                          (std::chrono::high_resolution_clock::now() - base_time).count() * NANOS_INV);
+      }
+      case std::future_status::ready: {
+        const auto ready = fut.get();
+        if (!ready) {
+          failed_timed_out.emplace_back(top.fut_index);
+        }
+        SPDLOG_TRACE("[{}] (with timeout [{}]) seen ready [{}] after [{}] sec", top.description,
+                     top.wait_time_ns * NANOS_INV, ready,
+                     (std::chrono::steady_clock::now() - base_time).count() * NANOS_INV);
         break;
-      case std::future_status::timeout:
-        result.emplace_back(top.fut_index);
-        SPDLOG_TRACEDEBUG("Optional [{}] (with timeout [{}]) seen timed out after [{}] sec", top.description,
-                          top.wait_time_ns * NANOS_INV,
-                          (std::chrono::high_resolution_clock::now() - base_time).count() * NANOS_INV);
+      }
+      case std::future_status::timeout: {
+        failed_timed_out.emplace_back(top.fut_index);
+        SPDLOG_TRACE("[{}] (with timeout [{}]) seen timed out after [{}] sec", top.description,
+                     top.wait_time_ns * NANOS_INV, (std::chrono::steady_clock::now() - base_time).count() * NANOS_INV);
         break;
-      default:
-        throw MakeException("Failed to wait for [{}] in MultiWait", top.description);
+      }
+      default: {
+        throw MakeException("Failed to wait for [{}] in MultiWait: [{}]", top.description, static_cast<int>(fut_res));
         break;
+      }
       }
     }
   }
@@ -339,7 +371,165 @@ std::vector<size_t> MultiWait::wait_for_all() {
   m_futures.clear();
   m_waiting = false;
 
-  return result;
+  return failed_timed_out;
+}
+
+TimeoutRunner::TimeoutRunner(ThreadPool* pool) : m_active(true), m_sorted(false), m_running_size(0), m_cond_sig(false) {
+  m_timeout_thr = pool->push("TimeoutRunner", [this]() {
+    while (m_active) {
+      SPDLOG_TRACE("TimeoutRunner going to sleep at [{}]",
+                   (std::chrono::steady_clock::now() - m_start_time).count() * NANOS_INV);
+      wait_next();
+      SPDLOG_TRACE("TimeoutRunner wake up at [{}]",
+                   (std::chrono::steady_clock::now() - m_start_time).count() * NANOS_INV);
+    }
+  });
+}
+
+TimeoutRunner::~TimeoutRunner() {
+  m_active = false;
+  {
+    const std::lock_guard lg(m_cond_lock);
+    m_cond_sig = true;
+    m_cond.notify_one();
+  }
+  m_timeout_thr.wait();
+}
+
+void TimeoutRunner::add(float timeout_sec, uint32_t id) {
+  const std::lock_guard lg(m_cond_lock);
+
+  static constexpr float TO_NANOS = static_cast<float>(NANOS);
+  const uint64_t timeout_nanos = static_cast<uint64_t>(timeout_sec * TO_NANOS);
+  const std::chrono::nanoseconds timeout(timeout_nanos);
+  m_timeouts.emplace_back(timeout, id);
+
+  m_sorted = false;
+}
+
+void TimeoutRunner::remove(uint32_t id) {
+  const std::lock_guard lg(m_cond_lock);
+  m_timeouts_to_remove.emplace_back(id);
+
+  m_sorted = false;
+}
+
+void TimeoutRunner::start(std::function<void()> prep_func) {
+  const std::lock_guard lg(m_cond_lock);
+
+  // This is functionality that needs to be done before the first signal,
+  // the only way to enforce that is to do it inside the lock.
+  prep_func();
+
+  m_start_time = std::chrono::steady_clock::now();
+
+  // This should happen rarely
+  if (!m_sorted) {
+    if (!m_sig_func || !m_term_func) {
+      throw MakeException("The 'sig' and 'term' functions are not defined in TimeoutRunner");
+    }
+
+    for (size_t id : m_timeouts_to_remove) {
+      for (auto itor = m_timeouts.begin(); itor != m_timeouts.end(); ++itor) {
+        if (itor->id == id) {
+          m_timeouts.erase(itor);
+          break;
+        }
+      }
+    }
+    m_timeouts_to_remove.clear();
+
+    std::sort(m_timeouts.begin(), m_timeouts.end());
+    m_sorted = true;
+  }
+
+  for (auto& entry : m_timeouts) {
+    entry.signaled = false;
+  }
+  m_running_size = m_timeouts.size();
+
+  m_cond_sig = true;
+  m_cond.notify_one();
+
+  SPDLOG_TRACE("TimeoutRunner started at [{}] with [{}] entries",
+               (std::chrono::steady_clock::now() - m_start_time).count() * NANOS_INV, m_running_size);
+}
+
+// 1- Call sig func (increment nb actions) and call term func (check if all actions) if index not in list
+// 2- If index in the list, call sig func
+//     2.1 - If no more in list, call term func
+// 3- When timeout comes to term, call sig func for all non-signaled items, then call term func
+// 4- Protect from signaling once timeout comes to term.
+void TimeoutRunner::signal(uint32_t id) {
+  const std::lock_guard lg(m_cond_lock);
+  SPDLOG_TRACE("TimeoutRunner signal caleld for [{}] at [{}] ([{}] entries)", id,
+               (std::chrono::steady_clock::now() - m_start_time).count() * NANOS_INV, m_running_size);
+
+  size_t id_size;
+  for (id_size = m_running_size; id_size > 0; id_size--) {
+    auto& entry = m_timeouts[id_size - 1];
+    if (entry.id == id) {
+      entry.signaled = true;
+      m_sig_func();
+      break;
+    }
+  }
+
+  // Not found or list empty
+  if (id_size == 0) {
+    m_sig_func();
+    m_term_func();
+    return;
+  }
+
+  // If back of list: shorten list and update timeout
+  if (id_size == m_running_size) {
+    while (m_running_size > 0 && m_timeouts[m_running_size - 1].signaled) {
+      m_running_size--;
+    }
+
+    m_cond_sig = true;
+    m_cond.notify_one();
+  }
+}
+
+void TimeoutRunner::wait_next() {
+  std::unique_lock ul(m_cond_lock);
+
+  bool signaled;  // If not signaled -> timed out
+  if (m_running_size > 0) {
+    const auto& top = m_timeouts[m_running_size - 1];
+    const auto next_time = m_start_time + top.timeout;
+    SPDLOG_TRACE("TimeoutRunner next timeout at [{}]", top.timeout.count() * NANOS_INV);
+
+    signaled = m_cond.wait_until(ul, next_time, [this]() {
+      return m_cond_sig;
+    });
+  }
+  else {
+    m_cond.wait(ul, [this]() {
+      return m_cond_sig;
+    });
+    signaled = true;
+  }
+
+  do_next(signaled);
+
+  m_cond_sig = false;
+}
+
+void TimeoutRunner::do_next(bool signaled) {
+  if (!signaled) {  // Timed out
+    for (; m_running_size > 0; m_running_size--) {
+      if (!m_timeouts[m_running_size - 1].signaled) {
+        m_sig_func();
+      }
+    }
+  }
+
+  if (m_running_size == 0) {
+    m_term_func();
+  }
 }
 
 }  // namespace cogment

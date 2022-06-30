@@ -221,7 +221,7 @@ Actor::~Actor() {
   finish_stream();
 
   if (!m_init_completed) {
-    m_init_prom.set_value();
+    m_init_prom.set_value(false);
   }
 
   if (!m_last_ack_received) {
@@ -310,22 +310,33 @@ void Actor::dispatch_tick(cogmentAPI::Observation&& obs, bool final_tick) {
   }
 }
 
-bool Actor::process_initialization() {
+bool Actor::process_initialization(const std::function<std::unique_ptr<ActorStream>()>& stream_func) {
   bool result = false;
+  try {
+    m_stream = stream_func();
 
-  dispatch_init_data();
+    dispatch_init_data();
 
-  if (m_wait_for_init_data) {
-    result = (m_stream.is_valid() && read_init_data(m_stream.actor_stream_ptr(), nullptr));
+    if (m_wait_for_init_data) {
+      result = (m_stream.is_valid() && read_init_data(m_stream.actor_stream_ptr(), nullptr));
+    }
+    else {
+      result = true;
+    }
   }
-  else {
-    result = true;
+  catch (const std::exception& exc) {
+    connection_error("Trial [{}] - Actor [{}] failed to initialize [{}]", m_trial->id(), m_name, exc.what());
+  }
+  catch (...) {
+    connection_error("Trial [{}] - Actor [{}] failed to initialize", m_trial->id(), m_name);
   }
 
-  if (result) {
-    m_init_prom.set_value();
+  try {
+    m_init_prom.set_value(result);
     m_init_completed = true;
-    spdlog::debug("Trial [{}] - Actor [{}] init complete", m_trial->id(), m_name);
+  }
+  catch (const std::future_error&) {
+    // This can only happen if the init is already signaled, so we don't care if it fails to signal again
   }
 
   return result;
@@ -407,7 +418,8 @@ void Actor::process_incoming_state(cogmentAPI::CommunicationState in_state, cons
 void Actor::process_incoming_data(ActorStream::OutputType&& data) {
   const auto state = data.state();
   const auto data_case = data.data_case();
-  SPDLOG_TRACE("Trial [{}] - Actor [{}]: Processing incoming data [{}] [{}]", m_trial->id(), m_name, state, data_case);
+  SPDLOG_TRACE("Trial [{}] - Actor [{}]: Processing incoming data [{}] [{}]", m_trial->id(), m_name,
+               cogmentAPI::CommunicationState_Name(state), data_case);  // data_case == index set in .proto file
 
   switch (data_case) {
   case ActorStream::OutputType::DataCase::kInitOutput: {
@@ -463,15 +475,23 @@ void Actor::process_incoming_data(ActorStream::OutputType&& data) {
 }
 
 void Actor::process_incoming_stream() {
-  for (ActorStream::OutputType data; m_stream.read(&data); data.Clear()) {
-    if (m_disengaged) {
-      break;
+  try {
+    for (ActorStream::OutputType data; m_stream.read(&data); data.Clear()) {
+      if (m_disengaged) {
+        break;
+      }
+
+      process_incoming_data(std::move(data));
     }
 
-    process_incoming_data(std::move(data));
+    SPDLOG_DEBUG("Trial [{}] - Actor [{}] finished reading stream", m_trial->id(), m_name);
   }
-
-  SPDLOG_DEBUG("Trial [{}] - Actor [{}] finished reading stream", m_trial->id(), m_name);
+  catch (const std::exception& exc) {
+    connection_error("Trial [{}] - Actor [{}] failed to process stream [{}]", m_trial->id(), m_name, exc.what());
+  }
+  catch (...) {
+    connection_error("Trial [{}] - Actor [{}] failed to process stream", m_trial->id(), m_name);
+  }
 }
 
 // We use a lambda so we can call it inside the thread since it can be slow to
@@ -485,29 +505,11 @@ std::future<void> Actor::run(std::function<std::unique_ptr<ActorStream>()> strea
 
   m_incoming_thread =
       m_trial->thread_pool().push("Actor incoming data", [this, stream_func = std::move(stream_func)]() {
-        bool init_success = false;
-        try {
-          m_stream = stream_func();
-          init_success = process_initialization();
-        }
-        catch (const std::exception& exc) {
-          connection_error("Trial [{}] - Actor [{}] failed to initialize [{}]", m_trial->id(), m_name, exc.what());
-        }
-        catch (...) {
-          connection_error("Trial [{}] - Actor [{}] failed to initialize", m_trial->id(), m_name);
-        }
+        const bool init_success = process_initialization(stream_func);
+        spdlog::debug("Trial [{}] - Actor [{}] init complete, successful [{}]", m_trial->id(), m_name, init_success);
 
-        // This is separate to have a better error output in case of exception.
-        try {
-          if (init_success) {
-            process_incoming_stream();
-          }
-        }
-        catch (const std::exception& exc) {
-          connection_error("Trial [{}] - Actor [{}] failed to process stream [{}]", m_trial->id(), m_name, exc.what());
-        }
-        catch (...) {
-          connection_error("Trial [{}] - Actor [{}] failed to process stream", m_trial->id(), m_name);
+        if (init_success) {
+          process_incoming_stream();
         }
 
         disengage();

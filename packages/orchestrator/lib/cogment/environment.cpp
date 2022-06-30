@@ -16,6 +16,8 @@
   #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
 #endif
 
+#include "cogment/api/common.pb.h"
+
 #include "cogment/environment.h"
 #include "cogment/actor.h"
 #include "cogment/trial.h"
@@ -96,6 +98,7 @@ void Environment::read_init_data() {
     switch (state) {
     case cogmentAPI::CommunicationState::NORMAL: {
       if (data_case == cogmentAPI::EnvRunTrialOutput::DataCase::kInitOutput) {
+        SPDLOG_DEBUG("Trial [{}] - Environment [{}] Init received", m_trial->id(), m_name);
         return;
       }
       else {
@@ -216,8 +219,8 @@ void Environment::process_incoming_state(cogmentAPI::CommunicationState in_state
 void Environment::process_incoming_data(cogmentAPI::EnvRunTrialOutput&& data) {
   const auto state = data.state();
   const auto data_case = data.data_case();
-  SPDLOG_TRACE("Trial [{}] - Environment [{}]: Processing incoming data [{}] [{}]", m_trial->id(), m_name, state,
-               data_case);
+  SPDLOG_TRACE("Trial [{}] - Environment [{}]: Processing incoming data [{}] [{}]", m_trial->id(), m_name,
+               cogmentAPI::CommunicationState_Name(state), data_case);  // data_case == index set in .proto file
 
   switch (data_case) {
   case cogmentAPI::EnvRunTrialOutput::DataCase::kInitOutput: {
@@ -273,8 +276,10 @@ void Environment::process_incoming_data(cogmentAPI::EnvRunTrialOutput&& data) {
 }
 
 void Environment::process_incoming_stream() {
+  SPDLOG_DEBUG("Trial [{}] - Environment [{}] starting to process data", m_trial->id(), m_name);
   for (cogmentAPI::EnvRunTrialOutput data; m_stream_valid && m_stream->Read(&data); data.Clear()) {
     try {
+      SPDLOG_TRACE("Trial [{}] - Environment [{}] received data on stream", m_trial->id(), m_name);
       process_incoming_data(std::move(data));
     }
     catch (const std::exception& exc) {

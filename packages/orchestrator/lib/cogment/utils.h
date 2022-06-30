@@ -119,6 +119,7 @@ std::vector<std::string_view> FromMetadata(const Container& metadata, std::strin
 }
 
 // Minimal thread-safe queue
+// Should not be waiting when destroyed
 template <typename T>
 class ThrQueue {
 public:
@@ -144,6 +145,14 @@ public:
     m_cond.notify_one();
   }
 
+  void push(const T& val) {
+    std::unique_lock ul(m_queue_lock);
+
+    m_data.emplace(val);
+    ul.unlock();
+    m_cond.notify_one();
+  }
+
   size_t size() {
     const std::lock_guard lg(m_queue_lock);
     return m_data.size();
@@ -152,6 +161,40 @@ public:
 private:
   std::queue<T> m_data;
   std::mutex m_queue_lock;
+  std::condition_variable m_cond;
+};
+
+template <>
+class ThrQueue<void> {
+public:
+  void pop() {
+    std::unique_lock ul(m_count_lock);
+
+    if (m_count == 0) {
+      m_cond.wait(ul, [this]() {
+        return (m_count != 0);
+      });
+    }
+
+    m_count--;
+  }
+
+  void push() {
+    std::unique_lock ul(m_count_lock);
+
+    m_count++;
+    ul.unlock();
+    m_cond.notify_one();
+  }
+
+  size_t size() {
+    const std::lock_guard lg(m_count_lock);
+    return m_count;
+  }
+
+private:
+  size_t m_count;
+  std::mutex m_count_lock;
   std::condition_variable m_cond;
 };
 
@@ -180,44 +223,56 @@ private:
   std::mutex m_push_lock;
 };
 
-// Minimal: Hardcoded to 1 sec period and integer timeouts.
-// Vulnerable to action function problems.
+// Minimal: Hardcoded to 1 sec period and integer timeouts (in seconds).
+// Somewhat vulnerable to action function problems.
 // Action functions should ideally be simple and fast.
 class Watchdog {
+  static constexpr uint64_t RESOLUTION = 1;
+
 public:
-  using FUNC_TYPE = std::function<void()>;
+  using FUNC_TYPE = std::function<bool()>;
 
   Watchdog(ThreadPool* pool);
   ~Watchdog();
-  void push(uint16_t timeout_sec, FUNC_TYPE&& func);
+  void push(uint16_t timeout_sec, bool auto_repeat, FUNC_TYPE&& func);
 
 private:
   struct WatchEntry {
-    uint64_t sec_count;
+    uint64_t sec_count = 0;
     FUNC_TYPE func;
+    uint16_t next_timeout = 0;
+    bool enabled = true;
+  };
+  struct WatchEntryProxy {
+    std::shared_ptr<WatchEntry> entry;
 
-    WatchEntry(uint16_t cc, FUNC_TYPE&& ff) : sec_count(cc), func(std::move(ff)) {}
-    bool operator>(const WatchEntry& right) const { return (sec_count > right.sec_count); }
+    WatchEntryProxy(uint64_t trigger_count, uint16_t timeout, FUNC_TYPE&& func) :
+        entry(std::make_shared<WatchEntry>()) {
+      entry->sec_count = trigger_count;
+      entry->next_timeout = timeout;
+      entry->func = std::move(func);
+    }
+    bool operator>(const WatchEntryProxy& right) const { return (entry->sec_count > right.entry->sec_count); }
   };
 
   void process_timeouts(uint64_t at_sec_count);
   void execute_functions();
 
-  const std::chrono::time_point<std::chrono::high_resolution_clock> m_base_time;
+  const std::chrono::time_point<std::chrono::steady_clock> m_base_time;
   uint64_t m_sec_count;
   bool m_running;
 
   std::future<void> m_time_thr;
   std::mutex m_timed_queue_lock;
-  std::priority_queue<WatchEntry, std::vector<WatchEntry>, std::greater<WatchEntry>> m_time_queue;
+  std::priority_queue<WatchEntryProxy, std::vector<WatchEntryProxy>, std::greater<WatchEntryProxy>> m_time_queue;
 
   std::future<void> m_execution_thr;
-  ThrQueue<FUNC_TYPE> m_execution_queue;
+  ThrQueue<std::shared_ptr<WatchEntry>> m_execution_queue;
 };
 
 // Minimal class to wait for multiple futures with varied timeouts.
 class MultiWait {
-  using FUT_TYPE = std::future<void>;
+  using FUT_TYPE = std::future<bool>;
 
 public:
   MultiWait();
@@ -270,9 +325,7 @@ public:
       m_cond.wait(ul, [this] {
         return m_signalled;
       });
-      if (!m_signalled)
-        throw MakeException("Spurious waking of condition variable!!!!");
-      m_signalled = !m_active;
+      m_signalled = false;
     }
     return m_active;
   }
@@ -282,6 +335,58 @@ private:
   std::condition_variable m_cond;
   bool m_signalled = false;
   bool m_active = true;
+};
+
+// TODO: Improve efficiency for large numbers.
+// This class is very specific, but it is easier to manage as a separate entity.
+// The idea is to wait for the longest timeout. If that timeout gets signaled before timing out,
+// then wait for the next higher timeout that has not been signaled. If it times out,
+// then we know all other (thus lower) timeouts are timed out also.
+class TimeoutRunner {
+public:
+  TimeoutRunner(ThreadPool* pool);
+  ~TimeoutRunner();
+
+  // This should be part of the constructor, but it forces lambda definitions in the constructors of classes
+  // (which is ugly), and since this is for internal use we can make sure this is done before anything else.
+  void set_funcs(std::function<void()> sig_func, std::function<void()> term_func) {
+    m_sig_func = std::move(sig_func);
+    m_term_func = std::move(term_func);
+  }
+
+  void add(float timeout_sec, uint32_t id);
+  void remove(uint32_t id);
+
+  void start(std::function<void()> prep_func);
+  void signal(uint32_t id);
+
+private:
+  struct Entry {
+    std::chrono::nanoseconds timeout;
+    uint32_t id;
+    bool signaled;
+
+    Entry(std::chrono::nanoseconds timeout, uint32_t id) : timeout(timeout), id(id), signaled(false) {}
+    bool operator<(const Entry& right) const { return (timeout < right.timeout); }
+  };
+
+  void wait_next();
+  void do_next(bool signaled);
+
+  bool m_active;
+  std::future<void> m_timeout_thr;
+  std::function<void()> m_sig_func;
+  std::function<void()> m_term_func;
+
+  std::vector<Entry> m_timeouts;
+  std::vector<size_t> m_timeouts_to_remove;
+  bool m_sorted;
+  size_t m_running_size;
+
+  std::chrono::time_point<std::chrono::steady_clock> m_start_time;
+  std::condition_variable m_cond;
+  std::mutex m_cond_lock;
+  bool m_cond_sig;
 };
 
 }  // namespace cogment

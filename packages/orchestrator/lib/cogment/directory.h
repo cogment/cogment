@@ -58,7 +58,7 @@ class Directory {
 public:
   void add_stub(const StubEntryType& entry);
   bool is_context_endpoint(const EndpointData& data) const;
-  std::string get_address(const EndpointData& data) const;
+  std::string get_address(std::string_view name, const EndpointData& data) const;
 
 private:
   std::vector<StubEntryType> m_stubs;

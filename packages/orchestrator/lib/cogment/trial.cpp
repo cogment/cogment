@@ -15,7 +15,6 @@
 #ifndef NDEBUG
   #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
 #endif
-#define SPDLOG_TRACEDEBUG SPDLOG_TRACE
 
 #include "cogment/trial.h"
 #include "cogment/orchestrator.h"
@@ -101,8 +100,17 @@ Trial::Trial(Orchestrator* orch, const std::string& user_id, const std::string& 
     m_tick_id(0),
     m_tick_start_timestamp(0),
     m_max_steps(std::numeric_limits<uint64_t>::max()),
-    m_max_inactivity(std::numeric_limits<uint64_t>::max()) {
+    m_max_inactivity(std::numeric_limits<uint64_t>::max()),
+    m_response_timeouts(&m_orchestrator->thread_pool()) {
   SPDLOG_TRACE("Trial [{}] - Constructor", m_id);
+
+  m_response_timeouts.set_funcs(
+      [this]() {
+        m_nb_actors_acted++;
+      },
+      [this]() {
+        m_action_signal.signal();
+      });
 
   set_state(InternalState::initializing);
   refresh_activity();
@@ -268,10 +276,9 @@ void Trial::prepare_actors() {
   }
 
   for (const auto& actor_params : m_params.actors()) {
-    auto& endpoint = actor_params.endpoint();
-    auto& name = actor_params.name();
-    auto& actor_class = actor_params.actor_class();
-    auto& implementation = actor_params.implementation();
+    const auto& endpoint = actor_params.endpoint();
+    const auto& name = actor_params.name();
+    const auto& actor_class = actor_params.actor_class();
 
     if (endpoint.empty() || name.empty() || actor_class.empty()) {
       throw MakeException("Actor [{}] not fully defined in parameters [{}] [{}]", name, actor_class, endpoint);
@@ -301,6 +308,8 @@ void Trial::prepare_actors() {
         if (actor_class.find_first_of(INVALID_CHARACTERS) != name.npos) {
           throw MakeException("Actor class name contains invalid characters [{}]", actor_class);
         }
+
+        const auto& implementation = actor_params.implementation();
         if (implementation.find_first_of(INVALID_CHARACTERS) != implementation.npos) {
           throw MakeException("Actor implementation name contains invalid characters [{}]", implementation);
         }
@@ -314,7 +323,7 @@ void Trial::prepare_actors() {
 
       std::string address;
       try {
-        address = directory.get_address(data);
+        address = directory.get_address(name, data);
       }
       catch (const CogmentError& exc) {
         throw MakeException("Actor [{}] endpoint error: [{}]", name, exc.what());
@@ -330,10 +339,18 @@ void Trial::prepare_actors() {
         m_actors.emplace_back(std::move(agent_actor));
       }
     }
+    const uint32_t index = m_actors.size() - 1;
 
-    auto inserted = m_actor_indexes.emplace(name, m_actors.size() - 1).second;
+    auto inserted = m_actor_indexes.emplace(name, index).second;
     if (!inserted) {
       throw MakeException("Actor name is not unique [{}]", name);
+    }
+
+    const auto& response_timeout = actor_params.response_timeout();
+    if (response_timeout > 0.0) {
+      // We could add all actors, but TimeoutRunner is not efficient with large numnbers
+      SPDLOG_TRACE("Trial [{}] - Adding response timeout of [{}] for [{}]", m_id, response_timeout, name);
+      m_response_timeouts.add(response_timeout, index);
     }
   }
 
@@ -372,7 +389,7 @@ void Trial::prepare_environment() {
 
   std::string address;
   try {
-    address = directory.get_address(data);
+    address = directory.get_address(env_params.name(), data);
   }
   catch (const CogmentError& exc) {
     throw MakeException("Environment endpoint error: [{}]", exc.what());
@@ -412,7 +429,7 @@ void Trial::prepare_datalog() {
 
     std::string address;
     try {
-      address = directory.get_address(data);
+      address = directory.get_address("datalog", data);
     }
     catch (const CogmentError& exc) {
       throw MakeException("Datalog endpoint error: [{}]", exc.what());
@@ -430,14 +447,14 @@ void Trial::prepare_datalog() {
 }
 
 void Trial::wait_for_actors() {
-  MultiWait actors_ready;
-  std::vector<std::promise<void>> failed_init;
+  MultiWait actors_init;
+  std::vector<std::promise<bool>> failed_init;
 
-  SPDLOG_TRACEDEBUG("Trial [{}] - Init actors for wait", m_id);
+  SPDLOG_TRACE("Trial [{}] - Init actors for wait", m_id);
   for (size_t index = 0; index < m_actors.size(); index++) {
     auto& actor = m_actors[index];
 
-    std::future<void> init_fut;
+    std::future<bool> init_fut;
     try {
       init_fut = actor->init();
     }
@@ -449,31 +466,31 @@ void Trial::wait_for_actors() {
     }
 
     if (init_fut.valid()) {
-      if (!actor->is_optional() && actor->initial_connection_timeout() == 0.0f) {
-        actors_ready.push_back(std::move(init_fut), actor->actor_name());
+      if (actor->initial_connection_timeout() == 0.0f) {
+        actors_init.push_back(std::move(init_fut), actor->actor_name());
       }
       else {
-        actors_ready.push_back(actor->initial_connection_timeout(), std::move(init_fut), actor->actor_name());
+        actors_init.push_back(actor->initial_connection_timeout(), std::move(init_fut), actor->actor_name());
       }
     }
     else {
       failed_init.emplace_back();
-      actors_ready.push_back(0.0f, failed_init.back().get_future(), actor->actor_name());
+      actors_init.push_back(0.0f, failed_init.back().get_future(), actor->actor_name());
     }
   }
 
-  SPDLOG_TRACEDEBUG("Trial [{}] - Starting to wait for actors", m_id);
-  auto timed_out_actors = actors_ready.wait_for_all();
-  SPDLOG_TRACEDEBUG("Trial [{}] - Finished waiting for actors", m_id);
+  SPDLOG_TRACE("Trial [{}] - Starting to wait for actors init", m_id);
+  const auto timed_out_actors = actors_init.wait_for_all();
+  SPDLOG_TRACE("Trial [{}] - Finished waiting for actors init", m_id);
 
   for (size_t index : timed_out_actors) {
     auto& actor = m_actors[index];
 
     if (!actor->is_optional()) {
-      throw MakeException("Required actor [{}] did not respond in time", actor->actor_name());
+      throw MakeException("Required actor [{}] did not respond in time for init", actor->actor_name());
     }
     else {
-      spdlog::info("Trial [{}] - Optional actor [{}] did not respond in time", m_id, actor->actor_name());
+      spdlog::info("Trial [{}] - Optional actor [{}] did not respond in time for init", m_id, actor->actor_name());
       actor->disengage();
     }
   }
@@ -533,9 +550,46 @@ void Trial::start(cogmentAPI::TrialParams&& params) {
       return;
     }
 
+#if SPDLOG_ACTIVE_LEVEL == SPDLOG_LEVEL_TRACE
+    self->m_orchestrator->watchdog().push(2, true, [self]() -> bool {
+      auto sample = self->get_last_sample();
+      if (sample == nullptr) {
+        return false;
+      }
+
+      std::string result;
+      for (int index = 0; index < sample->actions().size(); index++) {
+        const auto& action = sample->actions(index);
+        if (action.tick_id() == NO_DATA_TICK_ID) {
+          auto& actor = self->m_actors[index];
+          if (!actor->is_disengaged()) {
+            result += actor->actor_name();
+            if (actor->is_optional()) {
+              result += "*, ";
+            }
+            else {
+              result += ", ";
+            }
+          }
+        }
+      }
+
+      const bool trial_running = (self->m_state <= InternalState::running);
+      if (trial_running) {
+        spdlog::trace("Trial [{}] - Tick id [{}], waiting on actors [{}]", self->m_id, self->m_tick_id, result);
+      }
+      else {
+        spdlog::trace("Trial [{}] - Ended at tick id [{}] still waiting on actors [{}]", self->m_id, self->m_tick_id,
+                      result);
+      }
+
+      return trial_running;
+    });
+#endif
+
     try {
       // TODO: We could start the environment first (before the actors), then wait here.  But then we would
-      //       have to synchronize everything, or hold the first observations until all actors are init.
+      //       have to synchronize everything, or hold the first observation until the actor is init.
       self->m_env->init().wait();
 
       spdlog::debug("Trial [{}] - Started", self->m_id);
@@ -709,7 +763,7 @@ void Trial::dispatch_observations(bool last) {
   }
 }
 
-void Trial::cycle_buffer() {
+void Trial::balance_sample_bufer() {
   const std::lock_guard lg(m_sample_lock);
 
   static constexpr uint64_t MIN_NB_BUFFERED_SAMPLES = 2;  // Because of the way we use the buffer
@@ -735,6 +789,8 @@ cogmentAPI::ActionSet Trial::make_action_set() {
   action_set.set_tick_id(m_tick_id);
 
   const std::lock_guard lg(m_sample_lock);
+
+  std::string unavailable_required_actors;
   auto& sample = m_step_data.back();
   for (size_t index = 0; index < m_actors.size(); index++) {
     auto& act = sample.actions(index);
@@ -747,7 +803,10 @@ cogmentAPI::ActionSet Trial::make_action_set() {
 
       auto& actor = m_actors[index];
       if (!actor->is_optional()) {
-        throw MakeException("Required actor [{}] disconnected", actor->actor_name());
+        if (!unavailable_required_actors.empty()) {
+          unavailable_required_actors += ", ";
+        }
+        unavailable_required_actors += actor->actor_name();
       }
 
       if (actor->has_default_action()) {
@@ -761,6 +820,10 @@ cogmentAPI::ActionSet Trial::make_action_set() {
       }
     }
     // TODO: else -> handle the case of future/past actions, and synchronize with `actor_acted`.
+  }
+
+  if (!unavailable_required_actors.empty()) {
+    throw MakeException("Required actors [{}] unavailable at tick [{}]", unavailable_required_actors, m_tick_id);
   }
 
   return action_set;
@@ -906,7 +969,7 @@ void Trial::terminate(const std::string& details) {
   }
 
   new_special_event("Forced termination: " + details);
-  spdlog::info("Trial [{}] - Hard termination requested [{}]", m_id, details);
+  spdlog::info("Trial [{}] - Hard termination requested  at step [{}]: [{}]", m_id, m_tick_id, details);
 
   if (m_env != nullptr) {
     try {
@@ -968,11 +1031,15 @@ void Trial::env_observed(const std::string& env_name, cogmentAPI::ObservationSet
   new_obs(std::move(obs));
 
   if (!last) {
-    dispatch_observations(false);
-    cycle_buffer();
+    m_response_timeouts.start([this]() {
+      dispatch_observations(false);
+    });
+
+    SPDLOG_TRACE("Trial [{}] - Started response timeout for step [{}]", m_id, m_tick_id);
+    balance_sample_bufer();
   }
   else {
-    spdlog::info("Trial [{}] - Environment has ended the trial", m_id);
+    spdlog::info("Trial [{}] - Environment has ended the trial at step [{}]", m_id, m_tick_id);
     new_special_event("Evironment ended trial");
     dispatch_observations(true);
     finish();
@@ -980,6 +1047,8 @@ void Trial::env_observed(const std::string& env_name, cogmentAPI::ObservationSet
 }
 
 void Trial::actor_acted(const std::string& name, cogmentAPI::Action&& action) {
+  SPDLOG_TRACE("Trial [{}] - Actor [{}] acted at tick [{}].", m_id, name, m_tick_id);
+
   const std::shared_lock lg(m_terminating_lock);
   refresh_activity();
 
@@ -1020,16 +1089,17 @@ void Trial::actor_acted(const std::string& name, cogmentAPI::Action&& action) {
     return;
   }
 
-  SPDLOG_TRACE("Trial [{}] - Actor [{}] received action for tick [{}].", m_id, name, m_tick_id);
+  SPDLOG_TRACE("Trial [{}] - Actor [{}] action accepted at tick [{}].", m_id, name, m_tick_id);
   *sample_action = std::move(action);
 
-  m_nb_actors_acted++;
-  m_action_signal.signal();
+  m_response_timeouts.signal(actor_index);
+  SPDLOG_TRACE("Trial [{}] - Actor [{}] response signaled for tick [{}].", m_id, name, m_tick_id);
 }
 
 void Trial::process_actions() {
   const ptrdiff_t nb_actions = m_nb_actors_acted;
   const ptrdiff_t nb_actors = m_nb_available_actors;
+  SPDLOG_TRACE("Trial [{}] - Action processing called at [{}]: [{}]/[{}]", m_id, m_tick_id, nb_actions, nb_actors);
   if (nb_actions < nb_actors) {
     return;
   }
@@ -1110,8 +1180,10 @@ void Trial::actor_disengaging(const Actor& actor) {
   auto sample_action = sample->mutable_actions(actor_index);
   sample_action->set_tick_id(NO_DATA_TICK_ID);
 
+  m_response_timeouts.remove(actor_index);
+
   m_nb_available_actors--;
-  SPDLOG_TRACEDEBUG("Trial [{}] - Actor disengaged, [{}] actors left available", m_id, m_nb_available_actors.load());
+  SPDLOG_TRACE("Trial [{}] - Actor disengaged, [{}] actors left available", m_id, m_nb_available_actors.load());
   if (m_nb_available_actors < 0) {
     spdlog::warn("Trial [{}] - Too many actors disengaged [{}]", m_id, m_nb_available_actors.load());
   }
