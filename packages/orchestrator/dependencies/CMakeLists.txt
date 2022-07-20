@@ -28,6 +28,7 @@ FetchContent_Declare(
 
 # build gRPC
 FetchContent_GetProperties(grpc)
+
 if(NOT grpc_POPULATED)
   FetchContent_Populate(grpc)
 
@@ -48,8 +49,14 @@ if(NOT grpc_POPULATED)
   set(PROTOBUF_INCLUDE_DIR ${grpc_SOURCE_DIR}/third_party/protobuf/src CACHE INTERNAL "")
 endif()
 
+if(INSTALL_PROTOC)
+  install(PROGRAMS $<TARGET_FILE:protobuf::protoc> TYPE BIN RENAME protoc)
+  install(PROGRAMS $<TARGET_FILE:grpc_cpp_plugin> TYPE BIN)
+endif()
+
 # build yaml-cpp
 FetchContent_GetProperties(yaml-cpp)
+
 if(NOT yaml-cpp_POPULATED)
   FetchContent_Populate(yaml-cpp)
 
@@ -63,6 +70,7 @@ endif()
 
 # build spdlog
 FetchContent_GetProperties(spdlog)
+
 if(NOT spdlog_POPULATED)
   FetchContent_Populate(spdlog)
 
@@ -71,9 +79,9 @@ if(NOT spdlog_POPULATED)
   add_subdirectory(${spdlog_SOURCE_DIR} ${spdlog_BINARY_DIR} EXCLUDE_FROM_ALL)
 endif()
 
-
 # build prometheus-cpp
 FetchContent_GetProperties(prometheus-cpp)
+
 if(NOT prometheus-cpp_POPULATED)
   FetchContent_Populate(prometheus-cpp)
 
@@ -83,6 +91,3 @@ if(NOT prometheus-cpp_POPULATED)
 
   add_subdirectory(${prometheus-cpp_SOURCE_DIR} ${prometheus-cpp_BINARY_DIR} EXCLUDE_FROM_ALL)
 endif()
-
-
-

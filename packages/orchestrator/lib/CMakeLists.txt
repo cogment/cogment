@@ -7,37 +7,37 @@ file(MAKE_DIRECTORY ${GENERATED_PROTOBUF_PATH})
 set(PROTO_SRC "")
 
 macro(compile_proto PROTO)
-        add_custom_command(
-                OUTPUT  "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.h"
-                        "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.cc"
-                COMMAND protobuf::protoc
-                ARGS
-                "--proto_path=${PROTOBUF_INCLUDE_DIR}"
-                "--proto_path=${COGMENT_API_DIR}/"
-                "--cpp_out=${GENERATED_PROTOBUF_PATH}"
-                "${COGMENT_API_DIR}/cogment/api/${PROTO}.proto"
-          )
+  add_custom_command(
+    OUTPUT "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.h"
+    "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.cc"
+    COMMAND $<IF:$<BOOL:${PROTOBUF_PROTOC_EXECUTABLE}>,${PROTOBUF_PROTOC_EXECUTABLE},$<TARGET_FILE:protobuf::protoc>>
+    ARGS
+    "--proto_path=${PROTOBUF_INCLUDE_DIR}"
+    "--proto_path=${COGMENT_API_DIR}/"
+    "--cpp_out=${GENERATED_PROTOBUF_PATH}"
+    "${COGMENT_API_DIR}/cogment/api/${PROTO}.proto"
+  )
 
-        list(APPEND PROTO_SRC ${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.cc)
+  list(APPEND PROTO_SRC ${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.cc)
 endmacro()
 
 macro(compile_grpc_proto PROTO)
-        add_custom_command(
-                OUTPUT  "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.grpc.pb.h"
-                        "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.grpc.pb.cc"
-                        "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.h"
-                        "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.cc"
-                COMMAND protobuf::protoc
-                ARGS
-                "--proto_path=${PROTOBUF_INCLUDE_DIR}"
-                "--proto_path=${COGMENT_API_DIR}/"
-                "--grpc_out=${GENERATED_PROTOBUF_PATH}"
-                "--cpp_out=${GENERATED_PROTOBUF_PATH}"
-                "--plugin=protoc-gen-grpc=$<TARGET_FILE:grpc_cpp_plugin>"
-                "${COGMENT_API_DIR}/cogment/api/${PROTO}.proto"
-                )
-        list(APPEND PROTO_SRC ${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.grpc.pb.cc)
-        list(APPEND PROTO_SRC ${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.cc)
+  add_custom_command(
+    OUTPUT "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.grpc.pb.h"
+    "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.grpc.pb.cc"
+    "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.h"
+    "${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.cc"
+    COMMAND $<IF:$<BOOL:${PROTOBUF_PROTOC_EXECUTABLE}>,${PROTOBUF_PROTOC_EXECUTABLE},$<TARGET_FILE:protobuf::protoc>>
+    ARGS
+    "--proto_path=${PROTOBUF_INCLUDE_DIR}"
+    "--proto_path=${COGMENT_API_DIR}/"
+    "--grpc_out=${GENERATED_PROTOBUF_PATH}"
+    "--cpp_out=${GENERATED_PROTOBUF_PATH}"
+    "--plugin=protoc-gen-grpc=$<IF:$<BOOL:${GRPC_CPP_PLUGIN}>,${GRPC_CPP_PLUGIN},$<TARGET_FILE:grpc_cpp_plugin>>"
+    "${COGMENT_API_DIR}/cogment/api/${PROTO}.proto"
+  )
+  list(APPEND PROTO_SRC ${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.grpc.pb.cc)
+  list(APPEND PROTO_SRC ${GENERATED_PROTOBUF_PATH}/cogment/api/${PROTO}.pb.cc)
 endmacro()
 
 compile_proto(common)
@@ -49,20 +49,20 @@ compile_grpc_proto(hooks)
 compile_grpc_proto(directory)
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cogment/versions.h.in"
-               "${CMAKE_CURRENT_SOURCE_DIR}/cogment/versions.h" )
+  "${CMAKE_CURRENT_SOURCE_DIR}/cogment/versions.h")
 
 add_library(orchestrator_protos
   ${PROTO_SRC}
 )
 
 target_link_libraries(orchestrator_protos
-PUBLIC
-    grpc++
+  PUBLIC
+  grpc++
 )
 
 target_include_directories(orchestrator_protos
-PUBLIC
-    ${GENERATED_PROTOBUF_PATH}
+  PUBLIC
+  ${GENERATED_PROTOBUF_PATH}
 )
 
 add_library(orchestrator_lib
@@ -86,17 +86,17 @@ IF(CLANG_TIDY)
 ENDIF()
 
 target_link_libraries(orchestrator_lib
-    orchestrator_protos
-    spdlog::spdlog
-    slt_settings
-    slt_concur
-    yaml-cpp
-    grpc++
-    grpc
-    gpr
-    protobuf::libprotobuf
-    prometheus-cpp::pull
-    Threads::Threads
+  orchestrator_protos
+  spdlog::spdlog
+  slt_settings
+  slt_concur
+  yaml-cpp
+  grpc++
+  grpc
+  gpr
+  protobuf::libprotobuf
+  prometheus-cpp::pull
+  Threads::Threads
 )
 
 if(UNIX)
@@ -104,7 +104,7 @@ if(UNIX)
 endif()
 
 target_include_directories(orchestrator_lib
-PUBLIC
-    .
-    ../third_party ${YAML_CPP_INCLUDE_DIR}
-    )
+  PUBLIC
+  .
+  ../third_party ${YAML_CPP_INCLUDE_DIR}
+)

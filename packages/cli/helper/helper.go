@@ -36,7 +36,7 @@ func Kebabify(data string) string {
 
 func Pascalify(data string) string {
 	data = regexp.MustCompile(`[_\W]+`).ReplaceAllString(data, " ")
-	data = strings.Title(data)
+	data = strings.Title(data) //nolint
 	data = regexp.MustCompile(`\s+`).ReplaceAllString(data, "")
 	return data
 }

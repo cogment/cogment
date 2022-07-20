@@ -1,5 +1,5 @@
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/version/version.go.in"
-               "${CMAKE_CURRENT_SOURCE_DIR}/version/version.go" )
+  "${CMAKE_CURRENT_SOURCE_DIR}/version/version.go")
 
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/services/orchestrator/lib)
 file(TOUCH ${CMAKE_CURRENT_SOURCE_DIR}/services/orchestrator/lib/liborchestrator.dylib)
@@ -8,21 +8,22 @@ file(TOUCH ${CMAKE_CURRENT_SOURCE_DIR}/services/orchestrator/lib/orchestrator.dl
 
 if(COGMENT_EMBEDS_ORCHESTRATOR)
   add_custom_target(cogment_code_generation
-  DEPENDS $<TARGET_FILE:orchestrator_dylib>
-  COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:orchestrator_dylib> ./services/orchestrator/lib
-  COMMAND ${CMAKE_COMMAND} -E env COGMENT_API_DIR=${COGMENT_API_DIR} PROTOC_EXEC=$<TARGET_FILE:protobuf::protoc> PROTOBUF_INCLUDE_DIR=${PROTOBUF_INCLUDE_DIR} go generate -tags tools
-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-  COMMENT "Running the code generation phase"
-  VERBATIM)
+    DEPENDS $<TARGET_FILE:orchestrator_dylib>
+    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:orchestrator_dylib> ./services/orchestrator/lib
+    COMMAND ${CMAKE_COMMAND} -E env COGMENT_API_DIR=${COGMENT_API_DIR} PROTOC_EXEC=$<IF:$<BOOL:${PROTOBUF_PROTOC_EXECUTABLE}>,${PROTOBUF_PROTOC_EXECUTABLE},$<TARGET_FILE:protobuf::protoc>> PROTOBUF_INCLUDE_DIR=${PROTOBUF_INCLUDE_DIR} go generate -tags tools
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    COMMENT "Running the code generation phase"
+    VERBATIM)
 else()
   add_custom_target(cogment_code_generation
-  COMMAND ${CMAKE_COMMAND} -E env COGMENT_API_DIR=${COGMENT_API_DIR} go generate -tags tools
-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-  COMMENT "Running the code generation phase"
-  VERBATIM)
+    COMMAND ${CMAKE_COMMAND} -E env COGMENT_API_DIR=${COGMENT_API_DIR} go generate -tags tools
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    COMMENT "Running the code generation phase"
+    VERBATIM)
 endif()
 
 set(COGMENT_EXEC_RELPATH "build/cogment")
+
 if(${COGMENT_OS} MATCHES "windows")
   set(COGMENT_EXEC_RELPATH "build/cogment.exe")
 endif()

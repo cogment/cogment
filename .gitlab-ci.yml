@@ -138,8 +138,12 @@ build_linux_amd64:
       paths:
         - build/macos_amd64/_deps
         - build/macos_amd64/lib
+    - key: cmake-macos-arm64-dependencies-cache
+      paths:
+        - build/macos_arm64/_deps
+        - build/macos_arm64/lib
 
-build_macos_amd64:
+build_macos:
   stage: build
   needs: []
   extends: .base_macos_build
@@ -147,11 +151,12 @@ build_macos_amd64:
   script:
     - ./build_macos.sh
   artifacts:
-    name: cogment_macos_amd64
-    expose_as: cogment_macos_amd64
+    name: cogment_macos
+    expose_as: cogment_macos
     expire_in: 1 week
     paths:
       - ./install/macos_amd64/
+      - ./install/macos_arm64/
 
 .base_windows_build:
   tags:
@@ -331,7 +336,7 @@ publish_tag_to_github:
   needs:
     - job: build_linux_amd64
       artifacts: true
-    - job: build_macos_amd64
+    - job: build_macos
       artifacts: true
     - job: build_windows_amd64
       artifacts: true
@@ -355,6 +360,7 @@ publish_tag_to_github:
     - mkdir -p ./release
     - cp ./install/linux_amd64/bin/cogment ./release/cogment-linux-amd64
     - cp ./install/macos_amd64/bin/cogment ./release/cogment-macos-amd64
+    - cp ./install/macos_arm64/bin/cogment ./release/cogment-macos-arm64
     - cp ./install/windows_amd64/bin/cogment.exe ./release/cogment-windows-amd64.exe
     - cp ./install/linux_amd64_no_orchestrator/bin/cogment ./release/cogment-linux-amd64-no-orchestrator
     - cp ./install/macos_amd64_no_orchestrator/bin/cogment ./release/cogment-macos-amd64-no-orchestrator

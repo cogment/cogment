@@ -80,23 +80,7 @@ while [[ "$1" != "" ]]; do
   shift
 done
 
-## 1 - Deal with the system architecture
-
-if [[ -z "${arch}" ]]; then
-  arch=$(uname -m)
-fi
-
-case ${arch} in
-  "x86_64" | "amd64")
-    arch="amd64"
-    ;;
-  *)
-    printf "%s: unsupported system architecture.\n" "${arch}"
-    exit 1
-    ;;
-esac
-
-## 2 - Deal with the os
+## 1 - Deal with the os
 
 if [[ -z "${os}" ]]; then
   os=$(uname)
@@ -114,6 +98,29 @@ case ${os} in
     ;;
   *)
     printf "%s: unsupported operating system.\n" "${os}"
+    exit 1
+    ;;
+esac
+
+## 2 - Deal with the system architecture
+
+if [[ -z "${arch}" ]]; then
+  arch=$(uname -m)
+fi
+
+case ${arch} in
+  "x86_64" | "amd64")
+    arch="amd64"
+    ;;
+  "arm64")
+    if [[ "${os}" != "macos" ]]; then
+      printf "arm64: unsupported system architecture for os %s.\n" "${os}"
+      exit 1
+    fi
+    arch="arm64"
+    ;;
+  *)
+    printf "%s: unsupported system architecture.\n" "${arch}"
     exit 1
     ;;
 esac
