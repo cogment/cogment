@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.6.0 - 2022-07-21
+
 ### Added
 
 - Full support for Apple Silicon Macs (M1 & M2) with the new `macos_arm64` target.
