@@ -54,7 +54,7 @@ Orchestrator::Orchestrator(cogmentAPI::TrialParams default_trial_params, uint32_
         trial.reset();  // Not really necessary, but clarifies intent
       }
       catch (const std::exception& exc) {
-        spdlog::error("Problem deleting a trial: {}", exc.what());
+        spdlog::error("Problem deleting a trial: [{}]", exc.what());
       }
       catch (...) {
         spdlog::error("Unknown problem deleting a trial");
@@ -90,6 +90,10 @@ Orchestrator::Orchestrator(cogmentAPI::TrialParams default_trial_params, uint32_
 
 Orchestrator::~Orchestrator() {
   SPDLOG_TRACE("~Orchestrator()");
+
+  for (auto& rec : m_directory_registrations) {
+    m_directory.deregister_service(rec);
+  }
 
   {
     const std::lock_guard lg(m_notification_lock);
@@ -137,9 +141,11 @@ std::shared_ptr<Trial> Orchestrator::start_trial(cogmentAPI::TrialParams&& param
   }
 
   if (final_params) {
+    spdlog::debug("Trial [{}] starting with parameters from the start command", new_trial->id());
     new_trial->start(std::move(params));
   }
   else {
+    spdlog::debug("Trial [{}] starting with default parameters and pre-trial hooks", new_trial->id());
     auto hook_params = m_perform_pre_hooks(std::move(params), new_trial->id(), user_id);
     new_trial->start(std::move(hook_params));
   }
@@ -149,49 +155,95 @@ std::shared_ptr<Trial> Orchestrator::start_trial(cogmentAPI::TrialParams&& param
   return new_trial;
 }
 
-void Orchestrator::add_directory(const std::string& user_url) {
+void Orchestrator::add_directory(std::string_view url, std::string_view auth_token) {
   EndpointData data;
   try {
-    parse_endpoint(user_url, &data);
+    data.parse(url);
   }
   catch (const CogmentError& exc) {
     throw MakeException("Directory endpoint error: [{}]", exc.what());
   }
 
   if (data.scheme != EndpointData::SchemeType::GRPC) {
-    throw MakeException("Only gRPC endpoints are valid for the directory service (grpc://) [{}]", user_url);
+    throw MakeException("Only gRPC endpoints are valid for the directory service (grpc://) [{}]", url);
   }
 
   auto stub = m_directory_stubs.get_stub_entry(std::string(data.address));
   m_directory.add_stub(stub);
+  m_directory.set_auth_token(auth_token);
+}
+
+void Orchestrator::register_to_directory(std::string_view host, uint16_t actor_port, uint16_t lifecycle_port,
+                                         const std::string& props) {
+  static const std::string COGMENT_VERSION_STR = COGMENT_VERSION;
+
+  if (!m_directory.is_set()) {
+    spdlog::debug("No directory set to register host [{}]", host);
+    return;
+  }
+
+  constexpr char PROPERTY_SEPARATOR = ',';
+  constexpr char VALUE_SEPARATOR = '=';
+  auto properties = parse_properties(props, PROPERTY_SEPARATOR, VALUE_SEPARATOR);
+  properties.emplace_back("__version", COGMENT_VERSION_STR);
+
+  std::string host_address;
+  std::string_view self_host;
+  if (!host.empty()) {
+    self_host = host;
+    properties.emplace_back("__registration_source", "Self-Command_Line");
+  }
+  else {
+    host_address = GetHostAddress();
+    self_host = host_address;
+    properties.emplace_back("__registration_source", "Self-Implicit");
+  }
+  spdlog::debug("Registering Orchestrator to directory as [{}]", self_host);
+
+  if (actor_port > 0) {
+    auto res = m_directory.register_host(self_host, actor_port, m_channel_pool.is_ssl(),
+                                         Directory::ServiceType::CLIENT_ACTOR, properties);
+    m_directory_registrations.emplace_back(std::move(res));
+  }
+
+  if (lifecycle_port > 0) {
+    auto res = m_directory.register_host(self_host, lifecycle_port, m_channel_pool.is_ssl(),
+                                         Directory::ServiceType::LIFE_CYCLE, properties);
+    m_directory_registrations.emplace_back(std::move(res));
+  }
 }
 
 void Orchestrator::add_prehook(const std::string& user_url) {
   EndpointData data;
   try {
-    parse_endpoint(user_url, &data);
+    data.parse(user_url);
   }
   catch (const CogmentError& exc) {
     throw MakeException("Pre-trial hook endpoint error: [{}]", exc.what());
   }
 
-  if (m_directory.is_context_endpoint(data)) {
+  if (data.is_context_endpoint()) {
     data.path = EndpointData::PathType::PREHOOK;
   }
 
-  std::string address;
+  Directory::InquiredAddress address;
   try {
-    address = m_directory.get_address("pre-hook", data);
+    address = m_directory.inquire_address("pre-hook", data);
   }
   catch (const CogmentError& exc) {
     throw MakeException("Pre-trial hook endpoint error: [{}]", exc.what());
   }
 
-  if (address == CLIENT_ACTOR_ADDRESS) {
+  if (address.address == CLIENT_ACTOR_ADDRESS) {
     throw MakeException("Pre-trial hook endpoint resolved to 'client'");
   }
 
-  m_prehooks.push_back(m_hook_stubs.get_stub_entry(address));
+  if (address.ssl && !use_ssl()) {
+    // TODO: We should pre-emptively search for the proper hook in the directory (to match ssl use)
+    throw MakeException("Pre-trial hook requires a SSL connection");
+  }
+
+  m_prehooks.push_back(m_hook_stubs.get_stub_entry(address.address));
 }
 
 cogmentAPI::TrialParams Orchestrator::m_perform_pre_hooks(cogmentAPI::TrialParams&& params, const std::string& trial_id,

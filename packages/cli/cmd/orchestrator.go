@@ -37,6 +37,10 @@ var orchestratorActorPortKey = "actor_port"
 var orchestratorActorWebPortKey = "actor_web_port"
 var orchestratorParamsFileKey = "params"
 var orchestratorDirectoryServicesKey = "directory_services"
+var orchestratorDirectoryAuthTokenKey = "directory_authentication_token"
+var orchestratorDirectoryAutoRegisterKey = "directory_auto_register"
+var orchestratorDirectoryRegisterHostKey = "directory_registration_host"
+var orchestratorDirectoryRegisterPropsKey = "directory_registration_properties"
 var orchestratorPretrialHooksKey = "pre_trial_hooks"
 var orchestratorPrometheusPortKey = "prometheus_port"
 var orchestratorStatusFileKey = "status_file"
@@ -73,6 +77,10 @@ var orchestratorCmd = &cobra.Command{
 			ActorWebPort:               actorWebPort,
 			ParamsFile:                 orchestratorViper.GetString(orchestratorParamsFileKey),
 			DirectoryServicesEndpoints: orchestratorViper.GetStringSlice(orchestratorDirectoryServicesKey),
+			DirectoryAuthToken:         orchestratorViper.GetString(orchestratorDirectoryAuthTokenKey),
+			DirectoryAutoRegister:      orchestratorViper.GetUint(orchestratorDirectoryAutoRegisterKey),
+			DirectoryRegisterHost:      orchestratorViper.GetString(orchestratorDirectoryRegisterHostKey),
+			DirectoryRegisterProps:     orchestratorViper.GetString(orchestratorDirectoryRegisterPropsKey),
 			PretrialHooksEndpoits:      orchestratorViper.GetStringSlice(orchestratorPretrialHooksKey),
 			PrometheusPort:             orchestratorViper.GetUint(orchestratorPrometheusPortKey),
 			StatusFile:                 orchestratorViper.GetString(orchestratorStatusFileKey),
@@ -153,6 +161,41 @@ func init() {
 		orchestratorDirectoryServicesKey,
 		orchestratorViper.GetStringSlice(orchestratorDirectoryServicesKey),
 		"Directory service gRPC endpoints",
+	)
+
+	orchestratorViper.SetDefault(orchestratorDirectoryAuthTokenKey, orchestrator.DefaultOptions.DirectoryAuthToken)
+	_ = orchestratorViper.BindEnv(orchestratorDirectoryAuthTokenKey, "COGMENT_DIRECTORY_AUTHENTICATION_TOKEN")
+	orchestratorCmd.Flags().String(
+		orchestratorDirectoryAuthTokenKey,
+		orchestratorViper.GetString(orchestratorDirectoryAuthTokenKey),
+		"Authentication token for directory services",
+	)
+
+	orchestratorViper.SetDefault(orchestratorDirectoryAutoRegisterKey, orchestrator.DefaultOptions.DirectoryAutoRegister)
+	_ = orchestratorViper.BindEnv(orchestratorDirectoryAutoRegisterKey, "COGMENT_ORCHESTRATOR_DIRECTORY_AUTO_REGISTER")
+	orchestratorCmd.Flags().Uint(
+		orchestratorDirectoryAutoRegisterKey,
+		orchestratorViper.GetUint(orchestratorDirectoryAutoRegisterKey),
+		"Whether to register the Orchestrator automatically to the given directory (disabled if 0)",
+	)
+
+	orchestratorViper.SetDefault(orchestratorDirectoryRegisterHostKey, orchestrator.DefaultOptions.DirectoryRegisterHost)
+	_ = orchestratorViper.BindEnv(orchestratorDirectoryRegisterHostKey,
+		"COGMENT_ORCHESTRATOR_DIRECTORY_REGISTRATION_HOST")
+	orchestratorCmd.Flags().String(
+		orchestratorDirectoryRegisterHostKey,
+		orchestratorViper.GetString(orchestratorDirectoryRegisterHostKey),
+		"Host to register as the Orchestrator in the Directory (empty for self discovery of host)",
+	)
+
+	orchestratorViper.SetDefault(orchestratorDirectoryRegisterPropsKey,
+		orchestrator.DefaultOptions.DirectoryRegisterProps)
+	_ = orchestratorViper.BindEnv(orchestratorDirectoryRegisterPropsKey,
+		"COGMENT_ORCHESTRATOR_DIRECTORY_REGISTRATION_PROPERTIES")
+	orchestratorCmd.Flags().String(
+		orchestratorDirectoryRegisterPropsKey,
+		orchestratorViper.GetString(orchestratorDirectoryRegisterPropsKey),
+		"Properties to register to the Directory for the Orchestrator",
 	)
 
 	orchestratorViper.SetDefault(orchestratorPretrialHooksKey, orchestrator.DefaultOptions.PretrialHooksEndpoits)

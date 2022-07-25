@@ -39,6 +39,8 @@ service TrialDatastoreSP {
   rpc AddSample(stream AddSampleRequest) returns (AddSamplesReply) {}
   // Delete the trials matching the given request, on failure no trial is deleted
   rpc DeleteTrials(DeleteTrialsRequest) returns (DeleteTrialsReply) {}
+
+  rpc Version(VersionRequest) returns (VersionInfo) {}
 }
 
 // --- Reply/Request Messages

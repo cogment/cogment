@@ -51,6 +51,22 @@ func (w *unsupportedWrapper) AddDirectoryServicesEndpoint(endpoint string) error
 	return fmt.Errorf("Orchestrator service not supported")
 }
 
+func (w *unsupportedWrapper) SetDirectoryAuthToken(token string) error {
+	return fmt.Errorf("Orchestrator service not supported")
+}
+
+func (w *unsupportedWrapper) SetDirectoryAutoRegister(autoRegister uint) error {
+	return fmt.Errorf("Orchestrator service not supported")
+}
+
+func (w *unsupportedWrapper) SetDirectoryRegisterHost(host string) error {
+	return fmt.Errorf("Orchestrator service not supported")
+}
+
+func (w *unsupportedWrapper) SetDirectoryRegisterProps(props string) error {
+	return fmt.Errorf("Orchestrator service not supported")
+}
+
 func (w *unsupportedWrapper) AddPretrialHooksEndpoint(endpoint string) error {
 	return fmt.Errorf("Orchestrator service not supported")
 }

@@ -61,7 +61,7 @@ grpc::Status TrialLifecycleService::StartTrial(grpc::ServerContext*, const cogme
     }
   }
   catch (const std::exception& exc) {
-    return MakeErrorStatus("TrialLifecycleSP/StartTrial failure: {}", exc.what());
+    return MakeErrorStatus("TrialLifecycleSP/StartTrial failure: [{}]", exc.what());
   }
   catch (...) {
     return MakeErrorStatus("TrialLifecycleSP/StartTrial failure");
@@ -98,7 +98,7 @@ grpc::Status TrialLifecycleService::TerminateTrial(grpc::ServerContext* ctx,
     out->Clear();
   }
   catch (const std::exception& exc) {
-    return MakeErrorStatus("TrialLifecycleSP/TerminateTrial failure: {}", exc.what());
+    return MakeErrorStatus("TrialLifecycleSP/TerminateTrial failure: [{}]", exc.what());
   }
   catch (...) {
     return MakeErrorStatus("TrialLifecycleSP/TerminateTrial failure");
@@ -136,7 +136,7 @@ grpc::Status TrialLifecycleService::GetTrialInfo(grpc::ServerContext* ctx, const
     }
   }
   catch (const std::exception& exc) {
-    return MakeErrorStatus("TrialLifecycleSP::GetTrialInfo failure: {}", exc.what());
+    return MakeErrorStatus("TrialLifecycleSP::GetTrialInfo failure: [{}]", exc.what());
   }
   catch (...) {
     return MakeErrorStatus("TrialLifecycleSP::GetTrialInfo failure");
@@ -179,7 +179,7 @@ grpc::Status TrialLifecycleService::WatchTrials(grpc::ServerContext*, const cogm
     fut.wait();
   }
   catch (const std::exception& exc) {
-    return MakeErrorStatus("TrialLifecycleSP::WatchTrials failure: {}", exc.what());
+    return MakeErrorStatus("TrialLifecycleSP::WatchTrials failure: [{}]", exc.what());
   }
   catch (...) {
     return MakeErrorStatus("TrialLifecycleSP::WatchTrials failure");
@@ -196,7 +196,7 @@ grpc::Status TrialLifecycleService::Version(grpc::ServerContext*, const cogmentA
     m_orchestrator->Version(out);
   }
   catch (const std::exception& exc) {
-    return MakeErrorStatus("TrialLifecycleSP::Version failure: {}", exc.what());
+    return MakeErrorStatus("TrialLifecycleSP::Version failure: [{}]", exc.what());
   }
   catch (...) {
     return MakeErrorStatus("TrialLifecycleSP::Version failure");

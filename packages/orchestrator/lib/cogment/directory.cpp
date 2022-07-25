@@ -26,229 +26,23 @@ namespace cogment {
 
 namespace {
 
-// Terminology
-// URL: scheme://host/path?prop_name=prop_value&prop_name=prop_value
-// GRPC scheme: grpc://address  ("address" is given whole to gRPC)
-
-// Schemes
-constexpr std::string_view GRPC("grpc");
-constexpr std::string_view COGMENT("cogment");
-
-// Hosts
-constexpr std::string_view CLIENT("client");
-constexpr std::string_view DISCOVER("discover");
-
-// Paths
-constexpr std::string_view SERVICE("service");
-constexpr std::string_view ACTOR("actor");
-constexpr std::string_view ENVIRONMENT("environment");
-constexpr std::string_view DATALOG("datalog");
-constexpr std::string_view PREHOOK("prehook");
-constexpr std::string_view LIFECYCLE("lifecycle");
-constexpr std::string_view ACTSERVICE("actservice");
+const char PORT_SEPARATOR = ':';
 
 // Property names
 constexpr std::string_view ID_PROPERTY_NAME("id");
 constexpr std::string_view AUTHENTICATION_TOKEN_PROPERTY_NAME("__authentication-token");
 
-// Separator characters
-const char SCHEME_SEPARATOR1 = ':';
-const char SCHEME_SEPARATOR2 = '/';
-const char SCHEME_SEPARATOR3 = '/';
-const char PATH_SEPARATOR = '/';
-const char QUERY_SEPARATOR = '?';
-const char PROPERTY_SEPARATOR = '&';
-const char VALUE_SEPARATOR = '=';
-const char PORT_SEPARATOR = ':';
-
 // gRPC directory metadata names
 const std::string AUTHENTICATION_TOKEN_METADATA_NAME("authentication-token");
 
-// Returns true if the full string starts with the given substring
-bool starts_with(std::string_view full, const std::string_view& sub) {
-  if (full.size() >= sub.size()) {
-    for (size_t index = 0; index < sub.size(); index++) {
-      if (sub[index] != full[index]) {
-        return false;
-      }
-    }
-  }
-  else {
-    return false;
-  }
-
-  return true;
-}
-
-// If the url starts with the sub string followed by a separator (or end of url),
-// update url by removing the sub+separator and return true.
-bool update_if_starts(std::string_view* url, const std::string_view& sub, char separator) {
-  if (starts_with(*url, sub)) {
-    if (url->size() == sub.size()) {
-      url->remove_prefix(sub.size());
-      return true;
-    }
-    else if ((*url)[sub.size()] == separator) {
-      url->remove_prefix(sub.size() + 1);
-      return true;
-    }
-  }
-
-  return false;
-}
-
-// Very specific "parser" for our use case. "Fake" because it is not a generic URL parser.
-void fake_url_parser(const std::string_view in_url, EndpointData* data) {
-  // Assuming cleared data
-
-  data->original_endpoint = std::string(in_url);
-
-  const std::string low_url = to_lower_case(data->original_endpoint);
-  std::string_view url = low_url;
-
-  auto res = std::find_if(url.begin(), url.end(), [](unsigned char val) -> char {
-    return std::isspace(val);
-  });
-  if (res != url.end()) {
-    throw MakeException("Malformed URL (cannot contain spaces) [{}]", in_url);
-  }
-
-  // Scheme
-  if (url.empty()) {
-    data->scheme = EndpointData::SchemeType::UNKNOWN_SCHEME;
-    return;
-  }
-  else if (update_if_starts(&url, GRPC, SCHEME_SEPARATOR1)) {
-    if (url.size() < 2 || url[0] != SCHEME_SEPARATOR2 || url[1] != SCHEME_SEPARATOR3) {
-      throw MakeException("Malformed URL (scheme must be followed by '://') [{}]", in_url);
-    }
-
-    data->scheme = EndpointData::SchemeType::GRPC;
-    data->address = data->original_endpoint;
-    data->address.remove_prefix(GRPC.size() + 3);
-    return;
-  }
-  else if (update_if_starts(&url, COGMENT, SCHEME_SEPARATOR1)) {
-    if (url.size() < 2 || url[0] != SCHEME_SEPARATOR2 || url[1] != SCHEME_SEPARATOR3) {
-      throw MakeException("Malformed URL (scheme must be followed by '://') [{}]", in_url);
-    }
-    url.remove_prefix(2);
-
-    data->scheme = EndpointData::SchemeType::COGMENT;
-  }
-  else {
-    data->scheme = EndpointData::SchemeType::UNKNOWN_SCHEME;
-    return;
-  }
-
-  // Host
-  bool empty_path_with_query = false;
-  if (url.empty()) {
-    data->host = EndpointData::HostType::UNKNOWN_HOST;
-    return;
-  }
-  else if (update_if_starts(&url, CLIENT, PATH_SEPARATOR)) {
-    data->host = EndpointData::HostType::CLIENT;
-  }
-  else if (update_if_starts(&url, DISCOVER, PATH_SEPARATOR)) {
-    data->host = EndpointData::HostType::DISCOVER;
-  }
-  else if (update_if_starts(&url, DISCOVER, QUERY_SEPARATOR)) {
-    data->host = EndpointData::HostType::DISCOVER;
-    empty_path_with_query = true;
-  }
-  else {
-    data->host = EndpointData::HostType::UNKNOWN_HOST;
-    return;
-  }
-
-  // Path
-  if (url.empty()) {
-    data->path = EndpointData::PathType::EMPTY_PATH;
-    return;
-  }
-  else if (empty_path_with_query) {
-    data->path = EndpointData::PathType::EMPTY_PATH;
-  }
-  else if (url[0] == QUERY_SEPARATOR) {
-    url.remove_prefix(1);
-    data->path = EndpointData::PathType::EMPTY_PATH;
-  }
-  else if (update_if_starts(&url, SERVICE, QUERY_SEPARATOR)) {
-    data->path = EndpointData::PathType::SERVICE;
-  }
-  else if (update_if_starts(&url, ACTOR, QUERY_SEPARATOR)) {
-    data->path = EndpointData::PathType::ACTOR;
-  }
-  else if (update_if_starts(&url, ENVIRONMENT, QUERY_SEPARATOR)) {
-    data->path = EndpointData::PathType::ENVIRONMENT;
-  }
-  else if (update_if_starts(&url, DATALOG, QUERY_SEPARATOR)) {
-    data->path = EndpointData::PathType::DATALOG;
-  }
-  else if (update_if_starts(&url, PREHOOK, QUERY_SEPARATOR)) {
-    data->path = EndpointData::PathType::PREHOOK;
-  }
-  else if (update_if_starts(&url, LIFECYCLE, QUERY_SEPARATOR)) {
-    data->path = EndpointData::PathType::LIFECYCLE;
-  }
-  else if (update_if_starts(&url, ACTSERVICE, QUERY_SEPARATOR)) {
-    data->path = EndpointData::PathType::ACTSERVICE;
-  }
-  else {
-    data->path = EndpointData::PathType::UNKNOWN_PATH;
-    return;
-  }
-
-  // Properties
-  const size_t query_start = url.data() - low_url.data();
-  url = data->original_endpoint;
-  url.remove_prefix(query_start);
-
-  while (!url.empty()) {
-    size_t equ = url.find(VALUE_SEPARATOR);
-    if (equ != url.npos) {
-      auto prop = url.substr(0, equ);
-      url.remove_prefix(equ + 1);
-
-      std::string_view val;
-      size_t sep = url.find(PROPERTY_SEPARATOR);
-      if (sep != url.npos) {
-        val = url.substr(0, sep);
-        url.remove_prefix(sep + 1);
-      }
-      else {
-        val = url;
-        url.remove_prefix(url.size());
-      }
-
-      data->query.emplace_back(prop, val);
-    }
-    else {
-      std::string_view prop;
-      size_t sep = url.find(PROPERTY_SEPARATOR);
-      if (sep != url.npos) {
-        prop = url.substr(0, sep);
-        url.remove_prefix(sep + 1);
-      }
-      else {
-        prop = url;
-        url.remove_prefix(url.size());
-      }
-
-      data->query.emplace_back(prop, std::string_view());
-    }
-  }
-}
-
-uint64_t convert_to_id(std::string_view value) {
+uint64_t convert_to_uint64(std::string_view value) {
   if (value.empty()) {
-    throw MakeException("Empty");
+    throw MakeException("Empty string for uint");
   }
 
   for (unsigned char digit : value) {
     if (!std::isdigit(digit)) {
-      throw MakeException("Invalid character [{}]", digit);
+      throw MakeException("Invalid uint character [{}]", digit);
     }
   }
 
@@ -264,8 +58,8 @@ void test_reply(const cogmentAPI::FullServiceData& reply, const EndpointData& re
   switch (request_data.path) {
   case EndpointData::SERVICE:
     for (auto& prop : request_data.query) {
-      if (prop.first == ID_PROPERTY_NAME) {
-        uint64_t id = convert_to_id(prop.second);
+      if (prop.name == ID_PROPERTY_NAME) {
+        uint64_t id = convert_to_uint64(prop.value);
         if (reply.service_id() != id) {
           throw MakeException("Directory reply service ID [{}] does not match request [{}]", reply.service_id(), id);
         }
@@ -301,6 +95,8 @@ void test_reply(const cogmentAPI::FullServiceData& reply, const EndpointData& re
 
   case EndpointData::PathType::LIFECYCLE:
   case EndpointData::PathType::ACTSERVICE:
+  case EndpointData::PathType::DATASTORE:
+  case EndpointData::PathType::MODELREGISTRY:
   case EndpointData::PathType::EMPTY_PATH:
   case EndpointData::PathType::UNKNOWN_PATH:
     throw MakeException("Internal error: path type [{}] should not have been requested from directory",
@@ -311,40 +107,104 @@ void test_reply(const cogmentAPI::FullServiceData& reply, const EndpointData& re
 
 }  // namespace
 
-std::string EndpointData::debug_string() const {
-  std::string result;
+// Get gRPC service type from endpoint data
+// Provide service ID if the request is for a particular service ID (service type is unknown)
+cogmentAPI::ServiceType Directory::get_service_type(const EndpointData& data, uint64_t* id) const {
+  cogmentAPI::ServiceType service = cogmentAPI::UNKNOWN_SERVICE;
 
-  result += MakeString("original endpoint [{}] address [{}]", original_endpoint, address);
-  result += MakeString("  scheme [{}]", scheme);
-  result += MakeString("  host [{}]", host);
-  result += MakeString("  path [{}]", path);
-
-  for (auto& prop : query) {
-    result += MakeString("  prop [{}]=[{}]", prop.first, prop.second);
+  switch (data.path) {
+  case EndpointData::PathType::EMPTY_PATH: {
+    // The caller should have added the service and properties from the context
+    throw MakeException("Missing endpoint path ('service', 'actor', 'environment', etc): [{}]", data.original_endpoint);
+    break;
   }
 
-  return result;
+  case EndpointData::PathType::SERVICE: {
+    bool id_found = false;
+    for (auto& prop : data.query) {
+      if (prop.name == ID_PROPERTY_NAME) {
+        id_found = true;
+        try {
+          *id = convert_to_uint64(prop.value);
+        }
+        catch (const CogmentError& exc) {
+          throw MakeException("Invalid service ID [{}] in endpoint [{}]", exc.what(), data.original_endpoint);
+        }
+      }
+      else if (prop.name == AUTHENTICATION_TOKEN_PROPERTY_NAME) {
+        continue;
+      }
+      else {
+        throw MakeException("Invalid endpoint service path property [{}] (only [{}] and [{}] allowed): [{}]", prop.name,
+                            ID_PROPERTY_NAME, AUTHENTICATION_TOKEN_PROPERTY_NAME, data.original_endpoint);
+      }
+    }
+
+    if (!id_found) {
+      throw MakeException("Endpoint Service path must have an `id` property: [{}]", data.original_endpoint);
+    }
+
+    break;
+  }
+
+  case EndpointData::PathType::ACTOR: {
+    service = cogmentAPI::ACTOR_SERVICE;
+    break;
+  }
+
+  case EndpointData::PathType::ENVIRONMENT: {
+    service = cogmentAPI::ENVIRONMENT_SERVICE;
+    break;
+  }
+
+  case EndpointData::PathType::DATALOG: {
+    service = cogmentAPI::DATALOG_SERVICE;
+    break;
+  }
+
+  case EndpointData::PathType::PREHOOK: {
+    service = cogmentAPI::PRE_HOOK_SERVICE;
+    break;
+  }
+
+  case EndpointData::PathType::LIFECYCLE: {
+    throw MakeException("The orchestrator does not connect to 'lifecycle' services: [{}]", data.original_endpoint);
+    break;
+  }
+
+  case EndpointData::PathType::ACTSERVICE: {
+    throw MakeException("The orchestrator does not connect to 'actservice' services: [{}]", data.original_endpoint);
+    break;
+  }
+
+  case EndpointData::PathType::DATASTORE: {
+    throw MakeException("The orchestrator does not connect to 'datastore' services: [{}]", data.original_endpoint);
+    break;
+  }
+
+  case EndpointData::PathType::MODELREGISTRY: {
+    throw MakeException("The orchestrator does not connect to 'modelregistry' services: [{}]", data.original_endpoint);
+    break;
+  }
+
+  case EndpointData::PathType::UNKNOWN_PATH: {
+    throw MakeException("Unknown endpoint path ('service', 'actor', 'environment', etc): [{}]", data.original_endpoint);
+    break;
+  }
+  }
+
+  return service;
 }
 
-void parse_endpoint(const std::string& endpoint, EndpointData* data) {
-  auto url = trim(endpoint);
-  fake_url_parser(url, data);
-  SPDLOG_TRACE("Endpoint Parser: In - [{}]   Out - {}", endpoint, data->debug_string());
-}
-
-void Directory::add_stub(const StubEntryType& stub) { m_stubs.emplace_back(stub); }
-
-bool Directory::is_context_endpoint(const EndpointData& data) const {
-  return (data.scheme == EndpointData::SchemeType::COGMENT && data.host == EndpointData::HostType::DISCOVER &&
-          data.path == EndpointData::PathType::EMPTY_PATH);
-}
-
-std::string Directory::get_address(std::string_view name, const EndpointData& data) const {
-  SPDLOG_DEBUG("Get address from directory with: [{}]", data.debug_string());
+// Little hack to differentiate a hostname and a special endpoint of the same name:
+//   "client:XXX" -> a host named "client" (i.e. with a port number XXX). Equivalent to "grpc://client:XXX" endpoint.
+//   "client" -> a special endpoint to indicate a client actor. Equivalent to "cogment://client" endpoint.
+Directory::InquiredAddress Directory::inquire_address(std::string_view service_name, const EndpointData& data) const {
+  SPDLOG_DEBUG("Get address for [{}] from directory with [{}]", service_name, data.debug_string());
 
   switch (data.scheme) {
   case EndpointData::SchemeType::GRPC: {
-    return std::string(data.address);
+    return {std::string(data.address), false};
     break;
   }
 
@@ -367,10 +227,11 @@ std::string Directory::get_address(std::string_view name, const EndpointData& da
   switch (data.host) {
   case EndpointData::HostType::CLIENT: {
     if (data.path == EndpointData::PathType::EMPTY_PATH) {
-      return std::string(CLIENT_ACTOR_ADDRESS);
+      return {std::string(CLIENT_ACTOR_ADDRESS), false};
     }
     else {
-      throw MakeException("Invalid client endpoint (should not have a path): [{}]", data.original_endpoint);
+      throw MakeException("Invalid client actor special endpoint (should not have a path): [{}]",
+                          data.original_endpoint);
     }
     break;
   }
@@ -385,179 +246,243 @@ std::string Directory::get_address(std::string_view name, const EndpointData& da
   }
   }
 
-  // "cogment://discover"
+  // endpoint == "cogment://discover" + ...
   if (m_stubs.empty()) {
-    throw MakeException("No directory service defined to inquire endpoint: [{}]", data.original_endpoint);
+    throw MakeException("No directory service defined to inquire discovery endpoint: [{}]", data.original_endpoint);
   }
-
-  cogmentAPI::InquireRequest req;
-  grpc::ClientContext context;
 
   uint64_t id = 0;
-  cogmentAPI::ServiceType service_requested = cogmentAPI::UNKNOWN_SERVICE;
-  switch (data.path) {
-  case EndpointData::PathType::EMPTY_PATH: {
-    // The caller should have added the service and properties from the context
-    throw MakeException("Missing endpoint path ('service', 'actor', 'environment', etc): [{}]", data.original_endpoint);
-    break;
-  }
+  const auto service_requested = get_service_type(data, &id);
 
-  case EndpointData::PathType::SERVICE: {
-    bool id_found = false;
-    for (auto& prop : data.query) {
-      const auto& name = prop.first;
-      const auto& value = prop.second;
-
-      if (name == ID_PROPERTY_NAME) {
-        id_found = true;
-        try {
-          id = convert_to_id(value);
-        }
-        catch (const CogmentError& exc) {
-          throw MakeException("Invalid service ID [{}] in endpoint [{}]", exc.what(), data.original_endpoint);
-        }
-      }
-      else if (name == AUTHENTICATION_TOKEN_PROPERTY_NAME) {
-        continue;
-      }
-      else {
-        throw MakeException(
-            "Invalid endpoint service path property [{}] (only 'id' and '__authentication-token' allowed): [{}]", name,
-            data.original_endpoint);
-      }
-    }
-
-    if (!id_found) {
-      throw MakeException("Endpoint Service path must have an `id` property: [{}]", data.original_endpoint);
-    }
-
-    break;
-  }
-
-  case EndpointData::PathType::ACTOR: {
-    service_requested = cogmentAPI::ACTOR_SERVICE;
-    break;
-  }
-
-  case EndpointData::PathType::ENVIRONMENT: {
-    service_requested = cogmentAPI::ENVIRONMENT_SERVICE;
-    break;
-  }
-
-  case EndpointData::PathType::DATALOG: {
-    service_requested = cogmentAPI::DATALOG_SERVICE;
-    break;
-  }
-
-  case EndpointData::PathType::PREHOOK: {
-    service_requested = cogmentAPI::PRE_HOOK_SERVICE;
-    break;
-  }
-
-  case EndpointData::PathType::LIFECYCLE: {
-    throw MakeException("The orchestrator does not connect to 'lifecycle' services: [{}]", data.original_endpoint);
-    break;
-  }
-
-  case EndpointData::PathType::ACTSERVICE: {
-    throw MakeException("The orchestrator does not connect to 'actservice' services: [{}]", data.original_endpoint);
-    break;
-  }
-
-  case EndpointData::PathType::UNKNOWN_PATH: {
-    throw MakeException("Unknown endpoint path ('service', 'actor', 'environment', etc): [{}]", data.original_endpoint);
-    break;
-  }
-  }
-
+  cogmentAPI::InquireRequest request;
+  grpc::ClientContext context;
   if (service_requested != cogmentAPI::UNKNOWN_SERVICE) {
-    req.mutable_details()->set_type(service_requested);
+    request.mutable_details()->set_type(service_requested);
 
-    auto& req_prop = *req.mutable_details()->mutable_properties();
+    auto request_properties = request.mutable_details()->mutable_properties();
     for (auto& prop : data.query) {
-      if (prop.first != AUTHENTICATION_TOKEN_PROPERTY_NAME) {
-        req_prop[std::string(prop.first)] = std::string(prop.second);
+      if (prop.name != AUTHENTICATION_TOKEN_PROPERTY_NAME) {
+        request_properties->insert({std::string(prop.name), std::string(prop.value)});
       }
       else {
-        context.AddMetadata(AUTHENTICATION_TOKEN_METADATA_NAME, std::string(prop.second));
+        context.AddMetadata(AUTHENTICATION_TOKEN_METADATA_NAME, std::string(prop.value));
       }
     }
   }
   else {
-    req.set_service_id(id);
+    request.set_service_id(id);
 
     for (auto& prop : data.query) {
-      if (prop.first == AUTHENTICATION_TOKEN_PROPERTY_NAME) {
-        context.AddMetadata(AUTHENTICATION_TOKEN_METADATA_NAME, std::string(prop.second));
+      if (prop.name == AUTHENTICATION_TOKEN_PROPERTY_NAME) {
+        context.AddMetadata(AUTHENTICATION_TOKEN_METADATA_NAME, std::string(prop.value));
       }
     }
   }
 
-  // ----------------------------------------------------------------------------------------
+  auto address = get_address_from_directory(context, request, data);
+  spdlog::debug("Directory result for [{}] [{}] from [{}]: [{}][{}]", service_name, data.original_endpoint,
+                context.peer(), address.address, address.ssl);
 
+  return address;
+}
+
+// TODO: Return all addresses found in all directories. But right now, this would only be useful for ssl use matching.
+Directory::InquiredAddress Directory::get_address_from_directory(grpc::ClientContext& context,
+                                                                 cogmentAPI::InquireRequest& request,
+                                                                 const EndpointData& endpoint_data) const {
   cogmentAPI::InquireReply reply;
   try {
     // Limited to one directory for now
-    auto stream = m_stubs[0]->get_stub().Inquire(&context, req);
+    auto stream = m_stubs[0]->get_stub().Inquire(&context, request);
 
     // We use the first response of the stream
     if (!stream->Read(&reply)) {
-      throw MakeException("No response for [{}]", data.original_endpoint);
+      auto status = stream->Finish();
+      if (status.ok()) {
+        throw MakeException("No service found in directory for [{}]", endpoint_data.original_endpoint);
+      }
+      else {
+        throw MakeException("Failed directory inquiry for [{}]: [{}]", endpoint_data.original_endpoint,
+                            status.error_message());
+      }
     }
 
     context.TryCancel();
   }
   catch (const std::exception& exc) {
-    throw MakeException("Failed to inquire from directory [{}]: {}", context.peer(), exc.what());
+    throw MakeException("Failed to inquire from directory [{}]: [{}]", context.peer(), exc.what());
   }
 
   if (!reply.data().has_endpoint()) {
-    throw MakeException("Could not find service from directory [{}]: [{}]", context.peer(), data.original_endpoint);
+    throw MakeException("Invalid (empty address) inquiry response from directory [{}] for [{}]", context.peer(),
+                        endpoint_data.original_endpoint);
   }
 
-  test_reply(reply.data(), data);
+  if (spdlog::default_logger()->level() <= spdlog::level::debug) {
+    test_reply(reply.data(), endpoint_data);
+  }
 
+  InquiredAddress result;
   auto& endpoint = reply.data().endpoint();
-  std::string address = endpoint.hostname();
+  result.address = endpoint.host();
 
   switch (endpoint.protocol()) {
   case cogmentAPI::ServiceEndpoint::GRPC: {
     if (endpoint.port() == 0) {
-      throw MakeException("Invalid address port (0) from directory [{}]: [{}]", context.peer(), address);
+      throw MakeException("Invalid address port (0) from directory [{}] for [{}]", context.peer(),
+                          endpoint_data.original_endpoint);
     }
 
-    address += PORT_SEPARATOR + std::to_string(endpoint.port());
+    result.address += PORT_SEPARATOR + std::to_string(endpoint.port());
+    result.ssl = false;
     break;
   }
 
   case cogmentAPI::ServiceEndpoint::GRPC_SSL: {
-    throw MakeException("Unhandled endpoint ssl scheme from directory [{}]: [{}]", context.peer(),
-                        data.original_endpoint);
+    if (endpoint.port() == 0) {
+      throw MakeException("Invalid address port (0) from directory [{}] for [{}]", context.peer(),
+                          endpoint_data.original_endpoint);
+    }
+
+    result.address += PORT_SEPARATOR + std::to_string(endpoint.port());
+    result.ssl = true;
     break;
   }
 
   case cogmentAPI::ServiceEndpoint::COGMENT: {
-    if (address != CLIENT_ACTOR_ADDRESS) {
-      throw MakeException("Unhandled endpoint from directory [{}]: {}://{}", context.peer(), COGMENT, address);
+    if (result.address != CLIENT_ACTOR_ADDRESS) {
+      throw MakeException("Unhandled endpoint from directory [{}]: [cogment://{}]", context.peer(), result.address);
     }
+    result.ssl = false;
     break;
   }
 
   case cogmentAPI::ServiceEndpoint::UNKNOWN:
   default: {
-    throw MakeException("Unknown endpoint scheme from directory [{}]: [{}] [{}]", context.peer(),
-                        data.original_endpoint, endpoint.protocol());
+    throw MakeException("Unknown endpoint scheme from directory [{}] for [{}]: [{}]", context.peer(),
+                        endpoint_data.original_endpoint, endpoint.protocol());
     break;
   }
   }
 
-  spdlog::debug("Directory result for [{}] [{}] from [{}]: [{}]", name, data.original_endpoint, context.peer(),
-                address);
+  return result;
+}
 
-  // Little hack to differentiate a host named client and a client endpoint:
-  //   "client:XXX" -> a host named "client" (i.e. with a port number XXX)
-  //   "client" -> a client actor endpoint
-  return address;
+Directory::RegisteredService Directory::register_host(std::string_view host, uint16_t port, bool ssl,
+                                                      Directory::ServiceType type,
+                                                      const std::vector<PropertyView>& properties) {
+  if (m_stubs.empty()) {
+    throw MakeException("No directory service defined to register service");
+  }
+
+  grpc::ClientContext context;
+  if (!m_auth_token.empty()) {
+    context.AddMetadata(AUTHENTICATION_TOKEN_METADATA_NAME, m_auth_token);
+  }
+
+  cogmentAPI::RegisterRequest request;
+  if (ssl) {
+    request.mutable_endpoint()->set_protocol(cogmentAPI::ServiceEndpoint_Protocol_GRPC_SSL);
+  }
+  else {
+    request.mutable_endpoint()->set_protocol(cogmentAPI::ServiceEndpoint_Protocol_GRPC);
+  }
+  request.mutable_endpoint()->set_host(std::string(host));
+  request.mutable_endpoint()->set_port(port);
+
+  request.mutable_details()->set_type(static_cast<cogmentAPI::ServiceType>(type));
+  auto request_properties = request.mutable_details()->mutable_properties();
+  for (auto& prop : properties) {
+    request_properties->insert({std::string(prop.name), std::string(prop.value)});
+  }
+
+  cogmentAPI::RegisterReply reply;
+  try {
+    // Limited to one directory for now
+    auto stream = m_stubs[0]->get_stub().Register(&context);
+
+    if (!stream->Write(request)) {
+      throw MakeException("Failed to write to directory to register");
+    }
+
+    // There should be only one response of the stream (we made only one request)
+    if (!stream->Read(&reply)) {
+      throw MakeException("No response to directory register request");
+    }
+
+    if (stream->WritesDone()) {
+      auto status = stream->Finish();
+      if (!status.ok()) {
+        spdlog::warn("Failed to finish directory registration stream [{}]", status.error_message());
+      }
+    }
+    else {
+      spdlog::warn("Failed to close writing to directory registration stream");
+    }
+  }
+  catch (const std::exception& exc) {
+    throw MakeException("Directory register failure: [{}]", exc.what());
+  }
+
+  if (reply.status() != cogmentAPI::RegisterReply_Status_OK) {
+    throw MakeException("Directory registration failed for host [{}]: [{}] [{}]", host, reply.status(),
+                        reply.error_msg());
+  }
+
+  return {reply.service_id(), reply.secret()};
+}
+
+// We don't want exceptions when deregistering, since it is not critical and will be used in destructors
+void Directory::deregister_service(const RegisteredService& record) {
+  if (m_stubs.empty()) {
+    spdlog::error("No directory service defined to deregister service");
+    return;
+  }
+
+  grpc::ClientContext context;
+  if (!m_auth_token.empty()) {
+    context.AddMetadata(AUTHENTICATION_TOKEN_METADATA_NAME, m_auth_token);
+  }
+
+  cogmentAPI::DeregisterRequest request;
+  request.set_service_id(record.service_id);
+  request.set_secret(record.secret);
+
+  cogmentAPI::DeregisterReply reply;
+  try {
+    // Limited to one directory for now
+    auto stream = m_stubs[0]->get_stub().Deregister(&context);
+
+    if (!stream->Write(request)) {
+      spdlog::error("Failed to write to directory to deregister");
+      return;
+    }
+
+    // There should be only one response of the stream (we made only one request)
+    if (!stream->Read(&reply)) {
+      spdlog::error("No response to directory deregister request");
+      return;
+    }
+
+    if (stream->WritesDone()) {
+      auto status = stream->Finish();
+      if (!status.ok()) {
+        spdlog::warn("Failed to finish directory deregistration stream [{}]", status.error_message());
+      }
+    }
+    else {
+      spdlog::warn("Failed to close writing to directory deregistration stream");
+    }
+  }
+  catch (const std::exception& exc) {
+    spdlog::error("Direcotry deregister Failure: [{}]", exc.what());
+    return;
+  }
+
+  if (reply.status() != cogmentAPI::DeregisterReply_Status_OK) {
+    spdlog::error("Directory deregistration failed for service id [{}]: [{}] [{}]", record.service_id, reply.status(),
+                  reply.error_msg());
+  }
 }
 
 }  // namespace cogment

@@ -36,6 +36,16 @@ type trialDatastoreServer struct {
 	addSampleChunkSize int
 }
 
+func (s *trialDatastoreServer) Version(
+	ctx context.Context,
+	req *grpcapi.VersionRequest,
+) (*grpcapi.VersionInfo, error) {
+
+	// TODO: Return proper version info. Current version is minimal to serve a health check for directory.
+	res := &grpcapi.VersionInfo{}
+	return res, nil
+}
+
 func (s *trialDatastoreServer) RetrieveTrials(
 	ctx context.Context,
 	req *grpcapi.RetrieveTrialsRequest,

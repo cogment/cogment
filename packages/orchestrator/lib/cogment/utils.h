@@ -35,14 +35,29 @@ constexpr uint64_t NANOS = 1'000'000'000;
 constexpr double NANOS_INV = 1.0 / NANOS;
 using COGMENT_ERROR_BASE_TYPE = std::runtime_error;
 
-// Ignores (i.e. not added to the vector) the last empty string if there is a trailing separator
-std::vector<std::string> split(const std::string& in, char separator);
+// Split string according to separator character
+std::vector<std::string_view> split(std::string_view in, char separator);
 
 // Trim white space from begining and end of input string
 std::string_view trim(std::string_view in);
 
 // Unix epoch time in nanoseconds
 uint64_t Timestamp();
+
+// Get host IP address in proper format to register to directory
+std::string GetHostAddress();
+
+// Instead of using a generic std::pair
+struct PropertyView {
+  std::string_view name;
+  std::string_view value;
+
+  PropertyView(std::string_view name, std::string_view value) : name(name), value(value) {}
+};
+
+// Parse and split a property string of the type (here with ',' and '=' as parameters):
+// "name=value,name=value,name=value". The values are optional.
+std::vector<PropertyView> parse_properties(std::string_view in, char property_separator, char value_separator);
 
 // TODO: Update (or replace) to use std::format (C++20)
 template <class... Args>
@@ -58,7 +73,7 @@ template <class EXC = CogmentError, class... Args>
 EXC MakeException(const char* format, Args&&... args) {
   try {
     std::string val = MakeString(format, std::forward<Args>(args)...);
-    spdlog::debug("**Exception generated**: {}", val);
+    SPDLOG_DEBUG("**Exception generated**: [{}]", val);
     return EXC(val);
   }
   catch (...) {
@@ -70,7 +85,7 @@ template <class... Args>
 grpc::Status MakeErrorStatus(const char* format, Args&&... args) {
   try {
     std::string val = MakeString(format, std::forward<Args>(args)...);
-    spdlog::error("gRPC failed status returned: {}", val);
+    spdlog::error("gRPC failed status returned: [{}]", val);
     return grpc::Status(grpc::StatusCode::UNKNOWN, val);
   }
   catch (...) {

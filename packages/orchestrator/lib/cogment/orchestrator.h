@@ -46,8 +46,10 @@ public:
 
   void Version(cogmentAPI::VersionInfo* out);
 
-  void add_directory(const std::string& url);
+  void add_directory(std::string_view url, std::string_view auth_token);
   void add_prehook(const std::string& url);
+  void register_to_directory(std::string_view host, uint16_t actor_port, uint16_t lifecycle_port,
+                             const std::string& props);
 
   std::shared_ptr<Trial> start_trial(cogmentAPI::TrialParams&& params, const std::string& user_id,
                                      std::string trial_id_req, bool final_params);
@@ -55,6 +57,7 @@ public:
   std::vector<std::shared_ptr<Trial>> all_trials() const;
 
   const Directory& directory() { return m_directory; }
+  bool use_ssl() const { return m_channel_pool.is_ssl(); }
   StubPool<cogmentAPI::DatalogSP>* log_pool() { return &m_log_stubs; }
   StubPool<cogmentAPI::EnvironmentSP>* env_pool() { return &m_env_stubs; }
   StubPool<cogmentAPI::ServiceActorSP>* agent_pool() { return &m_agent_stubs; }
@@ -108,6 +111,8 @@ private:
 
   ThreadPool m_thread_pool;
   Watchdog m_watchdog;
+
+  std::vector<Directory::RegisteredService> m_directory_registrations;
 };
 
 }  // namespace cogment

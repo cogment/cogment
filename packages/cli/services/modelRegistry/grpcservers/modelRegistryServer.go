@@ -59,6 +59,16 @@ func (s *ModelRegistryServer) SetBackend(b backend.Backend) {
 	s.backendPromise.Set(b)
 }
 
+func (s *ModelRegistryServer) Version(
+	ctx context.Context,
+	req *grpcapi.VersionRequest,
+) (*grpcapi.VersionInfo, error) {
+
+	// TODO: Return proper version info. Current version is minimal to serve a health check for directory.
+	res := &grpcapi.VersionInfo{}
+	return res, nil
+}
+
 func (s *ModelRegistryServer) CreateOrUpdateModel(
 	ctx context.Context,
 	req *grpcapi.CreateOrUpdateModelRequest,

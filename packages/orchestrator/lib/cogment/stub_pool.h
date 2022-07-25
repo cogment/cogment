@@ -42,14 +42,17 @@ namespace cogment {
 class ChannelPool {
 public:
   ChannelPool(std::shared_ptr<grpc::ChannelCredentials> creds) {
-    if (creds.get() == nullptr) {
-      spdlog::warn("Implicitly using unsecured channels");
+    m_ssl = (creds.get() != nullptr && creds.use_count() != 0);
+
+    if (!m_ssl) {
       m_creds = grpc::InsecureChannelCredentials();
     }
     else {
       m_creds = std::move(creds);
     }
   }
+
+  bool is_ssl() const { return m_ssl; }
 
   std::shared_ptr<grpc::Channel> get_channel(const std::string& url) {
     const std::lock_guard lg(m_map_lock);
@@ -71,6 +74,7 @@ public:
 
 private:
   std::shared_ptr<grpc::ChannelCredentials> m_creds;
+  bool m_ssl;
 };
 
 template <typename Service_T>

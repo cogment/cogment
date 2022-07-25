@@ -24,6 +24,10 @@ type Wrapper interface {
 	SetActorPort(port uint) error
 	SetDefaultParamsFile(path string) error
 	AddDirectoryServicesEndpoint(endpoint string) error
+	SetDirectoryAuthToken(token string) error
+	SetDirectoryAutoRegister(autoRegister uint) error
+	SetDirectoryRegisterHost(host string) error
+	SetDirectoryRegisterProps(props string) error
 	AddPretrialHooksEndpoint(endpoint string) error
 	SetPrometheusPort(port uint) error
 	SetStatusListener(listener utils.StatusListener) error

@@ -33,10 +33,6 @@
 namespace cogment {
 const std::string DEFAULT_ENVIRONMENT_NAME("env");
 
-// Directory property names
-constexpr std::string_view ACTOR_CLASS_PROPERTY_NAME("actor_class");
-constexpr std::string_view IMPLEMENTATION_PROPERTY_NAME("implementation");
-
 constexpr int64_t AUTO_TICK_ID = -1;     // The actual tick ID will be determined by the Orchestrator
 constexpr int64_t NO_DATA_TICK_ID = -2;  // When we have received no data (different from default/empty data)
 constexpr uint64_t MAX_TICK_ID = static_cast<uint64_t>(std::numeric_limits<int64_t>::max());
@@ -280,8 +276,8 @@ void Trial::prepare_actors() {
     const auto& name = actor_params.name();
     const auto& actor_class = actor_params.actor_class();
 
-    if (endpoint.empty() || name.empty() || actor_class.empty()) {
-      throw MakeException("Actor [{}] not fully defined in parameters [{}] [{}]", name, actor_class, endpoint);
+    if (name.empty() || actor_class.empty()) {
+      throw MakeException("Actor [{}] not fully defined in parameters [{}] [{}]", name, actor_class);
     }
     if (name == m_env->name()) {
       throw MakeException("Actor name cannot be the same as environment name [{}]", m_env->name());
@@ -296,15 +292,19 @@ void Trial::prepare_actors() {
     }
     else {
       EndpointData data;
-      try {
-        parse_endpoint(endpoint, &data);
+      if (!endpoint.empty()) {
+        try {
+          data.parse(endpoint);
+        }
+        catch (const CogmentError& exc) {
+          throw MakeException("Actor [{}] endpoint error: [{}]", name, exc.what());
+        }
       }
-      catch (const CogmentError& exc) {
-        throw MakeException("Actor [{}] endpoint error: [{}]", name, exc.what());
+      else {
+        data.set_context_endpoint();
       }
-      auto& directory = m_orchestrator->directory();
 
-      if (directory.is_context_endpoint(data)) {
+      if (data.is_context_endpoint()) {
         if (actor_class.find_first_of(INVALID_CHARACTERS) != name.npos) {
           throw MakeException("Actor class name contains invalid characters [{}]", actor_class);
         }
@@ -321,20 +321,26 @@ void Trial::prepare_actors() {
         }
       }
 
-      std::string address;
+      auto& directory = m_orchestrator->directory();
+      Directory::InquiredAddress address;
       try {
-        address = directory.get_address(name, data);
+        address = directory.inquire_address(name, data);
       }
       catch (const CogmentError& exc) {
         throw MakeException("Actor [{}] endpoint error: [{}]", name, exc.what());
       }
 
-      if (address == CLIENT_ACTOR_ADDRESS) {
+      if (address.address == CLIENT_ACTOR_ADDRESS) {
         auto client_actor = std::make_unique<ClientActor>(this, actor_params);
         m_actors.emplace_back(std::move(client_actor));
       }
       else {
-        auto stub_entry = m_orchestrator->agent_pool()->get_stub_entry(address);
+        if (address.ssl && !m_orchestrator->use_ssl()) {
+          // TODO: We should pre-emptively search for the proper service in the directory (to match ssl use)
+          throw MakeException("Actor [{}] requires a SSL connection", name);
+        }
+
+        auto stub_entry = m_orchestrator->agent_pool()->get_stub_entry(address.address);
         auto agent_actor = std::make_unique<ServiceActor>(this, actor_params, stub_entry);
         m_actors.emplace_back(std::move(agent_actor));
       }
@@ -359,26 +365,28 @@ void Trial::prepare_actors() {
 }
 
 void Trial::prepare_environment() {
-  auto& env_params = m_params.environment();
-  auto& endpoint = env_params.endpoint();
-  auto& implementation = env_params.implementation();
-  auto& directory = m_orchestrator->directory();
-
-  if (endpoint.empty()) {
-    throw MakeException("No environment endpoint provided in parameters");
-  }
+  const auto& env_params = m_params.environment();
+  const auto& name = env_params.name();
+  const auto& endpoint = env_params.endpoint();
+  const auto& implementation = env_params.implementation();
 
   EndpointData data;
-  try {
-    parse_endpoint(endpoint, &data);
+  if (!endpoint.empty()) {
+    try {
+      data.parse(endpoint);
+    }
+    catch (const CogmentError& exc) {
+      throw MakeException("Environment [{}] endpoint error: [{}]", name, exc.what());
+    }
   }
-  catch (const CogmentError& exc) {
-    throw MakeException("Environment endpoint error: [{}]", exc.what());
+  else {
+    data.set_context_endpoint();
   }
 
-  if (directory.is_context_endpoint(data)) {
+  if (data.is_context_endpoint()) {
     if (implementation.find_first_of(INVALID_CHARACTERS) != implementation.npos) {
-      throw MakeException("Environment implementation name contains invalid characters [{}]", implementation);
+      throw MakeException("Environment [{}] implementation name contains invalid characters [{}]", name,
+                          implementation);
     }
 
     data.path = EndpointData::PathType::ENVIRONMENT;
@@ -387,59 +395,66 @@ void Trial::prepare_environment() {
     }
   }
 
-  std::string address;
+  auto& directory = m_orchestrator->directory();
+  Directory::InquiredAddress address;
   try {
-    address = directory.get_address(env_params.name(), data);
+    address = directory.inquire_address(env_params.name(), data);
   }
   catch (const CogmentError& exc) {
-    throw MakeException("Environment endpoint error: [{}]", exc.what());
+    throw MakeException("Environment [{}] endpoint error: [{}]", name, exc.what());
   }
 
-  if (address == CLIENT_ACTOR_ADDRESS) {
-    throw MakeException("Environment endpoint resolved to 'client'");
+  if (address.address == CLIENT_ACTOR_ADDRESS) {
+    throw MakeException("Environment [{}] endpoint resolved to 'client'", name);
   }
 
-  auto stub_entry = m_orchestrator->env_pool()->get_stub_entry(address);
+  if (address.ssl && !m_orchestrator->use_ssl()) {
+    // TODO: Use all addresses found in directory to try to match ssl use. Is it worth it?
+    throw MakeException("Environment [{}] requires a SSL connection", name);
+  }
+
+  auto stub_entry = m_orchestrator->env_pool()->get_stub_entry(address.address);
   m_env = std::make_unique<Environment>(this, env_params, stub_entry);
 }
 
 void Trial::prepare_datalog() {
-  if (!m_params.has_datalog()) {
+  if (!m_params.has_datalog() || m_params.datalog().endpoint().empty()) {
     m_datalog = std::make_unique<DatalogServiceNull>();
   }
   else {
     auto& endpoint = m_params.datalog().endpoint();
-    auto& directory = m_orchestrator->directory();
-
-    if (endpoint.empty()) {
-      throw MakeException("Parameter Datalog endpoint missing");
-    }
 
     EndpointData data;
     try {
-      parse_endpoint(endpoint, &data);
+      data.parse(endpoint);
     }
     catch (const CogmentError& exc) {
       throw MakeException("Datalog endpoint error: [{}]", exc.what());
     }
 
-    if (directory.is_context_endpoint(data)) {
+    if (data.is_context_endpoint()) {
       data.path = EndpointData::PathType::DATALOG;
     }
 
-    std::string address;
+    auto& directory = m_orchestrator->directory();
+    Directory::InquiredAddress address;
     try {
-      address = directory.get_address("datalog", data);
+      address = directory.inquire_address("datalog", data);
     }
     catch (const CogmentError& exc) {
       throw MakeException("Datalog endpoint error: [{}]", exc.what());
     }
 
-    if (address == CLIENT_ACTOR_ADDRESS) {
+    if (address.address == CLIENT_ACTOR_ADDRESS) {
       throw MakeException("Datalog endpoint resolved to 'client'");
     }
 
-    auto stub_entry = m_orchestrator->log_pool()->get_stub_entry(address);
+    if (address.ssl && !m_orchestrator->use_ssl()) {
+      // TODO: We should pre-emptively search for the proper service in the directory (to match ssl use)
+      throw MakeException("Datalog requires a SSL connection");
+    }
+
+    auto stub_entry = m_orchestrator->log_pool()->get_stub_entry(address.address);
     m_datalog = std::make_unique<DatalogServiceImpl>(stub_entry);
   }
 
@@ -964,7 +979,7 @@ void Trial::terminate(const std::string& details) {
     set_state(InternalState::terminating);
   }
   catch (const CogmentError& exc) {
-    spdlog::debug("Trial [{}] - Hard termination [{}] in state [{}]: {}", m_id, details,
+    spdlog::debug("Trial [{}] - Hard termination [{}] in state [{}]: [{}]", m_id, details,
                   get_trial_state_string(m_state), exc.what());
   }
 

@@ -43,7 +43,7 @@ grpc::Status ActorService::RunTrial(grpc::ServerContext* ctx, ServerStream::Stre
     ClientActor::run_an_actor(std::move(trial), stream);  // Blocking
   }
   catch (const std::exception& exc) {
-    return MakeErrorStatus("ClientActorSP::RunTrial failure: {}", exc.what());
+    return MakeErrorStatus("ClientActorSP::RunTrial failure: [{}]", exc.what());
   }
   catch (...) {
     return MakeErrorStatus("ClientActorSP::RunTrial failure");
@@ -60,7 +60,7 @@ grpc::Status ActorService::Version(grpc::ServerContext*, const cogmentAPI::Versi
     m_orchestrator->Version(out);
   }
   catch (const std::exception& exc) {
-    return MakeErrorStatus("ClientActorSP::Version failure: {}", exc.what());
+    return MakeErrorStatus("ClientActorSP::Version failure: [{}]", exc.what());
   }
   catch (...) {
     return MakeErrorStatus("ClientActorSP::Version failure");

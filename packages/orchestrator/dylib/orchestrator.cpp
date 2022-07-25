@@ -73,6 +73,10 @@ struct Options {
   std::string default_params_file;
   std::vector<std::string> pre_trial_hooks;
   std::vector<std::string> directory_services;
+  std::string directory_auth_token;
+  uint32_t directory_auto_register;
+  std::string directory_register_host;
+  std::string directory_register_props;
   uint16_t prometheus_port;
   std::string private_key;
   std::string root_cert;
@@ -83,6 +87,31 @@ struct Options {
   CogmentOrchestratorLogger logger;
   void* status_listener_ctx;
   CogmentOrchestratorStatusListener status_listener;
+
+  std::string debug_string() const {
+    std::string result;
+    result += cogment::MakeString("lifecycle port [{}], actor port [{}]", lifecycle_port, actor_port);
+    result += cogment::MakeString(", params file [{}]", default_params_file);
+    result += ", hooks [";
+    for (auto& hook : pre_trial_hooks) {
+      result += hook;
+    }
+    result += "]";
+    result += ", directories [";
+    for (auto& dir : directory_services) {
+      result += dir;
+    }
+    result += "]";
+    result += cogment::MakeString(", directory auth token [{}]", directory_auth_token);
+    result += cogment::MakeString(", directory auto register [{}]", directory_auto_register);
+    result += cogment::MakeString(", directory register host [{}]", directory_register_host);
+    result += cogment::MakeString(", directory register properties [{}]", directory_register_props);
+    result += cogment::MakeString(", prometheus port [{}], private key [{}]", prometheus_port, private_key);
+    result += cogment::MakeString(", root cert [{}], trust chain [{}]", root_cert, trust_chain);
+    result += cogment::MakeString(", garbage collection frequency [{}]", gc_frequency);
+    result += cogment::MakeString(", log level [{}]", log_level);
+    return result;
+  }
 };
 
 class ServedOrchestrator {
@@ -115,7 +144,7 @@ ServedOrchestrator::ServedOrchestrator(const Options* options) :
     m_grpc_servers(),
     m_metrics_exposer(),
     m_metrics_registry() {
-  if (options->logger) {
+  if (options->logger != nullptr) {
     auto sink = std::make_shared<cogment::CallbackSpdLogSink<std::mutex>>(options->logger_ctx, options->logger);
     auto logger = std::make_shared<spdlog::logger>("ext_callback", sink);
     spdlog::set_default_logger(logger);
@@ -142,16 +171,18 @@ ServedOrchestrator::ServedOrchestrator(const Options* options) :
   }
   catch (const std::exception& exc) {
     spdlog::set_level(spdlog::level::info);
-    spdlog::warn("Failed to set log level to [{}], defaulting to 'info': {}", log_level, exc.what());
+    spdlog::warn("Failed to set log level to [{}], defaulting to 'info': [{}]", log_level, exc.what());
   }
   catch (...) {
     spdlog::set_level(spdlog::level::info);
     spdlog::warn("Failed to set log level to [{}], defaulting to 'info'", log_level);
   }
 
-  if (m_status_listener) {
+  if (m_status_listener != nullptr) {
     m_status_listener(m_status_listnener_ctx, m_status);
   }
+
+  spdlog::debug("Orchestrator options: [{}]", options->debug_string());
 
   std::shared_ptr<grpc::ServerCredentials> server_creds;
   std::shared_ptr<grpc::ChannelCredentials> client_creds;
@@ -159,7 +190,8 @@ ServedOrchestrator::ServedOrchestrator(const Options* options) :
   if (!using_ssl) {
     spdlog::info("Using unsecured communication");
     server_creds = grpc::InsecureServerCredentials();
-    client_creds = grpc::InsecureChannelCredentials();
+    // We don't set client_creds because we use the presence of a pointer to check for SSL use.
+    // ChannelCredentials offers no way to check if an encrypted communication is used.
   }
   else {
     spdlog::info("Using secured TLS communication");
@@ -226,7 +258,7 @@ ServedOrchestrator::ServedOrchestrator(const Options* options) :
       params_file_loaded = true;
     }
     catch (const std::exception& exc) {
-      throw cogment::MakeException("Failed to load default parameters file [{}]: {}", options->default_params_file,
+      throw cogment::MakeException("Failed to load default parameters file [{}]: [{}]", options->default_params_file,
                                    exc.what());
     }
   }
@@ -248,7 +280,7 @@ ServedOrchestrator::ServedOrchestrator(const Options* options) :
   // ******************* Networking *******************
   if (!options->directory_services.empty()) {
     for (auto& directory_service : options->directory_services) {
-      m_orchestrator->add_directory(directory_service);
+      m_orchestrator->add_directory(directory_service, options->directory_auth_token);
     }
   }
   else {
@@ -291,6 +323,15 @@ ServedOrchestrator::ServedOrchestrator(const Options* options) :
     m_status_listener(m_status_listnener_ctx, m_status);
   }
 
+  const auto auto_option = options->directory_auto_register;
+  if (auto_option == 1) {
+    m_orchestrator->register_to_directory(options->directory_register_host, options->actor_port,
+                                          options->lifecycle_port, options->directory_register_props);
+  }
+  else if (auto_option != 0) {
+    spdlog::error("Unknown option for directory_auto_register [{}] (it must be 0 or 1)", auto_option);
+  }
+
   spdlog::info("Server listening for lifecycle on [{}]", lifecycle_endpoint);
   spdlog::info("Server listening for Actors on [{}]", actor_endpoint);
 }
@@ -323,7 +364,7 @@ int ServedOrchestrator::WaitForTermination() {
     }
   }
   catch (const std::exception& exc) {
-    spdlog::error("Failure: {}", exc.what());
+    spdlog::error("Failure: [{}]", exc.what());
     return_value = -1;
   }
   catch (...) {
@@ -382,6 +423,26 @@ void cogment_orchestrator_options_add_directory_service(void* c_options, char* d
   Options* options = static_cast<Options*>(c_options);
   options->directory_services.push_back(directory_service_endpoint);
 }
+void cogment_orchestrator_options_set_directory_auth_token(void* c_options, char* token) {
+  assert(c_options);
+  Options* options = static_cast<Options*>(c_options);
+  options->directory_auth_token = token;
+}
+void cogment_orchestrator_options_set_auto_registration(void* c_options, unsigned int auto_register) {
+  assert(c_options);
+  Options* options = static_cast<Options*>(c_options);
+  options->directory_auto_register = auto_register;
+}
+void cogment_orchestrator_options_set_directory_register_host(void* c_options, char* host) {
+  assert(c_options);
+  Options* options = static_cast<Options*>(c_options);
+  options->directory_register_host = host;
+}
+void cogment_orchestrator_options_set_directory_properties(void* c_options, char* properties) {
+  assert(c_options);
+  Options* options = static_cast<Options*>(c_options);
+  options->directory_register_props = properties;
+}
 void cogment_orchestrator_options_set_prometheus_port(void* c_options, unsigned int port) {
   assert(c_options);
   Options* options = static_cast<Options*>(c_options);
@@ -431,7 +492,7 @@ void* cogment_orchestrator_create_and_start(void* c_options) {
     return new ServedOrchestrator(options);
   }
   catch (const std::exception& exc) {
-    spdlog::error("Failure: {}", exc.what());
+    spdlog::error("Failure: [{}]", exc.what());
     return nullptr;
   }
   catch (...) {

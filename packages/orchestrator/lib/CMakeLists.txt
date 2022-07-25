@@ -74,6 +74,7 @@ add_library(orchestrator_lib
   cogment/trial_params.cpp
   cogment/trial.cpp
   cogment/utils.cpp
+  cogment/endpoint.cpp
   cogment/directory.cpp
   cogment/environment.cpp
 

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Added
+
+- Integration of the Directory for all endpoints
+- Self registration of the Orchestrator to the Directory
+
 ## v2.6.0 - 2022-07-21
 
 ### Added

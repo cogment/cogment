@@ -31,6 +31,10 @@ type Options struct {
 	ActorWebPort               uint
 	ParamsFile                 string
 	DirectoryServicesEndpoints []string
+	DirectoryAuthToken         string
+	DirectoryAutoRegister      uint
+	DirectoryRegisterHost      string
+	DirectoryRegisterProps     string
 	PretrialHooksEndpoits      []string
 	PrometheusPort             uint
 	StatusFile                 string
@@ -46,6 +50,10 @@ var DefaultOptions = Options{
 	ActorWebPort:               0,
 	ParamsFile:                 "",
 	DirectoryServicesEndpoints: []string{},
+	DirectoryAuthToken:         "",
+	DirectoryAutoRegister:      1,
+	DirectoryRegisterHost:      "",
+	DirectoryRegisterProps:     "",
 	PretrialHooksEndpoits:      []string{},
 	PrometheusPort:             0,
 	StatusFile:                 "",
@@ -161,6 +169,22 @@ func runOrchestrator(ctx context.Context, options Options, statusListener utils.
 		if err != nil {
 			return err
 		}
+	}
+	err = w.SetDirectoryAuthToken(options.DirectoryAuthToken)
+	if err != nil {
+		return err
+	}
+	err = w.SetDirectoryAutoRegister(options.DirectoryAutoRegister)
+	if err != nil {
+		return err
+	}
+	err = w.SetDirectoryRegisterHost(options.DirectoryRegisterHost)
+	if err != nil {
+		return err
+	}
+	err = w.SetDirectoryRegisterProps(options.DirectoryRegisterProps)
+	if err != nil {
+		return err
 	}
 	err = w.SetPrometheusPort(options.PrometheusPort)
 	if err != nil {

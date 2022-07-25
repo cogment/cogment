@@ -31,12 +31,7 @@ public:
 
   bool read(OutputType* data) override { return m_stream->Read(data); }
   bool write(const InputType& data) override { return m_stream->Write(data); }
-  bool write_last(const InputType& data) override {
-    if (m_stream->Write(data)) {
-      return m_stream->WritesDone();
-    }
-    return false;
-  }
+  bool write_last(const InputType& data) override { return (m_stream->Write(data) && m_stream->WritesDone()); }
 
   // gRPC blocks on Finish until all messages are read, so we don't.
   bool finish() override { return true; }

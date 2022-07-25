@@ -32,7 +32,7 @@ uint64_t Timestamp() {
     return (ts.tv_sec * NANOS + ts.tv_nsec);
   }
   else {
-    throw MakeException("Could not get time stamp: {}", strerror(errno));
+    throw MakeException("Could not get time stamp: [{}]", strerror(errno));
   }
 }
 #else
@@ -45,21 +45,90 @@ uint64_t Timestamp() {
 }
 #endif
 
-std::vector<std::string> split(const std::string& in, char separator) {
-  std::vector<std::string> result;
+#if defined(__linux__) || defined(__APPLE__)
+  #if defined(__APPLE__)
+    #warning "Despite documentation, the 'h_errno' variable is not found by the linker (-lc)"
+int h_errno;
+  #endif
 
-  size_t first = 0;
-  for (size_t pos = 0; pos < in.size(); pos++) {
-    if (in[pos] != separator) {
-      continue;
-    }
+  #include <string.h>
+  #include <unistd.h>
+  #include <netdb.h>
+  #include <arpa/inet.h>
 
-    result.emplace_back(in.substr(first, pos - first));
-    first = pos + 1;
+  #define ERROR_CODE1 strerror(errno)
+  #define ERROR_CODE2 hstrerror(h_errno)
+
+static void PreGetHostAddress() {}
+static void PostGetHostAddress() {}
+
+#elif defined(_WIN64)
+  #include <winsock.h>
+
+  #define ERROR_CODE1 WSAGetLastError()
+  #define ERROR_CODE2 WSAGetLastError()
+
+static void PreGetHostAddress() {
+  WSADATA data;
+  const int res = WSAStartup(MAKEWORD(2, 2), &data);
+  if (res != 0) {
+    throw MakeException("Could not initialise winsock [{}] [{}]", res, WSAGetLastError());
+  }
+}
+
+static void PostGetHostAddress() { WSACleanup(); }
+
+#else
+  #error "Unknown target OS"
+#endif
+
+std::string GetHostAddress() {
+  PreGetHostAddress();
+  static constexpr size_t MAX_HOST_NAME_LENGTH = 256;
+  char host_name[MAX_HOST_NAME_LENGTH];
+  const int res = gethostname(host_name, MAX_HOST_NAME_LENGTH - 1);
+  if (res != 0) {
+    throw MakeException("Could not get host name: [{}] [{}]", res, ERROR_CODE1);
+  }
+  host_name[MAX_HOST_NAME_LENGTH - 1] = '\0';
+  spdlog::debug("Host name [{}]", host_name);
+
+  const struct hostent* host_data = gethostbyname(host_name);
+  if (host_data == NULL) {
+    throw MakeException("Could not get address for hostname [{}]: [{}]", host_name, ERROR_CODE2);
   }
 
-  if (first < in.size()) {
-    result.emplace_back(in.substr(first));
+  if (host_data->h_length <= 0) {
+    throw MakeException("No address for hostname [{}]", host_name);
+  }
+
+  char** const addr_list = host_data->h_addr_list;
+  if (addr_list == NULL || addr_list[0] == NULL) {
+    throw MakeException("Null address for hostname [{}]", host_name);
+  }
+
+  const char* ip_address = inet_ntoa(*((struct in_addr*)addr_list[0]));
+  if (ip_address == NULL) {
+    throw MakeException("Could not translate address for hostname [{}]", host_name);
+  }
+
+  PostGetHostAddress();
+  return ip_address;
+}
+
+std::vector<std::string_view> split(std::string_view in, char separator) {
+  std::vector<std::string_view> result;
+
+  while (true) {
+    const size_t index = in.find(separator);
+    if (index != in.npos) {
+      result.emplace_back(in.substr(0, index));
+      in.remove_prefix(index + 1);
+    }
+    else {
+      result.emplace_back(in);
+      break;
+    }
   }
 
   return result;
@@ -84,6 +153,35 @@ std::string_view trim(std::string_view in) {
     }
     else {
       result.remove_suffix(1);
+    }
+  }
+
+  return result;
+}
+
+std::vector<PropertyView> parse_properties(std::string_view in, char property_separator, char value_separator) {
+  std::vector<PropertyView> result;
+
+  while (!in.empty()) {
+    std::string_view one_prop;
+    const size_t prop_index = in.find(property_separator);
+    if (prop_index != in.npos) {
+      one_prop = in.substr(0, prop_index);
+      in.remove_prefix(prop_index + 1);
+    }
+    else {
+      one_prop = in;
+      in.remove_prefix(in.size());
+    }
+
+    const size_t val_index = one_prop.find(value_separator);
+    if (val_index != one_prop.npos) {
+      auto prop_name = one_prop.substr(0, val_index);
+      auto prop_val = one_prop.substr(val_index + 1);
+      result.emplace_back(prop_name, prop_val);
+    }
+    else {
+      result.emplace_back(one_prop, std::string_view());
     }
   }
 
@@ -135,7 +233,7 @@ public:
       }
     }
     catch (const std::exception& exc) {
-      spdlog::error("Pooled thread failure: {}", exc.what());
+      spdlog::error("Pooled thread failure: [{}]", exc.what());
     }
     catch (...) {
       spdlog::error("Pooled thread failure");

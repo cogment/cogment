@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package cogmentAPI;
 
+import "cogment/api/common.proto";
+
 // API for model registry, it stores versioned model data and their metadata
 service ModelRegistrySP {
   // Create or update a model
@@ -31,6 +33,8 @@ service ModelRegistrySP {
   rpc RetrieveVersionInfos(RetrieveVersionInfosRequest) returns (RetrieveVersionInfosReply) {}
   // Retrieve the data of a model given or latest version
   rpc RetrieveVersionData(RetrieveVersionDataRequest) returns (stream RetrieveVersionDataReplyChunk) {}
+
+  rpc Version(VersionRequest) returns (VersionInfo) {}
 }
 
 // Information about a model

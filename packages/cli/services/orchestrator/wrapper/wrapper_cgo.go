@@ -210,6 +210,22 @@ func (w *wrapper) AddDirectoryServicesEndpoint(endpoint string) error {
 	return w.setStringOption("cogment_orchestrator_options_add_directory_service", endpoint)
 }
 
+func (w *wrapper) SetDirectoryAuthToken(token string) error {
+	return w.setStringOption("cogment_orchestrator_options_set_directory_auth_token", token)
+}
+
+func (w *wrapper) SetDirectoryAutoRegister(autoRegister uint) error {
+	return w.setUintOption("cogment_orchestrator_options_set_auto_registration", autoRegister)
+}
+
+func (w *wrapper) SetDirectoryRegisterHost(host string) error {
+	return w.setStringOption("cogment_orchestrator_options_set_directory_register_host", host)
+}
+
+func (w *wrapper) SetDirectoryRegisterProps(props string) error {
+	return w.setStringOption("cogment_orchestrator_options_set_directory_properties", props)
+}
+
 func (w *wrapper) AddPretrialHooksEndpoint(endpoint string) error {
 	return w.setStringOption("cogment_orchestrator_options_add_pretrial_hook", endpoint)
 }

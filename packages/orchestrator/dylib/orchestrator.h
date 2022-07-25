@@ -38,6 +38,10 @@ ORCH_EXPORT void cogment_orchestrator_options_set_actor_port(void* options, unsi
 ORCH_EXPORT void cogment_orchestrator_options_set_default_params_file(void* options, char* path);
 ORCH_EXPORT void cogment_orchestrator_options_add_pretrial_hook(void* options, char* pretrial_hook_endpoint);
 ORCH_EXPORT void cogment_orchestrator_options_add_directory_service(void* options, char* directory_service_endpoint);
+ORCH_EXPORT void cogment_orchestrator_options_set_directory_auth_token(void* options, char* token);
+ORCH_EXPORT void cogment_orchestrator_options_set_auto_registration(void* options, unsigned int autoRegister);
+ORCH_EXPORT void cogment_orchestrator_options_set_directory_register_host(void* options, char* host);
+ORCH_EXPORT void cogment_orchestrator_options_set_directory_properties(void* options, char* properties);
 ORCH_EXPORT void cogment_orchestrator_options_set_prometheus_port(void* options, unsigned int port);
 ORCH_EXPORT void cogment_orchestrator_options_set_private_key_file(void* options, char* path);
 ORCH_EXPORT void cogment_orchestrator_options_set_root_certificate_file(void* options, char* path);
