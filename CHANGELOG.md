@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.7.0 - 2022-07-25
+
 ### Added
 
 - Integration of the Directory for all endpoints
