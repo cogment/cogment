@@ -22,6 +22,12 @@
 
 namespace cogment {
 
+// Query Property names
+constexpr std::string_view ACTOR_CLASS_PROPERTY_NAME("__actor_class");
+constexpr std::string_view IMPLEMENTATION_PROPERTY_NAME("__implementation");
+constexpr std::string_view SERVICE_ID_PROPERTY_NAME("__id");
+constexpr std::string_view AUTHENTICATION_TOKEN_PROPERTY_NAME("__authentication-token");
+
 // Endpoint parsing result
 struct EndpointData {
   enum SchemeType { UNKNOWN_SCHEME, GRPC, COGMENT };

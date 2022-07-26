@@ -28,10 +28,6 @@ namespace {
 
 const char PORT_SEPARATOR = ':';
 
-// Property names
-constexpr std::string_view ID_PROPERTY_NAME("id");
-constexpr std::string_view AUTHENTICATION_TOKEN_PROPERTY_NAME("__authentication-token");
-
 // gRPC directory metadata names
 const std::string AUTHENTICATION_TOKEN_METADATA_NAME("authentication-token");
 
@@ -58,7 +54,7 @@ void test_reply(const cogmentAPI::FullServiceData& reply, const EndpointData& re
   switch (request_data.path) {
   case EndpointData::SERVICE:
     for (auto& prop : request_data.query) {
-      if (prop.name == ID_PROPERTY_NAME) {
+      if (prop.name == SERVICE_ID_PROPERTY_NAME) {
         uint64_t id = convert_to_uint64(prop.value);
         if (reply.service_id() != id) {
           throw MakeException("Directory reply service ID [{}] does not match request [{}]", reply.service_id(), id);
@@ -122,7 +118,7 @@ cogmentAPI::ServiceType Directory::get_service_type(const EndpointData& data, ui
   case EndpointData::PathType::SERVICE: {
     bool id_found = false;
     for (auto& prop : data.query) {
-      if (prop.name == ID_PROPERTY_NAME) {
+      if (prop.name == SERVICE_ID_PROPERTY_NAME) {
         id_found = true;
         try {
           *id = convert_to_uint64(prop.value);
@@ -136,7 +132,7 @@ cogmentAPI::ServiceType Directory::get_service_type(const EndpointData& data, ui
       }
       else {
         throw MakeException("Invalid endpoint service path property [{}] (only [{}] and [{}] allowed): [{}]", prop.name,
-                            ID_PROPERTY_NAME, AUTHENTICATION_TOKEN_PROPERTY_NAME, data.original_endpoint);
+                            SERVICE_ID_PROPERTY_NAME, AUTHENTICATION_TOKEN_PROPERTY_NAME, data.original_endpoint);
       }
     }
 

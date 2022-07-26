@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Fixed
+
+- Directory query property name for service (from `id` to `__id`)
+
 ## v2.7.0 - 2022-07-25
 
 ### Added

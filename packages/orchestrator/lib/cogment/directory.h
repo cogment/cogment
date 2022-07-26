@@ -28,13 +28,9 @@ namespace cogment {
 constexpr std::string_view INVALID_CHARACTERS = "%?&=;:/+,#@[]";
 
 // Address returned by "inquire_address" method for client actors registered in directory.
-// This is different than a hostname "client", because a hostname will have a port e.g. "client:8000".
+// This is different than an address with a hostname "client", because that will have a port e.g. "client:8000".
 // This is a hack.
 constexpr std::string_view CLIENT_ACTOR_ADDRESS = "client";
-
-// Cogment implicit directory property names
-constexpr std::string_view ACTOR_CLASS_PROPERTY_NAME("__actor_class");
-constexpr std::string_view IMPLEMENTATION_PROPERTY_NAME("__implementation");
 
 // Current limitations:
 // - Uses only the first stub/directory
