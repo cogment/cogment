@@ -9,7 +9,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- Handling of past (out of sync) rewards to datalog
 - Directory query property name for service (from `id` to `__id`)
+
+### Added
+
+- 'nb_buffered_ticks' parameter to manage out-of-sync data
 
 ## v2.7.0 - 2022-07-25
 

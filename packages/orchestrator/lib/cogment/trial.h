@@ -103,7 +103,6 @@ private:
   void dispatch_observations(bool last);
   void balance_sample_bufer();
   cogmentAPI::ActionSet make_action_set();
-  void dispatch_env_messages();
   bool finalize_env();
   void finalize_actors();
   void finish();
@@ -126,7 +125,6 @@ private:
 
   std::mutex m_state_lock;
   std::mutex m_sample_lock;
-  std::mutex m_reward_lock;
   std::mutex m_sample_message_lock;
   std::shared_mutex m_terminating_lock;
 
@@ -145,7 +143,8 @@ private:
 
   TimeoutRunner m_response_timeouts;
 
-  std::deque<cogmentAPI::DatalogSample> m_step_data;
+  std::deque<cogmentAPI::DatalogSample> m_step_data;  // We are playing a bit fast and loose with MT with this one
+  uint64_t m_nb_buffered_samples;
   std::unique_ptr<DatalogService> m_datalog;
 };
 

@@ -43,6 +43,8 @@ message RunTrialDatalogInput {
 message RunTrialDatalogOutput {}
 
 message SampleInfo {
+  bool out_of_sync = 5;
+
   uint64 tick_id = 1;
   fixed64 timestamp = 2;
   TrialState state = 3;

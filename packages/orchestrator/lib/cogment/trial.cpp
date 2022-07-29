@@ -30,6 +30,11 @@
 #include <limits>
 #include <chrono>
 
+namespace {
+constexpr int64_t MIN_NB_BUFFERED_SAMPLES = 2;  // Because of the way we use the buffer
+constexpr uint64_t DEFAULT_NB_BUFFERED_SAMPLES = 2;
+}  // namespace
+
 namespace cogment {
 const std::string DEFAULT_ENVIRONMENT_NAME("env");
 
@@ -97,7 +102,8 @@ Trial::Trial(Orchestrator* orch, const std::string& user_id, const std::string& 
     m_tick_start_timestamp(0),
     m_max_steps(std::numeric_limits<uint64_t>::max()),
     m_max_inactivity(std::numeric_limits<uint64_t>::max()),
-    m_response_timeouts(&m_orchestrator->thread_pool()) {
+    m_response_timeouts(&m_orchestrator->thread_pool()),
+    m_nb_buffered_samples(DEFAULT_NB_BUFFERED_SAMPLES) {
   SPDLOG_TRACE("Trial [{}] - Constructor", m_id);
 
   m_response_timeouts.set_funcs(
@@ -537,6 +543,12 @@ void Trial::start(cogmentAPI::TrialParams&& params) {
   if (m_params.max_inactivity() > 0) {
     m_max_inactivity = m_params.max_inactivity() * NANOS;
   }
+  if (m_params.nb_buffered_ticks() >= MIN_NB_BUFFERED_SAMPLES) {
+    m_nb_buffered_samples = m_params.nb_buffered_ticks();
+  }
+  else if (m_params.nb_buffered_ticks() != 0) {
+    spdlog::warn("Trial [{}] - Invalid number of ticks to buffer [{}]: Ignored", m_id, m_params.nb_buffered_ticks());
+  }
 
   prepare_datalog();
   prepare_environment();
@@ -628,78 +640,141 @@ void Trial::reward_received(const std::string& sender, cogmentAPI::Reward&& rewa
     return;
   }
 
-  cogmentAPI::Reward* new_rew;
-  auto sample = get_last_sample();
-  if (sample != nullptr) {
-    const std::lock_guard lg(m_reward_lock);
-    new_rew = sample->add_rewards();
-    *new_rew = reward;  // TODO: The reward may have a wildcard (or invalid) receiver, do we want that in the sample?
+  const auto current_tick = static_cast<int64_t>(m_tick_id);
+  int64_t reward_tick = reward.tick_id();
+  SPDLOG_TRACE("Trial [{}] - Reward received from [{}] for [{}] (current [{}])", m_id, sender, reward_tick,
+               current_tick);
+
+  if (reward_tick == AUTO_TICK_ID || reward_tick == current_tick) {
+    // Dispatch to actor
+
+    reward_tick = current_tick;
+
+    bool valid_name = for_actors(reward.receiver_name(), [&reward, current_tick, &sender](auto actor) {
+      // Normally we should have only one source when receiving
+      for (auto& src : *reward.mutable_sources()) {
+        src.set_sender_name(sender);
+        actor->add_reward_src(src, current_tick);
+      }
+    });
+    if (!valid_name) {
+      spdlog::error("Trial [{}] - Unknown receiver as reward destination [{}] from [{}]", m_id, reward.receiver_name(),
+                    sender);
+    }
   }
   else {
-    spdlog::debug("Trial [{}] - State [{}]. Reward from [{}] lost", m_id, get_trial_state_string(m_state), sender);
+    SPDLOG_DEBUG("Trial [{}] - Received reward [{}] not for current tick [{}]", m_id, reward_tick, current_tick);
+  }
+
+  if (reward_tick < 0) {
+    spdlog::error("Trial [{}] - Invalid reward tick id from [{}]: [{}]", m_id, sender, reward_tick);
+    return;
+  }
+  if (reward_tick > current_tick) {
+    spdlog::error("Trial [{}] - Reward tick id from [{}] in the future: [{}] (current [{}])", m_id, sender, reward_tick,
+                  current_tick);
     return;
   }
 
-  // TODO: Decide what to do with timed rewards (send anything present and past, hold future?)
-  if (new_rew->tick_id() != AUTO_TICK_ID && new_rew->tick_id() != static_cast<int64_t>(m_tick_id)) {
-    spdlog::error("Invalid reward tick from [{}]: [{}] (current tick id: [{}])", sender, new_rew->tick_id(), m_tick_id);
+  std::unique_lock ul(m_sample_lock);
+
+  if (m_step_data.empty()) {
+    spdlog::error("Trial [{}] - State [{}]. Reward from [{}] lost", m_id, get_trial_state_string(m_state), sender);
     return;
   }
 
-  // Rewards are not dispatched as we receive them. They are accumulated, and sent once
-  // per update.
-  bool valid_name = for_actors(new_rew->receiver_name(), [this, new_rew, &sender](auto actor) {
-    // Normally we should have only one source when receiving
-    for (auto& src : *new_rew->mutable_sources()) {
-      src.set_sender_name(sender);
-      actor->add_reward_src(src, m_tick_id);
+  const int64_t old_tick = m_step_data.front().info().tick_id();
+  if (reward_tick >= old_tick && reward_tick <= current_tick) {
+    // Sample is probably still in memory
+
+    cogmentAPI::DatalogSample* sample = nullptr;
+
+    // Try to get sample directly
+    const size_t sample_index = reward_tick - old_tick;
+    if (sample_index < m_step_data.size()) {
+      auto& indexed_sample = m_step_data[sample_index];
+      if (indexed_sample.info().tick_id() == static_cast<uint64_t>(reward_tick)) {
+        sample = &indexed_sample;
+      }
     }
-  });
 
-  if (!valid_name) {
-    spdlog::error("Trial [{}] - Unknown receiver as reward destination [{}] from [{}]", m_id, new_rew->receiver_name(),
-                  sender);
+    if (sample == nullptr) {
+      SPDLOG_DEBUG("Trial [{}] - Searching step list to insert received reward [{}]", m_id, current_tick);
+      for (auto itor = m_step_data.rbegin(); itor != m_step_data.rend(); ++itor) {
+        if (itor->info().tick_id() == static_cast<uint64_t>(reward_tick)) {
+          sample = &(*itor);
+          break;
+        }
+      }
+    }
+
+    if (sample != nullptr) {
+      // Sample is still in memory
+      auto new_rew = sample->add_rewards();
+      // TODO: The reward may have a wildcard (or invalid) receiver, do we want that in the sample?
+      *new_rew = std::move(reward);
+
+      SPDLOG_TRACE("Trial [{}] - Reward from [{}] set in memory sample [{}] (current [{}])", m_id, sender, reward_tick,
+                   current_tick);
+
+      return;
+    }
   }
+  ul.unlock();
+
+  // We could not find the sample in memory: Send to datalog as out-of-sync sample
+  SPDLOG_DEBUG("Trial [{}] - Out of sync reward not in memory from [{}]: [{}]", m_id, sender, current_tick);
+
+  cogmentAPI::DatalogSample out_of_sync_sample;
+  auto sample_info = out_of_sync_sample.mutable_info();
+  sample_info->set_out_of_sync(true);
+  sample_info->set_tick_id(reward_tick);
+  sample_info->set_timestamp(Timestamp());
+  auto event = sample_info->add_special_events();
+  *event = "Out of sync reward";
+
+  auto new_rew = out_of_sync_sample.add_rewards();
+  *new_rew = std::move(reward);
+
+  m_datalog->add_sample(std::move(out_of_sync_sample));
 }
 
 void Trial::message_received(const std::string& sender, cogmentAPI::Message&& message) {
   if (m_state < InternalState::pending) {
-    spdlog::warn("Too early for trial [{}] to receive messages.", m_id);
+    spdlog::warn("Trial [{}] - Too early for trial to receive messages.", m_id);
     return;
   }
 
-  cogmentAPI::Message* new_msg;
-  auto sample = get_last_sample();
-  if (sample != nullptr) {
-    const std::lock_guard lg(m_sample_message_lock);
-    new_msg = sample->add_messages();
-    *new_msg = std::move(message);
-    new_msg->set_sender_name(sender);
-  }
-  else {
-    spdlog::debug("Trial [{}] - State [{}]. Message from [{}] lost", m_id, get_trial_state_string(m_state), sender);
-    return;
-  }
-
-  // TODO: Decide what to do with timed messages (send anything present and past, hold future?)
-  if (new_msg->tick_id() != AUTO_TICK_ID && new_msg->tick_id() != static_cast<int64_t>(m_tick_id)) {
-    spdlog::error("Invalid message tick from [{}]: [{}] (current tick id: [{}])", sender, new_msg->tick_id(),
+  if (message.tick_id() != AUTO_TICK_ID && message.tick_id() != static_cast<int64_t>(m_tick_id)) {
+    spdlog::error("Trial [{}] - Invalid message tick from [{}]: [{}] (current [{}])", m_id, sender, message.tick_id(),
                   m_tick_id);
     return;
   }
 
-  if (new_msg->receiver_name() == m_env->name()) {
-    m_env->send_message(*new_msg, m_tick_id);
+  message.set_sender_name(sender);
+  if (message.receiver_name() == m_env->name()) {
+    m_env->send_message(message, m_tick_id);
   }
   else {
-    bool valid_name = for_actors(new_msg->receiver_name(), [this, new_msg](auto actor) {
-      actor->send_message(*new_msg, m_tick_id);
+    bool valid_name = for_actors(message.receiver_name(), [this, &message](auto actor) {
+      actor->send_message(message, m_tick_id);
     });
 
     if (!valid_name) {
       spdlog::error("Trial [{}] - Unknown receiver as message destination [{}] from [{}]", m_id,
-                    new_msg->receiver_name(), sender);
+                    message.receiver_name(), sender);
     }
+  }
+
+  auto sample = get_last_sample();
+  if (sample != nullptr) {
+    const std::lock_guard lg(m_sample_message_lock);
+    auto new_msg = sample->add_messages();
+    *new_msg = std::move(message);
+  }
+  else {
+    spdlog::debug("Trial [{}] - State [{}]. Message from [{}] lost", m_id, get_trial_state_string(m_state), sender);
+    return;
   }
 }
 
@@ -781,16 +856,14 @@ void Trial::dispatch_observations(bool last) {
 void Trial::balance_sample_bufer() {
   const std::lock_guard lg(m_sample_lock);
 
-  static constexpr uint64_t MIN_NB_BUFFERED_SAMPLES = 2;  // Because of the way we use the buffer
-  static constexpr uint64_t NB_BUFFERED_SAMPLES = 5;      // Could be an external setting
-  static constexpr uint64_t LOG_BATCH_SIZE = 1;           // Could be an external setting
-  static constexpr uint64_t LOG_TRIGGER_SIZE = NB_BUFFERED_SAMPLES + LOG_BATCH_SIZE - 1;
-  static_assert(NB_BUFFERED_SAMPLES >= MIN_NB_BUFFERED_SAMPLES);
+  static constexpr uint64_t LOG_BATCH_SIZE = 1;  // Could be an external setting
   static_assert(LOG_BATCH_SIZE > 0);
 
+  const uint64_t log_trigger_size = m_nb_buffered_samples + LOG_BATCH_SIZE - 1;
+
   // Send overflow to log
-  if (m_step_data.size() >= LOG_TRIGGER_SIZE) {
-    while (m_step_data.size() >= NB_BUFFERED_SAMPLES) {
+  if (m_step_data.size() >= log_trigger_size) {
+    while (m_step_data.size() >= m_nb_buffered_samples) {
       m_datalog->add_sample(std::move(m_step_data.front()));
       m_step_data.pop_front();
     }

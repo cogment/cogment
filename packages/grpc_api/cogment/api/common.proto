@@ -84,6 +84,10 @@ message TrialParams {
   // After this amount of time (in seconds) has elapsed without any activity
   // on a trial, that trial is elligible for garbage collection 
   uint32 max_inactivity = 6;
+  
+  // The number of ticks/steps to buffer before sending for data logging.
+  // A signed value to naturally limit to the max of tick.
+  sint64 nb_buffered_ticks = 7;
 }
 
 // Represents the presence of an actor within a trial
