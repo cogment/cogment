@@ -18,6 +18,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/cogment/cogment/cmd/client"
+	"github.com/cogment/cogment/cmd/deprecated"
+	"github.com/cogment/cogment/cmd/services"
 	"github.com/spf13/cobra"
 )
 
@@ -37,4 +40,18 @@ func Execute() {
 }
 
 func init() {
+	// Services
+	rootCmd.AddCommand(services.ServicesCmd)
+
+	// Client
+	rootCmd.AddCommand(client.ClientCmd)
+
+	// Version
+	rootCmd.AddCommand(versionCmd)
+
+	// Deprecated commands
+	rootCmd.AddCommand(deprecated.CopyCmd)
+	rootCmd.AddCommand(deprecated.GenerateCmd)
+	rootCmd.AddCommand(deprecated.InitCmd)
+	rootCmd.AddCommand(deprecated.RunCmd)
 }

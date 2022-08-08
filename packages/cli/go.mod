@@ -16,6 +16,7 @@ require (
 	github.com/markbates/pkger v0.17.1
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f
 	github.com/mwitkow/grpc-proxy v0.0.0-20181017164139-0f1106ef9c76
+	github.com/olekukonko/tablewriter v0.0.5
 	github.com/openlyinc/pointy v1.1.2
 	github.com/rogpeppe/go-internal v1.3.0
 	github.com/sirupsen/logrus v1.8.1

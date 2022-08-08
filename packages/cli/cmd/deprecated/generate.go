@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package deprecated
 
 import (
 	"fmt"
@@ -34,8 +34,8 @@ import (
 	"github.com/cogment/cogment/templates"
 )
 
-// generateCmd represents the generate command
-var generateCmd = &cobra.Command{
+// GenerateCmd represents the generate command
+var GenerateCmd = &cobra.Command{
 	Use:   "generate",
 	Short: "Generate settings and compile your proto files",
 	Deprecated: "this command will be removed in a future version, " +
@@ -438,15 +438,13 @@ func findFileContainingSymbol(name string) (string, error) {
 }
 
 func init() {
-	rootCmd.AddCommand(generateCmd)
-
-	generateCmd.Flags().StringP("file", "f", "", "path to project config cogment.yaml")
-	generateCmd.Flags().StringArrayP(
+	GenerateCmd.Flags().StringP("file", "f", "", "path to project config cogment.yaml")
+	GenerateCmd.Flags().StringArrayP(
 		"js_dir", "j",
 		[]string{},
 		"javascript output directories "+
 			"(all directories must be valid npm projects, requires a node.js distribution on $PATH)",
 	)
-	generateCmd.Flags().BoolP("typescript", "t", false, "project uses typescript")
-	generateCmd.Flags().StringArrayP("python_dir", "p", []string{}, "python output directories")
+	GenerateCmd.Flags().BoolP("typescript", "t", false, "project uses typescript")
+	GenerateCmd.Flags().StringArrayP("python_dir", "p", []string{}, "python output directories")
 }

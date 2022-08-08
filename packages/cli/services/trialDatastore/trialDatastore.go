@@ -35,6 +35,7 @@ const (
 type Options struct {
 	Storage                     StorageType
 	Port                        uint
+	CustomListener              net.Listener
 	GrpcReflection              bool
 	MemoryStorageMaxSamplesSize uint32
 	FileStoragePath             string
@@ -43,6 +44,7 @@ type Options struct {
 var DefaultOptions = Options{
 	Storage:                     Memory,
 	Port:                        9003,
+	CustomListener:              nil,
 	GrpcReflection:              false,
 	MemoryStorageMaxSamplesSize: memoryBackend.DefaultMaxSampleSize,
 	FileStoragePath:             ".cogment/trial_datastore.db",
@@ -67,12 +69,8 @@ func Run(options Options) error {
 		}
 	}
 
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", options.Port))
-	if err != nil {
-		return fmt.Errorf("unable to listen to tcp port %d: %w", options.Port, err)
-	}
 	server := utils.NewGrpcServer(options.GrpcReflection)
-	err = grpcservers.RegisterTrialDatastoreServer(server, backend)
+	err := grpcservers.RegisterTrialDatastoreServer(server, backend)
 	if err != nil {
 		return err
 	}
@@ -80,7 +78,18 @@ func Run(options Options) error {
 	if err != nil {
 		return err
 	}
-	log.WithField("port", options.Port).Info("server listening")
+	var listener net.Listener
+	if options.CustomListener != nil {
+		listener = options.CustomListener
+		log.Info("server listening")
+	} else {
+		var err error
+		listener, err = net.Listen("tcp", fmt.Sprintf(":%d", options.Port))
+		if err != nil {
+			return fmt.Errorf("unable to listen to tcp port %d: %w", options.Port, err)
+		}
+		log.WithField("port", options.Port).Info("server listening")
+	}
 	err = server.Serve(listener)
 	return err
 }

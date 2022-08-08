@@ -12,19 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package deprecated
 
 import (
-	"fmt"
-
-	"github.com/cogment/cogment/version"
-	"github.com/spf13/cobra"
+	"github.com/sirupsen/logrus"
 )
 
-var versionCmd = &cobra.Command{
-	Use:   "version",
-	Short: "Print Cogment version number",
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("%s@%s\n", version.Version, version.Hash)
-	},
-}
+var log = logrus.WithField("component", "cmd/deprecated")

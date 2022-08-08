@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package deprecated
 
 import (
 	"bufio"
@@ -60,8 +60,8 @@ func commandExists(cmd string) bool {
 	return err == nil
 }
 
-// initCmd represents the init command
-var initCmd = &cobra.Command{
+// InitCmd represents the init command
+var InitCmd = &cobra.Command{
 	Use:        "init DESTINATION",
 	Short:      "Bootstrap a new project locally",
 	Deprecated: "this command will be removed in a future version",
@@ -521,7 +521,4 @@ func createProjectConfigFromReader(stdin io.Reader) (*api.ProjectConfig, error) 
 	}
 
 	return config, nil
-}
-func init() {
-	rootCmd.AddCommand(initCmd)
 }

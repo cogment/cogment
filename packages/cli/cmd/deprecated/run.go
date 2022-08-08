@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package deprecated
 
 import (
 	"fmt"
@@ -26,8 +26,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// runCmd represents the run command
-var runCmd = &cobra.Command{
+// RunCmd represents the run command
+var RunCmd = &cobra.Command{
 	Use:          "run",
 	Short:        "Run a command from a cogment.yaml 'commands' section.",
 	Deprecated:   "this command will be removed in a future version, consider relying on a dedicated script",
@@ -112,8 +112,5 @@ func runCommand(command string, workingDir string) error {
 }
 
 func init() {
-	rootCmd.AddCommand(runCmd)
-
-	runCmd.Flags().StringP("file", "f", "cogment.yaml", "project configuration file")
-
+	RunCmd.Flags().StringP("file", "f", "cogment.yaml", "project configuration file")
 }

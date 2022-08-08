@@ -12,26 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package utils
 
 import (
-	"testing"
-
-	"github.com/stretchr/testify/assert"
+	"fmt"
 )
 
-func TestWorkingDirectoryWorkingCommand(t *testing.T) {
-	cmd := rootCmd
-	cmd.SetArgs([]string{"--file", "../testdata/cogment.yaml", "run", "check_otherdata_proto"})
+const multplier = 1000
 
-	err := cmd.Execute()
-	assert.NoError(t, err)
-}
+var units = []string{"kB", "MB", "GB", "TB", "PB", "EB"}
 
-func TestWorkingDirectoryNonWorkingCommand(t *testing.T) {
-	cmd := rootCmd
-	cmd.SetArgs([]string{"--file", "../testdata/cogment.yaml", "run", "check_non_existing_file"})
-
-	err := cmd.Execute()
-	assert.Error(t, err)
+// Inspired by https://yourbasic.org/golang/formatting-byte-size-to-human-readable-format/
+func FormatBytes(bytes int) string {
+	if bytes < multplier {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := multplier, 0
+	for n := bytes / multplier; n >= multplier; n /= multplier {
+		div *= multplier
+		exp++
+	}
+	return fmt.Sprintf("%.1f %s", float64(bytes)/float64(div), units[exp])
 }

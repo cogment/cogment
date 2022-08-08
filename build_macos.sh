@@ -81,6 +81,22 @@ case $1 in
     make install
     popd
     ;;
+  "build_native")
+    native_cmake_generate
+    pushd "${NATIVE_BUILD_DIR}"
+    make -j"$(sysctl -n hw.ncpu)"
+    mkdir -p "${NATIVE_INSTALL_DIR}"
+    make install
+    popd
+    ;;
+  "build_cross")
+    cross_cmake_generate
+    pushd "${CROSS_BUILD_DIR}"
+    make -j"$(sysctl -n hw.ncpu)"
+    mkdir -p "${CROSS_INSTALL_DIR}"
+    make install
+    popd
+    ;;
   "lint")
     native_cmake_generate
     pushd "${NATIVE_BUILD_DIR}"

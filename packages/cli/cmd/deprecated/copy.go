@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package deprecated
 
 import (
 	"fmt"
@@ -59,8 +59,8 @@ func isDir(path string) bool {
 	return fileInfo.IsDir()
 }
 
-// generateCmd represents the generate command
-var copyCmd = &cobra.Command{
+// CopyCmd represents the copy command
+var CopyCmd = &cobra.Command{
 	Use: "copy file_or_folder	...",
 	Short: "Copy all files listed to all existing folders listed",
 	Long: "Copy all files listed to all existing folders listed, " +
@@ -106,8 +106,4 @@ var copyCmd = &cobra.Command{
 
 		return nil
 	},
-}
-
-func init() {
-	rootCmd.AddCommand(copyCmd)
 }

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package services
 
 import (
 	"github.com/sirupsen/logrus"
@@ -34,9 +34,10 @@ var registrySentVersionChunkSizeKey = "sent_version_chunk_size"
 
 // registryCmd represents the model_registry
 var registryCmd = &cobra.Command{
-	Use:   "model_registry",
-	Short: "Run the model registry",
-	Args:  cobra.NoArgs,
+	Use:     "model_registry",
+	Aliases: []string{"registry"},
+	Short:   "Run the model registry",
+	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _args []string) error {
 		err := configureLog(servicesViper)
 		if err != nil {
@@ -61,8 +62,6 @@ var registryCmd = &cobra.Command{
 }
 
 func init() {
-	servicesCmd.AddCommand(registryCmd)
-
 	registryViper.SetDefault(registryPortKey, modelRegistry.DefaultOptions.Port)
 	_ = registryViper.BindEnv(registryPortKey, "COGMENT_MODEL_REGISTRY_PORT")
 	registryCmd.Flags().Uint(registryPortKey, registryViper.GetUint(registryPortKey), "The port to listen on")

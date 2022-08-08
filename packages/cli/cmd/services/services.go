@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package services
 
 import (
 	"fmt"
@@ -23,40 +23,38 @@ import (
 	"github.com/spf13/viper"
 )
 
-// servicesViper represents the configuration of the orchestrator command
+// servicesViper represents the configuration of the services command
 var servicesViper = viper.New()
 
 var servicesLogLevelKey = "log_level"
 var servicesLogFileKey = "log_file"
 var servicesLogFormatKey = "log_format"
 
-// servicesCmd represents the services command
-var servicesCmd = &cobra.Command{
+// ServicesCmd represents the services command
+var ServicesCmd = &cobra.Command{
 	Use:   "services",
 	Short: "Run cogment services",
 	Args:  cobra.NoArgs,
 }
 
 func init() {
-	rootCmd.AddCommand(servicesCmd)
-
 	servicesViper.SetDefault(servicesLogLevelKey, logrus.InfoLevel.String())
 	_ = servicesViper.BindEnv(servicesLogLevelKey, "COGMENT_LOG_LEVEL")
-	servicesCmd.PersistentFlags().String(
+	ServicesCmd.PersistentFlags().String(
 		servicesLogLevelKey,
 		servicesViper.GetString(servicesLogLevelKey),
 		fmt.Sprintf("Set minimum logging level as one of %v", expectedLogLevels),
 	)
 
 	_ = servicesViper.BindEnv(servicesLogFileKey, "COGMENT_LOG_FILE")
-	servicesCmd.PersistentFlags().String(
+	ServicesCmd.PersistentFlags().String(
 		servicesLogFileKey,
 		servicesViper.GetString(servicesLogFileKey),
 		"Set log file output",
 	)
 
 	_ = servicesViper.BindEnv(servicesLogFormatKey, "COGMENT_LOG_FORMAT")
-	servicesCmd.PersistentFlags().String(
+	ServicesCmd.PersistentFlags().String(
 		servicesLogFormatKey,
 		servicesViper.GetString(servicesLogFormatKey),
 		fmt.Sprintf(
@@ -66,8 +64,13 @@ func init() {
 	)
 
 	// Don't sort alphabetically, keep insertion order
-	servicesCmd.PersistentFlags().SortFlags = false
+	ServicesCmd.PersistentFlags().SortFlags = false
 
 	// Bind "cobra" flags defined in the CLI with viper
-	_ = servicesViper.BindPFlags(servicesCmd.PersistentFlags())
+	_ = servicesViper.BindPFlags(ServicesCmd.PersistentFlags())
+
+	// Add the service subcommands
+	ServicesCmd.AddCommand(registryCmd)
+	ServicesCmd.AddCommand(orchestratorCmd)
+	ServicesCmd.AddCommand(datastoreCmd)
 }

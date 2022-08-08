@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package services
 
 import (
 	"context"
@@ -113,8 +113,6 @@ var orchestratorCmd = &cobra.Command{
 }
 
 func init() {
-	servicesCmd.AddCommand(orchestratorCmd)
-
 	orchestratorViper.SetDefault(orchestratorLifecyclePortKey, orchestrator.DefaultOptions.LifecyclePort)
 	_ = orchestratorViper.BindEnv(orchestratorLifecyclePortKey, "COGMENT_LIFECYCLE_PORT", "TRIAL_LIFECYCLE_PORT")
 	orchestratorCmd.Flags().Uint(

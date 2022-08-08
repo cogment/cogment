@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package services
 
 import (
 	"github.com/sirupsen/logrus"
@@ -33,9 +33,10 @@ var datastoreFileStoragePathKey = "file_storage"
 
 // datastoreCmd represents the trial_datastore command
 var datastoreCmd = &cobra.Command{
-	Use:   "trial_datastore",
-	Short: "Run trial datastore",
-	Args:  cobra.NoArgs,
+	Use:     "trial_datastore",
+	Aliases: []string{"datastore"},
+	Short:   "Run trial datastore",
+	Args:    cobra.NoArgs,
 	RunE: func(_cmd *cobra.Command, _args []string) error {
 		err := configureLog(servicesViper)
 		if err != nil {
@@ -64,8 +65,6 @@ var datastoreCmd = &cobra.Command{
 }
 
 func init() {
-	servicesCmd.AddCommand(datastoreCmd)
-
 	datastoreViper.SetDefault(datastorePortKey, trialDatastore.DefaultOptions.Port)
 	_ = datastoreViper.BindEnv(datastorePortKey, "COGMENT_TRIAL_DATASTORE_PORT")
 	datastoreCmd.Flags().Uint(

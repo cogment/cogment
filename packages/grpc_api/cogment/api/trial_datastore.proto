@@ -178,4 +178,9 @@ message StoredTrialActorSampleMessage {
   uint32 payload = 3; // Index in the payload of the parent StoredTrialSample
 }
 
-
+message TrialSamplesFileHeader {
+  // Represents the header for trial samples file exported from the trial datastore
+  VersionInfo version_info = 1; // Version information about the Cogment client that generated this file
+  fixed64 export_timestamp = 2; // Timestamp for the export
+  map<string, TrialParams> trial_params = 3; // TrialID -> TrialParams
+}

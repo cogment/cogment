@@ -14,7 +14,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- 'nb_buffered_ticks' parameter to manage out-of-sync data
+- `cogment client trial_datastore` (or simply `cogment client datastore`), a CLI client for trial datastores is now available. It includes:
+  - `cogment client trial_datastore list_trials` to list stored trials,
+  - `cogment client trial_datastore delete_trials` to delete stored trials,
+  - `cogment client trial_datastore export` to export stored trials,
+  - `cogment client trial_datastore import` to import trials.
+- `nb_buffered_ticks` parameter to manage out-of-sync data
 
 ## v2.7.0 - 2022-07-25
 

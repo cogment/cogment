@@ -12,19 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cmd
+package deprecated
 
 import (
-	"fmt"
+	"testing"
 
-	"github.com/cogment/cogment/version"
-	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
 )
 
-var versionCmd = &cobra.Command{
-	Use:   "version",
-	Short: "Print Cogment version number",
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("%s@%s\n", version.Version, version.Hash)
-	},
+func TestWorkingDirectoryWorkingCommand(t *testing.T) {
+	cmd := RunCmd
+	cmd.SetArgs([]string{"--file", "../../testdata/cogment.yaml", "check_otherdata_proto"})
+
+	err := cmd.Execute()
+	assert.NoError(t, err)
+}
+
+func TestWorkingDirectoryNonWorkingCommand(t *testing.T) {
+	cmd := RunCmd
+	cmd.SetArgs([]string{"--file", "../../testdata/cogment.yaml", "check_non_existing_file"})
+
+	err := cmd.Execute()
+	assert.Error(t, err)
 }
