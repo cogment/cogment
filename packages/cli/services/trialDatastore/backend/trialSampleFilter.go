@@ -31,58 +31,55 @@ type TrialSampleFilter struct {
 // AppliedTrialSampleFilter represents a TrialSampleFilter applied to a particular trial
 type AppliedTrialSampleFilter struct {
 	trialParams  *grpcapi.TrialParams
-	actorsFilter *idxFilter
-	fieldsFilter *idxFilter
+	actorsFilter *arrayFilter
+	fieldsFilter *arrayFilter
 }
 
-func newActorsFilter(filter TrialSampleFilter, trialParams *grpcapi.TrialParams) *idxFilter {
+func newActorsFilter(filter TrialSampleFilter, trialParams *grpcapi.TrialParams) *arrayFilter {
 
 	actorNamesFilter := utils.NewIDFilter(filter.ActorNames)
 	actorClassesFilter := utils.NewIDFilter(filter.ActorClasses)
 	actorImplsFilter := utils.NewIDFilter(filter.ActorImplementations)
 
+	actorsFilter := newArrayFilter(len(trialParams.Actors))
+
 	if actorNamesFilter.SelectsAll() && actorClassesFilter.SelectsAll() && actorImplsFilter.SelectsAll() {
-		return newIdxFilter([]int{})
+		actorsFilter.setAll(true)
+		return actorsFilter
 	}
 
-	actorsFilter := newIdxFilter([]int{})
-	selectAllActors := true
-	for actorIdx, actorParams := range trialParams.Actors {
+	actorsFilter.setAll(false)
+	for actorIndex, actorParams := range trialParams.Actors {
 		selectActorName := actorNamesFilter.SelectsAll()
 		if !selectActorName {
 			selectActorName = actorNamesFilter.Selects(actorParams.Name)
 		}
 		selectActorClass := actorClassesFilter.SelectsAll()
-		if !selectActorName {
-			selectActorClass = actorNamesFilter.Selects(actorParams.ActorClass)
+		if !selectActorClass {
+			selectActorClass = actorClassesFilter.Selects(actorParams.ActorClass)
 		}
 		selectActorImpl := actorImplsFilter.SelectsAll()
 		if !selectActorImpl {
-			selectActorImpl = actorNamesFilter.Selects(actorParams.Implementation)
+			selectActorImpl = actorImplsFilter.Selects(actorParams.Implementation)
 		}
 
-		if selectActorName && selectActorClass && selectActorImpl {
-			actorsFilter.add(actorIdx)
-		} else {
-			selectAllActors = false
-		}
+		actorsFilter.set(actorIndex, selectActorName && selectActorClass && selectActorImpl)
 	}
-	if selectAllActors {
-		return newIdxFilter([]int{})
-	}
-
 	return actorsFilter
 }
 
-func newFieldsFilter(fields []grpcapi.StoredTrialSampleField) *idxFilter {
-	fieldsFilter := newIdxFilter([]int{})
+func newFieldsFilter(fields []grpcapi.StoredTrialSampleField) *arrayFilter {
+	fieldsFilter := newArrayFilter(len(grpcapi.StoredTrialSampleField_value))
+
+	if len(fields) == 0 {
+		fieldsFilter.setAll(true)
+		return fieldsFilter
+	}
+	fieldsFilter.setAll(false)
 	for _, field := range fields {
 		if field != grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_UNKNOWN {
-			fieldsFilter.add(int(field))
+			fieldsFilter.set(int(field), true)
 		}
-	}
-	if len(grpcapi.StoredTrialSampleField_name)-1 == len(*fieldsFilter) {
-		return newIdxFilter([]int{})
 	}
 	return fieldsFilter
 }
@@ -95,16 +92,16 @@ func NewAppliedTrialSampleFilter(filter TrialSampleFilter, trialParams *grpcapi.
 	}
 }
 
-func (f *AppliedTrialSampleFilter) SelectsAll() bool {
-	return f.actorsFilter.selectsAll() && f.fieldsFilter.selectsAll()
+func (filter *AppliedTrialSampleFilter) SelectsAll() bool {
+	return filter.actorsFilter.selectsAll() && filter.fieldsFilter.selectsAll()
 }
 
-func (f *AppliedTrialSampleFilter) Filter(sample *grpcapi.StoredTrialSample) *grpcapi.StoredTrialSample {
-	if f.actorsFilter.selectsAll() && f.fieldsFilter.selectsAll() {
+func (filter *AppliedTrialSampleFilter) Filter(sample *grpcapi.StoredTrialSample) *grpcapi.StoredTrialSample {
+	if filter.actorsFilter.selectsAll() && filter.fieldsFilter.selectsAll() {
 		return sample
 	}
 
-	// Copy the base
+	// Initialzed filtered sample and copy the unfilterable fields
 	filteredSample := grpcapi.StoredTrialSample{
 		UserId:       sample.UserId,
 		TrialId:      sample.TrialId,
@@ -117,7 +114,7 @@ func (f *AppliedTrialSampleFilter) Filter(sample *grpcapi.StoredTrialSample) *gr
 
 	// Copy selected fields of selected agents
 	for _, actorSample := range sample.ActorSamples {
-		if f.actorsFilter.selects(int(actorSample.Actor)) {
+		if filter.actorsFilter.selects(int(actorSample.Actor)) {
 			filteredActorSample := grpcapi.StoredTrialActorSample{
 				Actor:            actorSample.Actor,
 				ReceivedRewards:  make([]*grpcapi.StoredTrialActorSampleReward, 0, len(actorSample.ReceivedRewards)),
@@ -126,22 +123,22 @@ func (f *AppliedTrialSampleFilter) Filter(sample *grpcapi.StoredTrialSample) *gr
 				SentMessages:     make([]*grpcapi.StoredTrialActorSampleMessage, 0, len(actorSample.SentMessages)),
 			}
 			if actorSample.Observation != nil &&
-				f.fieldsFilter.selects(int(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_OBSERVATION)) {
+				filter.fieldsFilter.selects(int(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_OBSERVATION)) {
 				filteredActorSample.Observation = actorSample.Observation
 				filteredSample.Payloads[*actorSample.Observation] = sample.Payloads[*actorSample.Observation]
 			}
 
 			if actorSample.Action != nil &&
-				f.fieldsFilter.selects(int(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_ACTION)) {
+				filter.fieldsFilter.selects(int(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_ACTION)) {
 				filteredActorSample.Action = actorSample.Action
 				filteredSample.Payloads[*actorSample.Action] = sample.Payloads[*actorSample.Action]
 			}
 
-			if f.fieldsFilter.selects(int(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_REWARD)) {
+			if filter.fieldsFilter.selects(int(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_REWARD)) {
 				filteredActorSample.Reward = actorSample.Reward
 			}
 
-			if f.fieldsFilter.selects(int(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_REWARDS)) {
+			if filter.fieldsFilter.selects(int(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_REWARDS)) {
 				for _, reward := range actorSample.ReceivedRewards {
 					filteredActorSample.ReceivedRewards = append(filteredActorSample.ReceivedRewards, reward)
 					if reward.UserData != nil {
@@ -150,7 +147,7 @@ func (f *AppliedTrialSampleFilter) Filter(sample *grpcapi.StoredTrialSample) *gr
 				}
 			}
 
-			if f.fieldsFilter.selects(int(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_REWARDS)) {
+			if filter.fieldsFilter.selects(int(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_REWARDS)) {
 				for _, reward := range actorSample.SentRewards {
 					filteredActorSample.SentRewards = append(filteredActorSample.SentRewards, reward)
 					if reward.UserData != nil {
@@ -159,14 +156,14 @@ func (f *AppliedTrialSampleFilter) Filter(sample *grpcapi.StoredTrialSample) *gr
 				}
 			}
 
-			if f.fieldsFilter.selects(int(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_MESSAGES)) {
+			if filter.fieldsFilter.selects(int(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_MESSAGES)) {
 				for _, message := range actorSample.ReceivedMessages {
 					filteredActorSample.ReceivedMessages = append(filteredActorSample.ReceivedMessages, message)
 					filteredSample.Payloads[message.Payload] = sample.Payloads[message.Payload]
 				}
 			}
 
-			if f.fieldsFilter.selects(int(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_MESSAGES)) {
+			if filter.fieldsFilter.selects(int(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_MESSAGES)) {
 				for _, message := range actorSample.SentMessages {
 					filteredActorSample.SentMessages = append(filteredActorSample.SentMessages, message)
 					filteredSample.Payloads[message.Payload] = sample.Payloads[message.Payload]
@@ -179,28 +176,35 @@ func (f *AppliedTrialSampleFilter) Filter(sample *grpcapi.StoredTrialSample) *gr
 	return &filteredSample
 }
 
-type idxFilter map[int]struct{}
+type arrayFilter []bool
 
-func newIdxFilter(selectedIdxs []int) *idxFilter {
-	f := make(idxFilter)
-	for _, idx := range selectedIdxs {
-		f[idx] = struct{}{}
+func newArrayFilter(size int) *arrayFilter {
+	filter := make(arrayFilter, size)
+	for index := range filter {
+		filter[index] = false
 	}
-	return &f
+	return &filter
 }
 
-func (f *idxFilter) add(idx int) {
-	(*f)[idx] = struct{}{}
-}
-
-func (f *idxFilter) selectsAll() bool {
-	return len(*f) == 0
-}
-
-func (f *idxFilter) selects(idx int) bool {
-	if len(*f) == 0 {
-		return true
+func (filter *arrayFilter) setAll(selects bool) {
+	for index := range *filter {
+		(*filter)[index] = selects
 	}
-	_, isSelected := (*f)[idx]
-	return isSelected
+}
+
+func (filter *arrayFilter) set(index int, selects bool) {
+	(*filter)[index] = selects
+}
+
+func (filter *arrayFilter) selectsAll() bool {
+	for index := range *filter {
+		if !(*filter)[index] {
+			return false
+		}
+	}
+	return true
+}
+
+func (filter *arrayFilter) selects(index int) bool {
+	return (*filter)[index]
 }

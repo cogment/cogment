@@ -16,11 +16,13 @@ package test
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/openlyinc/pointy"
 	"github.com/stretchr/testify/assert"
 
 	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
@@ -33,6 +35,11 @@ func generateTrialParams(actorCount int, maxSteps uint32) *grpcapi.TrialParams {
 	params := &grpcapi.TrialParams{
 		Actors:   make([]*grpcapi.ActorParams, actorCount),
 		MaxSteps: maxSteps,
+	}
+	for actorIdx := range params.Actors {
+		actorParams := &grpcapi.ActorParams{}
+		actorParams.Name = fmt.Sprintf("actor-%d", actorIdx)
+		params.Actors[actorIdx] = actorParams
 	}
 	return params
 }
@@ -49,10 +56,22 @@ func makeRandomBytes(n int) []byte {
 
 func makePayloads(payloadSize int, payloadCount int) [][]byte {
 	payloads := make([][]byte, payloadCount)
-	for i := 0; i < payloadCount; i++ {
+	for i := range payloads {
 		payloads[i] = makeRandomBytes(payloadSize)
 	}
 	return payloads
+}
+
+func makeActorSamples(actorCount int, actorPayloadSize int) []*grpcapi.StoredTrialActorSample {
+	actorSamples := make([]*grpcapi.StoredTrialActorSample, actorCount)
+	for i := range actorSamples {
+		actorSample := &grpcapi.StoredTrialActorSample{}
+		actorSample.Actor = uint32(i)
+		actorSample.Observation = pointy.Uint32(uint32(i % actorPayloadSize))
+		actorSample.Action = pointy.Uint32(uint32(i % actorPayloadSize))
+		actorSamples[i] = actorSample
+	}
+	return actorSamples
 }
 
 func generateSample(trialID string, actorCount int, actorPayloadSize int, end bool) *grpcapi.StoredTrialSample {
@@ -61,7 +80,7 @@ func generateSample(trialID string, actorCount int, actorPayloadSize int, end bo
 		TickId:       nextTickID,
 		Timestamp:    uint64(time.Now().Unix()),
 		State:        grpcapi.TrialState_RUNNING,
-		ActorSamples: make([]*grpcapi.StoredTrialActorSample, actorCount),
+		ActorSamples: makeActorSamples(actorCount, actorPayloadSize),
 		Payloads:     makePayloads(actorCount, actorPayloadSize),
 	}
 	if end {
@@ -542,6 +561,77 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 			assert.ErrorAs(t, err, &unknownTrialErr)
 			assert.Equal(t, "trial-1", unknownTrialErr.TrialID)
 			close(observer)
+		}
+	})
+	t.Run("TestObserveSamplesFilterActorClasses", func(t *testing.T) {
+		t.Parallel() // This test involves goroutines and `time.Sleep`
+
+		b := createBackend()
+		defer destroyBackend(b)
+
+		trial1Params := generateTrialParams(4, 100)
+		trial1Params.Actors[0].ActorClass = "class1"
+		trial1Params.Actors[1].ActorClass = "class2"
+		trial1Params.Actors[2].ActorClass = "class1"
+		trial1Params.Actors[3].ActorClass = "class1"
+
+		err := b.CreateOrUpdateTrials(context.Background(), []*backend.TrialParams{{
+			TrialID: "trial-1",
+			Params:  trial1Params,
+		}})
+		assert.NoError(t, err)
+
+		trial1Samples := make([]*grpcapi.StoredTrialSample, 1)
+		for sampleIdx := range trial1Samples {
+			trial1Samples[sampleIdx] = generateSample("trial-1", 4, 512, sampleIdx == len(trial1Samples)-1)
+		}
+
+		err = b.AddSamples(context.Background(), trial1Samples)
+		assert.NoError(t, err)
+
+		trial2Params := generateTrialParams(3, 36)
+		trial2Params.Actors[0].ActorClass = "class2"
+		trial2Params.Actors[1].ActorClass = "class2"
+		trial2Params.Actors[2].ActorClass = "class1"
+
+		err = b.CreateOrUpdateTrials(context.Background(), []*backend.TrialParams{{
+			TrialID: "trial-2",
+			Params:  trial2Params,
+		}})
+		assert.NoError(t, err)
+
+		trial2Samples := make([]*grpcapi.StoredTrialSample, 1)
+		for sampleIdx := range trial2Samples {
+			trial2Samples[sampleIdx] = generateSample("trial-2", 3, 512, sampleIdx == len(trial2Samples)-1)
+		}
+
+		err = b.AddSamples(context.Background(), trial2Samples)
+		assert.NoError(t, err)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		observer := make(backend.TrialSampleObserver)
+		go func() {
+			err := b.ObserveSamples(
+				ctx,
+				backend.TrialSampleFilter{
+					TrialIDs:     []string{"trial-1", "trial-2"},
+					ActorClasses: []string{"class1"},
+				},
+				observer,
+			)
+			assert.NoError(t, err)
+			close(observer)
+		}()
+
+		for sampleResult := range observer {
+			assert.Contains(t, []string{"trial-1", "trial-2"}, sampleResult.TrialId)
+			if sampleResult.TrialId == "trial-1" {
+				assert.Len(t, sampleResult.ActorSamples, 3)
+			}
+			if sampleResult.TrialId == "trial-2" {
+				assert.Len(t, sampleResult.ActorSamples, 1)
+			}
 		}
 	})
 }

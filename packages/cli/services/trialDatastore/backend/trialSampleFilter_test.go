@@ -42,7 +42,7 @@ var trialParams *grpcapi.TrialParams = &grpcapi.TrialParams{
 			Name:           "my-actor-1",
 			ActorClass:     "my-actor-class-1",
 			Endpoint:       "grpc://actor:9000",
-			Implementation: "my-actor-implementation",
+			Implementation: "my-actor-implementation-1",
 			Config: &grpcapi.SerializedMessage{
 				Content: []byte("an actor config"),
 			},
@@ -51,7 +51,7 @@ var trialParams *grpcapi.TrialParams = &grpcapi.TrialParams{
 			Name:           "my-actor-2",
 			ActorClass:     "my-actor-class-2",
 			Endpoint:       "grpc://actor:9000",
-			Implementation: "my-actor-implementation",
+			Implementation: "my-actor-implementation-2",
 			Config: &grpcapi.SerializedMessage{
 				Content: []byte("another actor config"),
 			},
@@ -213,6 +213,103 @@ func TestActorNameFilters(t *testing.T) {
 	assert.NotEmpty(t, filteredTrialSample1.Payloads[3])
 	assert.NotEmpty(t, filteredTrialSample1.Payloads[4])
 	assert.NotEmpty(t, filteredTrialSample1.Payloads[5])
+
+	twiceFilteredTrialSample1 := f.Filter(filteredTrialSample1)
+
+	assert.True(t, proto.Equal(twiceFilteredTrialSample1, filteredTrialSample1))
+}
+
+func TestActorClassesFilters(t *testing.T) {
+	f := NewAppliedTrialSampleFilter(TrialSampleFilter{
+		ActorClasses: []string{"my-actor-class-1"},
+		Fields: []grpcapi.StoredTrialSampleField{
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_ACTION,
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_OBSERVATION,
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_REWARDS,
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_REWARDS,
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_MESSAGES,
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_MESSAGES,
+		},
+	}, trialParams)
+
+	filteredTrialSample1 := f.Filter(trialSample1)
+
+	assert.False(t, proto.Equal(trialSample1, filteredTrialSample1))
+	assert.Less(t, proto.Size(filteredTrialSample1), proto.Size(trialSample1))
+
+	assert.Len(t, filteredTrialSample1.ActorSamples, 1)
+
+	assert.NotEmpty(t, filteredTrialSample1.Payloads[0])
+	assert.NotEmpty(t, filteredTrialSample1.Payloads[1])
+	assert.NotEmpty(t, filteredTrialSample1.Payloads[2])
+	assert.Empty(t, filteredTrialSample1.Payloads[3])
+	assert.Empty(t, filteredTrialSample1.Payloads[4])
+	assert.Empty(t, filteredTrialSample1.Payloads[5])
+
+	twiceFilteredTrialSample1 := f.Filter(filteredTrialSample1)
+
+	assert.True(t, proto.Equal(twiceFilteredTrialSample1, filteredTrialSample1))
+}
+
+func TestActorImplementationsFilters(t *testing.T) {
+	f := NewAppliedTrialSampleFilter(TrialSampleFilter{
+		ActorImplementations: []string{"my-actor-implementation-2"},
+		Fields: []grpcapi.StoredTrialSampleField{
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_ACTION,
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_OBSERVATION,
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_REWARDS,
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_REWARDS,
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_MESSAGES,
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_MESSAGES,
+		},
+	}, trialParams)
+
+	filteredTrialSample1 := f.Filter(trialSample1)
+
+	assert.False(t, proto.Equal(trialSample1, filteredTrialSample1))
+	assert.Less(t, proto.Size(filteredTrialSample1), proto.Size(trialSample1))
+
+	assert.Len(t, filteredTrialSample1.ActorSamples, 1)
+
+	assert.NotEmpty(t, filteredTrialSample1.Payloads[0])
+	assert.Empty(t, filteredTrialSample1.Payloads[1])
+	assert.NotEmpty(t, filteredTrialSample1.Payloads[2])
+	assert.NotEmpty(t, filteredTrialSample1.Payloads[3])
+	assert.NotEmpty(t, filteredTrialSample1.Payloads[4])
+	assert.NotEmpty(t, filteredTrialSample1.Payloads[5])
+
+	twiceFilteredTrialSample1 := f.Filter(filteredTrialSample1)
+
+	assert.True(t, proto.Equal(twiceFilteredTrialSample1, filteredTrialSample1))
+}
+
+func TestActorImplementationsAndClassesFilters(t *testing.T) {
+	f := NewAppliedTrialSampleFilter(TrialSampleFilter{
+		ActorClasses:         []string{"my-actor-class-2"},
+		ActorImplementations: []string{"my-actor-implementation-1"},
+		Fields: []grpcapi.StoredTrialSampleField{
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_ACTION,
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_OBSERVATION,
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_REWARDS,
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_REWARDS,
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_MESSAGES,
+			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_MESSAGES,
+		},
+	}, trialParams)
+
+	filteredTrialSample1 := f.Filter(trialSample1)
+
+	assert.False(t, proto.Equal(trialSample1, filteredTrialSample1))
+	assert.Less(t, proto.Size(filteredTrialSample1), proto.Size(trialSample1))
+
+	assert.Len(t, filteredTrialSample1.ActorSamples, 0)
+
+	assert.Empty(t, filteredTrialSample1.Payloads[0])
+	assert.Empty(t, filteredTrialSample1.Payloads[1])
+	assert.Empty(t, filteredTrialSample1.Payloads[2])
+	assert.Empty(t, filteredTrialSample1.Payloads[3])
+	assert.Empty(t, filteredTrialSample1.Payloads[4])
+	assert.Empty(t, filteredTrialSample1.Payloads[5])
 
 	twiceFilteredTrialSample1 := f.Filter(filteredTrialSample1)
 
