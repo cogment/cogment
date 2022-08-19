@@ -36,6 +36,7 @@ syntax = "proto3";
 // Not using grpc.health.v1 is intentional, as the package name affects file structures.
 // If needed, we can alias the service name at runtime.
 package cogmentAPI;
+option go_package = "github.com/cogment/cogment/grpcapi/cogment/api";
 
 message HealthCheckRequest {
   // If no specific service is requested, the health of the endpoint as a whole

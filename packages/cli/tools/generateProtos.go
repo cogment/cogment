@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path"
 )
 
 func main() {
@@ -45,11 +44,16 @@ func main() {
 	}
 
 	protoFiles := []string{
+		"cogment/api/agent.proto",
 		"cogment/api/common.proto",
 		"cogment/api/datalog.proto",
+		"cogment/api/directory.proto",
 		"cogment/api/environment.proto",
-		"cogment/api/trial_datastore.proto",
+		"cogment/api/health.proto",
+		"cogment/api/hooks.proto",
 		"cogment/api/model_registry.proto",
+		"cogment/api/orchestrator.proto",
+		"cogment/api/trial_datastore.proto",
 	}
 	protocArgs := []string{
 		fmt.Sprintf("--proto_path=%s", apiDir),
@@ -61,18 +65,6 @@ func main() {
 
 	if protobufIncludeDir, protobufIncludeDirFound := os.LookupEnv("PROTOBUF_INCLUDE_DIR"); protobufIncludeDirFound {
 		protocArgs = append(protocArgs, fmt.Sprintf("--proto_path=%s", protobufIncludeDir))
-	}
-
-	for _, protoFile := range protoFiles {
-		protoDir := path.Dir(protoFile)
-		protocArgs = append(
-			protocArgs,
-			fmt.Sprintf("--go_opt=M%s=github.com/cogment/cogment/%s/%s", protoFile, packageDir, protoDir),
-		)
-		protocArgs = append(
-			protocArgs,
-			fmt.Sprintf("--go-grpc_opt=M%s=github.com/cogment/cogment/%s/%s", protoFile, packageDir, protoDir),
-		)
 	}
 
 	protocArgs = append(protocArgs, protoFiles...)

@@ -36,7 +36,7 @@ var orchestratorLifecyclePortKey = "lifecycle_port"
 var orchestratorActorPortKey = "actor_port"
 var orchestratorActorWebPortKey = "actor_web_port"
 var orchestratorParamsFileKey = "params"
-var orchestratorDirectoryServicesKey = "directory_services"
+var orchestratorDirectoryServicesKey = "directory_endpoint"
 var orchestratorDirectoryAuthTokenKey = "directory_authentication_token"
 var orchestratorDirectoryAutoRegisterKey = "directory_auto_register"
 var orchestratorDirectoryRegisterHostKey = "directory_registration_host"
@@ -154,7 +154,7 @@ func init() {
 	)
 
 	orchestratorViper.SetDefault(orchestratorDirectoryServicesKey, orchestrator.DefaultOptions.DirectoryServicesEndpoints)
-	_ = orchestratorViper.BindEnv(orchestratorDirectoryServicesKey, "COGMENT_DIRECTORY_SERVICES")
+	_ = orchestratorViper.BindEnv(orchestratorDirectoryServicesKey, "COGMENT_DIRECTORY_ENDPOINT")
 	orchestratorCmd.Flags().StringSlice(
 		orchestratorDirectoryServicesKey,
 		orchestratorViper.GetStringSlice(orchestratorDirectoryServicesKey),

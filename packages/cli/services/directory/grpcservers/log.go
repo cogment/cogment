@@ -12,18 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto3";
+package grpcservers
 
-package cogmentAPI;
-option go_package = "github.com/cogment/cogment/grpcapi/cogment/api";
+import (
+	"github.com/sirupsen/logrus"
+)
 
-import "cogment/api/common.proto";
-
-service ServiceActorSP {
-  // Expected metadata:
-  //   - trial-id: The id of the trial
-  rpc RunTrial(stream ActorRunTrialInput) returns (stream ActorRunTrialOutput) {}
-
-  // Expected metadata: None
-  rpc Version(VersionRequest) returns (VersionInfo) {}
-}
+var log = logrus.WithField("component", "directory")

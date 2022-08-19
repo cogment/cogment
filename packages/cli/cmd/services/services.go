@@ -73,4 +73,5 @@ func init() {
 	ServicesCmd.AddCommand(registryCmd)
 	ServicesCmd.AddCommand(orchestratorCmd)
 	ServicesCmd.AddCommand(datastoreCmd)
+	ServicesCmd.AddCommand(directoryCmd)
 }

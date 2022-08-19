@@ -65,5 +65,6 @@ func init() {
 	_ = clientViper.BindPFlags(ClientCmd.PersistentFlags())
 
 	// Add the client subcommands
+	ClientCmd.AddCommand(directoryCmd)
 	ClientCmd.AddCommand(datastoreCmd)
 }

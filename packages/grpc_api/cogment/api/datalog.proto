@@ -15,6 +15,7 @@
 syntax = "proto3";
 
 package cogmentAPI;
+option go_package = "github.com/cogment/cogment/grpcapi/cogment/api";
 
 import "cogment/api/common.proto";
 import "cogment/api/environment.proto";

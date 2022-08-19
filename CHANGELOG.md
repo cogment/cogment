@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Trial Datastore sample filtering on Agent class and Agent implementation is now effective
 
+### Added
+
+- Directory service
+- Directory client
+
 ## v2.8.0 - 2022-08-08
 
 ### Fixed
