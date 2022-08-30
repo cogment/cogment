@@ -49,6 +49,9 @@ func init() {
 	// Version
 	rootCmd.AddCommand(versionCmd)
 
+	// Launch
+	rootCmd.AddCommand(launchCmd)
+
 	// Deprecated commands
 	rootCmd.AddCommand(deprecated.CopyCmd)
 	rootCmd.AddCommand(deprecated.GenerateCmd)
