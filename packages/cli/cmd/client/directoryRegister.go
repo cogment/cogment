@@ -71,6 +71,13 @@ func init() {
 		"The properties of the service to be registered in the Directory (in the form 'name=value,name=value')",
 	)
 
+	directoryRegisterViper.SetDefault(directoryServicePermanent, false)
+	directoryRegisterCmd.Flags().Bool(
+		directoryServicePermanent,
+		directoryRegisterViper.GetBool(directoryServicePermanent),
+		"Whether the service is permanent in the directory and will not be subjected to health checks",
+	)
+
 	directoryRegisterCmd.Flags().SortFlags = false
 	_ = directoryRegisterViper.BindPFlags(directoryRegisterCmd.Flags())
 }
@@ -111,6 +118,8 @@ var directoryRegisterCmd = &cobra.Command{
 			return err
 		}
 		request.Details.Type = serviceType
+
+		request.Permanent = directoryRegisterViper.GetBool(directoryServicePermanent)
 
 		propertiesStr := directoryRegisterViper.GetString(directoryServicePropertiesKey)
 		properties, err := parseProperties(propertiesStr)

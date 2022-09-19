@@ -33,17 +33,27 @@ var DefaultOptions = Options{
 }
 
 func Run(options Options) error {
+	server := utils.NewGrpcServer(options.GrpcReflection)
+	dirServer, err := grpcservers.RegisterDirectoryServer(server)
+	if err != nil {
+		return err
+	}
+
+	stopChecks, err := dirServer.PeriodicHealthCheck()
+	if err != nil {
+		return err
+	}
+	defer stopChecks()
+
 	portString := fmt.Sprintf(":%d", options.Port)
 	listener, err := net.Listen("tcp", portString)
 	if err != nil {
 		return fmt.Errorf("Unable to open TCP port [%d]: %v", options.Port, err)
 	}
-	server := utils.NewGrpcServer(options.GrpcReflection)
-	err = grpcservers.RegisterDirectoryServer(server)
-	if err != nil {
-		return err
-	}
 
 	log.WithField("port", options.Port).Info("Listening")
-	return server.Serve(listener)
+	err = server.Serve(listener)
+	log.Info("Closing")
+
+	return err
 }

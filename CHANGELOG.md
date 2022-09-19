@@ -17,20 +17,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Directory client
 - `cogment launch file.yaml`, a cli tool to take the place of gnu parallel.
 
-file.yaml looks like:
-```
-scripts:
-  foo:
-    commands:
-      - ["echo", "hello world"]
-      - ["./some_script.sh"]
-  orchestrator:
-    dir: "./some/path"
-    commands:
-      - ["cogment", "service", "orchestrator"]
-
-```
-
 ## v2.8.0 - 2022-08-08
 
 ### Fixed

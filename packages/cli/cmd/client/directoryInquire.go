@@ -33,14 +33,15 @@ func init() {
 	directoryInquireCmd.Flags().Uint64(
 		directoryServiceIDKey,
 		directoryInquireViper.GetUint64(directoryServiceIDKey),
-		"ID of the service to inquire from the Directory",
+		"Numerical ID of the service to inquire from the Directory",
 	)
 
 	directoryInquireViper.SetDefault(directoryServiceTypeKey, "")
 	directoryInquireCmd.Flags().String(
 		directoryServiceTypeKey,
 		directoryInquireViper.GetString(directoryServiceTypeKey),
-		"Type of service to inquire from the Directory (e.g. 'actor', 'environment')",
+		"Type of service to inquire from the Directory (actor, environment, "+
+			"prehook, datalog, lifecycle, actservice, datastore, modelregistry or other)",
 	)
 
 	directoryInquireViper.SetDefault(directoryServicePropertiesKey, "")
@@ -115,6 +116,7 @@ var directoryInquireCmd = &cobra.Command{
 			endpoint, ssl := endpointToString(service.Endpoint)
 			fmt.Printf("\tEndpoint [%s] SSL required [%t]\n", endpoint, ssl)
 			fmt.Printf("\tType [%s]\n", apiServiceTypeToStr(service.Details.Type))
+			fmt.Printf("\tPermanent [%t]\n", service.Permanent)
 			for name, value := range service.Details.Properties {
 				fmt.Printf("\t[%s] = [%s]\n", name, value)
 			}

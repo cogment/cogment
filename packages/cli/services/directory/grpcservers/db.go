@@ -20,12 +20,21 @@ import (
 
 	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/utils"
-	"google.golang.org/protobuf/proto"
 )
 
-const secretLength = 5
+type ServiceID uint64
 
-type dbRecord struct {
+type DbRecord struct {
+	// Internal DB data (set/maintained by the DB)
+	id                ServiceID // Redundant but simplifies code
+	registerTimestamp uint64
+
+	// Internal service data (set/maintained by the directory)
+	lastHealthCheckTimestamp uint64
+	nbFailedHealthChecks     uint // since the last successful health check
+
+	// External service data
+	permanent           bool
 	authenticationToken string
 	secret              string
 
@@ -33,10 +42,8 @@ type dbRecord struct {
 	details  cogmentAPI.ServiceDetails
 }
 
-type ServiceID uint64
-
 type MemoryDB struct {
-	data  map[ServiceID]*dbRecord
+	data  map[ServiceID]*DbRecord
 	mutex sync.Mutex
 
 	// We will need to add indexes when/if efficiency is needed
@@ -46,7 +53,7 @@ type MemoryDB struct {
 func MakeMemoryDb() *MemoryDB {
 	// We may need to initialize indexes and other data here eventually
 	return &MemoryDB{
-		data:  make(map[ServiceID]*dbRecord),
+		data:  make(map[ServiceID]*DbRecord),
 		mutex: sync.Mutex{},
 	}
 }
@@ -54,7 +61,7 @@ func MakeMemoryDb() *MemoryDB {
 func (md *MemoryDB) getNewServiceID() ServiceID {
 	id := ServiceID(utils.RandomUint())
 	for ; ; id = ServiceID(utils.RandomUint()) {
-		if _, exist := md.data[id]; !exist {
+		if _, exist := md.data[id]; id != 0 && !exist {
 			break
 		}
 	}
@@ -62,28 +69,28 @@ func (md *MemoryDB) getNewServiceID() ServiceID {
 	return id
 }
 
-func (md *MemoryDB) SelectSecretsByID(id ServiceID) (string, string, error) {
+func (md *MemoryDB) SelectAllIDs() ([]ServiceID, error) {
 	md.mutex.Lock()
 	defer md.mutex.Unlock()
 
-	record, exist := md.data[id]
-	if !exist {
-		return "", "", fmt.Errorf("Unknown service ID [%d]", uint64(id))
+	var ids []ServiceID
+	for id := range md.data {
+		ids = append(ids, id)
 	}
 
-	return record.secret, record.authenticationToken, nil
+	return ids, nil
 }
 
-func (md *MemoryDB) SelectByID(id ServiceID) (*cogmentAPI.ServiceEndpoint, *cogmentAPI.ServiceDetails, error) {
+func (md *MemoryDB) SelectByID(id ServiceID) (*DbRecord, error) {
 	md.mutex.Lock()
 	defer md.mutex.Unlock()
 
 	record, exist := md.data[id]
 	if !exist {
-		return nil, nil, fmt.Errorf("Unknown service ID [%d]", uint64(id))
+		return nil, fmt.Errorf("Unknown service ID [%d]", uint64(id))
 	}
 
-	return &record.endpoint, &record.details, nil
+	return record, nil
 }
 
 func (md *MemoryDB) SelectByDetails(inquiryDetails *cogmentAPI.ServiceDetails) ([]ServiceID, error) {
@@ -120,31 +127,34 @@ func (md *MemoryDB) SelectByDetails(inquiryDetails *cogmentAPI.ServiceDetails) (
 	return result, nil
 }
 
-func (md *MemoryDB) Insert(token string, endpoint *cogmentAPI.ServiceEndpoint, details *cogmentAPI.ServiceDetails,
-) (ServiceID, string, error) {
-	// Should we check for duplicates? What would be considered a duplicate?
-	// Not to slow registration down, we could have recurring background duplication checks.
+func (md *MemoryDB) Insert(record *DbRecord) error {
 	md.mutex.Lock()
 	defer md.mutex.Unlock()
 
 	newID := md.getNewServiceID()
-	secret := utils.RandomString(secretLength)
+	record.id = newID
+	record.registerTimestamp = utils.Timestamp()
+	md.data[newID] = record
 
-	newRecord := dbRecord{}
-	newRecord.authenticationToken = token
-	newRecord.secret = secret
-	proto.Merge(&newRecord.endpoint, endpoint)
-	proto.Merge(&newRecord.details, details)
-	md.data[newID] = &newRecord // Lint complaining about copy locks
+	return nil
+}
 
-	return newID, secret, nil
+func (md *MemoryDB) Update(id ServiceID, record *DbRecord) error {
+	md.mutex.Lock()
+	defer md.mutex.Unlock()
+
+	oldRecord, found := md.data[id]
+	if !found {
+		return fmt.Errorf("Unknown ID [%d] to update", id)
+	}
+
+	record.id = id
+	record.registerTimestamp = oldRecord.registerTimestamp
+	md.data[id] = record
+
+	return nil
 }
 
 func (md *MemoryDB) Delete(id ServiceID) {
 	delete(md.data, id)
-}
-
-func (md *MemoryDB) Update(id ServiceID, secret string, token string, authenticationToken string,
-	endpoint *cogmentAPI.ServiceEndpoint, details *cogmentAPI.ServiceDetails) error {
-	panic("Update: Not implemented")
 }

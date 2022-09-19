@@ -297,7 +297,9 @@ func (s *datalogServer) RunTrialDatalog(stream grpcapi.DatalogSP_RunTrialDatalog
 }
 
 func (s *datalogServer) Version(context.Context, *grpcapi.VersionRequest) (*grpcapi.VersionInfo, error) {
-	return nil, status.Errorf(codes.Unimplemented, "DatalogServer.Version not implemented")
+	// TODO: Return proper version info. Current version is minimal to serve a health check for directory.
+	res := &grpcapi.VersionInfo{}
+	return res, nil
 }
 
 // RegisterDatalogServer registers a DatalogServer to a gRPC server.

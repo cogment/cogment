@@ -41,6 +41,7 @@ const (
 	directoryServicePropertiesKey = "properties"
 	directoryServiceIDKey         = "service_id"
 	directoryServiceSecretKey     = "secret"
+	directoryServicePermanent     = "permanent"
 
 	// Internal
 	directoryAuthTokenMetadataKey = "authentication-token"

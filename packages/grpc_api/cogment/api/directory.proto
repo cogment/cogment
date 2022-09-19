@@ -49,6 +49,10 @@ message RegisterRequest {
   // URL where to connect to the service.
   ServiceEndpoint endpoint = 1;
   ServiceDetails details = 2;
+
+  // If true, no health checks will be performed and the service will stay
+  // in the directory until explicitly deregistered.
+  bool permanent = 3;
 }
 
 message RegisterReply {
@@ -122,6 +126,7 @@ message FullServiceData {
   ServiceEndpoint endpoint = 1;
   uint64 service_id = 2;
   ServiceDetails details = 3;
+  bool permanent = 4;
 }
 
 enum ServiceType {

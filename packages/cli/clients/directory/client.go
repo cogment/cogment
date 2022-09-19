@@ -74,8 +74,7 @@ func (client *Client) connect() (*grpc.ClientConn, error) {
 	return grpc.DialContext(client.ctx, "custom_dialer", opts...)
 }
 
-func (client *Client) Register(request *cogmentAPI.RegisterRequest,
-) (uint64, string, error) {
+func (client *Client) Register(request *cogmentAPI.RegisterRequest) (uint64, string, error) {
 	connection, err := client.connect()
 	if err != nil {
 		return 0, "", err
