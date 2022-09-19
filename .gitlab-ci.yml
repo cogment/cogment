@@ -313,7 +313,8 @@ cogment_push_docker_tag_to_dockerhub:
   only:
     - /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+(?:-[[:alnum:]]+)?$/
 
-.base_gh_ssh_agent:
+.base_gh:
+  image: ubuntu:focal
   before_script:
     ## _Inspired by https://docs.gitlab.com/ee/ci/ssh_keys/_
     ##
@@ -329,10 +330,28 @@ cogment_push_docker_tag_to_dockerhub:
     ## Using the set $SSH_KNOWN_HOSTS to be able to verify remote servers public keys
     - echo "$SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
     - chmod 644 ~/.ssh/known_hosts
+    # Install gh
+    - apt update -y
+    - apt-get install -y gnupg2 software-properties-common
+    # Key retreieved here https://github.com/cli/cli/blob/trunk/docs/install_linux.md#debian-ubuntu-linux-raspberry-pi-os-apt
+    - apt-key adv --keyserver keyserver.ubuntu.com --recv-key ${GH_DEBIAN_PACKAGE_KEY}
+    - apt-add-repository https://cli.github.com/packages
+    - apt update -y
+    - apt install gh -y
+
+test_gh:
+  stage: build
+  extends: .base_gh
+  script:
+    # Check the ssh connection
+    # > not an actual test this will succeed in any case but the result is readable in build logs
+    - ssh -T git@github.com || true
+    # Check that gh is properly installed
+    - gh version
 
 publish_tag_to_github:
   stage: publish
-  extends: .base_gh_ssh_agent
+  extends: .base_gh
   needs:
     - job: build_linux_amd64
       artifacts: true
@@ -342,15 +361,7 @@ publish_tag_to_github:
       artifacts: true
     - job: build_all_no_orchestrator
       artifacts: true
-  image: ubuntu:focal
   script:
-    # Install dependencies (not a before_script we don't want to override .base_gh_ssh_agent.before_script)
-    - apt update -y
-    - apt-get install -y gnupg2 software-properties-common
-    - apt-key adv --keyserver keyserver.ubuntu.com --recv-key C99B11DEB97541F0
-    - apt-add-repository https://cli.github.com/packages
-    - apt update -y
-    - apt install gh -y
     # Publish the tag
     - git checkout ${CI_COMMIT_BRANCH} # Checkout the branch not the sha1
     - git remote add downstream git@github.com:cogment/cogment.git
@@ -381,7 +392,7 @@ publish_tag_to_github:
 
 publish_branch_to_github:
   stage: publish
-  extends: .base_gh_ssh_agent
+  extends: .base_gh
   script:
     - git checkout ${CI_COMMIT_BRANCH} # Checkout the branch not the sha1
     - git remote add downstream git@github.com:cogment/cogment.git
