@@ -7,15 +7,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+_v2.9.1 replaces v2.9.0 partially failed to be released_
+
 ### Fixed
 
 - Trial Datastore sample filtering on Agent class and Agent implementation is now effective
 
 ### Added
 
-- Directory service
-- Directory client
-- `cogment launch file.yaml`, a cli tool to take the place of gnu parallel.
+- `cogment services directory [...]`, Cogment's directory service
+- `cogment client directory [...]`, a CLI client to interact with directory services
+- `cogment launch file.yaml`, a CLI tool able to launch and monitor the several process of a Cogment application (takes the place of gnu parallel)
 
 ## v2.8.0 - 2022-08-08
 
