@@ -7,8 +7,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
-## v2.9.0 - 2022-09-19
-
 ### Fixed
 
 - Trial Datastore sample filtering on Agent class and Agent implementation is now effective
