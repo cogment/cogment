@@ -250,6 +250,7 @@ Directory::InquiredAddress Directory::inquire_address(std::string_view service_n
   uint64_t id = 0;
   const auto service_requested = get_service_type(data, &id);
 
+  bool endpoint_auth_token = false;
   cogmentAPI::InquireRequest request;
   grpc::ClientContext context;
   if (service_requested != cogmentAPI::UNKNOWN_SERVICE) {
@@ -262,6 +263,7 @@ Directory::InquiredAddress Directory::inquire_address(std::string_view service_n
       }
       else {
         context.AddMetadata(AUTHENTICATION_TOKEN_METADATA_NAME, std::string(prop.value));
+        endpoint_auth_token = true;
       }
     }
   }
@@ -271,8 +273,13 @@ Directory::InquiredAddress Directory::inquire_address(std::string_view service_n
     for (auto& prop : data.query) {
       if (prop.name == AUTHENTICATION_TOKEN_PROPERTY_NAME) {
         context.AddMetadata(AUTHENTICATION_TOKEN_METADATA_NAME, std::string(prop.value));
+        endpoint_auth_token = true;
       }
     }
+  }
+
+  if (!endpoint_auth_token && !m_auth_token.empty()) {
+    context.AddMetadata(AUTHENTICATION_TOKEN_METADATA_NAME, m_auth_token);
   }
 
   auto address = get_address_from_directory(context, request, data);

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Fixed
+
+- Use of the authentication token environment variable on inquiries by the Orchestrator
+
 ## v2.9.1 - 2022-09-19
 
 _v2.9.1 replaces v2.9.0 partially failed to be released_
