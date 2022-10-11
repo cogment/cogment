@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Added
+
+- Addition of `registration_lag` option to directory service
+
 ## v2.9.2 - 2022-10-07
 
 ### Fixed

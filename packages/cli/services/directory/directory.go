@@ -23,18 +23,20 @@ import (
 )
 
 type Options struct {
-	Port           uint
-	GrpcReflection bool
+	Port            uint
+	GrpcReflection  bool
+	RegistrationLag uint
 }
 
 var DefaultOptions = Options{
-	Port:           9005,
-	GrpcReflection: false,
+	Port:            9005,
+	GrpcReflection:  false,
+	RegistrationLag: 0,
 }
 
 func Run(options Options) error {
 	server := utils.NewGrpcServer(options.GrpcReflection)
-	dirServer, err := grpcservers.RegisterDirectoryServer(server)
+	dirServer, err := grpcservers.RegisterDirectoryServer(server, options.RegistrationLag)
 	if err != nil {
 		return err
 	}

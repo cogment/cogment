@@ -24,10 +24,12 @@ import (
 )
 
 const (
-	directoryPortKey           = "port"
-	directoryPortEnvKey        = "COGMENT_DIRECTORY_PORT"
-	directoryGrpcReflectionKey = "grpc_reflection"
-	directoryGrpcReflectionEnv = "COGMENT_DIRECTORY_GRPC_REFLECTION"
+	directoryPortKey            = "port"
+	directoryPortEnv            = "COGMENT_DIRECTORY_PORT"
+	directoryGrpcReflectionKey  = "grpc_reflection"
+	directoryGrpcReflectionEnv  = "COGMENT_DIRECTORY_GRPC_REFLECTION"
+	directoryRegistrationLagKey = "registration_lag"
+	directoryRegistrationLagEnv = "COGMENT_DIRECTORY_REGISTRATION_LAG"
 )
 
 var directoryViper = viper.New()
@@ -48,8 +50,9 @@ var directoryCmd = &cobra.Command{
 		}).Info("Starting the directory service")
 
 		options := directory.Options{
-			Port:           directoryViper.GetUint(directoryPortKey),
-			GrpcReflection: directoryViper.GetBool(directoryGrpcReflectionKey),
+			Port:            directoryViper.GetUint(directoryPortKey),
+			GrpcReflection:  directoryViper.GetBool(directoryGrpcReflectionKey),
+			RegistrationLag: directoryViper.GetUint(directoryRegistrationLagKey),
 		}
 
 		return directory.Run(options)
@@ -58,7 +61,7 @@ var directoryCmd = &cobra.Command{
 
 func init() {
 	directoryViper.SetDefault(directoryPortKey, directory.DefaultOptions.Port)
-	_ = directoryViper.BindEnv(directoryPortKey, directoryPortEnvKey)
+	_ = directoryViper.BindEnv(directoryPortKey, directoryPortEnv)
 	directoryCmd.Flags().Uint(
 		directoryPortKey,
 		directoryViper.GetUint(directoryPortKey),
@@ -71,6 +74,14 @@ func init() {
 		directoryGrpcReflectionKey,
 		directoryViper.GetBool(directoryGrpcReflectionKey),
 		"Start the gRPC reflection server",
+	)
+
+	directoryViper.SetDefault(directoryRegistrationLagKey, directory.DefaultOptions.RegistrationLag)
+	_ = directoryViper.BindEnv(directoryRegistrationLagKey, directoryRegistrationLagEnv)
+	directoryCmd.Flags().Uint(
+		directoryRegistrationLagKey,
+		directoryViper.GetUint(directoryRegistrationLagKey),
+		"Acceptable lag for services registration before they are declared not found in the directory (seconds)",
 	)
 
 	// Don't sort alphabetically, keep insertion order

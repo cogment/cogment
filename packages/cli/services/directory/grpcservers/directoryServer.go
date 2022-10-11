@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"time"
 
 	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/utils"
@@ -35,7 +36,8 @@ const secretLength = 5
 
 type DirectoryServer struct {
 	cogmentAPI.UnimplementedDirectorySPServer
-	db *MemoryDB
+	registrationLag uint
+	db              *MemoryDB
 }
 
 // We want to sort in reverse: from most recent (larger number) to less recent (smaller number).
@@ -356,6 +358,15 @@ func (ds *DirectoryServer) Inquire(request *cogmentAPI.InquireRequest, outStream
 		return err
 	}
 
+	for count := ds.registrationLag; matches.Len() == 0 && count > 0; count-- {
+		time.Sleep(1 * time.Second)
+
+		matches, err = ds.dbInquire(request, token)
+		if err != nil {
+			return err
+		}
+	}
+
 	for _, record := range *matches {
 		data := cogmentAPI.FullServiceData{
 			Endpoint:  &record.endpoint,
@@ -380,9 +391,10 @@ func (ds *DirectoryServer) Version(context.Context, *cogmentAPI.VersionRequest) 
 	return &cogmentAPI.VersionInfo{}, nil
 }
 
-func RegisterDirectoryServer(grpcServer grpc.ServiceRegistrar) (*DirectoryServer, error) {
+func RegisterDirectoryServer(grpcServer grpc.ServiceRegistrar, regLag uint) (*DirectoryServer, error) {
 	server := DirectoryServer{}
 	server.db = MakeMemoryDb()
+	server.registrationLag = regLag
 
 	cogmentAPI.RegisterDirectorySPServer(grpcServer, &server)
 
