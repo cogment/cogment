@@ -146,14 +146,27 @@ func runOrchestrator(ctx context.Context, options Options, statusListener utils.
 	if err != nil {
 		return err
 	}
+
+	checker := utils.NewNetChecker()
+
+	err = checker.TCPPort(uint16(options.LifecyclePort))
+	if err != nil {
+		return fmt.Errorf("Lifecycle port [%d] unavailable: %w", options.LifecyclePort, err)
+	}
 	err = w.SetLifecyclePort(options.LifecyclePort)
 	if err != nil {
 		return err
+	}
+
+	err = checker.TCPPort(uint16(options.ActorPort))
+	if err != nil {
+		return fmt.Errorf("Actor port [%d] unavailable: %w", options.ActorPort, err)
 	}
 	err = w.SetActorPort(options.ActorPort)
 	if err != nil {
 		return err
 	}
+
 	err = w.SetDefaultParamsFile(options.ParamsFile)
 	if err != nil {
 		return err
@@ -185,6 +198,13 @@ func runOrchestrator(ctx context.Context, options Options, statusListener utils.
 	err = w.SetDirectoryRegisterProps(options.DirectoryRegisterProps)
 	if err != nil {
 		return err
+	}
+
+	if options.PrometheusPort > 0 {
+		err = checker.TCPPort(uint16(options.PrometheusPort))
+		if err != nil {
+			return fmt.Errorf("Prometheus port [%d] unavailable: %w", options.PrometheusPort, err)
+		}
 	}
 	err = w.SetPrometheusPort(options.PrometheusPort)
 	if err != nil {

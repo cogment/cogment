@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Use v1.10.0 of spdlog instead of v1.X (latest v1.11.0 causes errors)
 - Use v11.2.0 of mingw to build the Windows version (latest v12.2.0 causes errors)
+- Check Orchestrator port availability before use
 
 ## v2.9.2 - 2022-10-07
 

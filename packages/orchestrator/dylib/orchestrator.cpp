@@ -41,7 +41,9 @@
   #include <unistd.h>    // STDERR_FILENO
 
 namespace {
+
 void (*previous_sigsegv_handler)(int) = SIG_DFL;
+
 void sigsegv_handler(int sig) {
   static constexpr size_t BACKTRACE_SIZE = 100;
 
@@ -55,12 +57,15 @@ void sigsegv_handler(int sig) {
   signal(SIGSEGV, previous_sigsegv_handler);
   raise(sig);
 }
+
 // Define a "constructor" function that will be executed when the dynamic libary is loaded.
 static void on_dylib_load() __attribute__((constructor));
+
 void on_dylib_load() {
   // Registering the custom SIGSEGV handler and keeping around the previous one
   previous_sigsegv_handler = signal(SIGSEGV, sigsegv_handler);
 }
+
 }  // namespace
 #endif
 
@@ -233,11 +238,21 @@ ServedOrchestrator::ServedOrchestrator(const Options* options) :
   }
 
   // ******************* Endpoints *******************
+  cogment::NetChecker checker;
+  if (checker.is_tcp_port_used(options->lifecycle_port)) {
+    throw cogment::MakeException("Lifecycle port [{}] is already in use", options->lifecycle_port);
+  }
+  if (checker.is_tcp_port_used(options->actor_port)) {
+    throw cogment::MakeException("Actor port [{}] is already in use", options->actor_port);
+  }
   auto lifecycle_endpoint = std::string("0.0.0.0:") + std::to_string(options->lifecycle_port);
   auto actor_endpoint = std::string("0.0.0.0:") + std::to_string(options->actor_port);
 
   // ******************* Monitoring *******************
   if (options->prometheus_port > 0) {
+    if (checker.is_tcp_port_used(options->prometheus_port)) {
+      throw cogment::MakeException("Prometheus port [{}] is already in use", options->prometheus_port);
+    }
     auto prometheus_endpoint = std::string("0.0.0.0:") + std::to_string(options->prometheus_port);
     spdlog::info("Starting prometheus at [{}]", prometheus_endpoint);
 

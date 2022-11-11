@@ -17,6 +17,8 @@
 #endif
 
 #include "cogment/utils.h"
+#include <fstream>
+#include <cstdlib>
 
 namespace cogment {
 
@@ -82,6 +84,82 @@ static void PostGetHostAddress() { WSACleanup(); }
   #error "Unknown target OS"
 #endif
 
+#if defined(__linux__)
+
+NetChecker::NetChecker() {
+  parse_ip_procfs("/proc/net/tcp");
+  parse_ip_procfs("/proc/net/tcp6");
+}
+
+void NetChecker::parse_ip_procfs(const std::string& path) {
+  try {
+    std::ifstream fs(path);
+    if (!fs.is_open()) {
+      spdlog::warn("Failed to open IP state [{}]", path);
+      return;
+    }
+
+    // Discarding first line (header)
+    std::string header;
+    getline(fs, header);
+    // Header: "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode"
+    SPDLOG_DEBUG("[{}]: {}", path, header);
+
+    for (std::string line; getline(fs, line).good();) {
+      if (line.empty()) {
+        continue;
+      }
+      SPDLOG_DEBUG("[{}]: {}", path, line);
+
+      // Format is fixed, e.g.: "   5: 0341A8C0:A0C2 0141A8C0:0C38 06 00000000:00000000 03:000000D9 00000000 ..."
+      auto columns = split(trim(line), ' ', true);
+      if (columns.size() < 2) {
+        spdlog::warn("Unexpected IP state line format [{}]", line);
+        continue;
+      }
+      auto address_port = split(columns[1], ':');
+      if (address_port.size() < 2) {
+        spdlog::warn("Unexpected IP state address format [{}] in [{}]", columns[1], line);
+        continue;
+      }
+      auto port = address_port[1];
+      if (port.length() != 4) {
+        spdlog::warn("Invalid port format in IP state [{}] [{}]", port, line);
+        continue;
+      }
+
+      std::string port_str(port);
+      auto port_int = std::strtoull(port_str.c_str(), nullptr, 16);
+      if (port_int == 0 || port_int > std::numeric_limits<uint16_t>::max()) {
+        spdlog::warn("Invalid port found in IP state [{}]", port_str);
+        continue;
+      }
+      SPDLOG_DEBUG("Port found [{}]", port_int);
+
+      m_tcp_ports.insert(port_int);
+    }
+
+    if (!fs.eof()) {
+      spdlog::warn("Failure reading IP state");
+    }
+  }
+  catch (const std::exception& exc) {
+    spdlog::warn("Failed to process IP state [{}]", exc.what());
+    m_tcp_ports.clear();
+  }
+  catch (...) {
+    spdlog::warn("Failed to process IP state");
+    m_tcp_ports.clear();
+  }
+}
+#else
+  #pragma message("NetChecker is not implemented for target OS")
+// Windows could use 'GetTcpTable'
+NetChecker::NetChecker() {}
+#endif
+
+bool NetChecker::is_tcp_port_used(uint16_t port) { return (m_tcp_ports.find(port) != m_tcp_ports.end()); }
+
 std::string GetHostAddress() {
   PreGetHostAddress();
   static constexpr size_t MAX_HOST_NAME_LENGTH = 256;
@@ -116,14 +194,24 @@ std::string GetHostAddress() {
   return ip_address;
 }
 
-std::vector<std::string_view> split(std::string_view in, char separator) {
+std::vector<std::string_view> split(std::string_view in, char separator, bool merge_separators) {
   std::vector<std::string_view> result;
 
   while (true) {
-    const size_t index = in.find(separator);
-    if (index != in.npos) {
-      result.emplace_back(in.substr(0, index));
-      in.remove_prefix(index + 1);
+    const size_t sep_index = in.find(separator);
+    if (sep_index != in.npos) {
+      size_t token_index = sep_index + 1;
+
+      if (merge_separators) {
+        for (; token_index < in.length(); token_index++) {
+          if (in[token_index] != separator) {
+            break;
+          }
+        }
+      }
+
+      result.emplace_back(in.substr(0, sep_index));
+      in.remove_prefix(token_index);
     }
     else {
       result.emplace_back(in);

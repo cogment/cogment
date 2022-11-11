@@ -21,6 +21,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <queue>
+#include <set>
 #include <mutex>
 #include <thread>
 #include <future>
@@ -36,7 +37,7 @@ constexpr double NANOS_INV = 1.0 / NANOS;
 using COGMENT_ERROR_BASE_TYPE = std::runtime_error;
 
 // Split string according to separator character
-std::vector<std::string_view> split(std::string_view in, char separator);
+std::vector<std::string_view> split(std::string_view in, char separator, bool merge_separators = false);
 
 // Trim white space from begining and end of input string
 std::string_view trim(std::string_view in);
@@ -46,6 +47,18 @@ uint64_t Timestamp();
 
 // Get host IP address in proper format to register to directory
 std::string GetHostAddress();
+
+// Non performance critical
+class NetChecker {
+public:
+  NetChecker();
+  bool is_tcp_port_used(uint16_t port);
+
+private:
+  void parse_ip_procfs(const std::string& path);
+
+  std::set<uint16_t> m_tcp_ports;
+};
 
 // Instead of using a generic std::pair
 struct PropertyView {
