@@ -18,7 +18,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"reflect"
 	"strconv"
+	"sync"
 	"time"
 
 	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
@@ -41,6 +43,7 @@ type ModelRegistryServer struct {
 	grpcapi.UnimplementedModelRegistrySPServer
 	backendPromise                BackendPromise
 	sentModelVersionDataChunkSize int
+	newVersion                    *sync.Cond
 }
 
 func createPbModelVersionInfo(modelVersionInfo backend.VersionInfo) grpcapi.ModelVersionInfo {
@@ -289,6 +292,7 @@ func (s *ModelRegistryServer) CreateVersion(inStream grpcapi.ModelRegistrySP_Cre
 			receivedVersionInfo.ModelId, err,
 		)
 	}
+	s.newVersion.Broadcast()
 
 	pbVersionInfo := createPbModelVersionInfo(versionInfo)
 	return inStream.SendAndClose(&grpcapi.CreateVersionReply{VersionInfo: &pbVersionInfo})
@@ -447,6 +451,62 @@ func (s *ModelRegistryServer) RetrieveVersionData(
 	return nil
 }
 
+func (s *ModelRegistryServer) VersionUpdate(
+	req *grpcapi.VersionUpdateRequest,
+	outStream grpcapi.ModelRegistrySP_VersionUpdateServer,
+) error {
+	log := log.WithFields(logrus.Fields{
+		"model_id": req.ModelId,
+		"method":   "VersionUpdate",
+	})
+
+	log.Debug("Call received")
+
+	be, err := s.backendPromise.Await(outStream.Context())
+	if err != nil {
+		return err
+	}
+
+	modelExists, err := be.HasModel(req.ModelId)
+	if err != nil {
+		return err
+	}
+	if !modelExists {
+		return status.Errorf(codes.InvalidArgument, "unknown model name %s", req.ModelId)
+	}
+
+	versionError := backend.UnknownModelVersionError{}
+	var lastVersion uint
+	for {
+		versionInfo, err := be.RetrieveModelVersionInfo(req.ModelId, -1)
+		if err != nil && reflect.TypeOf(err) != reflect.TypeOf(versionError) {
+			return err
+		}
+
+		// In case of 'versionError' (i.e. no version available), 'VersionNumber' is set to default (0).
+		if versionInfo.VersionNumber > lastVersion {
+			pbVersionInfo := createPbModelVersionInfo(versionInfo)
+			reply := grpcapi.VersionUpdateReply{VersionInfo: &pbVersionInfo}
+			err = outStream.Send(&reply)
+			if err != nil {
+				return err
+			}
+			lastVersion = versionInfo.VersionNumber
+		}
+
+		s.newVersion.L.Lock()
+		s.newVersion.Wait()
+		s.newVersion.L.Unlock()
+
+		if outStream.Context().Err() != nil {
+			log.Error("Context ended")
+			break
+		}
+	}
+
+	return nil
+}
+
 func RegisterModelRegistryServer(
 	grpcServer grpc.ServiceRegistrar,
 	sentModelVersionDataChunkSize int,
@@ -456,8 +516,11 @@ func RegisterModelRegistryServer(
 			"Unable to create the model registry server, `sentModelVersionDataChunkSize` needs to strictly positive",
 		)
 	}
+
+	lock := sync.Mutex{}
 	server := &ModelRegistryServer{
 		sentModelVersionDataChunkSize: sentModelVersionDataChunkSize,
+		newVersion:                    sync.NewCond(&lock),
 	}
 
 	grpcapi.RegisterModelRegistrySPServer(grpcServer, server)

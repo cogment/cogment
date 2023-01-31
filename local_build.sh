@@ -18,7 +18,7 @@ if [[ -z "$1" ]]; then
 elif [[ "$1" == "lint" ]]; then
   # Lint files that were part of the build (above).
   # I.e. Only the version of the files that were part
-  #      of the build will be "linted"
+  #      of the normal build will be "linted".
 
   echo "Lint..."
   docker run --rm \

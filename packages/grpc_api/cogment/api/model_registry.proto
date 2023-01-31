@@ -34,6 +34,8 @@ service ModelRegistrySP {
   rpc RetrieveVersionInfos(RetrieveVersionInfosRequest) returns (RetrieveVersionInfosReply) {}
   // Retrieve the data of a model given or latest version
   rpc RetrieveVersionData(RetrieveVersionDataRequest) returns (stream RetrieveVersionDataReplyChunk) {}
+  // Retrieve latest version info as soon as it is available
+  rpc VersionUpdate(VersionUpdateRequest) returns (stream VersionUpdateReply) {}
 
   rpc Version(VersionRequest) returns (VersionInfo) {}
 }
@@ -127,5 +129,15 @@ message RetrieveVersionDataRequest {
 
 message RetrieveVersionDataReplyChunk {
   bytes data_chunk = 1; // A chunk of the version data
-                        // All the chunks in the stream needs to be concatened
+                        // All the chunks in the stream need to be concatenated
+}
+
+message VersionUpdateRequest {
+  string model_id = 1;
+}
+
+// On first call, send the latest version info.
+// Send new version info as they are available.
+message VersionUpdateReply {
+  ModelVersionInfo version_info = 1;
 }
