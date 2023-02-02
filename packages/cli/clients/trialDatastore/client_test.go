@@ -52,8 +52,8 @@ func createFixture() (*fixture, error) {
 	serviceOptions := trialDatastoreService.DefaultOptions
 	serviceOptions.CustomListener = bufferListener
 	go func() {
-		if err := trialDatastoreService.Run(serviceOptions); err != nil {
-			log.Fatalf("Trial datastore service exited with error: %v", err)
+		if err := trialDatastoreService.Run(context.Background(), serviceOptions); err != nil {
+			log.Fatalf("Trial datastore service exited with failure: %v", err)
 		}
 	}()
 

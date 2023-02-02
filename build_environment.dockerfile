@@ -38,7 +38,7 @@ RUN curl -L --silent https://go.dev/dl/go1.17.10.linux-amd64.tar.gz --output go-
 ENV GOPATH=/opt/go
 ENV PATH=${PATH}:/usr/local/go/bin:${GOPATH}/bin
 
-RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.42.0
+RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.50.1
 
 # Install shfmt v3
 RUN go install mvdan.cc/sh/v3/cmd/shfmt@latest

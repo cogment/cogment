@@ -28,9 +28,9 @@ import (
 
 const (
 	// Options
-	directoryEndpointKey     = "endpoint"
+	directoryEndpointKey     = "directory_endpoint"
 	directoryEndpointEnvKey  = "COGMENT_DIRECTORY_ENDPOINT"
-	directoryAuthTokenKey    = "auth_token"
+	directoryAuthTokenKey    = "directory_authentication_token"
 	directoryAuthTokenEnvKey = "COGMENT_DIRECTORY_AUTHENTICATION_TOKEN"
 
 	directoryRegisterHostKey      = "host"
@@ -42,9 +42,6 @@ const (
 	directoryServiceIDKey         = "service_id"
 	directoryServiceSecretKey     = "secret"
 	directoryServicePermanent     = "permanent"
-
-	// Internal
-	directoryAuthTokenMetadataKey = "authentication-token"
 
 	directoryServiceTypeActor         = "actor"
 	directoryServiceTypeEnvironment   = "environment"
@@ -77,6 +74,15 @@ func init() {
 		directoryViper.GetString(directoryEndpointKey),
 		"The directory gRPC endpoint URL",
 	)
+	directoryCmd.PersistentFlags().String(
+		"endpoint",
+		directoryViper.GetString(directoryEndpointKey),
+		"",
+	)
+	_ = directoryCmd.PersistentFlags().MarkDeprecated(
+		"endpoint",
+		fmt.Sprintf("please use --%s instead", directoryEndpointKey),
+	)
 
 	directoryViper.SetDefault(directoryAuthTokenKey, "")
 	_ = directoryViper.BindEnv(directoryAuthTokenKey, directoryAuthTokenEnvKey)
@@ -84,6 +90,15 @@ func init() {
 		directoryAuthTokenKey,
 		directoryViper.GetString(directoryAuthTokenKey),
 		"The authentication token for the services in the Directory",
+	)
+	directoryCmd.PersistentFlags().String(
+		"auth_token",
+		directoryViper.GetString(directoryAuthTokenKey),
+		"",
+	)
+	_ = directoryCmd.PersistentFlags().MarkDeprecated(
+		"auth_token",
+		fmt.Sprintf("please use --%s instead", directoryAuthTokenKey),
 	)
 
 	directoryCmd.PersistentFlags().SortFlags = false

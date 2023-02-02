@@ -33,7 +33,7 @@ import (
 )
 
 // Pointer to a C function able to be used as a callback for the orchestrator's logger
-var c_log_callback unsafe.Pointer = C.log_callback
+var cLogCallback unsafe.Pointer = C.log_callback
 
 const (
 	SpdlogLevelTrace    int = 0
@@ -45,7 +45,17 @@ const (
 )
 
 //export log_callback
-func log_callback(_ctx unsafe.Pointer, _loggerName *C.char, level C.int, timestamp C.time_t, threadId C.size_t, fileName *C.char, lineNum C.int, functionName *C.char, message *C.char) {
+func log_callback(
+	_ctx unsafe.Pointer,
+	_loggerName *C.char,
+	level C.int,
+	timestamp C.time_t,
+	threadID C.size_t,
+	fileName *C.char,
+	lineNum C.int,
+	functionName *C.char,
+	message *C.char,
+) {
 	var logLevel logrus.Level
 	// Mapping between the orchestrator levels (ie. spdlog's)
 	switch int(level) {
@@ -68,10 +78,11 @@ func log_callback(_ctx unsafe.Pointer, _loggerName *C.char, level C.int, timesta
 		logLevel = logrus.FatalLevel
 	}
 	logger := log.WithTime(time.Unix(int64(timestamp), 0)).WithFields(logrus.Fields{
-		"thread": threadId,
+		"thread": threadID,
 	})
 
-	// cf. https://spdlog.docsforge.com/v1.x/api/spdlog/source_loc/ the location is considered empty if the line number is 0
+	// the location is considered empty if the line number is 0
+	// cf. https://spdlog.docsforge.com/v1.x/api/spdlog/source_loc/
 	if lineNum > 0 {
 		logger = log.WithFields(logrus.Fields{
 			"file":     C.GoString(fileName),

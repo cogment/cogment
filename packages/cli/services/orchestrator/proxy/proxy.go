@@ -16,6 +16,7 @@ package proxy
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	_ "net/http/pprof" // register in DefaultServerMux
@@ -24,11 +25,13 @@ import (
 	"github.com/cogment/cogment/services/utils"
 	"github.com/sirupsen/logrus"
 
+	"github.com/cogment/cogment/version"
 	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	"github.com/mwitkow/go-conntrack"
 	"github.com/mwitkow/grpc-proxy/proxy"
 	"golang.org/x/net/context" // register in DefaultServerMux
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -48,11 +51,11 @@ type Options struct {
 
 // This functions is the equivalent of https://github.com/improbable-eng/grpc-web/blob/v0.14.1/go/grpcwebproxy/main.go
 // With the following options
-// 	- backend_addr=options.BackendPort
-// 	- run_tls_server=false
-//	- allow_all_origins=true
-//	- use_websockets=true
-//	- server_http_debug_port=options.WebPort
+//   - backend_addr=options.BackendPort
+//   - run_tls_server=false
+//   - allow_all_origins=true
+//   - use_websockets=true
+//   - server_http_debug_port=options.WebPort
 func Run(ctx context.Context, options Options) error {
 	backendHostPort := fmt.Sprintf("localhost:%d", options.BackendPort)
 	grpcServer, err := buildGrpcProxyServer(backendHostPort)
@@ -71,7 +74,34 @@ func Run(ctx context.Context, options Options) error {
 		WriteTimeout: httpMaxWriteTimeout,
 		ReadTimeout:  httpMaxReadTimeout,
 		Handler: http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-			wrappedGrpc.ServeHTTP(resp, req)
+			isCorsPreflightRequest := wrappedGrpc.IsAcceptableGrpcCorsRequest(req)
+			isGrpcWebRequest := wrappedGrpc.IsGrpcWebRequest(req)
+			isGrpcWebSocketRequest := wrappedGrpc.IsGrpcWebSocketRequest(req)
+			log.WithFields(logrus.Fields{
+				"remote": req.RemoteAddr,
+				"url":    req.URL,
+				"method": req.Method,
+			}).Trace("grpc-web endpoint HTTP request")
+
+			if isCorsPreflightRequest || isGrpcWebRequest || isGrpcWebSocketRequest {
+				if isCorsPreflightRequest {
+					log.WithFields(logrus.Fields{
+						"remote": req.RemoteAddr,
+						"url":    req.URL,
+					}).Debug("CORS preflight request")
+				}
+				wrappedGrpc.ServeHTTP(resp, req)
+			} else {
+				resp.Header().Set("Content-Type", "application/json")
+				_, err := io.WriteString(resp, fmt.Sprintf("{"+
+					"\"message\":\"This the grpc-web endpoint for Cogment Orchestrator\","+
+					"\"version\":\"%s\","+
+					"\"version_hash\":\"%s\""+
+					"}", version.Version, version.Hash))
+				if err != nil {
+					log.Fatal("Error while writing response", err)
+				}
+			}
 		}),
 	}
 	webAddr := fmt.Sprintf("0.0.0.0:%d", options.WebPort)
@@ -146,7 +176,7 @@ func buildGrpcProxyServer(backendHostPort string) (*grpc.Server, error) {
 func dialBackendOrFail(backendHostPort string) (*grpc.ClientConn, error) {
 	opt := []grpc.DialOption{}
 	opt = append(opt, grpc.WithCodec(proxy.Codec())) //nolint
-	opt = append(opt, grpc.WithInsecure())
+	opt = append(opt, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
 	opt = append(opt,
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxCallRecvMsgSize)),

@@ -23,6 +23,8 @@ import (
 
 	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 )
 
 type Client struct {
@@ -32,7 +34,9 @@ type Client struct {
 	dialer func(context.Context, string) (net.Conn, error)
 }
 
-func CreateClient(ctx context.Context, endpoint string) (*Client, error) {
+const directoryAuthTokenMetadataKey = "authentication-token"
+
+func CreateClient(ctx context.Context, endpoint string, authenticationToken string) (*Client, error) {
 	endpointURL, err := url.Parse(endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("Not a valid URL [%s]: %w", endpoint, err)
@@ -49,6 +53,11 @@ func CreateClient(ctx context.Context, endpoint string) (*Client, error) {
 	client := &Client{}
 	client.host = endpointURL.Hostname()
 	client.port = endpointURL.Port()
+
+	if authenticationToken != "" {
+		ctx = metadata.AppendToOutgoingContext(ctx, directoryAuthTokenMetadataKey, authenticationToken)
+	}
+
 	client.ctx = ctx
 
 	return client, nil
@@ -62,7 +71,7 @@ func (client *Client) connect() (*grpc.ClientConn, error) {
 	}
 
 	var opts []grpc.DialOption
-	opts = append(opts, grpc.WithInsecure())
+	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	opts = append(opts, grpc.WithBlock())
 
 	if hasInsecureEndpoint {

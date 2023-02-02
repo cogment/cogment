@@ -12,27 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package helper
+package utils
 
 import (
-	"fmt"
-	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func ProtoPathToPyPath(protoPath string) string {
-	return strings.ReplaceAll(
-		fmt.Sprintf(
-			"%s_pb2",
-			strings.TrimSuffix(
-				protoPath,
-				".proto",
-			),
-		),
-		"/",
-		".",
-	)
+func TestSnakeify(t *testing.T) {
+	assert.Equal(t, Snakeify("The     Agent"), "the_agent")
+	assert.Equal(t, Snakeify("a-dashing-name"), "a_dashing_name")
 }
 
-func ProtoPathToJsPath(protoPath string) string {
-	return strings.ReplaceAll(fmt.Sprintf("%s_pb", strings.TrimSuffix(protoPath, ".proto")), "/", ".")
+func TestKebabify(t *testing.T) {
+	assert.Equal(t, Kebabify("The     Agent"), "the-agent")
+	assert.Equal(t, Kebabify("not_an_ __url"), "not-an-url")
+}
+
+func TestPascalify(t *testing.T) {
+	assert.Equal(t, Pascalify("The     Agent"), "TheAgent")
+	assert.Equal(t, Pascalify("the_agent"), "TheAgent")
 }

@@ -12,27 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package helper
+package utils
 
 import (
-	"fmt"
-	"strings"
+	"github.com/sirupsen/logrus"
 )
 
-func ProtoPathToPyPath(protoPath string) string {
-	return strings.ReplaceAll(
-		fmt.Sprintf(
-			"%s_pb2",
-			strings.TrimSuffix(
-				protoPath,
-				".proto",
-			),
-		),
-		"/",
-		".",
-	)
-}
-
-func ProtoPathToJsPath(protoPath string) string {
-	return strings.ReplaceAll(fmt.Sprintf("%s_pb", strings.TrimSuffix(protoPath, ".proto")), "/", ".")
-}
+var log = logrus.WithField("component", "cli")

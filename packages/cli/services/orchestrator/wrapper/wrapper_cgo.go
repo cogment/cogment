@@ -21,57 +21,57 @@ package wrapper
 	#include <stdlib.h>
 	#include <time.h>
 
-	typedef void* (*OptionsCreateFun)();
-	void* call_options_create_fun(void* f) {
-		return ((OptionsCreateFun) f)();
+	typedef void* (*OptionsCreateFunc)();
+	void* call_options_create_func(void* f) {
+		return ((OptionsCreateFunc) f)();
 	}
 
-	typedef void (*OptionsDestroyFun)(void*);
-	void call_options_destroy_fun(void* f, void* options) {
-		return ((OptionsDestroyFun) f)(options);
+	typedef void (*OptionsDestroyFunc)(void*);
+	void call_options_destroy_func(void* f, void* options) {
+		return ((OptionsDestroyFunc) f)(options);
 	}
 
-	typedef void (*SetUintOptionsFun) (void* options, unsigned int value);
- 	void call_set_uint_options_fun(void* f, void* options, unsigned int value) {
-		return ((SetUintOptionsFun) f)(options, value);
+	typedef void (*SetUintOptionsFunc) (void* options, unsigned int value);
+ 	void call_set_uint_options_func(void* f, void* options, unsigned int value) {
+		return ((SetUintOptionsFunc) f)(options, value);
 	}
 
-	typedef void (*SetStringOptionsFun) (void* options, char* value);
- 	void call_set_string_options_fun(void* f, void* options, char* value) {
-		return ((SetStringOptionsFun) f)(options, value);
+	typedef void (*SetStringOptionsFunc) (void* options, char* value);
+ 	void call_set_string_options_func(void* f, void* options, char* value) {
+		return ((SetStringOptionsFunc) f)(options, value);
 	}
 
 	typedef void (*CogmentOrchestratorLogger)(void*, char*, int, time_t, size_t, char*, int, char*,
                                             char*);
-	typedef void (*SetLoggingOptionsFun)(void* options, char* level, void* ctx, CogmentOrchestratorLogger logger);
-	void call_set_logging_options_fun(void* f, void* options, char* level, void* ctx, void* logger) {
-		return ((SetLoggingOptionsFun) f)(options, level, ctx, (CogmentOrchestratorLogger) logger);
+	typedef void (*SetLoggingOptionsFunc)(void* options, char* level, void* ctx, CogmentOrchestratorLogger logger);
+	void call_set_logging_options_func(void* f, void* options, char* level, void* ctx, void* logger) {
+		return ((SetLoggingOptionsFunc) f)(options, level, ctx, (CogmentOrchestratorLogger) logger);
 	}
 
 	typedef void (*CogmentOrchestratorStatusListener)(void* ctx, int status);
-	typedef void (*SetStatusListenerOptionsFun)(void* options, void* ctx, CogmentOrchestratorStatusListener listener);
-	void call_set_status_listener_options_fun(void* f, void* options, void* ctx, void* listener) {
-		return ((SetStatusListenerOptionsFun) f)(options, ctx, (CogmentOrchestratorStatusListener) listener);
+	typedef void (*SetStatusListenerOptionsFunc)(void* options, void* ctx, CogmentOrchestratorStatusListener listener);
+	void call_set_status_listener_options_func(void* f, void* options, void* ctx, void* listener) {
+		return ((SetStatusListenerOptionsFunc) f)(options, ctx, (CogmentOrchestratorStatusListener) listener);
 	}
 
-	typedef void* (*OrchestratorCreateFun)(void* options);
-	void* call_orchestrator_create_fun(void* f, void* options) {
-		return ((OrchestratorCreateFun) f)(options);
+	typedef void* (*OrchestratorCreateFunc)(void* options);
+	void* call_orchestrator_create_func(void* f, void* options) {
+		return ((OrchestratorCreateFunc) f)(options);
 	}
 
-	typedef void (*OrchestratorDestroyFun)(void* orchestrator);
-	void call_orchestrator_destroy_fun(void* f, void* orchestrator) {
-		return ((OrchestratorDestroyFun) f)(orchestrator);
+	typedef void (*OrchestratorDestroyFunc)(void* orchestrator);
+	void call_orchestrator_destroy_func(void* f, void* orchestrator) {
+		return ((OrchestratorDestroyFunc) f)(orchestrator);
 	}
 
-	typedef int (*OrchestratorWaitFun)(void*);
-	int call_orchestrator_wait_fun(void* f, void* orchestrator) {
-		return ((OrchestratorWaitFun) f)(orchestrator);
+	typedef int (*OrchestratorWaitFunc)(void*);
+	int call_orchestrator_wait_func(void* f, void* orchestrator) {
+		return ((OrchestratorWaitFunc) f)(orchestrator);
 	}
 
-	typedef void (*OrchestratorFun)(void*);
-	void call_orchestrator_fun(void* f, void* orchestrator) {
-		((OrchestratorFun) f)(orchestrator);
+	typedef void (*OrchestratorFunc)(void*);
+	void call_orchestrator_func(void* f, void* orchestrator) {
+		((OrchestratorFunc) f)(orchestrator);
 	}
 */
 import "C"
@@ -105,16 +105,16 @@ func newWrapperFromLibrary(libraryName string, libraryFile pkging.File) (Wrapper
 		statusListenerHandle: 0,
 	}
 
-	createFun, err := w.getSymbol("cogment_orchestrator_options_create")
+	createFunc, err := w.getSymbol("cogment_orchestrator_options_create")
 	if err != nil {
 		return nil, err
 	}
-	w.optionsPtr = C.call_options_create_fun(createFun)
+	w.optionsPtr = C.call_options_create_func(createFunc)
 	if w.optionsPtr == nil {
 		return nil, fmt.Errorf("unable to create the orchestrator options datastructure")
 	}
 
-	setLoggingFun, err := w.getSymbol("cogment_orchestrator_options_set_logging")
+	setLoggingFunc, err := w.getSymbol("cogment_orchestrator_options_set_logging")
 	if err != nil {
 		return nil, err
 	}
@@ -138,26 +138,26 @@ func newWrapperFromLibrary(libraryName string, libraryFile pkging.File) (Wrapper
 	}
 	var levelCStr = C.CString(spdlogLevel)
 	defer C.free(unsafe.Pointer(levelCStr))
-	C.call_set_logging_options_fun(setLoggingFun, w.optionsPtr, levelCStr, nil, c_log_callback)
+	C.call_set_logging_options_func(setLoggingFunc, w.optionsPtr, levelCStr, nil, cLogCallback)
 
 	return w, nil
 }
 
 func (w *wrapper) Destroy() error {
 	if w.orchestratorPtr != nil {
-		destroyOrchestratorFun, err := w.getSymbol("cogment_orchestrator_destroy")
+		destroyOrchestratorFunc, err := w.getSymbol("cogment_orchestrator_destroy")
 		if err != nil {
 			return err
 		}
-		C.call_orchestrator_destroy_fun(destroyOrchestratorFun, w.orchestratorPtr)
+		C.call_orchestrator_destroy_func(destroyOrchestratorFunc, w.orchestratorPtr)
 		w.orchestratorPtr = nil
 	}
 
-	destroyOptionsFun, err := w.getSymbol("cogment_orchestrator_options_destroy")
+	destroyOptionsFunc, err := w.getSymbol("cogment_orchestrator_options_destroy")
 	if err != nil {
 		return err
 	}
-	C.call_options_destroy_fun(destroyOptionsFun, w.optionsPtr)
+	C.call_options_destroy_func(destroyOptionsFunc, w.optionsPtr)
 	w.optionsPtr = nil
 
 	if w.statusListenerHandle != 0 {
@@ -172,17 +172,17 @@ func (w *wrapper) Destroy() error {
 }
 
 func (w *wrapper) setUintOption(symbol string, value uint) error {
-	fun, err := w.getSymbol(symbol)
+	function, err := w.getSymbol(symbol)
 	if err != nil {
 		return err
 	}
 
-	C.call_set_uint_options_fun(fun, w.optionsPtr, C.uint(value))
+	C.call_set_uint_options_func(function, w.optionsPtr, C.uint(value))
 	return nil
 }
 
 func (w *wrapper) setStringOption(symbol string, value string) error {
-	fun, err := w.getSymbol(symbol)
+	function, err := w.getSymbol(symbol)
 	if err != nil {
 		return err
 	}
@@ -190,7 +190,7 @@ func (w *wrapper) setStringOption(symbol string, value string) error {
 	valueCStr := C.CString(value)
 	defer C.free(unsafe.Pointer(valueCStr))
 
-	C.call_set_string_options_fun(fun, w.optionsPtr, valueCStr)
+	C.call_set_string_options_func(function, w.optionsPtr, valueCStr)
 	return nil
 }
 
@@ -235,7 +235,7 @@ func (w *wrapper) SetPrometheusPort(port uint) error {
 }
 
 func (w *wrapper) SetStatusListener(listener utils.StatusListener) error {
-	setStatusListenerFun, err := w.getSymbol("cogment_orchestrator_options_set_status_listener")
+	setStatusListenerFunc, err := w.getSymbol("cogment_orchestrator_options_set_status_listener")
 	if err != nil {
 		return err
 	}
@@ -243,7 +243,12 @@ func (w *wrapper) SetStatusListener(listener utils.StatusListener) error {
 		statusListenerRegistrySingleton.unregister(w.statusListenerHandle)
 	}
 	handle := statusListenerRegistrySingleton.register(listener)
-	C.call_set_status_listener_options_fun(setStatusListenerFun, w.optionsPtr, unsafe.Pointer(handle), c_status_listener_callback)
+	C.call_set_status_listener_options_func(
+		setStatusListenerFunc,
+		w.optionsPtr,
+		unsafe.Pointer(handle),
+		cStatusListenerCallback,
+	)
 
 	return nil
 }
@@ -270,7 +275,7 @@ func (w *wrapper) Start() error {
 		return err
 	}
 
-	w.orchestratorPtr = C.call_orchestrator_create_fun(createAndStartPtr, w.optionsPtr)
+	w.orchestratorPtr = C.call_orchestrator_create_func(createAndStartPtr, w.optionsPtr)
 	if w.orchestratorPtr == nil {
 		return fmt.Errorf("unable to create the orchestrator datastructure")
 	}
@@ -288,7 +293,7 @@ func (w *wrapper) Wait() error {
 	}
 
 	log.Debug("waiting for the orchestrator service to finish...")
-	exitCode := C.call_orchestrator_wait_fun(waitPtr, w.orchestratorPtr)
+	exitCode := C.call_orchestrator_wait_func(waitPtr, w.orchestratorPtr)
 	log.WithField("exitCode", exitCode).Debug("orchestrator service finished")
 	if exitCode < 0 {
 		return fmt.Errorf("Unexpected error while waiting for the orchestrator, exit_code=%d", exitCode)
@@ -307,6 +312,6 @@ func (w *wrapper) Shutdown() error {
 	}
 
 	log.Info("shutting down the orchestrator...")
-	C.call_orchestrator_fun(shutdownPtr, w.orchestratorPtr)
+	C.call_orchestrator_func(shutdownPtr, w.orchestratorPtr)
 	return nil
 }

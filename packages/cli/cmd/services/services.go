@@ -43,14 +43,14 @@ func init() {
 	ServicesCmd.PersistentFlags().String(
 		servicesLogLevelKey,
 		servicesViper.GetString(servicesLogLevelKey),
-		fmt.Sprintf("Set minimum logging level as one of %v", expectedLogLevels),
+		fmt.Sprintf("Minimum logging level as one of %v", expectedLogLevels),
 	)
 
 	_ = servicesViper.BindEnv(servicesLogFileKey, "COGMENT_LOG_FILE")
 	ServicesCmd.PersistentFlags().String(
 		servicesLogFileKey,
 		servicesViper.GetString(servicesLogFileKey),
-		"Set log file output",
+		"Log file output",
 	)
 
 	_ = servicesViper.BindEnv(servicesLogFormatKey, "COGMENT_LOG_FORMAT")
@@ -58,7 +58,7 @@ func init() {
 		servicesLogFormatKey,
 		servicesViper.GetString(servicesLogFormatKey),
 		fmt.Sprintf(
-			"Set log format as one of %v, default is %q, when a log file is specified it is %q",
+			"Log format as one of %v, default is %q, when a log file is specified it is %q",
 			expectedLogFormats, text, json,
 		),
 	)

@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 )
@@ -83,7 +84,11 @@ func createContext(t *testing.T, sentModelVersionDataChunkSize int) (testContext
 
 	grpcCtx := context.Background()
 
-	connection, err := grpc.DialContext(grpcCtx, "bufnet", grpc.WithContextDialer(bufDialer), grpc.WithInsecure())
+	connection, err := grpc.DialContext(
+		grpcCtx, "bufnet",
+		grpc.WithContextDialer(bufDialer),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
 	if err != nil {
 		return testContext{}, err
 	}

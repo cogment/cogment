@@ -8,7 +8,6 @@ run:
 linters:
   disable-all: true
   enable:
-    - deadcode
     - errcheck
     - gofmt
     - gosimple
@@ -17,10 +16,8 @@ linters:
     - lll
     - revive
     - staticcheck
-    - structcheck
     - typecheck
     - unused
-    - varcheck
 
 linters-settings:
   lll:

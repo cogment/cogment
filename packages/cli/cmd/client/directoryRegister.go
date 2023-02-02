@@ -19,7 +19,6 @@ import (
 	"fmt"
 
 	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
-	"google.golang.org/grpc/metadata"
 
 	directoryClient "github.com/cogment/cogment/clients/directory"
 	"github.com/spf13/cobra"
@@ -90,9 +89,11 @@ var directoryRegisterCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), clientViper.GetDuration(clientTimeoutKey))
 		defer cancel() // This causes grpc "cancel" info output, but Go lint forces us to call it!
 
-		ctx = metadata.AppendToOutgoingContext(ctx,
-			directoryAuthTokenMetadataKey, directoryViper.GetString(directoryAuthTokenKey))
-		client, err := directoryClient.CreateClient(ctx, directoryViper.GetString(directoryEndpointKey))
+		client, err := directoryClient.CreateClient(
+			ctx,
+			directoryViper.GetString(directoryEndpointKey),
+			directoryViper.GetString(directoryAuthTokenKey),
+		)
 		if err != nil {
 			return err
 		}

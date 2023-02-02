@@ -23,6 +23,7 @@ import (
 
 	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -69,7 +70,7 @@ func (client *Client) createConnection(ctx context.Context) (*grpc.ClientConn, e
 	var opts []grpc.DialOption
 
 	// At the moment we only support unencrypted
-	opts = append(opts, grpc.WithInsecure())
+	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
 	// We want to wait until the connection is dialed up
 	opts = append(opts, grpc.WithBlock())

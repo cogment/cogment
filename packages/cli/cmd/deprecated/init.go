@@ -29,8 +29,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/cogment/cogment/api"
-	"github.com/cogment/cogment/helper"
 	"github.com/cogment/cogment/templates"
+	"github.com/cogment/cogment/utils"
 	"github.com/cogment/cogment/version"
 )
 
@@ -121,7 +121,7 @@ func createProjectFiles(config *api.ProjectConfig) error {
 
 	pythonOutPaths := []string{api.EnvironmentServiceName, api.ClientServiceName}
 	for _, service := range config.ListServiceActorServices() {
-		pythonOutPaths = append(pythonOutPaths, helper.Snakeify(service.Name))
+		pythonOutPaths = append(pythonOutPaths, utils.Snakeify(service.Name))
 	}
 	return nil
 }
@@ -155,7 +155,7 @@ func createApp(config *api.ProjectConfig) error {
 			"/templates/ACTOR_SERVICE_NAME",
 			[]string{},
 			actorServiceTemplateConfig,
-			path.Join(projectRootPath, helper.Snakeify(service.Name)),
+			path.Join(projectRootPath, utils.Snakeify(service.Name)),
 		); err != nil {
 			return err
 		}
@@ -335,7 +335,7 @@ func createValidateName(existingNames []string) func(string) (string, error) {
 		if strings.Contains("0123456789", input[0:1]) {
 			return "", fmt.Errorf("'%s' is invalid, expecting to not start with numeric character", input)
 		}
-		validatedInput := helper.Snakeify(input)
+		validatedInput := utils.Snakeify(input)
 		for _, existingName := range existingNames {
 			if validatedInput == existingName {
 				return "", fmt.Errorf("'%s' is invalid, expecting a unique name", input)
@@ -446,7 +446,7 @@ func createProjectConfigFromReader(stdin io.Reader) (*api.ProjectConfig, error) 
 					Name:           actorName,
 					ActorClass:     className,
 					Implementation: implName,
-					Endpoint:       "grpc://" + helper.Kebabify(implName) + ":9000",
+					Endpoint:       "grpc://" + utils.Kebabify(implName) + ":9000",
 				}
 
 				config.TrialParams.Actors = append(config.TrialParams.Actors, &actor)

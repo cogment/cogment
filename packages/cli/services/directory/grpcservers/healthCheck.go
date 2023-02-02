@@ -23,6 +23,7 @@ import (
 
 	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/cogment/cogment/utils"
 	"github.com/sirupsen/logrus"
@@ -179,7 +180,10 @@ func cogmentCheck(serviceType cogmentAPI.ServiceType, host string, port uint32) 
 	ctx, cancelContext := context.WithTimeout(context.Background(), cogmentCheckTimeout)
 	defer cancelContext()
 
-	connection, err := grpc.DialContext(ctx, address, grpc.WithInsecure(), grpc.WithBlock())
+	connection, err := grpc.DialContext(ctx, address,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithBlock(),
+	)
 	if err != nil {
 		return err
 	}

@@ -32,7 +32,7 @@ import (
 //
 // This function takes a "context" handle that is used to route the call to the right underlying go status listener.
 // The management of the handles and the routing is done by `statusListenerRegistry`
-var c_status_listener_callback unsafe.Pointer = C.status_listener_callback
+var cStatusListenerCallback unsafe.Pointer = C.status_listener_callback
 
 //export status_listener_callback
 func status_listener_callback(ctx unsafe.Pointer, status C.int) {

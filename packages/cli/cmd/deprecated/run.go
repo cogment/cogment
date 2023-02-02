@@ -16,7 +16,6 @@ package deprecated
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -77,7 +76,7 @@ func runCommand(command string, workingDir string) error {
 		fileExtension = "cmd"
 	}
 
-	commandFile, err := ioutil.TempFile("", "cogment-cli-*."+fileExtension)
+	commandFile, err := os.CreateTemp("", "cogment-cli-*."+fileExtension)
 	if err != nil {
 		return err
 	}

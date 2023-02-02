@@ -12,27 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package helper
+package utils
 
 import (
-	"fmt"
-	"strings"
+	"context"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
-func ProtoPathToPyPath(protoPath string) string {
-	return strings.ReplaceAll(
-		fmt.Sprintf(
-			"%s_pb2",
-			strings.TrimSuffix(
-				protoPath,
-				".proto",
-			),
-		),
-		"/",
-		".",
-	)
-}
+func ContextWithUserTermination(ctx context.Context) context.Context {
+	ctx, cancel := context.WithCancel(ctx)
+	// using a buffered channel cf. https://link.medium.com/M8dPZv9Wuob
+	interruptChan := make(chan os.Signal, 1)
+	signal.Notify(interruptChan, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-interruptChan
+		log.Debug("SIGTERM received")
+		signal.Stop(interruptChan) // Stopping registration to this channel
+		cancel()
+	}()
 
-func ProtoPathToJsPath(protoPath string) string {
-	return strings.ReplaceAll(fmt.Sprintf("%s_pb", strings.TrimSuffix(protoPath, ".proto")), "/", ".")
+	return ctx
 }

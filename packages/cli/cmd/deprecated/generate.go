@@ -16,7 +16,6 @@ package deprecated
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -151,7 +150,7 @@ func registerProtos(config *api.ProjectConfig) error {
 	log.Debugf("Registering protos for %s", config.ProjectConfigPath)
 	projectRootPath := path.Dir(config.ProjectConfigPath)
 
-	tmpDir, err := ioutil.TempDir("", "registerprotofile")
+	tmpDir, err := os.MkdirTemp("", "registerprotofile")
 	if err != nil {
 		return err
 	}
@@ -167,7 +166,7 @@ func registerProtos(config *api.ProjectConfig) error {
 	}
 
 	// Loading the descriptor file
-	descriptorFile, err := ioutil.ReadFile(descriptorPath)
+	descriptorFile, err := os.ReadFile(descriptorPath)
 	if err != nil {
 		return err
 	}

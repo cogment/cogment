@@ -26,6 +26,7 @@ import (
 	"github.com/cogment/cogment/services/utils"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -61,7 +62,11 @@ func createDatalogServerTestFixture() (datalogServerTestFixture, error) {
 
 	ctx := context.Background()
 
-	connection, err := grpc.DialContext(ctx, "bufnet", grpc.WithContextDialer(bufDialer), grpc.WithInsecure())
+	connection, err := grpc.DialContext(
+		ctx, "bufnet",
+		grpc.WithContextDialer(bufDialer),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
 	if err != nil {
 		return datalogServerTestFixture{}, err
 	}

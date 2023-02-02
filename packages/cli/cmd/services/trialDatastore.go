@@ -15,10 +15,13 @@
 package services
 
 import (
+	"context"
+
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"github.com/cogment/cogment/cmd/services/utils"
 	"github.com/cogment/cogment/services/trialDatastore"
 	"github.com/cogment/cogment/version"
 )
@@ -49,18 +52,29 @@ var datastoreCmd = &cobra.Command{
 		}).Info("starting the trial datastore service")
 
 		options := trialDatastore.Options{
-			Storage:                     trialDatastore.Memory,
-			Port:                        datastoreViper.GetUint(datastorePortKey),
-			GrpcReflection:              datastoreViper.GetBool(datastoreGrpcReflectionKey),
-			MemoryStorageMaxSamplesSize: datastoreViper.GetUint32(datastoreMemoryStorageMaxSamplesSizeKey),
-			FileStoragePath:             datastoreViper.GetString(datastoreFileStoragePathKey),
+			DirectoryRegistrationOptions: utils.GetDirectoryRegistrationOptions(datastoreViper),
+			Storage:                      trialDatastore.Memory,
+			Port:                         datastoreViper.GetUint(datastorePortKey),
+			GrpcReflection:               datastoreViper.GetBool(datastoreGrpcReflectionKey),
+			MemoryStorageMaxSamplesSize:  datastoreViper.GetUint32(datastoreMemoryStorageMaxSamplesSizeKey),
+			FileStoragePath:              datastoreViper.GetString(datastoreFileStoragePathKey),
 		}
 
 		if datastoreViper.IsSet(datastoreFileStoragePathKey) {
 			options.Storage = trialDatastore.File
 		}
 
-		return trialDatastore.Run(options)
+		ctx := utils.ContextWithUserTermination(context.Background())
+
+		err = trialDatastore.Run(ctx, options)
+		if err != nil {
+			if err == context.Canceled {
+				log.Info("interrupted by user")
+				return nil
+			}
+			return err
+		}
+		return nil
 	},
 }
 
@@ -106,6 +120,13 @@ func init() {
 	if !datastoreViper.IsSet(datastoreFileStoragePathKey) {
 		datastoreCmd.Flags().Lookup(datastoreFileStoragePathKey).NoOptDefVal = trialDatastore.DefaultOptions.FileStoragePath
 	}
+
+	utils.PopulateDirectoryRegistrationOptionsFlags(
+		"TRIAL_DATASTORE",
+		datastoreCmd,
+		datastoreViper,
+		trialDatastore.DefaultOptions.DirectoryRegistrationOptions,
+	)
 
 	// Don't sort alphabetically, keep insertion order
 	datastoreCmd.Flags().SortFlags = false

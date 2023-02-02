@@ -15,10 +15,13 @@
 package services
 
 import (
+	"context"
+
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"github.com/cogment/cogment/cmd/services/utils"
 	"github.com/cogment/cogment/services/modelRegistry"
 	"github.com/cogment/cogment/version"
 )
@@ -50,14 +53,25 @@ var registryCmd = &cobra.Command{
 		}).Info("starting the model registry service")
 
 		options := modelRegistry.Options{
-			Port:                     registryViper.GetUint(registryPortKey),
-			GrpcReflection:           registryViper.GetBool(registryGrpcReflectionKey),
-			ArchiveDir:               registryViper.GetString(registryArchiveDirKey),
-			CacheMaxItems:            registryViper.GetInt(registryCacheMaxItemsKey),
-			SentVersionDataChunkSize: registryViper.GetInt(registrySentVersionChunkSizeKey),
+			DirectoryRegistrationOptions: utils.GetDirectoryRegistrationOptions(registryViper),
+			Port:                         registryViper.GetUint(registryPortKey),
+			GrpcReflection:               registryViper.GetBool(registryGrpcReflectionKey),
+			ArchiveDir:                   registryViper.GetString(registryArchiveDirKey),
+			CacheMaxItems:                registryViper.GetInt(registryCacheMaxItemsKey),
+			SentVersionDataChunkSize:     registryViper.GetInt(registrySentVersionChunkSizeKey),
 		}
 
-		return modelRegistry.Run(options)
+		ctx := utils.ContextWithUserTermination(context.Background())
+
+		err = modelRegistry.Run(ctx, options)
+		if err != nil {
+			if err == context.Canceled {
+				log.Info("interrupted by user")
+				return nil
+			}
+			return err
+		}
+		return nil
 	},
 }
 
@@ -99,6 +113,13 @@ func init() {
 		registrySentVersionChunkSizeKey,
 		registryViper.GetInt(registrySentVersionChunkSizeKey),
 		"The size of the model version data chunk sent by the server (in bytes)",
+	)
+
+	utils.PopulateDirectoryRegistrationOptionsFlags(
+		"MODEL_REGISTRY",
+		registryCmd,
+		registryViper,
+		modelRegistry.DefaultOptions.DirectoryRegistrationOptions,
 	)
 
 	// Don't sort alphabetically, keep insertion order

@@ -15,17 +15,24 @@
 package modelRegistry
 
 import (
+	"context"
 	"fmt"
 	"net"
 
+	"github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/services/modelRegistry/backend"
 	"github.com/cogment/cogment/services/modelRegistry/backend/fileSystem"
 	"github.com/cogment/cogment/services/modelRegistry/backend/memoryCache"
 	"github.com/cogment/cogment/services/modelRegistry/grpcservers"
 	"github.com/cogment/cogment/services/utils"
+	"golang.org/x/sync/errgroup"
 )
 
+// 4MB seems to be the maximum size gRPC can manage
+const maxGrpcMessageLength int = 4 * 1024 * 1024
+
 type Options struct {
+	utils.DirectoryRegistrationOptions
 	Port                     uint
 	GrpcReflection           bool
 	ArchiveDir               string
@@ -34,19 +41,21 @@ type Options struct {
 }
 
 var DefaultOptions = Options{
-	Port:                     9002,
-	GrpcReflection:           false,
-	ArchiveDir:               ".cogment/model_registry",
-	CacheMaxItems:            memoryCache.DefaultVersionCacheConfiguration.MaxItems,
-	SentVersionDataChunkSize: 1024 * 1024 * 5,
+	DirectoryRegistrationOptions: utils.DefaultDirectoryRegistrationOptions,
+	Port:                         9002,
+	GrpcReflection:               false,
+	ArchiveDir:                   ".cogment/model_registry",
+	CacheMaxItems:                memoryCache.DefaultVersionCacheConfiguration.MaxItems,
+	SentVersionDataChunkSize:     maxGrpcMessageLength,
 }
 
-func Run(options Options) error {
+func Run(ctx context.Context, options Options) error {
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", options.Port))
 	if err != nil {
 		return fmt.Errorf("unable to listen to tcp port %d: %v", options.Port, err)
 	}
 	server := utils.NewGrpcServer(options.GrpcReflection)
+
 	modelRegistryServer, err := grpcservers.RegisterModelRegistryServer(
 		server,
 		options.SentVersionDataChunkSize,
@@ -84,10 +93,33 @@ func Run(options Options) error {
 	}()
 
 	log.WithField("port", options.Port).Info("server listening")
-	err = server.Serve(listener)
-	if err != nil {
-		return fmt.Errorf("unexpected error while serving grpc services: %v", err)
-	}
 
-	return nil
+	group, ctx := errgroup.WithContext(ctx)
+
+	group.Go(func() error {
+		err = server.Serve(listener)
+		if err != nil {
+			return fmt.Errorf("unexpected error while serving grpc services: %v", err)
+		}
+		return nil
+	})
+
+	group.Go(func() error {
+		<-ctx.Done()
+		log.Info("gracefully stopping the server")
+		server.GracefulStop()
+		return ctx.Err()
+	})
+
+	group.Go(func() error {
+		return utils.ManageDirectoryRegistration(
+			ctx,
+			options.Port,
+			api.ServiceEndpoint_GRPC,
+			api.ServiceType_MODEL_REGISTRY_SERVICE,
+			options.DirectoryRegistrationOptions,
+		)
+	})
+
+	return group.Wait()
 }

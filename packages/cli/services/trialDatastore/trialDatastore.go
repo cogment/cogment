@@ -15,14 +15,17 @@
 package trialDatastore
 
 import (
+	"context"
 	"fmt"
 	"net"
 
+	"github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/services/trialDatastore/backend"
 	"github.com/cogment/cogment/services/trialDatastore/backend/boltBackend"
 	"github.com/cogment/cogment/services/trialDatastore/backend/memoryBackend"
 	"github.com/cogment/cogment/services/trialDatastore/grpcservers"
 	"github.com/cogment/cogment/services/utils"
+	"golang.org/x/sync/errgroup"
 )
 
 type StorageType int
@@ -33,6 +36,7 @@ const (
 )
 
 type Options struct {
+	utils.DirectoryRegistrationOptions
 	Storage                     StorageType
 	Port                        uint
 	CustomListener              net.Listener
@@ -42,15 +46,16 @@ type Options struct {
 }
 
 var DefaultOptions = Options{
-	Storage:                     Memory,
-	Port:                        9003,
-	CustomListener:              nil,
-	GrpcReflection:              false,
-	MemoryStorageMaxSamplesSize: memoryBackend.DefaultMaxSampleSize,
-	FileStoragePath:             ".cogment/trial_datastore.db",
+	DirectoryRegistrationOptions: utils.DefaultDirectoryRegistrationOptions,
+	Storage:                      Memory,
+	Port:                         9003,
+	CustomListener:               nil,
+	GrpcReflection:               false,
+	MemoryStorageMaxSamplesSize:  memoryBackend.DefaultMaxSampleSize,
+	FileStoragePath:              ".cogment/trial_datastore.db",
 }
 
-func Run(options Options) error {
+func Run(ctx context.Context, options Options) error {
 	var backend backend.Backend
 	switch options.Storage {
 	case File:
@@ -90,6 +95,43 @@ func Run(options Options) error {
 		}
 		log.WithField("port", options.Port).Info("server listening")
 	}
-	err = server.Serve(listener)
-	return err
+
+	group, ctx := errgroup.WithContext(ctx)
+
+	group.Go(func() error {
+		err = server.Serve(listener)
+		if err != nil {
+			return fmt.Errorf("unexpected error while serving grpc services: %v", err)
+		}
+		return nil
+	})
+
+	group.Go(func() error {
+		<-ctx.Done()
+		log.Info("gracefully stopping the server")
+		server.GracefulStop()
+		return ctx.Err()
+	})
+
+	group.Go(func() error {
+		return utils.ManageDirectoryRegistration(
+			ctx,
+			options.Port,
+			api.ServiceEndpoint_GRPC,
+			api.ServiceType_DATASTORE_SERVICE,
+			options.DirectoryRegistrationOptions,
+		)
+	})
+
+	group.Go(func() error {
+		return utils.ManageDirectoryRegistration(
+			ctx,
+			options.Port,
+			api.ServiceEndpoint_GRPC,
+			api.ServiceType_DATALOG_SERVICE,
+			options.DirectoryRegistrationOptions,
+		)
+	})
+
+	return group.Wait()
 }

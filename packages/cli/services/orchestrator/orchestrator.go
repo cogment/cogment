@@ -22,45 +22,39 @@ import (
 	"github.com/cogment/cogment/services/orchestrator/proxy"
 	"github.com/cogment/cogment/services/orchestrator/wrapper"
 	"github.com/cogment/cogment/services/utils"
+	baseUtils "github.com/cogment/cogment/utils"
 	"golang.org/x/sync/errgroup"
 )
 
 type Options struct {
-	LifecyclePort              uint
-	ActorPort                  uint
-	ActorWebPort               uint
-	ParamsFile                 string
-	DirectoryServicesEndpoints []string
-	DirectoryAuthToken         string
-	DirectoryAutoRegister      uint
-	DirectoryRegisterHost      string
-	DirectoryRegisterProps     string
-	PretrialHooksEndpoits      []string
-	PrometheusPort             uint
-	StatusFile                 string
-	PrivateKeyFile             string
-	RootCertificateFile        string
-	TrustChainFile             string
-	GarbageCollectorFrequency  uint
+	utils.DirectoryRegistrationOptions
+	LifecyclePort             uint
+	ActorPort                 uint
+	ActorWebPort              uint
+	ParamsFile                string
+	PretrialHooksEndpoints    []string
+	PrometheusPort            uint
+	StatusFile                string
+	PrivateKeyFile            string
+	RootCertificateFile       string
+	TrustChainFile            string
+	GarbageCollectorFrequency uint
+	DirectoryAutoRegister     bool
 }
 
 var DefaultOptions = Options{
-	LifecyclePort:              9000,
-	ActorPort:                  9000,
-	ActorWebPort:               0,
-	ParamsFile:                 "",
-	DirectoryServicesEndpoints: []string{},
-	DirectoryAuthToken:         "",
-	DirectoryAutoRegister:      1,
-	DirectoryRegisterHost:      "",
-	DirectoryRegisterProps:     "",
-	PretrialHooksEndpoits:      []string{},
-	PrometheusPort:             0,
-	StatusFile:                 "",
-	PrivateKeyFile:             "",
-	RootCertificateFile:        "",
-	TrustChainFile:             "",
-	GarbageCollectorFrequency:  10,
+	DirectoryRegistrationOptions: utils.DefaultDirectoryRegistrationOptions,
+	LifecyclePort:                9000,
+	ActorPort:                    9000,
+	ActorWebPort:                 0,
+	ParamsFile:                   "",
+	PrometheusPort:               0,
+	StatusFile:                   "",
+	PrivateKeyFile:               "",
+	RootCertificateFile:          "",
+	TrustChainFile:               "",
+	GarbageCollectorFrequency:    10,
+	DirectoryAutoRegister:        true,
 }
 
 func Run(ctx context.Context, options Options) error {
@@ -171,31 +165,33 @@ func runOrchestrator(ctx context.Context, options Options, statusListener utils.
 	if err != nil {
 		return err
 	}
-	for _, pretrialHook := range options.PretrialHooksEndpoits {
+	for _, pretrialHook := range options.PretrialHooksEndpoints {
 		err = w.AddPretrialHooksEndpoint(pretrialHook)
 		if err != nil {
 			return err
 		}
 	}
-	for _, directoryService := range options.DirectoryServicesEndpoints {
-		err = w.AddDirectoryServicesEndpoint(directoryService)
-		if err != nil {
-			return err
-		}
+	err = w.AddDirectoryServicesEndpoint(options.DirectoryEndpoint)
+	if err != nil {
+		return err
 	}
 	err = w.SetDirectoryAuthToken(options.DirectoryAuthToken)
 	if err != nil {
 		return err
 	}
-	err = w.SetDirectoryAutoRegister(options.DirectoryAutoRegister)
+	if options.DirectoryAutoRegister {
+		err = w.SetDirectoryAutoRegister(1)
+	} else {
+		err = w.SetDirectoryAutoRegister(0)
+	}
 	if err != nil {
 		return err
 	}
-	err = w.SetDirectoryRegisterHost(options.DirectoryRegisterHost)
+	err = w.SetDirectoryRegisterHost(options.DirectoryRegistrationHost)
 	if err != nil {
 		return err
 	}
-	err = w.SetDirectoryRegisterProps(options.DirectoryRegisterProps)
+	err = w.SetDirectoryRegisterProps(baseUtils.FormatStringToString(options.DirectoryRegistrationProperties))
 	if err != nil {
 		return err
 	}

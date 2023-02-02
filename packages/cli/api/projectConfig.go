@@ -16,7 +16,6 @@ package api
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"regexp"
@@ -144,7 +143,7 @@ func CreateProjectConfigFromProjectPath(projectPath string) (*ProjectConfig, err
 
 // CreateProjectConfigFromYaml creates a new instance of ProjectConfig from a given `cogment.yaml` file
 func CreateProjectConfigFromYaml(filename string) (*ProjectConfig, error) {
-	yamlContent, err := ioutil.ReadFile(filename)
+	yamlContent, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
@@ -267,9 +266,9 @@ func ComputeTrialActorServiceName(actor *TrialActor) string {
 var ClientActorServiceEndpoint = ClientServiceName
 
 // ActorService represents an actor service:
-//	- its unique name,
-//	- its endpoint, and
-//	- the actor implementations it hosts
+//   - its unique name,
+//   - its endpoint, and
+//   - the actor implementations it hosts
 type ActorService struct {
 	Name            string
 	Endpoint        string
@@ -284,8 +283,8 @@ func (a byServiceName) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a byServiceName) Less(i, j int) bool { return a[i].Name < a[j].Name }
 
 // ActorImplementation represents an actor implementation:
-//	- its unique name, and
-//	- the actor classes it implements.
+//   - its unique name, and
+//   - the actor classes it implements.
 type ActorImplementation struct {
 	Name         string
 	ActorClasses []string

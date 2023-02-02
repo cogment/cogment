@@ -24,6 +24,7 @@ import (
 
 	"github.com/cogment/cogment/api"
 	"github.com/cogment/cogment/helper"
+	"github.com/cogment/cogment/utils"
 	"github.com/markbates/pkger"
 )
 
@@ -52,11 +53,10 @@ func GenerateFromTemplate(tmplPath string, config interface{}, outputPath string
 	}
 
 	t := template.New(outputPath).Funcs(template.FuncMap{
-		"snakeify":                     helper.Snakeify,
-		"kebabify":                     helper.Kebabify,
-		"pascalify":                    helper.Pascalify,
+		"snakeify":                     utils.Snakeify,
+		"kebabify":                     utils.Kebabify,
+		"pascalify":                    utils.Pascalify,
 		"sanitizeVersion":              helper.SanitizeVersion,
-		"tocaps":                       helper.Tocaps,
 		"computeTrialActorServiceName": api.ComputeTrialActorServiceName,
 		"protoPathToPyPath":            helper.ProtoPathToPyPath,
 		"protoPathToJsPath":            helper.ProtoPathToJsPath,

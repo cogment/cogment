@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Model Registry push/stream new model iterations functionality
+- Model Registry and Trial Datastore can now registers automatically to the directory
+
+### Changed
+
+- The orchestrator web endpoint now returns a more meaningful response instead of the previous `"gRPC requires HTTP/2"`
 
 ## v2.10.0 - 2022-11-17
 

@@ -79,7 +79,12 @@ func (dl *dynamicLibrary) getSymbol(symbol string) (unsafe.Pointer, error) {
 	symbolPtr := C.dlsym(dl.libPtr, symbolCStr)
 	if symbolPtr == nil {
 		errStr := C.GoString(C.dlerror())
-		return nil, fmt.Errorf("unable to get symbol %q from dynamic library loaded from %q: %s", symbol, dl.libLocalPath, errStr)
+		return nil, fmt.Errorf(
+			"unable to get symbol %q from dynamic library loaded from %q: %s",
+			symbol,
+			dl.libLocalPath,
+			errStr,
+		)
 	}
 	return symbolPtr, nil
 }

@@ -61,7 +61,7 @@ func isDir(path string) bool {
 
 // CopyCmd represents the copy command
 var CopyCmd = &cobra.Command{
-	Use: "copy file_or_folder	...",
+	Use:   "copy file_or_folder	...",
 	Short: "Copy all files listed to all existing folders listed",
 	Long: "Copy all files listed to all existing folders listed, " +
 		"order doesn't matter, supports glob format, as in `cogment copy *.proto client`",

@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -54,7 +53,7 @@ type scriptFile struct {
 func LoadScriptsFromYaml(fileName string) (map[string]Script, error) {
 	var result scriptFile
 
-	yamlContent, err := ioutil.ReadFile(fileName)
+	yamlContent, err := os.ReadFile(fileName)
 	if err != nil {
 		return nil, err
 	}
@@ -219,9 +218,9 @@ func launchScript(ctx context.Context, g *errgroup.Group, scriptName string, scr
 }
 
 // Launches a concurrent set of named scripts.
-// - The function will only return once all child processes have terminated
-// - On a OS signal, it will terminate all child processes, and block until all
-//   of them have completed.
+//   - The function will only return once all child processes have terminated
+//   - On a OS signal, it will terminate all child processes, and block until all
+//     of them have completed.
 func LaunchScripts(scripts map[string]Script, rootPath string) error {
 	rootCtx, cancel := context.WithCancel(context.Background())
 	g, ctx := errgroup.WithContext(rootCtx)
