@@ -171,9 +171,11 @@ func runOrchestrator(ctx context.Context, options Options, statusListener utils.
 			return err
 		}
 	}
-	err = w.AddDirectoryServicesEndpoint(options.DirectoryEndpoint)
-	if err != nil {
-		return err
+	if len(options.DirectoryEndpoint) > 0 {
+		err = w.AddDirectoryServicesEndpoint(options.DirectoryEndpoint)
+		if err != nil {
+			return err
+		}
 	}
 	err = w.SetDirectoryAuthToken(options.DirectoryAuthToken)
 	if err != nil {
