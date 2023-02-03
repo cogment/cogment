@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.11.1 - 2023-02-03
+
 ### Fixed
 
 - Error when Orchestrator is not using a directory
