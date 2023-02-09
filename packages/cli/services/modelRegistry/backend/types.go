@@ -58,6 +58,7 @@ type Backend interface {
 	ListModels(offset int, limit int) ([]ModelInfo, error)
 
 	CreateOrUpdateModelVersion(modelID string, versionArgs VersionArgs) (VersionInfo, error)
+	RetrieveModelLastVersionInfo(modelID string) (VersionInfo, error)
 	RetrieveModelVersionInfo(modelID string, versionNumber int) (VersionInfo, error)
 	RetrieveModelVersionData(modelID string, versionNumber int) ([]byte, error)
 	DeleteModelVersion(modelID string, versionNumber int) error

@@ -353,6 +353,26 @@ func (b *memoryCacheBackend) doRetrieveModelVersionInfo(
 	return versionInfo, nil
 }
 
+func (b *memoryCacheBackend) RetrieveModelLastVersionInfo(modelID string) (backend.VersionInfo, error) {
+	resolvedVersionNumbers, err := b.resolveModelVersionNumbers(modelID, []int{-1})
+	if err != nil {
+		return backend.VersionInfo{}, err
+	}
+	resolvedVersionNumber := resolvedVersionNumbers[0]
+	if resolvedVersionNumber == 0 {
+		return backend.VersionInfo{}, nil
+	}
+	versionInfo, err := b.doRetrieveModelVersionInfo(modelID, resolvedVersionNumber)
+	if err != nil {
+		if _, ok := err.(*backend.UnknownModelVersionError); ok {
+			// Sending an error with the unresolved versionNumber for it to make sense to the user
+			return backend.VersionInfo{}, &backend.UnknownModelVersionError{ModelID: modelID, VersionNumber: -1}
+		}
+		return backend.VersionInfo{}, err
+	}
+	return versionInfo, nil
+}
+
 func (b *memoryCacheBackend) RetrieveModelVersionInfo(modelID string, versionNumber int) (backend.VersionInfo, error) {
 	resolvedVersionNumbers, err := b.resolveModelVersionNumbers(modelID, []int{versionNumber})
 	if err != nil {

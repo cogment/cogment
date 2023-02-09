@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"reflect"
 	"strconv"
 	"sync"
 	"time"
@@ -472,24 +471,28 @@ func (s *ModelRegistryServer) VersionUpdate(
 		return err
 	}
 	if !modelExists {
-		return status.Errorf(codes.InvalidArgument, "unknown model name %s", req.ModelId)
+		return status.Errorf(codes.InvalidArgument, "unknown model id [%s]", req.ModelId)
 	}
 
-	versionError := backend.UnknownModelVersionError{}
 	var lastVersion uint
 	for {
-		versionInfo, err := be.RetrieveModelVersionInfo(req.ModelId, -1)
-		if err != nil && reflect.TypeOf(err) != reflect.TypeOf(versionError) {
+		versionInfo, err := be.RetrieveModelLastVersionInfo(req.ModelId)
+		if err != nil {
 			return err
 		}
 
-		// In case of 'versionError' (i.e. no version available), 'VersionNumber' is set to default (0).
+		// In case no version is available, 'VersionNumber' is set to default (0).
 		if versionInfo.VersionNumber > lastVersion {
 			pbVersionInfo := createPbModelVersionInfo(versionInfo)
 			reply := grpcapi.VersionUpdateReply{VersionInfo: &pbVersionInfo}
 			err = outStream.Send(&reply)
 			if err != nil {
-				return err
+				if lastVersion == 0 {
+					// First "send": most probably a connection problem
+					return err
+				}
+				log.Debug("Stream probably closed by client: ", err)
+				break
 			}
 			lastVersion = versionInfo.VersionNumber
 		}
@@ -499,7 +502,7 @@ func (s *ModelRegistryServer) VersionUpdate(
 		s.newVersion.L.Unlock()
 
 		if outStream.Context().Err() != nil {
-			log.Error("Context ended")
+			log.Debug("Stream context ended: ", outStream.Context().Err())
 			break
 		}
 	}

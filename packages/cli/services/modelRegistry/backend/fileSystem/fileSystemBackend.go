@@ -454,6 +454,10 @@ func (b *fsBackend) CreateOrUpdateModelVersion(
 	return versionInfo, nil
 }
 
+func (b *fsBackend) RetrieveModelLastVersionInfo(modelID string) (backend.VersionInfo, error) {
+	return b.retrieveModelNthToLastVersionInfo(modelID, 0)
+}
+
 // RetrieveModelVersionInfo retrieves a given model version info
 func (b *fsBackend) RetrieveModelVersionInfo(modelID string, versionNumber int) (backend.VersionInfo, error) {
 	if versionNumber == 0 {
