@@ -28,7 +28,6 @@ import (
 
 	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/services/trialDatastore/backend"
-	"github.com/cogment/cogment/services/trialDatastore/utils"
 )
 
 type boltBackend struct {
@@ -37,9 +36,11 @@ type boltBackend struct {
 	observeDbPollingDelay time.Duration // The maximum duration between two polling of the db during an 'observe' request
 }
 
+// metadata includes all the data used to filter trials and retrieve the trial info datastructure
 type metadata struct {
-	UserID   string
-	TrialIdx uint64
+	UserID     string
+	TrialIdx   uint64
+	Properties map[string]string
 }
 
 // Bucket structure is
@@ -214,6 +215,8 @@ func (b *boltBackend) CreateOrUpdateTrials(ctx context.Context, paramsList []*ba
 					return backend.NewUnexpectedError("unable to add trial %q bucket (%w)", params.TrialID, err)
 				}
 
+				// Because we use `NextSequence` here the trialIdx starts at 1
+				// Changing it would break backward compatibility with previous storage though
 				trialIdx, _ = trialsIdxBucket.NextSequence()
 				trialIdxKey := serializeNumID(trialIdx)
 				err = trialsIdxBucket.Put(trialIdxKey, trialKey)
@@ -241,8 +244,9 @@ func (b *boltBackend) CreateOrUpdateTrials(ctx context.Context, paramsList []*ba
 
 			// Insert / Update metadata
 			metadataV, err := serializeTrialMetadata(&metadata{
-				UserID:   params.UserID,
-				TrialIdx: trialIdx,
+				UserID:     params.UserID,
+				TrialIdx:   trialIdx,
+				Properties: params.Params.Properties,
 			})
 			if err != nil {
 				return err
@@ -277,11 +281,10 @@ func (b *boltBackend) CreateOrUpdateTrials(ctx context.Context, paramsList []*ba
 
 func (b *boltBackend) RetrieveTrials(
 	ctx context.Context,
-	filter []string,
+	filter backend.TrialFilter,
 	fromTrialIdx int,
 	count int,
 ) (backend.TrialsInfoResult, error) {
-	idFilter := utils.NewIDFilter(filter)
 	trialInfos := []*backend.TrialInfo{}
 	nextTrialIdx := 0
 	err := b.db.View(func(tx *bolt.Tx) error {
@@ -294,7 +297,8 @@ func (b *boltBackend) RetrieveTrials(
 		if fromTrialIdx <= 0 {
 			trialIdxKey, trialIDKey = c.First()
 		} else {
-			trialIdxKey, trialIDKey = c.Seek(serializeNumID(uint64(fromTrialIdx)))
+			// Adding +1 because the stored trialIdx offset
+			trialIdxKey, trialIDKey = c.Seek(serializeNumID(uint64(fromTrialIdx + 1)))
 		}
 		for ; trialIdxKey != nil; trialIdxKey, trialIDKey = c.Next() {
 			if count > 0 && len(trialInfos) >= count {
@@ -302,7 +306,7 @@ func (b *boltBackend) RetrieveTrials(
 				break
 			}
 			trialID := deserializeTrialID(trialIDKey)
-			if idFilter.Selects(trialID) {
+			if filter.IDFilter.Selects(trialID) {
 				trialBucket := trialsBucket.Bucket(trialIDKey)
 				if trialBucket == nil {
 					return backend.NewUnexpectedError("no bucket for trial %q", trialID)
@@ -317,6 +321,10 @@ func (b *boltBackend) RetrieveTrials(
 				metadata, err := deserializeTrialMetadata(trialMetadataV)
 				if err != nil {
 					return err
+				}
+
+				if !filter.PropertiesFilter.Selects(metadata.Properties) {
+					continue
 				}
 
 				// Retrieve the last samples
@@ -351,9 +359,11 @@ func (b *boltBackend) RetrieveTrials(
 			if err != nil {
 				return err
 			}
+			// Dealing with internal index being offseted
+			nextTrialIdx--
 		} else {
 			// TODO Handle overflow ?
-			nextTrialIdx = int(trialsIdxBucket.Sequence() + 1)
+			nextTrialIdx = int(trialsIdxBucket.Sequence())
 		}
 
 		return nil
@@ -369,7 +379,7 @@ func (b *boltBackend) RetrieveTrials(
 
 func (b *boltBackend) ObserveTrials(
 	ctx context.Context,
-	filter []string,
+	filter backend.TrialFilter,
 	fromTrialIdx int,
 	count int,
 	out chan<- backend.TrialsInfoResult,
@@ -377,15 +387,10 @@ func (b *boltBackend) ObserveTrials(
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		toRetrieveCount := count
-		filterCount := len(filter)
-		if filterCount > 0 && (count < 0 || count > filterCount) {
-			// trial filtering and either no pagination upper limit or less requested trials than the pagination upper limit
-			toRetrieveCount = filterCount
-		}
+		remainingCount := count
 		nextTrialIdx := fromTrialIdx
 		for {
-			partialResult, err := b.RetrieveTrials(ctx, filter, nextTrialIdx, toRetrieveCount)
+			partialResult, err := b.RetrieveTrials(ctx, filter, nextTrialIdx, remainingCount)
 			if err != nil {
 				return err
 			}
@@ -396,9 +401,9 @@ func (b *boltBackend) ObserveTrials(
 				case <-ctx.Done():
 					return ctx.Err()
 				case out <- partialResult:
-					if toRetrieveCount > 0 {
-						toRetrieveCount -= retrievedCount
-						if toRetrieveCount <= 0 {
+					if remainingCount > 0 {
+						remainingCount -= retrievedCount
+						if remainingCount <= 0 {
 							// Everything requested retrieved
 							return nil
 						}

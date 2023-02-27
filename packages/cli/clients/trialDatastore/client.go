@@ -93,6 +93,7 @@ func (client *Client) ListTrials(
 	ctx context.Context,
 	trialsCount uint,
 	fromHandle string,
+	properties map[string]string,
 ) (*grpcapi.RetrieveTrialsReply, error) {
 	connection, err := client.createConnection(ctx)
 	if err != nil {
@@ -105,6 +106,7 @@ func (client *Client) ListTrials(
 	req := &grpcapi.RetrieveTrialsRequest{
 		TrialsCount: uint32(trialsCount),
 		TrialHandle: fromHandle,
+		Properties:  properties,
 	}
 
 	rep, err := spClient.RetrieveTrials(ctx, req, grpc.WaitForReady(true))

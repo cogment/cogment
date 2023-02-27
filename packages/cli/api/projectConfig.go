@@ -46,7 +46,7 @@ func ProtoAliasFromProtoPath(path string) string {
 	return strings.ReplaceAll(fileName, "/", "_") + "_pb"
 }
 
-// TODO: have this look up the existance of web-client and web-client/tsconfig.json
+// TODO: have this look up the existence of web-client and web-client/tsconfig.json
 func createProjectConfigFromYamlContent(yamlContent []byte) (*ProjectConfig, error) {
 	config := ProjectConfig{}
 	err := yaml.Unmarshal(yamlContent, &config)

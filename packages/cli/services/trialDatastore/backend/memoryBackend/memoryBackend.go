@@ -216,11 +216,10 @@ func (b *memoryBackend) CreateOrUpdateTrials(ctx context.Context, trialsParams [
 }
 
 func (b *memoryBackend) preprocessRetrieveTrialsArgs(
-	filter []string,
+	filter backend.TrialFilter,
 	fromTrialIdx int,
 	count int,
-) (utils.IDFilter, int, int) {
-	selectedTrialIDs := utils.NewIDFilter(filter)
+) (int, int) {
 
 	if fromTrialIdx < 0 {
 		fromTrialIdx = 0
@@ -228,21 +227,21 @@ func (b *memoryBackend) preprocessRetrieveTrialsArgs(
 
 	if count <= 0 {
 		count = b.trialIDs.Len()
-		if !selectedTrialIDs.SelectsAll() && count > len(selectedTrialIDs) {
-			count = len(selectedTrialIDs)
+		if !filter.IDFilter.SelectsAll() && count > len(filter.IDFilter) {
+			count = len(filter.IDFilter)
 		}
 	}
 
-	return selectedTrialIDs, fromTrialIdx, count
+	return fromTrialIdx, count
 }
 
 func (b *memoryBackend) RetrieveTrials(
 	ctx context.Context,
-	filter []string,
+	filter backend.TrialFilter,
 	fromTrialIdx int,
 	count int,
 ) (backend.TrialsInfoResult, error) {
-	selectedTrialIDs, fromTrialIdx, count := b.preprocessRetrieveTrialsArgs(filter, fromTrialIdx, count)
+	fromTrialIdx, count = b.preprocessRetrieveTrialsArgs(filter, fromTrialIdx, count)
 
 	result := backend.TrialsInfoResult{
 		TrialInfos:   []*backend.TrialInfo{},
@@ -260,7 +259,7 @@ func (b *memoryBackend) RetrieveTrials(
 		if data[0].deleted {
 			continue
 		}
-		if selectedTrialIDs.Selects(trialID) {
+		if filter.IDFilter.Selects(trialID) && filter.PropertiesFilter.Selects(data[0].params.Properties) {
 			result.TrialInfos = append(result.TrialInfos, createTrialInfo(trialID, data[0]))
 			result.NextTrialIdx = trialIdx + 1
 		}
@@ -271,17 +270,13 @@ func (b *memoryBackend) RetrieveTrials(
 
 func (b *memoryBackend) ObserveTrials(
 	ctx context.Context,
-	filter []string,
+	filter backend.TrialFilter,
 	fromTrialIdx int,
 	count int,
 	out chan<- backend.TrialsInfoResult,
 ) error {
-	selectedTrialIDs, fromTrialIdx, _ := b.preprocessRetrieveTrialsArgs(filter, fromTrialIdx, count)
-	if !selectedTrialIDs.SelectsAll() && (count <= 0 || count > len(selectedTrialIDs)) {
-		count = len(selectedTrialIDs)
-	}
-
-	returnedResults := 0
+	fromTrialIdx, _ = b.preprocessRetrieveTrialsArgs(filter, fromTrialIdx, count)
+	selectedCount := 0
 
 	// Observe the trials
 	trialIdx := fromTrialIdx
@@ -298,7 +293,9 @@ func (b *memoryBackend) ObserveTrials(
 		for trialIDItem := range observer {
 			trialID := trialIDItem.(string)
 			data, _ := b.retrieveTrialDatas([]string{trialID})
-			if !data[0].deleted && selectedTrialIDs.Selects(trialID) {
+			if !data[0].deleted &&
+				filter.IDFilter.Selects(trialID) &&
+				filter.PropertiesFilter.Selects(data[0].params.Properties) {
 				unitResult := backend.TrialsInfoResult{
 					TrialInfos:   []*backend.TrialInfo{createTrialInfo(trialID, data[0])},
 					NextTrialIdx: trialIdx + 1,
@@ -307,8 +304,8 @@ func (b *memoryBackend) ObserveTrials(
 				case <-ctx.Done():
 					return ctx.Err()
 				case out <- unitResult:
-					returnedResults++
-					if count > 0 && returnedResults >= count {
+					selectedCount++
+					if count > 0 && selectedCount >= count {
 						return nil
 					}
 				}

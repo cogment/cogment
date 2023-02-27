@@ -193,7 +193,7 @@ func runOrchestrator(ctx context.Context, options Options, statusListener utils.
 	if err != nil {
 		return err
 	}
-	err = w.SetDirectoryRegisterProps(baseUtils.FormatStringToString(options.DirectoryRegistrationProperties))
+	err = w.SetDirectoryRegisterProps(baseUtils.FormatProperties(options.DirectoryRegistrationProperties))
 	if err != nil {
 		return err
 	}

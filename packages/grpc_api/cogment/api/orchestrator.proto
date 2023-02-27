@@ -92,6 +92,7 @@ message TrialInfoRequest {
 
 message TrialInfo {
   string trial_id = 1;
+  map<string, string> properties = 8;
   TrialState state = 2;
   string env_name = 3;
   uint64 tick_id = 4;

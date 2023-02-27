@@ -67,6 +67,12 @@ func (s *trialDatastoreServer) RetrieveTrials(
 	trialInfos := make([]*backend.TrialInfo, 0, req.TrialsCount)
 	nextPageOffset := 0
 
+	trialFilter := backend.NewTrialFilter(req.TrialIds, req.Properties)
+	trialCount := len(req.TrialIds)
+	if int(req.TrialsCount) < trialCount {
+		trialCount = int(req.TrialsCount)
+	}
+
 	// 1 - Retrieve the trialIds and trialInfos
 	if req.Timeout > 0 {
 		ctx, cancelCtx := context.WithTimeout(ctx, time.Duration(req.Timeout)*time.Millisecond)
@@ -77,7 +83,7 @@ func (s *trialDatastoreServer) RetrieveTrials(
 		g, ctx := errgroup.WithContext(ctx)
 		g.Go(func() error {
 			defer close(observer)
-			return s.backend.ObserveTrials(ctx, req.TrialIds, pageOffset, int(req.TrialsCount), observer)
+			return s.backend.ObserveTrials(ctx, trialFilter, pageOffset, trialCount, observer)
 		})
 		g.Go(func() error {
 			for trialInfoResult := range observer {
@@ -95,7 +101,7 @@ func (s *trialDatastoreServer) RetrieveTrials(
 			return nil, status.Errorf(codes.Internal, "TrialDatastoreSPServer.ObserveSamples: internal error %q", err)
 		}
 	} else {
-		results, err := s.backend.RetrieveTrials(ctx, req.TrialIds, pageOffset, int(req.TrialsCount))
+		results, err := s.backend.RetrieveTrials(ctx, trialFilter, pageOffset, int(req.TrialsCount))
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "TrialDatastoreSPServer.ObserveSamples: internal error %q", err)
 		}

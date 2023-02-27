@@ -16,7 +16,7 @@ package backend
 
 import (
 	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
-	"github.com/cogment/cogment/services/trialDatastore/utils"
+	"github.com/cogment/cogment/utils"
 )
 
 // TrialSampleFilter represents the arguments to filter requested trial samples

@@ -119,9 +119,12 @@ func (l *observableList) Observe(ctx context.Context, from int, out chan<- Obser
 			l.itemsLock.RLock()
 			end := len(l.items)
 			ended := l.ended
-			currentItems := l.items[from:end]
+			currentItems := []ObservableListItem{}
+			if from <= end {
+				currentItems = l.items[from:end]
+				from = end
+			}
 			l.itemsLock.RUnlock()
-			from = end
 			for _, item := range currentItems {
 				select {
 				case <-ctx.Done():

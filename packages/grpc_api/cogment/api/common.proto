@@ -53,13 +53,13 @@ message EnvironmentParams {
 message ActorParams {
   string name = 1;
   string actor_class = 2;
-  string endpoint = 3;  
+  string endpoint = 3;
 
   // Specifies an implementation name to use. This is used to distinguish
   // Between multiple implementations of the same actor class.
   string implementation = 4;
   SerializedMessage config = 5;
-  
+
   // 0 is no timeout
   float initial_connection_timeout = 6;
   float response_timeout = 7;
@@ -74,7 +74,9 @@ message ActorParams {
 message TrialParams {
   // Client-provided configuration
   SerializedMessage trial_config = 1;
-  
+
+  map<string, string> properties = 8;
+
   DatalogParams datalog = 2;
   EnvironmentParams environment = 3;
   repeated ActorParams actors = 4;
@@ -83,9 +85,9 @@ message TrialParams {
   uint32 max_steps = 5;
 
   // After this amount of time (in seconds) has elapsed without any activity
-  // on a trial, that trial is elligible for garbage collection 
+  // on a trial, that trial is elligible for garbage collection
   uint32 max_inactivity = 6;
-  
+
   // The number of ticks/steps to buffer before sending for data logging.
   // A signed value to naturally limit to the max of tick.
   sint64 nb_buffered_ticks = 7;
@@ -216,7 +218,7 @@ enum CommunicationState {
   NORMAL = 1;  // Always contains data
   HEARTBEAT = 2;  // No data. When received as incoming, must be responded in kind as outgoing.
 
-  // Soft end sequence: Orchestrator or Environment sends LAST, 
+  // Soft end sequence: Orchestrator or Environment sends LAST,
   //                    exchange of (NORMAL) finalizing data,
   //                    component sends LAST_ACK (component stops sending after this),
   //                    Orchestrator sends (NORMAL) finalizing data,

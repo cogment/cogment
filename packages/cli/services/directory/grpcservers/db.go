@@ -100,26 +100,15 @@ func (md *MemoryDB) SelectByDetails(inquiryDetails *cogmentAPI.ServiceDetails) (
 
 	var inquiryHasType bool = inquiryDetails.Type != cogmentAPI.ServiceType_UNKNOWN_SERVICE
 
+	inquiryPropertyFilter := utils.NewPropertiesFilter(inquiryDetails.Properties)
+
 	var result []ServiceID
 	for id, record := range md.data {
 		if inquiryHasType && record.details.Type != inquiryDetails.Type {
 			continue
 		}
 
-		var propertyMatch = true
-		for paramPropName, paramPropVal := range inquiryDetails.Properties {
-			dbPropVal, exist := record.details.Properties[paramPropName]
-			if !exist {
-				propertyMatch = false
-				break
-			}
-			if paramPropVal != dbPropVal {
-				propertyMatch = false
-				break
-			}
-		}
-
-		if propertyMatch {
+		if inquiryPropertyFilter.Selects(record.details.Properties) {
 			result = append(result, id)
 		}
 	}

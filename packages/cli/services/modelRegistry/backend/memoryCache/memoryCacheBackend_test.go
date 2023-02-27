@@ -66,7 +66,7 @@ func TestSmallMaxItems(t *testing.T) {
 	_, err = b.CreateOrUpdateModel(backend.ModelInfo{ModelID: "foo"})
 	assert.NoError(t, err)
 
-	assert.Len(t, test.Data1, 750)
+	assert.Len(t, test.Data1, 751)
 	data1Hash := backend.ComputeSHA256Hash(test.Data1)
 
 	_, err = b.CreateOrUpdateModelVersion(

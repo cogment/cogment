@@ -19,6 +19,7 @@ import (
 	"fmt"
 
 	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
+	"github.com/cogment/cogment/utils"
 
 	directoryClient "github.com/cogment/cogment/clients/directory"
 	"github.com/spf13/cobra"
@@ -92,13 +93,13 @@ var directoryInquireCmd = &cobra.Command{
 			}
 			details.Type = serviceType
 
-			properties, err := parseProperties(propertiesStr)
+			properties, err := utils.ParseProperties(propertiesStr)
 			if err != nil {
 				return err
 			}
-			if len(*properties) > 0 {
+			if len(properties) > 0 {
 				details.Properties = make(map[string]string)
-				for name, value := range *properties {
+				for name, value := range properties {
 					details.Properties[name] = value
 				}
 			}

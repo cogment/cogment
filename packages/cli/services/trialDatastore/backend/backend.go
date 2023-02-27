@@ -52,8 +52,8 @@ type Backend interface {
 	Destroy()
 
 	CreateOrUpdateTrials(ctx context.Context, trialsParams []*TrialParams) error
-	RetrieveTrials(ctx context.Context, filter []string, fromTrialIdx int, count int) (TrialsInfoResult, error)
-	ObserveTrials(ctx context.Context, filter []string, fromTrialIdx int, count int, out chan<- TrialsInfoResult) error
+	RetrieveTrials(ctx context.Context, filter TrialFilter, fromTrialIdx int, count int) (TrialsInfoResult, error)
+	ObserveTrials(ctx context.Context, filter TrialFilter, fromTrialIdx int, count int, out chan<- TrialsInfoResult) error
 	DeleteTrials(ctx context.Context, trialIDs []string) error
 
 	GetTrialParams(ctx context.Context, trialIDs []string) ([]*TrialParams, error)

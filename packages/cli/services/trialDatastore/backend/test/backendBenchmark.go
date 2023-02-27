@@ -62,7 +62,12 @@ func runBenchmark(
 				defer wg.Done()
 				trialsObserver := make(backend.TrialsInfoObserver)
 				go func() {
-					err := bck.ObserveTrials(context.Background(), trialIDs, -1, -1, trialsObserver)
+					err := bck.ObserveTrials(
+						context.Background(),
+						backend.NewTrialFilter(trialIDs, map[string]string{}),
+						-1, -1,
+						trialsObserver,
+					)
 					assert.NoError(b, err)
 					close(trialsObserver)
 				}()

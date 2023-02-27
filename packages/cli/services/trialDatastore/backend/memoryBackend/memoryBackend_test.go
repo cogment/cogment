@@ -103,7 +103,11 @@ func TestTriaEviction(t *testing.T) {
 
 		time.Sleep(100 * time.Millisecond) // Give time to the trial eviction worker
 
-		r, err := b.RetrieveTrials(context.Background(), []string{"trial-1", "trial-2", "trial-3"}, 0, -1)
+		r, err := b.RetrieveTrials(
+			context.Background(),
+			backend.NewTrialFilter([]string{"trial-1", "trial-2", "trial-3"}, map[string]string{}),
+			0, -1,
+		)
 		assert.NoError(t, err)
 		assert.Equal(t, trial1SamplesCount, r.TrialInfos[0].SamplesCount)
 		assert.Equal(t, trial1SamplesCount, r.TrialInfos[0].StoredSamplesCount)
@@ -126,7 +130,11 @@ func TestTriaEviction(t *testing.T) {
 
 		time.Sleep(100 * time.Millisecond) // Give time to the trial eviction worker
 
-		r, err := b.RetrieveTrials(context.Background(), []string{"trial-1", "trial-2", "trial-3"}, 0, -1)
+		r, err := b.RetrieveTrials(
+			context.Background(),
+			backend.NewTrialFilter([]string{"trial-1", "trial-2", "trial-3"}, map[string]string{}),
+			0, -1,
+		)
 		assert.NoError(t, err)
 		assert.Equal(t, trial1SamplesCount, r.TrialInfos[0].SamplesCount)
 		assert.Equal(t, trial1SamplesCount, r.TrialInfos[0].StoredSamplesCount)
@@ -149,7 +157,11 @@ func TestTriaEviction(t *testing.T) {
 
 		time.Sleep(100 * time.Millisecond) // Give time to the trial eviction worker
 
-		r, err := b.RetrieveTrials(context.Background(), []string{"trial-1", "trial-2", "trial-3"}, 0, -1)
+		r, err := b.RetrieveTrials(
+			context.Background(),
+			backend.NewTrialFilter([]string{"trial-1", "trial-2", "trial-3"}, map[string]string{}),
+			0, -1,
+		)
 		assert.NoError(t, err)
 		assert.Equal(t, trial1SamplesCount, r.TrialInfos[0].SamplesCount)
 		assert.Equal(t, 0, r.TrialInfos[0].StoredSamplesCount)

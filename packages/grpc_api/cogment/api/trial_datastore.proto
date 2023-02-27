@@ -49,9 +49,11 @@ service TrialDatastoreSP {
 message RetrieveTrialsRequest {
   repeated string trial_ids = 1; // List of desired trial ids, if empty all trials are returned
 
+  map<string, string> properties = 5; // Desired properties, only trials having (at least) the matching properties will be returned
+
   uint32 timeout = 2; // Wait for trials that might be created within this duration (in ms).
 
-  uint32 trials_count = 3; // Desired number of trial in the reply, 0 means no limit
+  uint32 trials_count = 3; // Desired number of trial in the reply, 0 means retrieving as many trials as possible
   string trial_handle = 4; // Leave empty for the initial request, use previously
                            // received `RetrieveTrialsReply.next_trial_handle` and
                            // provide otherwise the same request to access the next trials

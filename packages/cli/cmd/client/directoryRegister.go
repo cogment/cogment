@@ -19,6 +19,7 @@ import (
 	"fmt"
 
 	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
+	"github.com/cogment/cogment/utils"
 
 	directoryClient "github.com/cogment/cogment/clients/directory"
 	"github.com/spf13/cobra"
@@ -123,12 +124,12 @@ var directoryRegisterCmd = &cobra.Command{
 		request.Permanent = directoryRegisterViper.GetBool(directoryServicePermanent)
 
 		propertiesStr := directoryRegisterViper.GetString(directoryServicePropertiesKey)
-		properties, err := parseProperties(propertiesStr)
+		properties, err := utils.ParseProperties(propertiesStr)
 		if err != nil {
 			return err
 		}
 		request.Details.Properties = make(map[string]string)
-		for name, value := range *properties {
+		for name, value := range properties {
 			request.Details.Properties[name] = value
 		}
 		for name, value := range additionalRegistrationProperties {

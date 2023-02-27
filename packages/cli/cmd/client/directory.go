@@ -16,7 +16,6 @@ package client
 
 import (
 	"fmt"
-	"strings"
 
 	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	directoryService "github.com/cogment/cogment/services/directory"
@@ -207,38 +206,6 @@ func endpointToString(endpoint *cogmentAPI.ServiceEndpoint) (string, bool) {
 	}
 
 	return result, ssl
-}
-
-func parseProperties(propertiesStr string) (*map[string]string, error) {
-	result := make(map[string]string)
-
-	properties := strings.Split(propertiesStr, ",")
-	for _, property := range properties {
-		propertyParts := strings.Split(strings.TrimSpace(property), "=")
-		nbParts := len(propertyParts)
-
-		if nbParts > 2 {
-			return nil, fmt.Errorf("Invalid property format [%s]", property)
-		}
-
-		name := strings.TrimSpace(propertyParts[0])
-		if len(name) == 0 {
-			if nbParts == 1 {
-				continue
-			} else {
-				return nil, fmt.Errorf("Empty property name [%s]", property)
-			}
-		}
-
-		if nbParts == 2 {
-			value := strings.TrimSpace(propertyParts[1])
-			result[name] = value
-		} else {
-			result[name] = ""
-		}
-	}
-
-	return &result, nil
 }
 
 var directoryCmd = &cobra.Command{

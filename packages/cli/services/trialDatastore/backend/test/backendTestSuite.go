@@ -44,6 +44,16 @@ func generateTrialParams(actorCount int, maxSteps uint32) *grpcapi.TrialParams {
 	return params
 }
 
+func generateTrialParamsWithProperties(
+	actorCount int,
+	maxSteps uint32,
+	properties map[string]string,
+) *grpcapi.TrialParams {
+	params := generateTrialParams(actorCount, maxSteps)
+	params.Properties = properties
+	return params
+}
+
 const bytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 func makeRandomBytes(n int) []byte {
@@ -125,7 +135,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 		}
 
 		{
-			r, err := b.RetrieveTrials(context.Background(), []string{}, -1, -1)
+			r, err := b.RetrieveTrials(context.Background(), backend.NewTrialFilter([]string{}, map[string]string{}), -1, -1)
 			assert.NoError(t, err)
 
 			assert.Len(t, r.TrialInfos, 2)
@@ -161,7 +171,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 		}
 
 		{
-			r, err := b.RetrieveTrials(context.Background(), []string{}, 0, 5)
+			r, err := b.RetrieveTrials(context.Background(), backend.NewTrialFilter([]string{}, map[string]string{}), 0, 5)
 			assert.NoError(t, err)
 
 			assert.Len(t, r.TrialInfos, 3)
@@ -189,7 +199,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 		}
 
 		{
-			r1, err := b.RetrieveTrials(context.Background(), []string{}, 0, 2)
+			r1, err := b.RetrieveTrials(context.Background(), backend.NewTrialFilter([]string{}, map[string]string{}), 0, 2)
 			assert.NoError(t, err)
 
 			assert.Len(t, r1.TrialInfos, 2)
@@ -209,7 +219,13 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 				},
 			})
 
-			r2, err := b.RetrieveTrials(context.Background(), []string{}, r1.NextTrialIdx, 2)
+			assert.Equal(t, 2, r1.NextTrialIdx)
+
+			r2, err := b.RetrieveTrials(
+				context.Background(),
+				backend.NewTrialFilter([]string{}, map[string]string{}),
+				r1.NextTrialIdx, 2,
+			)
 			assert.NoError(t, err)
 
 			assert.Len(t, r2.TrialInfos, 1)
@@ -217,6 +233,94 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 			assert.ElementsMatch(t, r2.TrialInfos, []*backend.TrialInfo{
 				{
 					TrialID:            "trial-3",
+					State:              grpcapi.TrialState_UNKNOWN,
+					SamplesCount:       0,
+					StoredSamplesCount: 0,
+				},
+			})
+		}
+	})
+	t.Run("TestRetrieveFilteredTrials", func(t *testing.T) {
+		b := createBackend()
+		defer destroyBackend(b)
+
+		{
+			err := b.CreateOrUpdateTrials(context.Background(), []*backend.TrialParams{
+				{
+					TrialID: "trial-1",
+					Params:  generateTrialParamsWithProperties(2, 100, map[string]string{"foo": "bar", "baz": ""}),
+				},
+				{
+					TrialID: "trial-2",
+					Params:  generateTrialParamsWithProperties(4, 150, map[string]string{"baz": ""}),
+				},
+				{
+					TrialID: "trial-3",
+					Params:  generateTrialParamsWithProperties(4, 150, map[string]string{"foo": "bar2"}),
+				},
+			})
+			assert.NoError(t, err)
+		}
+
+		{
+			r, err := b.RetrieveTrials(
+				context.Background(),
+				backend.NewTrialFilter([]string{}, map[string]string{"baz": ""}),
+				-1, -1,
+			)
+			assert.NoError(t, err)
+
+			assert.Len(t, r.TrialInfos, 2)
+
+			assert.ElementsMatch(t, r.TrialInfos, []*backend.TrialInfo{
+				{
+					TrialID:            "trial-1",
+					State:              grpcapi.TrialState_UNKNOWN,
+					SamplesCount:       0,
+					StoredSamplesCount: 0,
+				},
+				{
+					TrialID:            "trial-2",
+					State:              grpcapi.TrialState_UNKNOWN,
+					SamplesCount:       0,
+					StoredSamplesCount: 0,
+				},
+			})
+		}
+
+		{
+			r, err := b.RetrieveTrials(
+				context.Background(),
+				backend.NewTrialFilter([]string{}, map[string]string{"foo": "bar"}),
+				-1, -1,
+			)
+			assert.NoError(t, err)
+
+			assert.Len(t, r.TrialInfos, 1)
+
+			assert.ElementsMatch(t, r.TrialInfos, []*backend.TrialInfo{
+				{
+					TrialID:            "trial-1",
+					State:              grpcapi.TrialState_UNKNOWN,
+					SamplesCount:       0,
+					StoredSamplesCount: 0,
+				},
+			})
+		}
+
+		{
+			r, err := b.RetrieveTrials(
+				context.Background(),
+				backend.NewTrialFilter([]string{"trial-2", "trial-3"}, map[string]string{"baz": ""}),
+				-1, -1,
+			)
+			assert.NoError(t, err)
+
+			assert.Len(t, r.TrialInfos, 1)
+
+			assert.ElementsMatch(t, r.TrialInfos, []*backend.TrialInfo{
+				{
+					TrialID:            "trial-2",
 					State:              grpcapi.TrialState_UNKNOWN,
 					SamplesCount:       0,
 					StoredSamplesCount: 0,
@@ -256,7 +360,12 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 			defer wg.Done()
 			observer := make(backend.TrialsInfoObserver)
 			go func() {
-				err := b.ObserveTrials(context.Background(), []string{"trial-2"}, 0, -1, observer)
+				err := b.ObserveTrials(
+					context.Background(),
+					backend.NewTrialFilter([]string{"trial-2"}, map[string]string{}),
+					0, 1,
+					observer,
+				)
 				assert.NoError(t, err)
 				close(observer)
 			}()
@@ -276,7 +385,12 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 			defer wg.Done()
 			observer := make(backend.TrialsInfoObserver)
 			go func() {
-				err := b.ObserveTrials(context.Background(), []string{"trial-2", "trial-1"}, 0, -1, observer)
+				err := b.ObserveTrials(
+					context.Background(),
+					backend.NewTrialFilter([]string{"trial-2", "trial-1"}, map[string]string{}),
+					0, 2,
+					observer,
+				)
 				assert.NoError(t, err)
 				close(observer)
 			}()
@@ -297,7 +411,12 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 			defer wg.Done()
 			observer := make(backend.TrialsInfoObserver)
 			go func() {
-				err := b.ObserveTrials(context.Background(), []string{}, 0, 2, observer)
+				err := b.ObserveTrials(
+					context.Background(),
+					backend.NewTrialFilter([]string{}, map[string]string{}),
+					0, 2,
+					observer,
+				)
 				assert.NoError(t, err)
 				close(observer)
 			}()
@@ -310,6 +429,114 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 
 			assert.Equal(t, "trial-1", results[0].TrialID)
 			assert.Equal(t, "trial-2", results[1].TrialID)
+		}()
+
+		wg.Wait()
+	})
+	t.Run("TestObserveFilteredTrials", func(t *testing.T) {
+		t.Parallel() // This test involves goroutines and `time.Sleep`
+
+		b := createBackend()
+		defer destroyBackend(b)
+
+		wg := sync.WaitGroup{}
+
+		wg.Add(1)
+		go func() {
+			// Waiting before actually adding the trials
+			defer wg.Done()
+			time.Sleep(100 * time.Millisecond)
+			err := b.CreateOrUpdateTrials(context.Background(), []*backend.TrialParams{
+				{
+					TrialID: "trial-1",
+					Params:  generateTrialParamsWithProperties(2, 100, map[string]string{"foo": "bar", "baz": ""}),
+				},
+				{
+					TrialID: "trial-2",
+					Params:  generateTrialParamsWithProperties(4, 150, map[string]string{"baz": ""}),
+				},
+				{
+					TrialID: "trial-3",
+					Params:  generateTrialParamsWithProperties(4, 150, map[string]string{"foo": "bar2"}),
+				},
+			})
+			assert.NoError(t, err)
+		}()
+
+		wg.Add(1)
+		go func() {
+			// Retrieve first trial matching "foo=bar"
+			defer wg.Done()
+			observer := make(backend.TrialsInfoObserver)
+			go func() {
+				err := b.ObserveTrials(
+					context.Background(),
+					backend.NewTrialFilter([]string{}, map[string]string{"foo": "bar"}),
+					0, 1,
+					observer,
+				)
+				assert.NoError(t, err)
+				close(observer)
+			}()
+			results := []*backend.TrialInfo{}
+			for r := range observer {
+				results = append(results, r.TrialInfos...)
+			}
+
+			assert.Len(t, results, 1)
+
+			assert.Equal(t, "trial-1", results[0].TrialID)
+		}()
+
+		wg.Add(1)
+		go func() {
+			// Retrieve trials matching "baz"
+			defer wg.Done()
+			observer := make(backend.TrialsInfoObserver)
+			go func() {
+				err := b.ObserveTrials(
+					context.Background(),
+					backend.NewTrialFilter([]string{"trial-1", "trial-2", "trial-3"}, map[string]string{"baz": ""}),
+					0, 2,
+					observer,
+				)
+				assert.NoError(t, err)
+				close(observer)
+			}()
+			results := []*backend.TrialInfo{}
+			for r := range observer {
+				results = append(results, r.TrialInfos...)
+			}
+
+			assert.Len(t, results, 2)
+
+			assert.Equal(t, "trial-1", results[0].TrialID)
+			assert.Equal(t, "trial-2", results[1].TrialID)
+		}()
+
+		wg.Add(1)
+		go func() {
+			// Retrieve the second trial matching "baz"
+			defer wg.Done()
+			observer := make(backend.TrialsInfoObserver)
+			go func() {
+				err := b.ObserveTrials(
+					context.Background(),
+					backend.NewTrialFilter([]string{}, map[string]string{"baz": ""}),
+					1, 1,
+					observer,
+				)
+				assert.NoError(t, err)
+				close(observer)
+			}()
+			results := []*backend.TrialInfo{}
+			for r := range observer {
+				results = append(results, r.TrialInfos...)
+			}
+
+			assert.Len(t, results, 1)
+
+			assert.Equal(t, "trial-2", results[0].TrialID)
 		}()
 
 		wg.Wait()
@@ -342,7 +569,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 		}
 
 		{
-			r, err := b.RetrieveTrials(context.Background(), []string{}, -1, -1)
+			r, err := b.RetrieveTrials(context.Background(), backend.NewTrialFilter([]string{}, map[string]string{}), -1, -1)
 			assert.NoError(t, err)
 
 			assert.Len(t, r.TrialInfos, 1)
@@ -356,7 +583,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 		}
 
 		{
-			r, err := b.RetrieveTrials(context.Background(), []string{}, -1, -1)
+			r, err := b.RetrieveTrials(context.Background(), backend.NewTrialFilter([]string{}, map[string]string{}), -1, -1)
 			assert.NoError(t, err)
 
 			assert.Len(t, r.TrialInfos, 0)
@@ -370,18 +597,18 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 			err := b.CreateOrUpdateTrials(context.Background(), []*backend.TrialParams{
 				{
 					TrialID: "A",
-					Params:  generateTrialParams(2, 100),
+					Params:  generateTrialParamsWithProperties(2, 100, map[string]string{"number": "1"}),
 				},
 				{
 					TrialID: "B",
-					Params:  generateTrialParams(4, 150),
+					Params:  generateTrialParamsWithProperties(4, 150, map[string]string{"number": "2"}),
 				},
 			})
 			assert.NoError(t, err)
 		}
 
 		{
-			r, err := b.RetrieveTrials(context.Background(), []string{}, -1, -1)
+			r, err := b.RetrieveTrials(context.Background(), backend.NewTrialFilter([]string{}, map[string]string{}), -1, -1)
 			assert.NoError(t, err)
 
 			assert.Len(t, r.TrialInfos, 2)
@@ -398,9 +625,11 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 			assert.Equal(t, "A", trialsParams[0].TrialID)
 			assert.Len(t, trialsParams[0].Params.Actors, 2)
 			assert.Equal(t, uint32(100), trialsParams[0].Params.MaxSteps)
+			assert.Equal(t, "1", trialsParams[0].Params.Properties["number"])
 			assert.Equal(t, "B", trialsParams[1].TrialID)
 			assert.Len(t, trialsParams[1].Params.Actors, 4)
 			assert.Equal(t, uint32(150), trialsParams[1].Params.MaxSteps)
+			assert.Equal(t, "2", trialsParams[1].Params.Properties["number"])
 		}
 	})
 	t.Run("TestAddSamples", func(t *testing.T) {
@@ -421,7 +650,11 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 		)
 		assert.NoError(t, err)
 
-		r, err := b.RetrieveTrials(context.Background(), []string{"my-trial"}, -1, -1)
+		r, err := b.RetrieveTrials(
+			context.Background(),
+			backend.NewTrialFilter([]string{"my-trial"}, map[string]string{}),
+			-1, -1,
+		)
 		assert.NoError(t, err)
 
 		assert.Len(t, r.TrialInfos, 1)
@@ -437,7 +670,11 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 		})
 		assert.NoError(t, err)
 
-		r, err = b.RetrieveTrials(context.Background(), []string{"my-trial"}, -1, -1)
+		r, err = b.RetrieveTrials(
+			context.Background(),
+			backend.NewTrialFilter([]string{"my-trial"}, map[string]string{}),
+			-1, -1,
+		)
 		assert.NoError(t, err)
 
 		assert.Len(t, r.TrialInfos, 1)

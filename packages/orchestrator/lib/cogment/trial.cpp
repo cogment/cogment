@@ -1430,6 +1430,7 @@ void Trial::set_info(cogmentAPI::TrialInfo* info, bool with_observations, bool w
   }
   info->set_trial_duration(end - m_start_timestamp);
   info->set_trial_id(m_id);
+  info->mutable_properties()->insert(m_params.properties().begin(), m_params.properties().end());
 
   // The state and tick may not be synchronized here, but it is better
   // to have the latest state (as opposed to the state of the sample).

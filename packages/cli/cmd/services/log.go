@@ -58,7 +58,7 @@ func configureLog(cfg *viper.Viper) error {
 	// Define what is the desired log format
 	desiredFormat := text // default is text
 	if cfg.IsSet(servicesLogFormatKey) {
-		// Explicitely specified log format
+		// Explicitly specified log format
 		desiredFormat = logFormat(cfg.GetString(servicesLogFormatKey))
 		if !isValidLogFormat(desiredFormat) {
 			return fmt.Errorf(

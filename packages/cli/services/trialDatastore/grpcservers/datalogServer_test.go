@@ -139,7 +139,11 @@ func TestRunTrialDatalogSimple(t *testing.T) {
 	}
 	{
 		// Make sure they are retrieved
-		res, err := fxt.backend.RetrieveTrials(fxt.ctx, []string{trialID}, 0, -1)
+		res, err := fxt.backend.RetrieveTrials(
+			fxt.ctx,
+			backend.NewTrialFilter([]string{trialID}, map[string]string{}),
+			0, -1,
+		)
 		assert.NoError(t, err)
 		assert.Len(t, res.TrialInfos, 1)
 		assert.Equal(t, res.TrialInfos[0].TrialID, trialID)

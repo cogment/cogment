@@ -14,10 +14,14 @@ linters:
     - govet
     - ineffassign
     - lll
+    - misspell
+    - nilerr
+    - nilnil
     - revive
     - staticcheck
     - typecheck
     - unused
+    - errname
 
 linters-settings:
   lll:

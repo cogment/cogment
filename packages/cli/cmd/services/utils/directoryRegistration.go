@@ -71,7 +71,7 @@ func PopulateDirectoryRegistrationOptionsFlags(
 		fmt.Sprintf("COGMENT_%s_DIRECTORY_REGISTRATION_PROPERTIES", serviceName),
 	)
 	if ok {
-		directoryUsageRegistrationPropertiesEnvValue, err := utils.ParseStringToString(
+		directoryUsageRegistrationPropertiesEnvValue, err := utils.ParseProperties(
 			directoryUsageRegistrationPropertiesEnvValueStr,
 		)
 		if err != nil {

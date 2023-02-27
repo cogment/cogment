@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Added
+
+- Key/values properties can be defined in the trial parameters
+- Key/values properties of the trial reported in `TrialInfo`
+- Trial datastore trial inquiries can be filtered using properties, in particular using `cogment client trial_datastore list_trials`
+
 ### Fixed
 
 - Error when `VersionUpdate` is done when a new model has no version yet in the model registry

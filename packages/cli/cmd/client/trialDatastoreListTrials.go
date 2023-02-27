@@ -20,6 +20,7 @@ import (
 	"os"
 
 	trialDatastoreClient "github.com/cogment/cogment/clients/trialDatastore"
+	"github.com/cogment/cogment/utils"
 	"github.com/olekukonko/tablewriter"
 
 	"github.com/spf13/cobra"
@@ -30,8 +31,9 @@ import (
 var datastoreListTrialsViper = viper.New()
 
 const (
-	datastoreListTrialsCountKey = "count"
-	datastoreListTrialsFromKey  = "from"
+	datastoreListTrialsCountKey      = "count"
+	datastoreListTrialsFromKey       = "from"
+	datastoreListTrialsPropertiesKey = "properties"
 )
 
 func init() {
@@ -44,6 +46,13 @@ func init() {
 		datastoreListTrialsCountKey,
 		datastoreListTrialsViper.GetUint(datastoreListTrialsCountKey),
 		"Maximum number of trials to retrieve",
+	)
+
+	datastoreListTrialsViper.SetDefault(datastoreListTrialsPropertiesKey, "")
+	datastoreListTrialsCmd.Flags().String(
+		datastoreListTrialsPropertiesKey,
+		datastoreListTrialsViper.GetString(datastoreListTrialsPropertiesKey),
+		"Desired trial properties (in the form 'name=value,name=value')",
 	)
 
 	datastoreListTrialsViper.SetDefault(
@@ -78,7 +87,15 @@ var datastoreListTrialsCmd = &cobra.Command{
 
 		trialsCount := datastoreListTrialsViper.GetUint(datastoreListTrialsCountKey)
 		if trialsCount == 0 {
-			return fmt.Errorf("invalid argument \"--count\" specified, expected a strictly positive number")
+			return fmt.Errorf(
+				"invalid argument \"--%s\" specified, expected a strictly positive number",
+				datastoreListTrialsCountKey,
+			)
+		}
+
+		properties, err := utils.ParseProperties(datastoreListTrialsViper.GetString(datastoreListTrialsPropertiesKey))
+		if err != nil {
+			return fmt.Errorf("invalid argument \"--%s\" specified, %w", datastoreListTrialsPropertiesKey, err)
 		}
 
 		client, err := trialDatastoreClient.CreateClientWithInsecureEndpoint(datastoreViper.GetString(datastoreEndpointKey))
@@ -94,6 +111,7 @@ var datastoreListTrialsCmd = &cobra.Command{
 			ctx,
 			trialsCount,
 			fromHandle,
+			properties,
 		)
 		if err != nil {
 			if err == context.DeadlineExceeded {
@@ -113,6 +131,7 @@ var datastoreListTrialsCmd = &cobra.Command{
 				"state",
 				"samples",
 				"actors",
+				"properties",
 			})
 			for _, trialInfo := range rep.TrialInfos {
 				table.Append([]string{
@@ -121,6 +140,7 @@ var datastoreListTrialsCmd = &cobra.Command{
 					trialInfo.LastState.String(),
 					fmt.Sprintf("%d", trialInfo.SamplesCount),
 					fmt.Sprintf("%d", len(trialInfo.Params.Actors)),
+					utils.FormatProperties(trialInfo.Params.Properties),
 				})
 			}
 			var caption string

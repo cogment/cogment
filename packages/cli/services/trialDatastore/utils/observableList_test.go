@@ -193,6 +193,55 @@ func TestObservableListConcurrent(t *testing.T) {
 	wg.Wait()
 }
 
+func TestObservableListConcurrentFromOffset(t *testing.T) {
+	t.Parallel() // This test involves goroutines and `time.Sleep`
+
+	l := CreateObservableList()
+
+	items := []*item{
+		{value: 1},
+		{value: 2},
+		{value: 3},
+		{value: 4},
+	}
+
+	wg := sync.WaitGroup{}
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		time.Sleep(10 * time.Millisecond)
+		go func() {
+			defer wg.Done()
+			observer := make(ObservableListObserver)
+			go func() {
+				err := l.Observe(context.Background(), 2, observer)
+				assert.NoError(t, err)
+				close(observer)
+			}()
+
+			for _, expectedItem := range items[2:] {
+				retrievedItem, ok := <-observer
+				assert.True(t, ok)
+				assert.NotNil(t, retrievedItem)
+				assert.Equal(t, expectedItem, retrievedItem.(*item))
+			}
+
+			retrievedEnd, ok := <-observer
+			assert.False(t, ok)
+			assert.Nil(t, retrievedEnd)
+		}()
+	}
+
+	l.Append(items[0], false)
+	l.Append(items[1], false)
+
+	time.Sleep(50 * time.Millisecond)
+
+	l.Append(items[2], false)
+	l.Append(items[3], true)
+
+	wg.Wait()
+}
+
 func TestObservableListConcurrentOneBlocker(t *testing.T) {
 	t.Parallel() // This test involves goroutines and `time.Sleep`
 

@@ -12,7 +12,6 @@ require (
 	github.com/improbable-eng/grpc-web v0.14.1
 	github.com/jinzhu/copier v0.1.0
 	github.com/jstemmer/go-junit-report v0.0.0-20190106144839-af01ea7f8024
-	github.com/magiconair/properties v1.8.1
 	github.com/markbates/pkger v0.17.1
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f
 	github.com/mwitkow/grpc-proxy v0.0.0-20181017164139-0f1106ef9c76

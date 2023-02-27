@@ -71,7 +71,7 @@ func createFixture() (*fixture, error) {
 func (fxt *fixture) destroy() {
 }
 
-func createTrials(t *testing.T, fxt *fixture, trialCount int) {
+func createTrials(t *testing.T, fxt *fixture, prefix string, trialCount int, properties map[string]string) {
 	connection, err := fxt.client.createConnection(fxt.ctx)
 	assert.NoError(t, err)
 	defer connection.Close()
@@ -79,11 +79,12 @@ func createTrials(t *testing.T, fxt *fixture, trialCount int) {
 	spClient := grpcapi.NewTrialDatastoreSPClient(connection)
 
 	for i := 0; i < trialCount; i++ {
-		ctx := metadata.AppendToOutgoingContext(fxt.ctx, "trial-id", fmt.Sprintf("trial%d", i))
+		ctx := metadata.AppendToOutgoingContext(fxt.ctx, "trial-id", fmt.Sprintf("%s%d", prefix, i))
 		_, err := spClient.AddTrial(ctx, &grpcapi.AddTrialRequest{
 			UserId: "test",
 			TrialParams: &grpcapi.TrialParams{
-				MaxSteps: uint32(10 * (i + 1)),
+				MaxSteps:   uint32(10 * (i + 1)),
+				Properties: properties,
 			},
 		})
 		assert.NoError(t, err)
@@ -121,7 +122,7 @@ func TestListTrialsNoTrials(t *testing.T) {
 	assert.NoError(t, err)
 	defer fxt.destroy()
 
-	rep, err := fxt.client.ListTrials(fxt.ctx, 10, "")
+	rep, err := fxt.client.ListTrials(fxt.ctx, 10, "", map[string]string{})
 	assert.NoError(t, err)
 	assert.Empty(t, rep.TrialInfos)
 }
@@ -131,24 +132,60 @@ func TestListTrialsSimple(t *testing.T) {
 	assert.NoError(t, err)
 	defer fxt.destroy()
 
-	createTrials(t, fxt, 10)
+	createTrials(t, fxt, "trial", 10, map[string]string{"key": "value"})
 
-	rep1, err := fxt.client.ListTrials(fxt.ctx, 5, "")
+	rep1, err := fxt.client.ListTrials(fxt.ctx, 5, "", map[string]string{})
 	assert.NoError(t, err)
 	assert.Len(t, rep1.TrialInfos, 5)
 
 	for _, trialInfo := range rep1.TrialInfos {
 		assert.Equal(t, "test", trialInfo.UserId)
 		assert.Equal(t, grpcapi.TrialState_UNKNOWN, trialInfo.LastState)
+		assert.Equal(t, "value", trialInfo.Params.Properties["key"])
 	}
 
-	rep2, err := fxt.client.ListTrials(fxt.ctx, 5, rep1.NextTrialHandle)
+	rep2, err := fxt.client.ListTrials(fxt.ctx, 5, rep1.NextTrialHandle, map[string]string{})
 	assert.NoError(t, err)
 	assert.Len(t, rep2.TrialInfos, 5)
 
 	for _, trialInfo := range rep2.TrialInfos {
 		assert.Equal(t, "test", trialInfo.UserId)
 		assert.Equal(t, grpcapi.TrialState_UNKNOWN, trialInfo.LastState)
+		assert.Equal(t, "value", trialInfo.Params.Properties["key"])
+	}
+}
+
+func TestListTrialsFilter(t *testing.T) {
+	fxt, err := createFixture()
+	assert.NoError(t, err)
+	defer fxt.destroy()
+
+	createTrials(t, fxt, "trialA-", 10, map[string]string{"key": "value"})
+	createTrials(t, fxt, "trialB-", 10, map[string]string{"key2": "value2"})
+	createTrials(t, fxt, "trialC-", 10, map[string]string{"key": "value", "key2": "value2"})
+
+	rep1, err := fxt.client.ListTrials(fxt.ctx, 100, "", map[string]string{"key": "value"})
+	assert.NoError(t, err)
+	assert.Len(t, rep1.TrialInfos, 20)
+
+	for _, trialInfo := range rep1.TrialInfos {
+		assert.Equal(t, "test", trialInfo.UserId)
+		assert.Equal(t, grpcapi.TrialState_UNKNOWN, trialInfo.LastState)
+		assert.Equal(t, "value", trialInfo.Params.Properties["key"])
+		if value, ok := trialInfo.Params.Properties["key2"]; ok {
+			assert.Equal(t, "value2", value)
+		}
+	}
+
+	rep2, err := fxt.client.ListTrials(fxt.ctx, 100, "", map[string]string{"key": "value", "key2": "value2"})
+	assert.NoError(t, err)
+	assert.Len(t, rep2.TrialInfos, 10)
+
+	for _, trialInfo := range rep2.TrialInfos {
+		assert.Equal(t, "test", trialInfo.UserId)
+		assert.Equal(t, grpcapi.TrialState_UNKNOWN, trialInfo.LastState)
+		assert.Equal(t, "value", trialInfo.Params.Properties["key"])
+		assert.Equal(t, "value2", trialInfo.Params.Properties["key2"])
 	}
 }
 
@@ -157,7 +194,7 @@ func TestExportEmptyTrials(t *testing.T) {
 	assert.NoError(t, err)
 	defer fxt.destroy()
 
-	createTrials(t, fxt, 10)
+	createTrials(t, fxt, "trial", 10, map[string]string{"key": "value"})
 
 	var buf bytes.Buffer
 	_, err = fxt.client.ExportTrials(fxt.ctx, []string{"trial0", "trial2"}, &buf)
@@ -170,7 +207,7 @@ func TestExportImportTrialsSimple(t *testing.T) {
 	assert.NoError(t, err)
 	defer fxt.destroy()
 
-	createTrials(t, fxt, 3)
+	createTrials(t, fxt, "trial", 3, map[string]string{"key": "value"})
 
 	createTrialSamples(t, fxt, "trial0", 20, true)
 	createTrialSamples(t, fxt, "trial1", 10, false)
@@ -188,7 +225,7 @@ func TestExportImportTrialsSimple(t *testing.T) {
 	assert.Equal(t, 20, trialSamplesCount["prefix-trial0"])
 	assert.Equal(t, 30, trialSamplesCount["prefix-trial2"])
 
-	rep, err := fxt.client.ListTrials(fxt.ctx, 10, "")
+	rep, err := fxt.client.ListTrials(fxt.ctx, 10, "", map[string]string{})
 	assert.NoError(t, err)
 	assert.Len(t, rep.TrialInfos, 5)
 	for _, trialInfo := range rep.TrialInfos {
@@ -217,7 +254,7 @@ func TestExportImportLotsOfTrials(t *testing.T) {
 	defer fxt.destroy()
 
 	trialsCount := chunkTrialsCount*5 + 2 // Make sure trials will be requested in multiple chunks
-	createTrials(t, fxt, trialsCount)
+	createTrials(t, fxt, "trial", trialsCount, map[string]string{"key": "value"})
 
 	trialIDs := []string{}
 	for trialIdx := 0; trialIdx < trialsCount; trialIdx++ {
@@ -242,7 +279,7 @@ func TestExportImportTrialsDuplicate(t *testing.T) {
 	assert.NoError(t, err)
 	defer fxt.destroy()
 
-	createTrials(t, fxt, 3)
+	createTrials(t, fxt, "trial", 3, map[string]string{"key": "value"})
 
 	createTrialSamples(t, fxt, "trial0", 20, true)
 	createTrialSamples(t, fxt, "trial1", 10, true)
