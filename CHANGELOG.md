@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.12.0 - 2023-02-28
+
 ### Added
 
 - Key/values properties can be defined in the trial parameters
