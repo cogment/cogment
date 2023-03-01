@@ -329,217 +329,300 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 		}
 	})
 	t.Run("TestObserveTrials", func(t *testing.T) {
-		t.Parallel() // This test involves goroutines and `time.Sleep`
+		t.Parallel()
 
-		b := createBackend()
-		defer destroyBackend(b)
+		ctx := context.Background()
 
-		wg := sync.WaitGroup{}
+		t.Run("AllTrialsSingleObserver", func(t *testing.T) {
+			t.Parallel()
 
-		wg.Add(1)
-		go func() {
-			// Waiting before actually adding the trials
-			defer wg.Done()
-			time.Sleep(100 * time.Millisecond)
-			err := b.CreateOrUpdateTrials(context.Background(), []*backend.TrialParams{
-				{
-					TrialID: "trial-1",
-					Params:  generateTrialParams(2, 100),
-				},
-				{
-					TrialID: "trial-2",
-					Params:  generateTrialParams(4, 150),
-				},
-			})
-			assert.NoError(t, err)
-		}()
+			b := createBackend()
+			defer destroyBackend(b)
 
-		wg.Add(1)
-		go func() {
-			// Can I retrieve just trial 2
-			defer wg.Done()
+			observeCtx, cancelObserve := context.WithCancel(ctx)
+			defer cancelObserve()
+
+			// Observing all new trials until `cancelObserve` is called
 			observer := make(backend.TrialsInfoObserver)
+			g := sync.WaitGroup{}
+			g.Add(1)
 			go func() {
+				defer g.Done()
 				err := b.ObserveTrials(
-					context.Background(),
-					backend.NewTrialFilter([]string{"trial-2"}, map[string]string{}),
-					0, 1,
-					observer,
-				)
-				assert.NoError(t, err)
-				close(observer)
-			}()
-			results := []*backend.TrialInfo{}
-			for r := range observer {
-				results = append(results, r.TrialInfos...)
-			}
-
-			assert.Len(t, results, 1)
-
-			assert.Equal(t, "trial-2", results[0].TrialID)
-		}()
-
-		wg.Add(1)
-		go func() {
-			// Can I retrieve trial 2 and trial 1
-			defer wg.Done()
-			observer := make(backend.TrialsInfoObserver)
-			go func() {
-				err := b.ObserveTrials(
-					context.Background(),
-					backend.NewTrialFilter([]string{"trial-2", "trial-1"}, map[string]string{}),
-					0, 2,
-					observer,
-				)
-				assert.NoError(t, err)
-				close(observer)
-			}()
-			results := []*backend.TrialInfo{}
-			for r := range observer {
-				results = append(results, r.TrialInfos...)
-			}
-
-			assert.Len(t, results, 2)
-
-			assert.Equal(t, "trial-1", results[0].TrialID)
-			assert.Equal(t, "trial-2", results[1].TrialID)
-		}()
-
-		wg.Add(1)
-		go func() {
-			// Can I retrieve the 2 first trials
-			defer wg.Done()
-			observer := make(backend.TrialsInfoObserver)
-			go func() {
-				err := b.ObserveTrials(
-					context.Background(),
+					observeCtx,
 					backend.NewTrialFilter([]string{}, map[string]string{}),
-					0, 2,
+					-1, -1,
 					observer,
 				)
-				assert.NoError(t, err)
+				assert.ErrorIs(t, err, context.Canceled)
 				close(observer)
 			}()
-			results := []*backend.TrialInfo{}
-			for r := range observer {
-				results = append(results, r.TrialInfos...)
-			}
 
-			assert.Len(t, results, 2)
+			for i := 0; i < 10; i++ {
+				trialIdx := fmt.Sprintf("trial-%d", i)
 
-			assert.Equal(t, "trial-1", results[0].TrialID)
-			assert.Equal(t, "trial-2", results[1].TrialID)
-		}()
-
-		wg.Wait()
-	})
-	t.Run("TestObserveFilteredTrials", func(t *testing.T) {
-		t.Parallel() // This test involves goroutines and `time.Sleep`
-
-		b := createBackend()
-		defer destroyBackend(b)
-
-		wg := sync.WaitGroup{}
-
-		wg.Add(1)
-		go func() {
-			// Waiting before actually adding the trials
-			defer wg.Done()
-			time.Sleep(100 * time.Millisecond)
-			err := b.CreateOrUpdateTrials(context.Background(), []*backend.TrialParams{
+				// Create a trial
 				{
-					TrialID: "trial-1",
-					Params:  generateTrialParamsWithProperties(2, 100, map[string]string{"foo": "bar", "baz": ""}),
-				},
+					err := b.CreateOrUpdateTrials(ctx, []*backend.TrialParams{
+						{
+							TrialID: trialIdx,
+							Params:  generateTrialParams(2, 100),
+						},
+					})
+					assert.NoError(t, err)
+				}
+
+				// `observer` receives it
 				{
-					TrialID: "trial-2",
-					Params:  generateTrialParamsWithProperties(4, 150, map[string]string{"baz": ""}),
-				},
-				{
-					TrialID: "trial-3",
-					Params:  generateTrialParamsWithProperties(4, 150, map[string]string{"foo": "bar2"}),
-				},
-			})
-			assert.NoError(t, err)
-		}()
+					results := <-observer
 
-		wg.Add(1)
-		go func() {
-			// Retrieve first trial matching "foo=bar"
-			defer wg.Done()
-			observer := make(backend.TrialsInfoObserver)
-			go func() {
-				err := b.ObserveTrials(
-					context.Background(),
-					backend.NewTrialFilter([]string{}, map[string]string{"foo": "bar"}),
-					0, 1,
-					observer,
-				)
-				assert.NoError(t, err)
-				close(observer)
-			}()
-			results := []*backend.TrialInfo{}
-			for r := range observer {
-				results = append(results, r.TrialInfos...)
+					assert.Len(t, results.TrialInfos, 1)
+					assert.Equal(t, trialIdx, results.TrialInfos[0].TrialID)
+				}
 			}
 
-			assert.Len(t, results, 1)
+			cancelObserve()
+			g.Wait()
+		})
 
-			assert.Equal(t, "trial-1", results[0].TrialID)
-		}()
+		t.Run("AllTrialsMultipleObservers", func(t *testing.T) {
+			t.Parallel()
 
-		wg.Add(1)
-		go func() {
-			// Retrieve trials matching "baz"
-			defer wg.Done()
-			observer := make(backend.TrialsInfoObserver)
-			go func() {
-				err := b.ObserveTrials(
-					context.Background(),
-					backend.NewTrialFilter([]string{"trial-1", "trial-2", "trial-3"}, map[string]string{"baz": ""}),
-					0, 2,
-					observer,
-				)
-				assert.NoError(t, err)
-				close(observer)
-			}()
-			results := []*backend.TrialInfo{}
-			for r := range observer {
-				results = append(results, r.TrialInfos...)
+			b := createBackend()
+			defer destroyBackend(b)
+
+			observeCtx, cancelObserve := context.WithCancel(ctx)
+			defer cancelObserve()
+
+			getNextNonEmptyTrialInfoResults := func(observer backend.TrialsInfoObserver) backend.TrialsInfoResult {
+				results := <-observer
+				for ; len(results.TrialInfos) == 0; results = <-observer {
+					continue
+				}
+				return results
 			}
 
-			assert.Len(t, results, 2)
-
-			assert.Equal(t, "trial-1", results[0].TrialID)
-			assert.Equal(t, "trial-2", results[1].TrialID)
-		}()
-
-		wg.Add(1)
-		go func() {
-			// Retrieve the second trial matching "baz"
-			defer wg.Done()
+			// Observing all new trials until `cancelObserve` is called
 			observer := make(backend.TrialsInfoObserver)
+			g := sync.WaitGroup{}
+			g.Add(1)
 			go func() {
+				defer g.Done()
 				err := b.ObserveTrials(
-					context.Background(),
-					backend.NewTrialFilter([]string{}, map[string]string{"baz": ""}),
-					1, 1,
+					observeCtx,
+					backend.NewTrialFilter([]string{}, map[string]string{}),
+					-1, -1,
 					observer,
 				)
-				assert.NoError(t, err)
+				assert.ErrorIs(t, err, context.Canceled)
 				close(observer)
 			}()
-			results := []*backend.TrialInfo{}
-			for r := range observer {
-				results = append(results, r.TrialInfos...)
+
+			// Observing all new trials filtered by properties until `cancelObserve` is called
+			filteredObserver := make(backend.TrialsInfoObserver)
+			g.Add(1)
+			go func() {
+				defer g.Done()
+				err := b.ObserveTrials(
+					observeCtx,
+					backend.NewTrialFilter([]string{}, map[string]string{"key": "value"}),
+					-1, -1,
+					filteredObserver,
+				)
+				assert.ErrorIs(t, err, context.Canceled)
+				close(filteredObserver)
+			}()
+
+			// Create trial1
+			{
+				err := b.CreateOrUpdateTrials(ctx, []*backend.TrialParams{
+					{
+						TrialID: "trial-1",
+						Params:  generateTrialParamsWithProperties(2, 100, map[string]string{"key": "value", "key2": ""}),
+					},
+				})
+				assert.NoError(t, err)
 			}
 
-			assert.Len(t, results, 1)
+			// `observer` receives it
+			{
+				results := getNextNonEmptyTrialInfoResults(observer)
 
-			assert.Equal(t, "trial-2", results[0].TrialID)
-		}()
+				assert.Len(t, results.TrialInfos, 1)
+				assert.Equal(t, "trial-1", results.TrialInfos[0].TrialID)
+			}
 
-		wg.Wait()
+			// `filteredObserver` receives it
+			{
+				results := getNextNonEmptyTrialInfoResults(filteredObserver)
+
+				assert.Len(t, results.TrialInfos, 1)
+				assert.Equal(t, "trial-1", results.TrialInfos[0].TrialID)
+			}
+
+			// Create trial2
+			{
+				err := b.CreateOrUpdateTrials(ctx, []*backend.TrialParams{
+					{
+						TrialID: "trial-2",
+						Params:  generateTrialParams(2, 100),
+					},
+				})
+				assert.NoError(t, err)
+			}
+
+			// `observer` receives it
+			{
+				results := getNextNonEmptyTrialInfoResults(observer)
+
+				assert.Len(t, results.TrialInfos, 1)
+				assert.Equal(t, "trial-2", results.TrialInfos[0].TrialID)
+			}
+
+			// Create trial3
+			{
+				err := b.CreateOrUpdateTrials(ctx, []*backend.TrialParams{
+					{
+						TrialID: "trial-3",
+						Params:  generateTrialParamsWithProperties(2, 100, map[string]string{"key": "value"}),
+					},
+				})
+				assert.NoError(t, err)
+			}
+
+			// `observer` receives it
+			{
+				results := getNextNonEmptyTrialInfoResults(observer)
+
+				assert.Len(t, results.TrialInfos, 1)
+				assert.Equal(t, "trial-3", results.TrialInfos[0].TrialID)
+			}
+
+			// `filteredObserver` receives it
+			{
+				results := getNextNonEmptyTrialInfoResults(filteredObserver)
+
+				assert.Len(t, results.TrialInfos, 1)
+				assert.Equal(t, "trial-3", results.TrialInfos[0].TrialID)
+			}
+
+			cancelObserve()
+			g.Wait()
+		})
+
+		t.Run("LimitedTrials", func(t *testing.T) {
+			t.Parallel()
+
+			b := createBackend()
+			defer destroyBackend(b)
+
+			g := sync.WaitGroup{}
+
+			g.Add(1)
+			go func() {
+				defer g.Done()
+				// Waiting before actually adding the trials
+				time.Sleep(100 * time.Millisecond)
+				err := b.CreateOrUpdateTrials(ctx, []*backend.TrialParams{
+					{
+						TrialID: "trial-1",
+						Params:  generateTrialParamsWithProperties(2, 100, map[string]string{"foo": "bar", "baz": ""}),
+					},
+					{
+						TrialID: "trial-2",
+						Params:  generateTrialParamsWithProperties(4, 150, map[string]string{"baz": ""}),
+					},
+					{
+						TrialID: "trial-3",
+						Params:  generateTrialParamsWithProperties(4, 150, map[string]string{"foo": "bar2"}),
+					},
+				})
+				assert.NoError(t, err)
+			}()
+
+			g.Add(1)
+			go func() {
+				defer g.Done()
+				observer := make(backend.TrialsInfoObserver)
+				g.Add(1)
+				go func() {
+					defer g.Done()
+					err := b.ObserveTrials(
+						ctx,
+						backend.NewTrialFilter([]string{}, map[string]string{"foo": "bar"}),
+						0, 1,
+						observer,
+					)
+					assert.NoError(t, err)
+					close(observer)
+				}()
+				results := []*backend.TrialInfo{}
+				for r := range observer {
+					results = append(results, r.TrialInfos...)
+				}
+
+				assert.Len(t, results, 1)
+
+				assert.Equal(t, "trial-1", results[0].TrialID)
+			}()
+
+			g.Add(1)
+			go func() {
+				defer g.Done()
+				// Retrieve trials matching "baz"
+				observer := make(backend.TrialsInfoObserver)
+				g.Add(1)
+				go func() {
+					defer g.Done()
+					err := b.ObserveTrials(
+						ctx,
+						backend.NewTrialFilter([]string{"trial-1", "trial-2", "trial-3"}, map[string]string{"baz": ""}),
+						0, 2,
+						observer,
+					)
+					assert.NoError(t, err)
+					close(observer)
+				}()
+				results := []*backend.TrialInfo{}
+				for r := range observer {
+					results = append(results, r.TrialInfos...)
+				}
+
+				assert.Len(t, results, 2)
+
+				assert.Equal(t, "trial-1", results[0].TrialID)
+				assert.Equal(t, "trial-2", results[1].TrialID)
+			}()
+
+			g.Add(1)
+			go func() {
+				defer g.Done()
+				// Retrieve the second trial matching "baz"
+				observer := make(backend.TrialsInfoObserver)
+				g.Add(1)
+				go func() {
+					defer g.Done()
+					err := b.ObserveTrials(
+						ctx,
+						backend.NewTrialFilter([]string{}, map[string]string{"baz": ""}),
+						1, 1,
+						observer,
+					)
+					assert.NoError(t, err)
+					close(observer)
+				}()
+				results := []*backend.TrialInfo{}
+				for r := range observer {
+					results = append(results, r.TrialInfos...)
+				}
+
+				assert.Len(t, results, 1)
+
+				assert.Equal(t, "trial-2", results[0].TrialID)
+			}()
+
+			g.Wait()
+		})
 	})
 	t.Run("TestDeleteTrials", func(t *testing.T) {
 		b := createBackend()

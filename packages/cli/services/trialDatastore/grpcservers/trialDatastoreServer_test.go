@@ -305,6 +305,45 @@ func TestAddAndListTrialsPaginated(t *testing.T) {
 	assert.Equal(t, "10", rep.NextTrialHandle)
 }
 
+func TestAddAndListTrialsPaginatedWithTimeout(t *testing.T) {
+	fxt, err := createTrialDatastoreServerTestFixture()
+	assert.NoError(t, err)
+	defer fxt.destroy()
+
+	go func() {
+		// Waiting before actually adding the trials
+		time.Sleep(500 * time.Millisecond)
+		createTrials(t, &fxt, 10)
+	}()
+
+	rep, err := fxt.client.RetrieveTrials(fxt.ctx, &grpcapi.RetrieveTrialsRequest{TrialsCount: 5, Timeout: 1000})
+	assert.NoError(t, err)
+
+	assert.Len(t, rep.TrialInfos, 5)
+	for i := 0; i < 5; i++ {
+		assert.Equal(t, fmt.Sprintf("trial%d", i), rep.TrialInfos[i].TrialId)
+		assert.Equal(t, grpcapi.TrialState_UNKNOWN, rep.TrialInfos[i].LastState)
+		assert.Equal(t, "test", rep.TrialInfos[i].UserId)
+	}
+
+	assert.Equal(t, "5", rep.NextTrialHandle)
+
+	rep, err = fxt.client.RetrieveTrials(
+		fxt.ctx,
+		&grpcapi.RetrieveTrialsRequest{TrialsCount: 5, TrialHandle: rep.NextTrialHandle, Timeout: 1000},
+	)
+	assert.NoError(t, err)
+
+	assert.Len(t, rep.TrialInfos, 5)
+	for i := 0; i < 5; i++ {
+		assert.Equal(t, fmt.Sprintf("trial%d", i+5), rep.TrialInfos[i].TrialId)
+		assert.Equal(t, grpcapi.TrialState_UNKNOWN, rep.TrialInfos[i].LastState)
+		assert.Equal(t, "test", rep.TrialInfos[i].UserId)
+	}
+
+	assert.Equal(t, "10", rep.NextTrialHandle)
+}
+
 func TestAddAndListTrialsSelectedAndPaginated(t *testing.T) {
 	fxt, err := createTrialDatastoreServerTestFixture()
 	assert.NoError(t, err)

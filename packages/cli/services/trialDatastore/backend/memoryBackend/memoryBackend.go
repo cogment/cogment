@@ -268,6 +268,8 @@ func (b *memoryBackend) RetrieveTrials(
 	return result, nil
 }
 
+var errDesiredTrialCountObserved = errors.New("desired trial count observed")
+
 func (b *memoryBackend) ObserveTrials(
 	ctx context.Context,
 	filter backend.TrialFilter,
@@ -281,15 +283,12 @@ func (b *memoryBackend) ObserveTrials(
 	// Observe the trials
 	trialIdx := fromTrialIdx
 	observer := make(utils.ObservableListObserver)
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		defer close(observer)
 		return b.trialIDs.Observe(ctx, fromTrialIdx, observer)
 	})
 	g.Go(func() error {
-		defer cancel()
 		for trialIDItem := range observer {
 			trialID := trialIDItem.(string)
 			data, _ := b.retrieveTrialDatas([]string{trialID})
@@ -306,7 +305,7 @@ func (b *memoryBackend) ObserveTrials(
 				case out <- unitResult:
 					selectedCount++
 					if count > 0 && selectedCount >= count {
-						return nil
+						return errDesiredTrialCountObserved
 					}
 				}
 			}
@@ -315,8 +314,8 @@ func (b *memoryBackend) ObserveTrials(
 		return nil
 	})
 
-	if err := g.Wait(); err != nil && !errors.Is(err, context.Canceled) {
-		// Ignoring canceled errors as we use those to stop the observation once the target count is reached
+	if err := g.Wait(); err != nil && !errors.Is(err, errDesiredTrialCountObserved) {
+		// Ignoring desiredTrialCountObserved errors
 		return err
 	}
 	return nil

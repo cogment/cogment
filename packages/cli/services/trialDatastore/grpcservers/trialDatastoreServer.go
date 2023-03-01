@@ -68,9 +68,9 @@ func (s *trialDatastoreServer) RetrieveTrials(
 	nextPageOffset := 0
 
 	trialFilter := backend.NewTrialFilter(req.TrialIds, req.Properties)
-	trialCount := len(req.TrialIds)
-	if int(req.TrialsCount) < trialCount {
-		trialCount = int(req.TrialsCount)
+	trialCount := int(req.TrialsCount)
+	if len(req.TrialIds) > 0 && len(req.TrialIds) < trialCount {
+		trialCount = len(req.TrialIds)
 	}
 
 	// 1 - Retrieve the trialIds and trialInfos

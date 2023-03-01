@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## v2.12.0 - 2023-02-28
 
+### Fixed
+
+- Not taking into account `RetrieveTrialsRequest.trials_count` in the trial datastore implementation of `TrialDatastoreSP.RetrieveTrials`.
+
 ### Added
 
 - Key/values properties can be defined in the trial parameters
