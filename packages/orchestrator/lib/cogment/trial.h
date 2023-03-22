@@ -83,7 +83,7 @@ public:
   void message_received(const std::string& source, cogmentAPI::Message&& message);
   void actor_disengaging(const Actor& actor);
 
-  void set_info(cogmentAPI::TrialInfo* info, bool with_observations, bool with_actors);
+  void set_info(cogmentAPI::TrialInfo* info, bool with_observations, bool with_actors) const;
 
 private:
   Trial(Orchestrator* orch, const std::string& user_id, const std::string& id, const Metrics& met);
@@ -95,6 +95,7 @@ private:
   void process_actions();
   cogmentAPI::DatalogSample& make_new_sample();
   cogmentAPI::DatalogSample* get_last_sample();
+  const cogmentAPI::DatalogSample* get_last_sample() const;
   void flush_samples();
   void set_state(InternalState state);
   void advance_tick();
@@ -124,7 +125,7 @@ private:
   int64_t m_last_action_tick;
 
   std::mutex m_state_lock;
-  std::mutex m_sample_lock;
+  mutable std::mutex m_sample_lock;
   std::mutex m_sample_message_lock;
   std::shared_mutex m_terminating_lock;
 

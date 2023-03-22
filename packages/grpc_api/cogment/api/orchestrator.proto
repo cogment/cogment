@@ -113,11 +113,16 @@ message TrialListRequest {
   // Only return trials that are in the specified states.
   // If empty, every single trial will be returned.
   repeated TrialState filter = 1;
+
+  bool full_info = 2;
 }
 
 message TrialListEntry {
   string trial_id = 1;
   TrialState state = 2;
+
+  // Only present if 'full_info' is true. In which case 'trial_id' and 'state' are not set.
+  TrialInfo info = 3;
 }
 
 // ----------------------------------------------------------------------------------------------------------

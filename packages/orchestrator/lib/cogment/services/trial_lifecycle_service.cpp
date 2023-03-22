@@ -162,14 +162,23 @@ grpc::Status TrialLifecycleService::WatchTrials(grpc::ServerContext*, const cogm
       }
     }
 
+    const bool full_info = in->full_info();
+
     // This will get invoked on each state change of a trial
-    auto handler = [state_mask, out](const Trial& trial) -> bool {
+    auto handler = [state_mask, full_info, out](const Trial& trial) -> bool {
       auto state = get_trial_api_state(trial.state());
 
       if (state_mask.test(static_cast<std::size_t>(state))) {
         cogmentAPI::TrialListEntry msg;
-        msg.set_trial_id(trial.id());
-        msg.set_state(state);
+        if (!full_info) {
+          msg.set_trial_id(trial.id());
+          msg.set_state(state);
+        }
+        else {
+          auto info = msg.mutable_info();
+          trial.set_info(info, false, false);
+        }
+
         return out->Write(msg);
       }
       return true;

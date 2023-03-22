@@ -225,6 +225,17 @@ cogmentAPI::DatalogSample* Trial::get_last_sample() {
   }
 }
 
+// Note the different locking mechanism from the non-const version
+const cogmentAPI::DatalogSample* Trial::get_last_sample() const {
+  const std::unique_lock ul(m_sample_lock, std::try_to_lock);
+  if (ul && !m_step_data.empty()) {
+    return &(m_step_data.back());
+  }
+  else {
+    return nullptr;
+  }
+}
+
 cogmentAPI::DatalogSample& Trial::make_new_sample() {
   const std::lock_guard lg(m_sample_lock);
 
@@ -1415,10 +1426,19 @@ bool Trial::is_stale() {
   return stale;
 }
 
-void Trial::set_info(cogmentAPI::TrialInfo* info, bool with_observations, bool with_actors) {
+void Trial::set_info(cogmentAPI::TrialInfo* info, bool with_observations, bool with_actors) const {
   if (info == nullptr) {
     spdlog::error("Trial [{}] request for info with no storage", m_id);
     return;
+  }
+
+  info->set_trial_id(m_id);
+  info->set_state(get_trial_api_state(m_state));
+  info->set_tick_id(m_tick_id);
+  info->mutable_properties()->insert(m_params.properties().begin(), m_params.properties().end());
+
+  if (m_env != nullptr) {
+    info->set_env_name(m_env->name());
   }
 
   uint64_t end;
@@ -1429,28 +1449,9 @@ void Trial::set_info(cogmentAPI::TrialInfo* info, bool with_observations, bool w
     end = m_end_timestamp;
   }
   info->set_trial_duration(end - m_start_timestamp);
-  info->set_trial_id(m_id);
-  info->mutable_properties()->insert(m_params.properties().begin(), m_params.properties().end());
 
-  // The state and tick may not be synchronized here, but it is better
-  // to have the latest state (as opposed to the state of the sample).
-  info->set_state(get_trial_api_state(m_state));
-
-  auto sample = get_last_sample();
-  if (sample == nullptr) {
-    info->set_tick_id(m_tick_id);
+  if (!with_observations and !with_actors) {
     return;
-  }
-
-  if (m_env != nullptr) {
-    info->set_env_name(m_env->name());
-  }
-
-  // We want to make sure the tick_id and observation are from the same tick
-  const uint64_t tick = sample->info().tick_id();
-  info->set_tick_id(tick);
-  if (with_observations && sample->has_observations()) {
-    info->mutable_latest_observation()->CopyFrom(sample->observations());
   }
 
   if (with_actors && m_state >= InternalState::pending) {
@@ -1458,6 +1459,22 @@ void Trial::set_info(cogmentAPI::TrialInfo* info, bool with_observations, bool w
       auto trial_actor = info->add_actors_in_trial();
       trial_actor->set_actor_class(actor->actor_class());
       trial_actor->set_name(actor->actor_name());
+    }
+  }
+
+  if (with_observations) {
+    auto sample = get_last_sample();
+    if (sample == nullptr) {
+      return;
+    }
+
+    if (sample->has_observations()) {
+      // We want to make sure the tick_id and observation are from the same tick.
+      // The latest state (set above) may not match the state of the sample, but we
+      // prefer the latest state to the observation sample state.
+      info->set_tick_id(sample->info().tick_id());
+
+      info->mutable_latest_observation()->CopyFrom(sample->observations());
     }
   }
 }

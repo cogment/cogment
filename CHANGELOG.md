@@ -7,13 +7,21 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
-## v2.12.1 - 2023-03-06
+### Fixed
 
-## v2.12.0 - 2023-02-28
+- Environment name not in TrialInfo (returned by GetTrialInfo) if called after the end of the trial
+
+### Added
+
+- Support for full TrialInfo (not just id and state) from WatchTrial
+
+## v2.12.1 - 2023-03-06
 
 ### Fixed
 
 - Not taking into account `RetrieveTrialsRequest.trials_count` in the trial datastore implementation of `TrialDatastoreSP.RetrieveTrials`.
+
+## v2.12.0 - 2023-02-28
 
 ### Added
 

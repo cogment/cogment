@@ -372,6 +372,7 @@ void Environment::dispatch_actions(cogmentAPI::ActionSet&& set, bool last) {
   msg.set_state(cogmentAPI::CommunicationState::NORMAL);
   *(msg.mutable_action_set()) = std::move(set);
   write_to_stream(std::move(msg));
+  SPDLOG_TRACE("Trial [{}] - Actions dispatched to environment [{}] for step [{}]", m_id, nb_actions, m_tick_id);
 }
 
 void Environment::dispatch_message(cogmentAPI::Message&& message) {
