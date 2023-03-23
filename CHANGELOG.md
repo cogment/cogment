@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.13.0 - 2023-03-23
+
 ### Fixed
 
 - Environment name not in TrialInfo (returned by GetTrialInfo) if called after the end of the trial
