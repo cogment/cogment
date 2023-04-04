@@ -20,12 +20,12 @@ shfmt:
   script:
     - shfmt -i 2 -ci -d .
 
-apache_licenses_check:
+licenses_checker:
   stage: build
   needs: []
-  image: registry.gitlab.com/ai-r/apache-license-checker:latest
+  image: registry.gitlab.com/ai-r/cogment/license-checker:latest
   script:
-    - apache-license-checker
+    - license-checker
 
 .base_docker_build:
   image: docker:20.10.7
