@@ -132,7 +132,7 @@ func executeSingleCommand(ctx context.Context, name string,
 	log.WithFields(logrus.Fields{
 		"cmd":  name,
 		"what": fmt.Sprintf("%v", realArgs),
-	}).Info("Launch")
+	}).Trace("Launch")
 
 	cmd := exec.CommandContext(ctx, realArgs[0], realArgs[1:]...)
 	cmd.Env = mapToStrings(env)
@@ -173,11 +173,11 @@ func executeSingleCommand(ctx context.Context, name string,
 		log.WithFields(logrus.Fields{
 			"cmd":    name,
 			"status": err,
-		}).Info("Script command failed")
+		}).Debug("Script command failed")
 	} else {
 		log.WithFields(logrus.Fields{
 			"cmd": name,
-		}).Info("Script command completed")
+		}).Trace("Script command completed")
 	}
 	return err
 }
@@ -204,14 +204,14 @@ func launchScript(ctx context.Context, g *errgroup.Group, scriptName string, scr
 				log.WithFields(logrus.Fields{
 					"script": scriptName,
 					"error":  fmt.Sprintf("%v", err),
-				}).Info("Script failed")
+				}).Debug("Script failed")
 				return err
 			}
 		}
 
 		log.WithFields(logrus.Fields{
 			"script": scriptName,
-		}).Info("Script completed")
+		}).Trace("Script completed")
 
 		return ErrScriptCompleted
 	})
@@ -233,7 +233,7 @@ func LaunchScripts(scripts map[string]Script, rootPath string) error {
 
 		log.WithFields(logrus.Fields{
 			"signal": fmt.Sprintf("%v", sig),
-		}).Info("Stopping due to signal")
+		}).Trace("Stopping due to signal")
 
 		cancel()
 	}()
@@ -251,12 +251,22 @@ func LaunchScripts(scripts map[string]Script, rootPath string) error {
 	return g.Wait()
 }
 
-// Launches a concurrent set of named scripts as sepcified in a yaml file.
+// Launches a concurrent set of named scripts as specified in a yaml file.
 // See LaunchScripts() for details
-func LaunchFromFile(fileName string) error {
+func LaunchFromFile(fileName string, quietLevel int) error {
 	if err := configureLog(); err != nil {
 		return err
 	}
+
+	// Most simplistic way to add a "quiet" mode
+	if quietLevel <= 0 {
+		log.SetLevel(logrus.TraceLevel)
+	} else if quietLevel == 1 {
+		log.SetLevel(logrus.DebugLevel)
+	} else if quietLevel >= 2 {
+		log.SetLevel(logrus.InfoLevel)
+	}
+
 	rootPath := filepath.Dir(fileName)
 
 	scriptsToLaunch, err := LoadScriptsFromYaml(fileName)

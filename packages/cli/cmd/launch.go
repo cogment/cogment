@@ -22,15 +22,25 @@ import (
 )
 
 var launchCmd = &cobra.Command{
-	Use:          "launch [flags] <CFG>...",
+	Use:          "launch [-q] <CFG>...",
 	Short:        "Launches and manages processes for local deployments",
 	Args:         cobra.MinimumNArgs(1),
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := launcher.LaunchFromFile(args[0])
+		configFile := args[0]
+		quietLevel, err := cmd.Flags().GetCount("quiet")
+		if err != nil {
+			return err
+		}
+
+		err = launcher.LaunchFromFile(configFile, quietLevel)
 		if !errors.Is(err, launcher.ErrScriptCompleted) {
 			return err
 		}
 		return nil
 	},
+}
+
+func init() {
+	launchCmd.Flags().CountP("quiet", "q", "")
 }
