@@ -24,12 +24,14 @@ import (
 )
 
 const (
-	directoryPortKey            = "port"
-	directoryPortEnv            = "COGMENT_DIRECTORY_PORT"
-	directoryGrpcReflectionKey  = "grpc_reflection"
-	directoryGrpcReflectionEnv  = "COGMENT_DIRECTORY_GRPC_REFLECTION"
-	directoryRegistrationLagKey = "registration_lag"
-	directoryRegistrationLagEnv = "COGMENT_DIRECTORY_REGISTRATION_LAG"
+	directoryPortKey                = "port"
+	directoryPortEnv                = "COGMENT_DIRECTORY_PORT"
+	directoryGrpcReflectionKey      = "grpc_reflection"
+	directoryGrpcReflectionEnv      = "COGMENT_DIRECTORY_GRPC_REFLECTION"
+	directoryRegistrationLagKey     = "registration_lag"
+	directoryRegistrationLagEnv     = "COGMENT_DIRECTORY_REGISTRATION_LAG"
+	directoryPersistenceFilenameKey = "persistence_file"
+	directoryPersistenceFilenameEnv = "COGMENT_DIRECTORY_PERSISTENCE_FILE"
 )
 
 var directoryViper = viper.New()
@@ -50,9 +52,10 @@ var directoryCmd = &cobra.Command{
 		}).Info("Starting the directory service")
 
 		options := directory.Options{
-			Port:            directoryViper.GetUint(directoryPortKey),
-			GrpcReflection:  directoryViper.GetBool(directoryGrpcReflectionKey),
-			RegistrationLag: directoryViper.GetUint(directoryRegistrationLagKey),
+			Port:                directoryViper.GetUint(directoryPortKey),
+			GrpcReflection:      directoryViper.GetBool(directoryGrpcReflectionKey),
+			RegistrationLag:     directoryViper.GetUint(directoryRegistrationLagKey),
+			PersistenceFilename: directoryViper.GetString(directoryPersistenceFilenameKey),
 		}
 
 		return directory.Run(options)
@@ -82,6 +85,14 @@ func init() {
 		directoryRegistrationLagKey,
 		directoryViper.GetUint(directoryRegistrationLagKey),
 		"Acceptable lag for services registration before they are declared not found in the directory (seconds)",
+	)
+
+	directoryViper.SetDefault(directoryPersistenceFilenameKey, directory.DefaultOptions.PersistenceFilename)
+	_ = directoryViper.BindEnv(directoryPersistenceFilenameKey, directoryPersistenceFilenameEnv)
+	directoryCmd.Flags().String(
+		directoryPersistenceFilenameKey,
+		directoryViper.GetString(directoryPersistenceFilenameKey),
+		"Filename where to store persistence data",
 	)
 
 	// Don't sort alphabetically, keep insertion order

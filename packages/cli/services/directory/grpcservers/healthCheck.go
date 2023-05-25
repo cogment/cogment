@@ -26,7 +26,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/cogment/cogment/utils"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -45,53 +44,25 @@ const (
 
 func (ds *DirectoryServer) PeriodicHealthCheck() (func(), error) {
 	running := true
-
 	cancelChecks := func() {
 		running = false
 	}
 
-	db := ds.db
-
 	go func() {
 		tickCount := 0
+
+		log.Debug("Initial directory scan to check health of persisted entries")
+		ds.nowHealthCheck(&running, true)
 
 		for running {
 			if tickCount < dbScanPeriodTicks {
 				time.Sleep(tickPeriod)
 				tickCount++
-				continue
-			}
-			tickCount = 0
+			} else {
+				tickCount = 0
 
-			ids, err := db.SelectAllIDs()
-			if err != nil {
-				log.Error("Health check failed; could not retrieve IDs")
-				continue
-			}
-
-			log.Debug("Directory scan to check health of entries")
-			now := utils.Timestamp()
-			for _, id := range ids {
-				if !running {
-					break
-				}
-
-				record, err := db.SelectByID(id)
-				if err != nil {
-					// Id was removed in the interim
-					continue
-				}
-
-				if (now - record.lastHealthCheckTimestamp) < uint64(healthCheckPeriod.Nanoseconds()) {
-					continue
-				}
-
-				healthy := healthCheck(record, now)
-				if !healthy && record.nbFailedHealthChecks >= maxFailedHealthChecks {
-					db.Delete(id)
-					log.WithFields(logrus.Fields{"service_id": id}).Info(
-						"Service removed after failing multiple health checks")
-				}
+				log.Debug("Periodic directory scan to check health of entries")
+				ds.nowHealthCheck(&running, false)
 			}
 		}
 	}()
@@ -99,48 +70,84 @@ func (ds *DirectoryServer) PeriodicHealthCheck() (func(), error) {
 	return cancelChecks, nil
 }
 
-func healthCheck(record *DbRecord, now uint64) bool {
-	record.lastHealthCheckTimestamp = now
+func (ds *DirectoryServer) nowHealthCheck(running *bool, immediateRemoval bool) {
+	ids, err := ds.db.SelectAllIDs()
+	if err != nil {
+		log.Error("Health check failed; could not retrieve IDs")
+		return
+	}
 
-	if record.permanent {
-		record.nbFailedHealthChecks = 0
+	now := utils.Timestamp()
+	for _, id := range ids {
+		if !*running {
+			break
+		}
+
+		record, err := ds.db.SelectByID(id)
+		if err != nil {
+			// Id was removed in the interim
+			continue
+		}
+
+		if (now - record.LastHealthCheckTimestamp) < uint64(healthCheckPeriod.Nanoseconds()) {
+			continue
+		}
+
+		healthy := healthCheck(record, now)
+		if !healthy && (immediateRemoval || record.NbFailedHealthChecks >= maxFailedHealthChecks) {
+			ds.db.Delete(id)
+
+			if immediateRemoval {
+				log.WithField("service_id", id).Info("Service removed after failing health check")
+			} else {
+				log.WithField("service_id", id).Info("Service removed after failing multiple health checks")
+			}
+		}
+	}
+}
+
+func healthCheck(record *DbRecord, now uint64) bool {
+	record.LastHealthCheckTimestamp = now
+
+	if record.Permanent {
+		record.NbFailedHealthChecks = 0
 		return true
 	}
 
-	if (now - record.registerTimestamp) > uint64(maxLifetime.Nanoseconds()) {
-		log.Debug("Max lifetime reached for ID [", record.id, "]")
-		record.nbFailedHealthChecks++
+	if (now - record.RegisterTimestamp) > uint64(maxLifetime.Nanoseconds()) {
+		log.Debug("Max lifetime reached for ID [", record.Sid, "]")
+		record.NbFailedHealthChecks++
 		return false
 	}
 
-	if record.endpoint.Protocol != cogmentAPI.ServiceEndpoint_GRPC &&
-		record.endpoint.Protocol != cogmentAPI.ServiceEndpoint_GRPC_SSL {
+	if record.Endpoint.Protocol != cogmentAPI.ServiceEndpoint_GRPC &&
+		record.Endpoint.Protocol != cogmentAPI.ServiceEndpoint_GRPC_SSL {
 		// The endpoint is not a network resource
-		record.nbFailedHealthChecks = 0
+		record.NbFailedHealthChecks = 0
 		return true
 	}
 
 	// We don't check cogment health if not a cogment service (or if SSL required), only tcp health.
 	// TODO: Should we really check non cogment services? They could be UDP, or something else completely!
 	// TODO: The directory could be set with SSL certificates, then we could try to check cogment SSL services
-	if record.details.Type > cogmentAPI.ServiceType_MODEL_REGISTRY_SERVICE ||
-		record.endpoint.Protocol == cogmentAPI.ServiceEndpoint_GRPC_SSL {
-		err := tcpCheck(record.endpoint.Host, record.endpoint.Port)
+	if record.Details.Type > cogmentAPI.ServiceType_MODEL_REGISTRY_SERVICE ||
+		record.Endpoint.Protocol == cogmentAPI.ServiceEndpoint_GRPC_SSL {
+		err := tcpCheck(record.Endpoint.Host, record.Endpoint.Port)
 		if err != nil {
-			log.WithFields(logrus.Fields{"error": err.Error()}).Debug("Failed TCP health check for ID [", record.id, "]")
-			record.nbFailedHealthChecks++
+			log.Debug("Failed TCP health check for ID [", record.Sid, "] - ", err.Error())
+			record.NbFailedHealthChecks++
 			return false
 		}
 	} else {
-		err := cogmentCheck(record.details.Type, record.endpoint.Host, record.endpoint.Port)
+		err := cogmentCheck(record.Details.Type, record.Endpoint.Host, record.Endpoint.Port)
 		if err != nil {
-			log.WithFields(logrus.Fields{"error": err.Error()}).Debug("Failed Cogment health check for ID [", record.id, "]")
-			record.nbFailedHealthChecks++
+			log.Debug("Failed Cogment health check for ID [", record.Sid, "] - ", err.Error())
+			record.NbFailedHealthChecks++
 			return false
 		}
 	}
 
-	record.nbFailedHealthChecks = 0
+	record.NbFailedHealthChecks = 0
 	return true
 }
 

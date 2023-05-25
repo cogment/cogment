@@ -40,14 +40,14 @@ type DirectoryServer struct {
 	db              *MemoryDB
 }
 
-// We want to sort in reverse: from most recent (larger number) to less recent (smaller number).
-// So the "Less" function is actually a "More".
+// We want to implicitly sort in reverse: from most recent (larger number) to less
+// recent (smaller number). So the "Less" function is actually a "More".
 type sortableRecords []*DbRecord
 
 func (sr sortableRecords) Len() int      { return len(sr) }
 func (sr sortableRecords) Swap(i, j int) { sr[i], sr[j] = sr[j], sr[i] }
 func (sr sortableRecords) Less(i, j int) bool {
-	return sr[i].registerTimestamp > sr[j].registerTimestamp
+	return sr[i].RegisterTimestamp > sr[j].RegisterTimestamp
 }
 
 func (ds *DirectoryServer) dbUpdate(request *cogmentAPI.RegisterRequest, token string) (ServiceID, string, error) {
@@ -57,7 +57,7 @@ func (ds *DirectoryServer) dbUpdate(request *cogmentAPI.RegisterRequest, token s
 
 	selectionIds, err := ds.db.SelectByDetails(request.Details)
 	if err != nil {
-		return 0, "", fmt.Errorf("Unable to inquire service for duplice verification [%w]", err)
+		return 0, "", fmt.Errorf("Unable to inquire service for duplicate verification [%w]", err)
 	}
 
 	if len(selectionIds) == 0 {
@@ -71,10 +71,10 @@ func (ds *DirectoryServer) dbUpdate(request *cogmentAPI.RegisterRequest, token s
 		if err != nil {
 			continue
 		}
-		if !record.permanent {
+		if !record.Permanent {
 			continue
 		}
-		if record.authenticationToken != token {
+		if record.AuthenticationToken != token {
 			continue
 		}
 
@@ -87,14 +87,14 @@ func (ds *DirectoryServer) dbUpdate(request *cogmentAPI.RegisterRequest, token s
 		}
 
 		updatedRecord := DbRecord{
-			lastHealthCheckTimestamp: utils.Timestamp(), // This is an indication that a permanent has been updated
-			nbFailedHealthChecks:     0,
-			permanent:                record.permanent,
-			authenticationToken:      record.authenticationToken,
-			secret:                   record.secret,
+			LastHealthCheckTimestamp: utils.Timestamp(), // This is an indication that a permanent has been updated
+			NbFailedHealthChecks:     0,
+			Permanent:                record.Permanent,
+			AuthenticationToken:      record.AuthenticationToken,
+			Secret:                   record.Secret,
 		}
-		proto.Merge(&updatedRecord.endpoint, request.Endpoint)
-		proto.Merge(&updatedRecord.details, request.Details)
+		proto.Merge(&updatedRecord.Endpoint, request.Endpoint)
+		proto.Merge(&updatedRecord.Details, request.Details)
 
 		err = ds.db.Update(id, &updatedRecord)
 		if err != nil {
@@ -103,7 +103,7 @@ func (ds *DirectoryServer) dbUpdate(request *cogmentAPI.RegisterRequest, token s
 
 		log.WithFields(logrus.Fields{"service_id": id}).Info("Permanent service updated")
 		updatedID = id
-		secret = record.secret
+		secret = record.Secret
 	}
 
 	return updatedID, secret, nil
@@ -113,14 +113,14 @@ func (ds *DirectoryServer) dbRegister(request *cogmentAPI.RegisterRequest, token
 	secret := utils.RandomString(secretLength)
 
 	newRecord := DbRecord{
-		lastHealthCheckTimestamp: 0,
-		nbFailedHealthChecks:     0,
-		permanent:                request.Permanent,
-		authenticationToken:      token,
-		secret:                   secret,
+		LastHealthCheckTimestamp: 0,
+		NbFailedHealthChecks:     0,
+		Permanent:                request.Permanent,
+		AuthenticationToken:      token,
+		Secret:                   secret,
 	}
-	proto.Merge(&newRecord.endpoint, request.Endpoint)
-	proto.Merge(&newRecord.details, request.Details)
+	proto.Merge(&newRecord.Endpoint, request.Endpoint)
+	proto.Merge(&newRecord.Details, request.Details)
 
 	err := ds.db.Insert(&newRecord)
 	if err != nil {
@@ -128,24 +128,24 @@ func (ds *DirectoryServer) dbRegister(request *cogmentAPI.RegisterRequest, token
 	}
 
 	log.WithFields(logrus.Fields{
-		"service_id": newRecord.id,
-		"type":       newRecord.details.Type,
-		"permanent":  newRecord.permanent,
+		"service_id": newRecord.Sid,
+		"type":       newRecord.Details.Type,
+		"permanent":  newRecord.Permanent,
 		"token":      len(token) > 0,
 	}).Info("New registered service")
 	log.WithFields(logrus.Fields{
-		"service_id": newRecord.id,
+		"service_id": newRecord.Sid,
 		"token":      token,
 		"secret":     secret,
-		"endpoint":   newRecord.endpoint.String(),
-		"details":    newRecord.details.String(),
+		"endpoint":   newRecord.Endpoint.String(),
+		"details":    newRecord.Details.String(),
 	}).Debug("New service")
 
-	if !healthCheck(&newRecord, newRecord.registerTimestamp) {
-		log.WithFields(logrus.Fields{"service_id": newRecord.id}).Debug("Failed initial health check")
+	if !healthCheck(&newRecord, newRecord.RegisterTimestamp) {
+		log.WithFields(logrus.Fields{"service_id": newRecord.Sid}).Debug("Failed initial health check")
 	}
 
-	return newRecord.id, newRecord.secret, nil
+	return newRecord.Sid, newRecord.Secret, nil
 }
 
 func (ds *DirectoryServer) dbDeregister(request *cogmentAPI.DeregisterRequest, token string) error {
@@ -154,12 +154,12 @@ func (ds *DirectoryServer) dbDeregister(request *cogmentAPI.DeregisterRequest, t
 	record, err := ds.db.SelectByID(id)
 	if err != nil {
 		return err
-	} else if record.authenticationToken != token || record.secret != request.Secret {
+	} else if record.AuthenticationToken != token || record.Secret != request.Secret {
 		log.WithFields(logrus.Fields{
 			"service_id":     id,
-			"db_token":       record.authenticationToken,
+			"db_token":       record.AuthenticationToken,
 			"request_token":  token,
-			"db_secret":      record.secret,
+			"db_secret":      record.Secret,
 			"request_secret": request.Secret,
 		}).Debug("Authentication failure")
 		return fmt.Errorf("Authentication failure")
@@ -200,10 +200,10 @@ func (ds *DirectoryServer) dbInquire(request *cogmentAPI.InquireRequest, token s
 			}
 			// else: the service was removed since we got the ID
 
-		} else if record.authenticationToken != token {
+		} else if record.AuthenticationToken != token {
 			logAuth := log.WithFields(logrus.Fields{
 				"service_id":    id,
-				"db_token":      record.authenticationToken,
+				"db_token":      record.AuthenticationToken,
 				"request_token": token,
 			})
 
@@ -214,7 +214,7 @@ func (ds *DirectoryServer) dbInquire(request *cogmentAPI.InquireRequest, token s
 			}
 			logAuth.Debug("Authentication failure")
 
-		} else if record.nbFailedHealthChecks == 0 {
+		} else if record.NbFailedHealthChecks == 0 {
 			matches = append(matches, record)
 		}
 	}
@@ -222,6 +222,10 @@ func (ds *DirectoryServer) dbInquire(request *cogmentAPI.InquireRequest, token s
 	sort.Sort(matches)
 
 	return &matches, nil
+}
+
+func (ds *DirectoryServer) SaveDatabase() error {
+	return ds.db.Save()
 }
 
 // gRPC interface
@@ -369,10 +373,10 @@ func (ds *DirectoryServer) Inquire(request *cogmentAPI.InquireRequest, outStream
 
 	for _, record := range *matches {
 		data := cogmentAPI.FullServiceData{
-			Endpoint:  &record.endpoint,
-			ServiceId: uint64(record.id),
-			Details:   &record.details,
-			Permanent: record.permanent,
+			Endpoint:  &record.Endpoint,
+			ServiceId: uint64(record.Sid),
+			Details:   &record.Details,
+			Permanent: record.Permanent,
 		}
 		reply := cogmentAPI.InquireReply{Data: &data}
 
@@ -391,10 +395,12 @@ func (ds *DirectoryServer) Version(context.Context, *cogmentAPI.VersionRequest) 
 	return &cogmentAPI.VersionInfo{}, nil
 }
 
-func RegisterDirectoryServer(grpcServer grpc.ServiceRegistrar, regLag uint) (*DirectoryServer, error) {
-	server := DirectoryServer{}
-	server.db = MakeMemoryDb()
-	server.registrationLag = regLag
+func RegisterDirectoryServer(grpcServer grpc.ServiceRegistrar, regLag uint, persistenceFilename string,
+) (*DirectoryServer, error) {
+	server := DirectoryServer{
+		db:              MakeMemoryDb(persistenceFilename),
+		registrationLag: regLag,
+	}
 
 	cogmentAPI.RegisterDirectorySPServer(grpcServer, &server)
 

@@ -15,7 +15,10 @@
 package grpcservers
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"sync"
 
 	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
@@ -26,20 +29,21 @@ type ServiceID uint64
 
 type DbRecord struct {
 	// Internal DB data (set/maintained by the DB)
-	id                ServiceID // Redundant but simplifies code
-	registerTimestamp uint64
+	Sid               ServiceID // Redundant but simplifies code
+	RegisterTimestamp uint64
 
-	// Internal service data (set/maintained by the directory)
-	lastHealthCheckTimestamp uint64
-	nbFailedHealthChecks     uint // since the last successful health check
+	// Internal service data (set/maintained by the directory and not
+	// consistently persisted)
+	LastHealthCheckTimestamp uint64
+	NbFailedHealthChecks     uint // since the last successful health check
 
 	// External service data
-	permanent           bool
-	authenticationToken string
-	secret              string
+	Permanent           bool
+	AuthenticationToken string
+	Secret              string
 
-	endpoint cogmentAPI.ServiceEndpoint
-	details  cogmentAPI.ServiceDetails
+	Endpoint cogmentAPI.ServiceEndpoint
+	Details  cogmentAPI.ServiceDetails
 }
 
 type MemoryDB struct {
@@ -48,14 +52,34 @@ type MemoryDB struct {
 
 	// We will need to add indexes when/if efficiency is needed
 	// At least for the service type, maybe for special properties (class_name, implementation)
+
+	persistenceFile *os.File
 }
 
-func MakeMemoryDb() *MemoryDB {
+func MakeMemoryDb(filename string) *MemoryDB {
 	// We may need to initialize indexes and other data here eventually
-	return &MemoryDB{
+	md := MemoryDB{
 		data:  make(map[ServiceID]*DbRecord),
 		mutex: sync.Mutex{},
 	}
+
+	if len(filename) > 0 {
+		file, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0600)
+		if err != nil {
+			log.WithField("filename", filename).Warn("Could not open/create persistence file - ", err)
+		} else {
+			md.persistenceFile = file
+
+			err = md.fromFile()
+			if err != nil {
+				log.WithField("filename", filename).Warn("Could not load persistence file - ", err)
+			} else {
+				log.Info("Loaded [", len(md.data), "] entries from persistence file")
+			}
+		}
+	}
+
+	return &md
 }
 
 func (md *MemoryDB) getNewServiceID() ServiceID {
@@ -93,8 +117,8 @@ func (md *MemoryDB) SelectByID(id ServiceID) (*DbRecord, error) {
 	return record, nil
 }
 
+// Everything provided must match what is in the DB
 func (md *MemoryDB) SelectByDetails(inquiryDetails *cogmentAPI.ServiceDetails) ([]ServiceID, error) {
-	// Everything provided must match what is in the DB
 	md.mutex.Lock()
 	defer md.mutex.Unlock()
 
@@ -104,11 +128,11 @@ func (md *MemoryDB) SelectByDetails(inquiryDetails *cogmentAPI.ServiceDetails) (
 
 	var result []ServiceID
 	for id, record := range md.data {
-		if inquiryHasType && record.details.Type != inquiryDetails.Type {
+		if inquiryHasType && record.Details.Type != inquiryDetails.Type {
 			continue
 		}
 
-		if inquiryPropertyFilter.Selects(record.details.Properties) {
+		if inquiryPropertyFilter.Selects(record.Details.Properties) {
 			result = append(result, id)
 		}
 	}
@@ -121,9 +145,14 @@ func (md *MemoryDB) Insert(record *DbRecord) error {
 	defer md.mutex.Unlock()
 
 	newID := md.getNewServiceID()
-	record.id = newID
-	record.registerTimestamp = utils.Timestamp()
+	record.Sid = newID
+	record.RegisterTimestamp = utils.Timestamp()
 	md.data[newID] = record
+
+	err := md.toFile()
+	if err != nil {
+		log.Warn("Could not save new record to persistence file - ", err)
+	}
 
 	return nil
 }
@@ -137,13 +166,89 @@ func (md *MemoryDB) Update(id ServiceID, record *DbRecord) error {
 		return fmt.Errorf("Unknown ID [%d] to update", id)
 	}
 
-	record.id = id
-	record.registerTimestamp = oldRecord.registerTimestamp
+	record.Sid = id
+	record.RegisterTimestamp = oldRecord.RegisterTimestamp
 	md.data[id] = record
+
+	err := md.toFile()
+	if err != nil {
+		log.Warn("Could not update record in persistence file - ", err)
+	}
 
 	return nil
 }
 
 func (md *MemoryDB) Delete(id ServiceID) {
+	md.mutex.Lock()
+	defer md.mutex.Unlock()
+
 	delete(md.data, id)
+
+	err := md.toFile()
+	if err != nil {
+		log.Warn("Could not remove record in persistence file - ", err)
+	}
+}
+
+func (md *MemoryDB) Save() error {
+	md.mutex.Lock()
+	defer md.mutex.Unlock()
+
+	return md.toFile()
+}
+
+func (md *MemoryDB) fromFile() error {
+	if md.persistenceFile != nil {
+		_, err := md.persistenceFile.Seek(0, 0)
+		if err != nil {
+			return err
+		}
+
+		fileData, err := io.ReadAll(md.persistenceFile)
+		if err != nil {
+			return err
+		}
+		if len(fileData) == 0 {
+			return nil
+		}
+
+		if len(md.data) != 0 {
+			return fmt.Errorf("Can only read persistent data in a new database")
+		}
+
+		err = json.Unmarshal(fileData, &md.data)
+		if err != nil {
+			md.data = make(map[ServiceID]*DbRecord)
+			return err
+		}
+
+		for _, record := range md.data {
+			record.LastHealthCheckTimestamp = 0
+		}
+	}
+
+	return nil
+}
+
+// This persistence system (i.e. re-save everything for every change) is workable only
+// for a very small database with relatively rare changes (which is our use case).
+func (md *MemoryDB) toFile() error {
+	if md.persistenceFile != nil {
+		fileData, err := json.Marshal(md.data)
+		if err != nil {
+			return err
+		}
+
+		endOffset, err := md.persistenceFile.WriteAt(fileData, 0)
+		if err != nil {
+			return err
+		}
+
+		err = md.persistenceFile.Truncate(int64(endOffset))
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

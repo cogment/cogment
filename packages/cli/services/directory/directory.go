@@ -23,20 +23,22 @@ import (
 )
 
 type Options struct {
-	Port            uint
-	GrpcReflection  bool
-	RegistrationLag uint
+	Port                uint
+	GrpcReflection      bool
+	RegistrationLag     uint
+	PersistenceFilename string
 }
 
 var DefaultOptions = Options{
-	Port:            9005,
-	GrpcReflection:  false,
-	RegistrationLag: 0,
+	Port:                9005,
+	GrpcReflection:      false,
+	RegistrationLag:     0,
+	PersistenceFilename: ".cogment-directory-data",
 }
 
 func Run(options Options) error {
 	server := utils.NewGrpcServer(options.GrpcReflection)
-	dirServer, err := grpcservers.RegisterDirectoryServer(server, options.RegistrationLag)
+	dirServer, err := grpcservers.RegisterDirectoryServer(server, options.RegistrationLag, options.PersistenceFilename)
 	if err != nil {
 		return err
 	}
@@ -56,6 +58,11 @@ func Run(options Options) error {
 	log.WithField("port", options.Port).Info("Listening")
 	err = server.Serve(listener)
 	log.Info("Closing")
+
+	saveErr := dirServer.SaveDatabase()
+	if saveErr != nil {
+		log.Warn("Failed to save database on close - ", saveErr)
+	}
 
 	return err
 }

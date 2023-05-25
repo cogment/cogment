@@ -11,7 +11,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- "quiet" ioption for launcher
+- "quiet" (-q) option for launcher
+- Directory persistence
 
 ## v2.13.0 - 2023-03-23
 
