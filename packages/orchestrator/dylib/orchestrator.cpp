@@ -128,8 +128,10 @@ public:
   void Shutdown();
 
 private:
+  void ReportStatus();
+
   int m_status;
-  void* m_status_listnener_ctx;
+  void* m_status_listener_ctx;
   CogmentOrchestratorStatusListener m_status_listener;
   cogment::Orchestrator* m_orchestrator;
   cogment::ActorService* m_actor_service;
@@ -141,11 +143,11 @@ private:
 
 ServedOrchestrator::ServedOrchestrator(const Options* options) :
     m_status(COGMENT_ORCHESTRATOR_INIT_STATUS),
-    m_status_listnener_ctx(options->status_listener_ctx),
+    m_status_listener_ctx(options->status_listener_ctx),
     m_status_listener(options->status_listener),
-    m_orchestrator(),
-    m_actor_service(),
-    m_trial_lifecycle_service(),
+    m_orchestrator(nullptr),
+    m_actor_service(nullptr),
+    m_trial_lifecycle_service(nullptr),
     m_grpc_servers(),
     m_metrics_exposer(),
     m_metrics_registry() {
@@ -183,9 +185,7 @@ ServedOrchestrator::ServedOrchestrator(const Options* options) :
     spdlog::warn("Failed to set log level to [{}], defaulting to 'info'", log_level);
   }
 
-  if (m_status_listener != nullptr) {
-    m_status_listener(m_status_listnener_ctx, m_status);
-  }
+  ReportStatus();
 
   spdlog::debug("Orchestrator options: [{}]", options->debug_string());
 
@@ -237,16 +237,14 @@ ServedOrchestrator::ServedOrchestrator(const Options* options) :
     client_creds = grpc::SslCredentials(client_opt);
   }
 
-  // ******************* Endpoints *******************
+  // ******************* Checking port availability *******************
   cogment::NetChecker checker;
-  if (checker.is_tcp_port_used(options->lifecycle_port)) {
+  if (options->lifecycle_port != 0 && checker.is_tcp_port_used(options->lifecycle_port)) {
     throw cogment::MakeException("Lifecycle port [{}] is already in use", options->lifecycle_port);
   }
-  if (checker.is_tcp_port_used(options->actor_port)) {
+  if (options->actor_port != 0 && checker.is_tcp_port_used(options->actor_port)) {
     throw cogment::MakeException("Actor port [{}] is already in use", options->actor_port);
   }
-  auto lifecycle_endpoint = std::string("0.0.0.0:") + std::to_string(options->lifecycle_port);
-  auto actor_endpoint = std::string("0.0.0.0:") + std::to_string(options->actor_port);
 
   // ******************* Monitoring *******************
   if (options->prometheus_port > 0) {
@@ -309,46 +307,49 @@ ServedOrchestrator::ServedOrchestrator(const Options* options) :
   }
   spdlog::info("[{}] pre-trial hooks defined", nb_prehooks);
 
+  int lifecycle_port = 0;
+  int actor_port = 0;
+  int* actor_port_ptr = &actor_port;
+  auto lifecycle_endpoint = std::string("0.0.0.0:") + std::to_string(options->lifecycle_port);
+  auto actor_endpoint = std::string("0.0.0.0:") + std::to_string(options->actor_port);
   m_actor_service = new cogment::ActorService(m_orchestrator);
   m_trial_lifecycle_service = new cogment::TrialLifecycleService(m_orchestrator);
-  {
-    grpc::ServerBuilder builder;
-    builder.AddListeningPort(lifecycle_endpoint, server_creds);
-    builder.RegisterService(m_trial_lifecycle_service);
 
-    // If the lifecycle endpoint is the same as the ClientActorSP, then run them
-    // off the same server, otherwise, start a second server.
-    if (lifecycle_endpoint == actor_endpoint) {
-      builder.RegisterService(m_actor_service);
-    }
-    else {
-      grpc::ServerBuilder actor_builder;
-      actor_builder.AddListeningPort(actor_endpoint, server_creds);
-      actor_builder.RegisterService(m_actor_service);
-      m_grpc_servers.emplace_back(actor_builder.BuildAndStart());
-    }
+  grpc::ServerBuilder builder;
+  builder.AddListeningPort(lifecycle_endpoint, server_creds, &lifecycle_port);
+  builder.RegisterService(m_trial_lifecycle_service);
 
-    auto server = builder.BuildAndStart();
-    spdlog::debug("Main server started");
-    m_grpc_servers.emplace_back(std::move(server));
+  // If the lifecycle port and actor port are the same, then run them
+  // off the same server, otherwise, start a second server.
+  if (options->lifecycle_port == options->actor_port) {
+    builder.RegisterService(m_actor_service);
+    actor_port_ptr = &lifecycle_port;
   }
+  else {
+    grpc::ServerBuilder actor_builder;
+    actor_builder.AddListeningPort(actor_endpoint, server_creds, &actor_port);
+    actor_builder.RegisterService(m_actor_service);
+    m_grpc_servers.emplace_back(actor_builder.BuildAndStart());
+  }
+
+  auto server = builder.BuildAndStart();
+  spdlog::debug("Main server started");
+  m_grpc_servers.emplace_back(std::move(server));
 
   m_status = COGMENT_ORCHESTRATOR_READY_STATUS;
-  if (m_status_listener) {
-    m_status_listener(m_status_listnener_ctx, m_status);
-  }
+  ReportStatus();
 
   const auto auto_option = options->directory_auto_register;
   if (auto_option == 1) {
-    m_orchestrator->register_to_directory(options->directory_register_host, options->actor_port,
-                                          options->lifecycle_port, options->directory_register_props);
+    m_orchestrator->register_to_directory(options->directory_register_host, *actor_port_ptr, lifecycle_port,
+                                          options->directory_register_props);
   }
   else if (auto_option != 0) {
     spdlog::error("Unknown option for directory_auto_register [{}] (it must be 0 or 1)", auto_option);
   }
 
-  spdlog::info("Server listening for lifecycle on [{}]", lifecycle_endpoint);
-  spdlog::info("Server listening for Actors on [{}]", actor_endpoint);
+  spdlog::info("Trial Lifecycle service active on port [{}]", lifecycle_port);
+  spdlog::info("Client Actor service active on port [{}]", *actor_port_ptr);
 }
 
 ServedOrchestrator::~ServedOrchestrator() {
@@ -360,6 +361,12 @@ ServedOrchestrator::~ServedOrchestrator() {
   delete m_actor_service;
   delete m_trial_lifecycle_service;
   delete m_orchestrator;
+}
+
+void ServedOrchestrator::ReportStatus() {
+  if (m_status_listener != nullptr) {
+    m_status_listener(m_status_listener_ctx, m_status);
+  }
 }
 
 int ServedOrchestrator::WaitForTermination() {
@@ -388,9 +395,7 @@ int ServedOrchestrator::WaitForTermination() {
   }
 
   m_status = COGMENT_ORCHESTRATOR_TERMINATED_STATUS;
-  if (m_status_listener) {
-    m_status_listener(m_status_listnener_ctx, m_status);
-  }
+  ReportStatus();
 
   return return_value;
 }

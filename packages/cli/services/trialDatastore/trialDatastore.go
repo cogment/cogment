@@ -83,17 +83,29 @@ func Run(ctx context.Context, options Options) error {
 	if err != nil {
 		return err
 	}
+
 	var listener net.Listener
+	var port uint
 	if options.CustomListener != nil {
 		listener = options.CustomListener
-		log.Info("server listening")
+		port, err = utils.ExtractPort(listener.Addr().String())
+		if err != nil {
+			log.Info("server listening to custom listener")
+		} else {
+			log.WithField("port", port).Info("server listening")
+		}
 	} else {
-		var err error
 		listener, err = net.Listen("tcp", fmt.Sprintf(":%d", options.Port))
 		if err != nil {
 			return fmt.Errorf("unable to listen to tcp port %d: %w", options.Port, err)
 		}
-		log.WithField("port", options.Port).Info("server listening")
+
+		port, err = utils.ExtractPort(listener.Addr().String())
+		if err != nil {
+			return err
+		}
+
+		log.WithField("port", port).Info("server listening")
 	}
 
 	group, ctx := errgroup.WithContext(ctx)
@@ -116,7 +128,7 @@ func Run(ctx context.Context, options Options) error {
 	group.Go(func() error {
 		return utils.ManageDirectoryRegistration(
 			ctx,
-			options.Port,
+			port,
 			api.ServiceEndpoint_GRPC,
 			api.ServiceType_DATASTORE_SERVICE,
 			options.DirectoryRegistrationOptions,
@@ -126,7 +138,7 @@ func Run(ctx context.Context, options Options) error {
 	group.Go(func() error {
 		return utils.ManageDirectoryRegistration(
 			ctx,
-			options.Port,
+			port,
 			api.ServiceEndpoint_GRPC,
 			api.ServiceType_DATALOG_SERVICE,
 			options.DirectoryRegistrationOptions,

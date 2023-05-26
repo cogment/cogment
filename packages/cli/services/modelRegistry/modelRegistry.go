@@ -54,6 +54,10 @@ func Run(ctx context.Context, options Options) error {
 	if err != nil {
 		return fmt.Errorf("unable to listen to tcp port %d: %v", options.Port, err)
 	}
+	port, err := utils.ExtractPort(listener.Addr().String())
+	if err != nil {
+		return err
+	}
 	server := utils.NewGrpcServer(options.GrpcReflection)
 
 	modelRegistryServer, err := grpcservers.RegisterModelRegistryServer(
@@ -92,7 +96,7 @@ func Run(ctx context.Context, options Options) error {
 		}
 	}()
 
-	log.WithField("port", options.Port).Info("server listening")
+	log.WithField("port", port).Info("server listening")
 
 	group, ctx := errgroup.WithContext(ctx)
 
@@ -114,7 +118,7 @@ func Run(ctx context.Context, options Options) error {
 	group.Go(func() error {
 		return utils.ManageDirectoryRegistration(
 			ctx,
-			options.Port,
+			port,
 			api.ServiceEndpoint_GRPC,
 			api.ServiceType_MODEL_REGISTRY_SERVICE,
 			options.DirectoryRegistrationOptions,

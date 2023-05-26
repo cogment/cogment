@@ -16,8 +16,11 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cogment/cogment/clients/directory"
@@ -40,6 +43,26 @@ var DefaultDirectoryRegistrationOptions = DirectoryRegistrationOptions{
 	DirectoryAuthToken:              "",
 	DirectoryRegistrationHost:       "",
 	DirectoryRegistrationProperties: map[string]string{},
+}
+
+// Expects a string of the form "<ip address>:<port>"
+func ExtractPort(address string) (uint, error) {
+	portIndex := strings.LastIndex(address, ":")
+	if portIndex == -1 {
+		return 0, fmt.Errorf("Invalid address format [%v]", address)
+	}
+
+	portStr := address[portIndex+1:]
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return 0, fmt.Errorf("Failed to convert port value [%v] - %w", address, err)
+	}
+
+	if port < 0 || port > 65535 {
+		return 0, fmt.Errorf("Invalid port number [%v]", address)
+	}
+
+	return uint(port), nil
 }
 
 func getOutboundIP() net.IP {

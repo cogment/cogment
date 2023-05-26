@@ -7,12 +7,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Added
+
+- Directory persistence
+- Orchestrator, Datastore, Model Registry auto port selection
+
 ## v2.13.1 - 2023-04-21
 
 ### Added
 
 - "quiet" (-q) option for launcher
-- Directory persistence
 
 ## v2.13.0 - 2023-03-23
 
