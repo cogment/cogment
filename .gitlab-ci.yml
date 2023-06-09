@@ -113,10 +113,10 @@ build_linux_amd64:
     - export PATH=$PATH:$(go env GOPATH)/bin
     - brew install cmake
   cache:
-    - key: cmake-macos-m1-dependencies-cache
+    - key: cmake-macos-arm64-dependencies-cache
       paths:
-        - build/macos_m1/_deps
-        - build/macos_m1/lib
+        - build/macos_arm64/_deps
+        - build/macos_arm64/lib
 
 build_macos:
   stage: build
@@ -130,7 +130,7 @@ build_macos:
     expose_as: cogment_macos
     expire_in: 1 week
     paths:
-      - ./install/macos_m1/
+      - ./install/macos_arm64/
 
 .base_windows_build:
   tags:
@@ -342,7 +342,7 @@ publish_tag_to_github:
     # Assemble the release
     - mkdir -p ./release
     - cp ./install/linux_amd64/bin/cogment ./release/cogment-linux-amd64
-    - cp ./install/macos_m1/bin/cogment ./release/cogment-macos-m1
+    - cp ./install/macos_arm64/bin/cogment ./release/cogment-macos-arm64
     - cp ./install/windows_amd64/bin/cogment.exe ./release/cogment-windows-amd64.exe
     - tar czf ./release/cogment-api.tar.gz --directory=./install/linux_amd64/include/cogment .
     # Generate the changes for the target version
