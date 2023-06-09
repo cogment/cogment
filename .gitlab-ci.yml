@@ -88,27 +88,6 @@ build_docker:
         - build/linux_amd64/_deps
         - build/linux_amd64/lib
 
-build_all_no_orchestrator:
-  stage: build
-  extends: .base_linux_build
-  variables:
-    PROTOC_VERSION: 3.18.1
-  script:
-    - curl -LO --silent https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip
-    - unzip protoc-${PROTOC_VERSION}-linux-x86_64.zip -d /usr/local
-    - chmod +x /usr/local/bin/protoc
-    - protoc --version
-    - ./build_all_no_orchestrator.sh
-  artifacts:
-    name: cogment_no_orchestrator
-    expose_as: cogment_no_orchestrator
-    expire_in: 1 week
-    paths:
-      - ./install/linux_amd64_no_orchestrator/
-      - ./install/windows_amd64_no_orchestrator/
-      - ./install/macos_amd64_no_orchestrator/
-      - ./install/macos_arm64_no_orchestrator/
-
 build_linux_amd64:
   stage: build
   extends: .base_linux_build
@@ -124,24 +103,20 @@ build_linux_amd64:
 
 .base_macos_build:
   tags:
-    - shared-macos-amd64
-  image: macos-11-xcode-12
+    - saas-macos-medium-m1
+  image: macos-12-xcode-14
   before_script:
-    - brew install go@1.16
-    - export PATH="/usr/local/opt/go@1.16/bin:$PATH" # Make sure 1.16 is the first in the path
+    - brew install go@1.20
+    - export PATH="/usr/local/opt/go@1.20/bin:$PATH" # Make sure 1.20 is the first in the path
     - go version
     - mkdir -p .go
     - export PATH=$PATH:$(go env GOPATH)/bin
     - brew install cmake
   cache:
-    - key: cmake-macos-amd64-dependencies-cache
+    - key: cmake-macos-m1-dependencies-cache
       paths:
-        - build/macos_amd64/_deps
-        - build/macos_amd64/lib
-    - key: cmake-macos-arm64-dependencies-cache
-      paths:
-        - build/macos_arm64/_deps
-        - build/macos_arm64/lib
+        - build/macos_m1/_deps
+        - build/macos_m1/lib
 
 build_macos:
   stage: build
@@ -155,8 +130,7 @@ build_macos:
     expose_as: cogment_macos
     expire_in: 1 week
     paths:
-      - ./install/macos_amd64/
-      - ./install/macos_arm64/
+      - ./install/macos_m1/
 
 .base_windows_build:
   tags:
@@ -359,8 +333,6 @@ publish_tag_to_github:
       artifacts: true
     - job: build_windows_amd64
       artifacts: true
-    - job: build_all_no_orchestrator
-      artifacts: true
   script:
     # Publish the tag
     - git checkout ${CI_COMMIT_BRANCH} # Checkout the branch not the sha1
@@ -370,13 +342,8 @@ publish_tag_to_github:
     # Assemble the release
     - mkdir -p ./release
     - cp ./install/linux_amd64/bin/cogment ./release/cogment-linux-amd64
-    - cp ./install/macos_amd64/bin/cogment ./release/cogment-macos-amd64
-    - cp ./install/macos_arm64/bin/cogment ./release/cogment-macos-arm64
+    - cp ./install/macos_m1/bin/cogment ./release/cogment-macos-m1
     - cp ./install/windows_amd64/bin/cogment.exe ./release/cogment-windows-amd64.exe
-    - cp ./install/linux_amd64_no_orchestrator/bin/cogment ./release/cogment-linux-amd64-no-orchestrator
-    - cp ./install/macos_amd64_no_orchestrator/bin/cogment ./release/cogment-macos-amd64-no-orchestrator
-    - cp ./install/macos_arm64_no_orchestrator/bin/cogment ./release/cogment-macos-arm64-no-orchestrator
-    - cp ./install/windows_amd64_no_orchestrator/bin/cogment.exe ./release/cogment-windows-amd64-no-orchestrator.exe
     - tar czf ./release/cogment-api.tar.gz --directory=./install/linux_amd64/include/cogment .
     # Generate the changes for the target version
     - ./scripts/extract_version_changes.sh $CI_COMMIT_TAG > ./RELEASE_NOTES.md
