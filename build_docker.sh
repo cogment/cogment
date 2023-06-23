@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+printf "Pulling existing Docker containers\n"
 if [[ -z "${COGMENT_BUILD_ENVIRONMENT_IMAGE_CACHE}" ]]; then
   COGMENT_BUILD_ENVIRONMENT_IMAGE_CACHE="registry.gitlab.com/ai-r/cogment/cogment/build-environment:latest"
   printf "** Using default value '%s' for the docker build environment image used for cache, set COGMENT_BUILD_ENVIRONMENT_IMAGE_CACHE to specify another one\n" "${COGMENT_BUILD_ENVIRONMENT_IMAGE_CACHE}"
@@ -44,7 +45,7 @@ mkdir -p "${INSTALL_DIR}"
 
 cd "${ROOT_DIR}"
 
-# Build the build environment image
+printf "Building Docker build environment image\n"
 docker build \
   --cache-from "${COGMENT_BUILD_ENVIRONMENT_IMAGE_CACHE}" \
   --cache-from "${COGMENT_BUILD_ENVIRONMENT_IMAGE}" \
@@ -53,6 +54,7 @@ docker build \
   --file build_environment.dockerfile \
   .
 
+printf "Building Docker build image\n"
 # Build the build image
 docker build \
   --build-arg "COGMENT_BUILD_ENVIRONMENT_IMAGE=${COGMENT_BUILD_ENVIRONMENT_IMAGE}" \
@@ -63,7 +65,7 @@ docker build \
   --file build.dockerfile \
   .
 
-# Run the build
+printf "Running Docker build container\n"
 docker run \
   --rm \
   --volume="${BUILD_DIR}":/workspace/build/linux_amd64 \
@@ -71,7 +73,7 @@ docker run \
   --env COGMENT_BUILD_TYPE="${COGMENT_BUILD_TYPE}" \
   "${COGMENT_BUILD_IMAGE}"
 
-# Build the cogment image
+printf "Building Docker Cogment image\n"
 ## Copying the binary outside of the install dir because this directory is ignored by docker
 cp "${INSTALL_DIR}/bin/cogment" ./cogment
 docker build \
@@ -80,3 +82,5 @@ docker build \
   --file cogment.dockerfile \
   .
 rm ./cogment
+
+printf "Build done\n"
