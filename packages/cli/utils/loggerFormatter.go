@@ -25,67 +25,109 @@ import (
 )
 
 type LoggerFormatter struct {
-	// PrefixFields - the fields that will appear in the prefix in this order
+	// The fields that will appear in the prefix in this order
 	PrefixFields []string
+
+	// The names output for each log level
+	LevelNames map[logrus.Level]string
+
+	// Whether to output only the minimum: no prefix fields, no time, no level, no color
+	Minimal bool
+}
+
+func MakeLoggerFormatter(prefix []string, levelNames map[logrus.Level]string, minimal bool) LoggerFormatter {
+	var logger LoggerFormatter
+	logger.Minimal = minimal
+
+	if prefix != nil {
+		logger.PrefixFields = prefix
+	} else {
+		logger.PrefixFields = []string{}
+	}
+
+	if levelNames != nil {
+		logger.LevelNames = levelNames
+	} else {
+		logger.LevelNames = map[logrus.Level]string{
+			logrus.TraceLevel: "TRAC",
+			logrus.DebugLevel: "DEBU",
+			logrus.InfoLevel:  "INFO",
+			logrus.WarnLevel:  "WARN",
+			logrus.ErrorLevel: "ERRO",
+			logrus.FatalLevel: "FATA",
+			logrus.PanicLevel: "PANI",
+		}
+	}
+
+	return logger
 }
 
 // Format an log entry
-func (f *LoggerFormatter) Format(entry *logrus.Entry) ([]byte, error) {
-	levelColor := getColorByLevel(entry.Level)
+func (formatter *LoggerFormatter) Format(entry *logrus.Entry) ([]byte, error) {
+	outBuf := &bytes.Buffer{}
 
 	// split the fields between the prefix and the rest
-	prefixFields, otherFields := f.splitFields(entry)
+	prefixFields, otherFields := formatter.splitFields(entry)
 
-	// output buffer
-	b := &bytes.Buffer{}
+	if !formatter.Minimal {
+		// write time
+		outBuf.WriteString(entry.Time.Format(time.RFC3339))
 
-	// write time
-	b.WriteString(entry.Time.Format(time.RFC3339))
-
-	// write caller information
-	if entry.HasCaller() {
-		fmt.Fprintf(
-			b,
-			" (%s:%d %s)",
-			entry.Caller.File,
-			entry.Caller.Line,
-			entry.Caller.Function,
-		)
-	}
-
-	// write level
-	level := strings.ToUpper(entry.Level.String())
-	fmt.Fprintf(b, " \x1b[%dm[%s]", levelColor, level[:4])
-
-	// write prefix fields
-	b.WriteString(" [")
-	for fieldIdx, field := range prefixFields {
-		if fieldIdx < len(prefixFields)-1 {
-			fmt.Fprintf(b, "%v>", entry.Data[field])
-		} else {
-			fmt.Fprintf(b, "%v", entry.Data[field])
+		// write caller information
+		if entry.HasCaller() {
+			fmt.Fprintf(
+				outBuf,
+				" (%s:%d %s)",
+				entry.Caller.File,
+				entry.Caller.Line,
+				entry.Caller.Function,
+			)
 		}
+		outBuf.WriteString(" ")
+
+		// set level color
+		levelColor := getColorByLevel(entry.Level)
+		fmt.Fprintf(outBuf, "\x1b[%dm", levelColor)
+
+		// write level
+		level, ok := formatter.LevelNames[entry.Level]
+		if ok {
+			fmt.Fprintf(outBuf, "[%s] ", level)
+		}
+
+		// write prefix fields
+		outBuf.WriteString("[")
+		for fieldIdx, field := range prefixFields {
+			if fieldIdx < len(prefixFields)-1 {
+				fmt.Fprintf(outBuf, "%v>", entry.Data[field])
+			} else {
+				fmt.Fprintf(outBuf, "%v", entry.Data[field])
+			}
+		}
+		outBuf.WriteString("] ")
+
+		// set color back to default
+		outBuf.WriteString("\x1b[0m")
 	}
-	b.WriteString("] \x1b[0m")
 
 	// write message
-	b.WriteString(strings.TrimSpace(entry.Message))
+	outBuf.WriteString(strings.TrimSpace(entry.Message))
 
 	// write the other fields
 	for _, field := range otherFields {
-		fmt.Fprintf(b, " [%s:%v]", field, entry.Data[field])
+		fmt.Fprintf(outBuf, " [%s:%v]", field, entry.Data[field])
 	}
 
-	b.WriteByte('\n')
+	outBuf.WriteByte('\n')
 
-	return b.Bytes(), nil
+	return outBuf.Bytes(), nil
 }
 
-func (f *LoggerFormatter) splitFields(entry *logrus.Entry) ([]string, []string) {
+func (formatter *LoggerFormatter) splitFields(entry *logrus.Entry) ([]string, []string) {
 	prefixFields := []string{}
 	otherFields := []string{}
 	isPrefixField := map[string]bool{}
-	for _, field := range f.PrefixFields {
+	for _, field := range formatter.PrefixFields {
 		isPrefixField[field] = true
 		if _, ok := entry.Data[field]; ok {
 			prefixFields = append(prefixFields, field)
@@ -111,6 +153,8 @@ func getColorByLevel(level logrus.Level) int {
 	switch level {
 	case logrus.DebugLevel, logrus.TraceLevel:
 		return colorGray
+	case logrus.InfoLevel:
+		return colorBlue
 	case logrus.WarnLevel:
 		return colorYellow
 	case logrus.ErrorLevel, logrus.FatalLevel, logrus.PanicLevel:

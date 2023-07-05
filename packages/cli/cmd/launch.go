@@ -27,13 +27,12 @@ var launchCmd = &cobra.Command{
 	Args:         cobra.MinimumNArgs(1),
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		configFile := args[0]
 		quietLevel, err := cmd.Flags().GetCount("quiet")
 		if err != nil {
 			return err
 		}
 
-		err = launcher.LaunchFromFile(configFile, quietLevel)
+		err = launcher.LaunchFromFile(args, quietLevel)
 		if !errors.Is(err, launcher.ErrScriptCompleted) {
 			return err
 		}

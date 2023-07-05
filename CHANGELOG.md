@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Update to Go 1.19 (from 1.17)
+- Clean up launcher logs
+
+### Added
+
+- New launcher features: arguments, globals, super quiet (-qqq)
 
 ## v2.14.2 - 2023-06-09
 

@@ -21,10 +21,19 @@ import (
 
 var log = logrus.New()
 
-func configureLog() error {
-	log.SetFormatter(&utils.LoggerFormatter{
-		PrefixFields: []string{"cmd", "script"},
-	})
+func configureLog(min bool) error {
+	prefixFields := []string{"cmd"}
+	levelNames := map[logrus.Level]string{
+		logrus.TraceLevel: "TRACE ",
+		logrus.DebugLevel: "INFO  ", // Repurposed
+		logrus.InfoLevel:  "stdout", // We appropriate this level for the stdout process output
+		logrus.WarnLevel:  "stderr", // We appropriate this level for the stderr process output
+		logrus.ErrorLevel: "ERROR ", // Unused
+		logrus.FatalLevel: "FATAL ", // Unused
+		logrus.PanicLevel: "PANIC ", // Unused
+	}
+	loggerFormatter := utils.MakeLoggerFormatter(prefixFields, levelNames, min)
+	log.SetFormatter(&loggerFormatter)
 
 	return nil
 }
