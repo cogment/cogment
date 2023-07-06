@@ -45,7 +45,7 @@ type ModelRegistryServer struct {
 	newVersion                    *sync.Cond
 }
 
-func createPbModelVersionInfo(modelVersionInfo backend.VersionInfo) grpcapi.ModelVersionInfo {
+func makePbModelVersionInfo(modelVersionInfo backend.VersionInfo) grpcapi.ModelVersionInfo {
 	return grpcapi.ModelVersionInfo{
 		ModelId:           modelVersionInfo.ModelID,
 		VersionNumber:     uint32(modelVersionInfo.VersionNumber),
@@ -218,7 +218,7 @@ func (s *ModelRegistryServer) CreateVersion(inStream grpcapi.ModelRegistrySP_Cre
 		return err
 	}
 	if firstChunk.GetHeader() == nil {
-		return status.Errorf(codes.InvalidArgument, "first request chunk do not include a Header")
+		return status.Errorf(codes.InvalidArgument, "first request chunk does not include a Header")
 	}
 
 	receivedVersionInfo := firstChunk.GetHeader().GetVersionInfo()
@@ -293,7 +293,7 @@ func (s *ModelRegistryServer) CreateVersion(inStream grpcapi.ModelRegistrySP_Cre
 	}
 	s.newVersion.Broadcast()
 
-	pbVersionInfo := createPbModelVersionInfo(versionInfo)
+	pbVersionInfo := makePbModelVersionInfo(versionInfo)
 	return inStream.SendAndClose(&grpcapi.CreateVersionReply{VersionInfo: &pbVersionInfo})
 }
 
@@ -348,7 +348,7 @@ func (s *ModelRegistryServer) RetrieveVersionInfos(
 
 		nextVersionNumber := initialVersionNumber
 		for _, versionInfo := range versionInfos {
-			pbVersionInfo := createPbModelVersionInfo(versionInfo)
+			pbVersionInfo := makePbModelVersionInfo(versionInfo)
 			pbVersionInfos = append(pbVersionInfos, &pbVersionInfo)
 			nextVersionNumber = versionInfo.VersionNumber + 1
 		}
@@ -385,7 +385,7 @@ func (s *ModelRegistryServer) RetrieveVersionInfos(
 			)
 		}
 
-		pbVersionInfo := createPbModelVersionInfo(versionInfo)
+		pbVersionInfo := makePbModelVersionInfo(versionInfo)
 		pbVersionInfos = append(pbVersionInfos, &pbVersionInfo)
 		nextVersionNumber = versionInfo.VersionNumber + 1
 	}
@@ -483,7 +483,7 @@ func (s *ModelRegistryServer) VersionUpdate(
 
 		// In case no version is available, 'VersionNumber' is set to default (0).
 		if versionInfo.VersionNumber > lastVersion {
-			pbVersionInfo := createPbModelVersionInfo(versionInfo)
+			pbVersionInfo := makePbModelVersionInfo(versionInfo)
 			reply := grpcapi.VersionUpdateReply{VersionInfo: &pbVersionInfo}
 			err = outStream.Send(&reply)
 			if err != nil {

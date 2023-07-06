@@ -78,7 +78,7 @@ func Run(ctx context.Context, options Options) error {
 		}
 		log.WithField("path", options.ArchiveDir).Info("filesystem backend created for archived model versions\n")
 
-		versionCacheConfiguration := memoryCache.DefaultVersionCacheConfiguration
+		versionCacheConfiguration := memoryCache.VersionCacheConfiguration{MaxItems: options.CacheMaxItems}
 		backend, err = memoryCache.CreateBackend(versionCacheConfiguration, archiveBackend)
 		if err != nil {
 			log.Fatalf("unable to create the backend: %v", err)

@@ -96,7 +96,7 @@ bool ManagedStream::write(const ActorStream::InputType& data) {
       }
     }
     else {
-      spdlog::warn("Trying to write after last writen");
+      spdlog::warn("Trying to write after last written");
     }
   }
 
@@ -121,7 +121,7 @@ bool ManagedStream::write_last(const ActorStream::InputType& data) {
       }
     }
     else {
-      spdlog::warn("Trying to write last data after last writen");
+      spdlog::warn("Trying to write last data after last written");
     }
   }
 

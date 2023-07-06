@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Fixed
+
+- Model Registry bug where cache size option was ignored
+
 ### Changed
 
 - Update to Go 1.19 (from 1.17)
