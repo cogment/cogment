@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Model Registry bug where cache size option was ignored
+- Model Registry: Decrease default chunk size to work
 
 ### Changed
 

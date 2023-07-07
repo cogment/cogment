@@ -28,8 +28,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// 4MB seems to be the maximum size gRPC can manage
-const maxGrpcMessageLength int = 4 * 1024 * 1024
+// 4MB seems to be the maximum size gRPC can manage. To be safe we take 2MB.
+const maxGrpcMessageLength int = 2 * 1024 * 1024
 
 type Options struct {
 	utils.DirectoryRegistrationOptions
