@@ -106,6 +106,7 @@ func init() {
 	directoryCmd.AddCommand(directoryRegisterCmd)
 	directoryCmd.AddCommand(directoryDeregisterCmd)
 	directoryCmd.AddCommand(directoryInquireCmd)
+	directoryCmd.AddCommand(directoryWaitForReadyCmd)
 }
 
 func strToAPIServiceType(typeStr string) (cogmentAPI.ServiceType, error) {

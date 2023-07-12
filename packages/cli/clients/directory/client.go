@@ -173,3 +173,22 @@ func (client *Client) Inquire(request *cogmentAPI.InquireRequest,
 
 	return &result, nil
 }
+
+func (client *Client) WaitForReady() error {
+	request := cogmentAPI.InquireRequest{}
+	request.Inquiry = &cogmentAPI.InquireRequest_ServiceId{ServiceId: 0}
+
+	connection, err := client.connect()
+	if err != nil {
+		return err
+	}
+	defer connection.Close()
+
+	grpcClient := cogmentAPI.NewDirectorySPClient(connection)
+	_, err = grpcClient.Inquire(client.ctx, &request, grpc.WaitForReady(true))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
