@@ -16,7 +16,6 @@ package launcher
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -24,52 +23,14 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"sync"
 	"syscall"
-	"text/template"
 
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
-	"gopkg.in/yaml.v2"
 )
 
 var ErrScriptCompleted = fmt.Errorf("script completed")
-
-type ScriptDef struct {
-	Commands    [][]string
-	Environment yaml.MapSlice
-	Dir         string // Deprecated
-	Folder      string
-	Quiet       bool
-}
-
-type GlobalDef struct {
-	Environment yaml.MapSlice
-	Folder      string
-}
-
-// The expected top level structure of the yaml file
-type scriptFile struct {
-	Global  GlobalDef
-	Scripts map[string]ScriptDef
-}
-
-func copyMap(src map[string]string) map[string]string {
-	result := make(map[string]string)
-	for name, value := range src {
-		result[name] = value
-	}
-
-	return result
-}
-
-// Copy slice in a new array
-func copySlice(src []string) []string {
-	result := make([]string, len(src))
-	copy(result, src)
-	return result
-}
 
 // Remove trailing empty values
 func trimTrail(src []string) []string {
@@ -103,37 +64,6 @@ func streamStdErr(src *io.PipeReader, cmdName string, wg *sync.WaitGroup) {
 		}).Warn(scanner.Text())
 	}
 	wg.Done()
-}
-
-func loadYaml(fileName string) (*scriptFile, error) {
-	var result scriptFile
-
-	yamlContent, err := os.ReadFile(fileName)
-	if err != nil {
-		return nil, err
-	}
-
-	err = yaml.Unmarshal(yamlContent, &result)
-
-	if err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func parse(text string, dictionary map[string]string) (string, error) {
-	parseTemplate, err := template.New("tmp").Parse(text)
-	if err != nil {
-		return "", err
-	}
-
-	var resultBytes bytes.Buffer
-	err = parseTemplate.Execute(&resultBytes, dictionary)
-	if err != nil {
-		return "", err
-	}
-
-	return resultBytes.String(), nil
 }
 
 func executeCommand(ctx context.Context, cmdDesc string,
@@ -193,50 +123,15 @@ func executeCommand(ctx context.Context, cmdDesc string,
 	return err
 }
 
-// Launch asynchronously
-func launchScript(ctx context.Context, eGroup *errgroup.Group, scriptName string,
-	script ScriptDef, baseDict map[string]string, baseEnv []string) {
+func launchAsyncProcess(ctx context.Context, eGroup *errgroup.Group, proc launchProcess) {
 
 	// The call to eGroup.Go() is here (as opposed to the call site) because of the
 	// closing by reference behavior of inline functions
 	eGroup.Go(func() error {
-		scriptDict := copyMap(baseDict)
-		scriptEnv := copySlice(baseEnv)
+		for cmdIndex, cmdArgs := range proc.Commands {
+			cmdDesc := fmt.Sprintf("%s:(%d/%d)", proc.Name, cmdIndex+1, len(proc.Commands))
 
-		for _, item := range script.Environment {
-			name := fmt.Sprintf("%v", item.Key)
-			value := fmt.Sprintf("%v", item.Value)
-
-			parsedValue, err := parse(value, scriptDict)
-			if err != nil {
-				log.WithFields(logrus.Fields{
-					"cmd":   scriptName,
-					"error": err,
-				}).Debug("Environment variable substitution failed")
-				return err
-			}
-			scriptDict[name] = parsedValue
-			scriptEnv = append(scriptEnv, fmt.Sprintf("%v=%v", name, parsedValue))
-		}
-
-		for cmdIndex, cmdArgs := range script.Commands {
-
-			var parsedCmdArgs = make([]string, 0, len(cmdArgs))
-			for _, arg := range cmdArgs {
-				parsedArg, err := parse(arg, scriptDict)
-				if err != nil {
-					log.WithFields(logrus.Fields{
-						"cmd":   scriptName,
-						"error": err,
-					}).Debug("Command variable substitution failed")
-					return err
-				}
-				parsedCmdArgs = append(parsedCmdArgs, parsedArg)
-			}
-
-			cmdDesc := fmt.Sprintf("%s:(%d/%d)", scriptName, cmdIndex+1, len(script.Commands))
-
-			err := executeCommand(ctx, cmdDesc, script.Folder, scriptEnv, parsedCmdArgs, script.Quiet)
+			err := executeCommand(ctx, cmdDesc, proc.Folder, proc.Environment, cmdArgs, proc.Quiet)
 			if err != nil {
 				// TODO: Find a better way than this
 				if err.Error() == "signal: killed" {
@@ -258,94 +153,28 @@ func launchScript(ctx context.Context, eGroup *errgroup.Group, scriptName string
 		}
 
 		log.WithFields(logrus.Fields{
-			"cmd": scriptName,
+			"cmd": proc.Name,
 		}).Trace("Script completed")
 
 		return ErrScriptCompleted
 	})
 }
 
-func LaunchAllScripts(ctx context.Context, eGroup *errgroup.Group,
-	yamlDef *scriptFile, rootPath string, launchArgs []string) error {
-
-	// Make base parsing dictionary and global environment
-	dict := make(map[string]string)
-	for _, str := range os.Environ() {
-		index := strings.IndexRune(str, '=')
-		name := str[:index]
-		value := str[index+1:]
-		dict[name] = value
-	}
-
-	argIndex := 1
-	for ; argIndex < len(launchArgs); argIndex++ {
-		argName := fmt.Sprintf("__%v", argIndex)
-		dict[argName] = launchArgs[argIndex]
-	}
-	// There will always be 1-9, even if no arguments are passed
-	for ; argIndex < 10; argIndex++ {
-		argName := fmt.Sprintf("__%v", argIndex)
-		dict[argName] = ""
-	}
-
-	env := os.Environ()
-	for _, item := range yamlDef.Global.Environment {
-		name := fmt.Sprintf("%v", item.Key)
-		value := fmt.Sprintf("%v", item.Value)
-
-		parsedValue, err := parse(value, dict)
-		if err != nil {
-			log.WithFields(logrus.Fields{
-				"error": err,
-			}).Debug("Global environment variable substitution failed")
-			return err
-		}
-		dict[name] = parsedValue
-		env = append(env, fmt.Sprintf("%v=%v", name, parsedValue))
-	}
-
-	var basePath string
-	if filepath.IsAbs(yamlDef.Global.Folder) {
-		basePath = yamlDef.Global.Folder
-	} else {
-		basePath = filepath.Join(rootPath, yamlDef.Global.Folder)
-	}
-
-	// Launch all child processes/scripts
-	for name, script := range yamlDef.Scripts {
-		if len(script.Folder) != 0 {
-			if !filepath.IsAbs(script.Folder) {
-				script.Folder = filepath.Join(basePath, script.Folder)
-			}
-		} else if len(script.Dir) != 0 {
-			// "Dir" is deprecated
-			if !filepath.IsAbs(script.Dir) {
-				script.Folder = filepath.Join(basePath, script.Dir)
-			} else {
-				script.Folder = script.Dir
-			}
-		}
-		launchScript(ctx, eGroup, name, script, dict, env)
-	}
-
-	return nil
-}
-
 // The function will only return once all child processes have terminated
 // On a OS signal, it will terminate all child processes, and block until all of them have completed.
-func LaunchFromFile(args []string, quietLevel int) error {
-	minimalOutput := (quietLevel > 2)
+func LaunchFromFile(args []string, launcherQuietLevel int) error {
+	minimalOutput := (launcherQuietLevel > 2)
 	err := configureLog(minimalOutput)
 	if err != nil {
 		return err
 	}
 
 	// Most simplistic way to add a "quiet" mode
-	if quietLevel <= 0 {
+	if launcherQuietLevel <= 0 {
 		log.SetLevel(logrus.TraceLevel)
-	} else if quietLevel == 1 {
+	} else if launcherQuietLevel == 1 {
 		log.SetLevel(logrus.DebugLevel)
-	} else if quietLevel >= 2 {
+	} else if launcherQuietLevel >= 2 {
 		log.SetLevel(logrus.InfoLevel)
 	}
 
@@ -353,10 +182,10 @@ func LaunchFromFile(args []string, quietLevel int) error {
 		return fmt.Errorf("launch file (yaml) not provided")
 	}
 
-	fileName := args[0]
-	rootPath := filepath.Dir(fileName)
+	filename := args[0]
+	rootPath := filepath.Dir(filename)
 
-	yamlDef, err := loadYaml(fileName)
+	processes, err := parseFile(filename, rootPath, args[1:])
 	if err != nil {
 		return err
 	}
@@ -377,9 +206,8 @@ func LaunchFromFile(args []string, quietLevel int) error {
 		cancelCtx()
 	}()
 
-	err = LaunchAllScripts(ctx, eGroup, yamlDef, rootPath, args)
-	if err != nil {
-		return err
+	for _, proc := range processes {
+		launchAsyncProcess(ctx, eGroup, proc)
 	}
 
 	return eGroup.Wait()
