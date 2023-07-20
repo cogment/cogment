@@ -15,181 +15,67 @@
 package launcher
 
 import (
-	"bufio"
 	"context"
+	"errors"
 	"fmt"
-	"io"
 	"os"
-	"os/exec"
 	"os/signal"
-	"path/filepath"
-	"sync"
 	"syscall"
 
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 )
 
-var ErrScriptCompleted = fmt.Errorf("script completed")
+var errScriptCompleted = fmt.Errorf("script completed")
+var errScriptCancelled = fmt.Errorf("script cancelled")
 
-// Remove trailing empty values
-func trimTrail(src []string) []string {
-	lastIndex := len(src) - 1
-	for lastIndex >= 0 {
-		if len(src[lastIndex]) == 0 {
-			lastIndex--
-		} else {
-			break
+func runProcess(ctx context.Context, def launchDefinition, index int) error {
+	proc := def.processes[index]
+	logger := log.WithField("cmd", proc.Name)
+
+	// Wait for dependencies
+	for _, dependenceIndex := range proc.Dependency {
+		def.processes[dependenceIndex].Ready.Wait()
+	}
+
+	go func() {
+		if proc.Ready.Wait() {
+			logger.Trace("Ready")
+		}
+	}()
+	defer proc.Ready.Disable()
+
+	select {
+	case <-ctx.Done():
+		logger.Debug("Cancelled")
+		return errScriptCancelled
+	default:
+	}
+
+	exe := executor{
+		Ctx:           ctx,
+		Folder:        proc.Folder,
+		Environment:   proc.Environment,
+		OutputEnabled: !proc.Quiet,
+		OutputRegex:   proc.ReadyRegex,
+		OutputMatched: proc.Ready,
+	}
+
+	for cmdIndex, cmdArgs := range proc.Commands {
+		cmdDesc := fmt.Sprintf("%s:(%d/%d)", proc.Name, cmdIndex+1, len(proc.Commands))
+
+		err := exe.execute(cmdDesc, cmdArgs)
+		if err != nil {
+			return err
 		}
 	}
 
-	return src[:lastIndex+1]
+	logger.Trace("Completed")
+
+	return errScriptCompleted
 }
 
-// Async utility function used to annotate and stream output from a child process
-func streamStdOut(src *io.PipeReader, cmdName string, wg *sync.WaitGroup) {
-	scanner := bufio.NewScanner(src)
-	for scanner.Scan() {
-		log.WithFields(logrus.Fields{
-			"cmd": cmdName,
-		}).Info(scanner.Text())
-	}
-	wg.Done()
-}
-func streamStdErr(src *io.PipeReader, cmdName string, wg *sync.WaitGroup) {
-	scanner := bufio.NewScanner(src)
-	for scanner.Scan() {
-		log.WithFields(logrus.Fields{
-			"cmd": cmdName,
-		}).Warn(scanner.Text())
-	}
-	wg.Done()
-}
-
-func executeCommand(ctx context.Context, cmdDesc string,
-	folder string, env []string, cmdArgs []string, quiet bool) error {
-
-	if len(cmdArgs) < 1 || len(cmdArgs[0]) == 0 {
-		log.WithFields(logrus.Fields{"cmd": cmdDesc}).Trace("Empty command ignored")
-		return nil
-	}
-	cmd := cmdArgs[0]
-	args := trimTrail(cmdArgs[1:])
-
-	action := "Launch"
-	if quiet {
-		action += " quiet"
-	}
-	log.WithFields(logrus.Fields{
-		"cmd":  cmdDesc,
-		"what": fmt.Sprintf("%v", cmdArgs[:len(args)+1]),
-	}).Trace(action)
-
-	cmdCtx := exec.CommandContext(ctx, cmd, args...)
-	cmdCtx.Dir = folder
-	cmdCtx.Env = env
-
-	logWg := new(sync.WaitGroup)
-
-	errReader, errWriter := io.Pipe()
-	outReader, outWriter := io.Pipe()
-
-	if !quiet {
-		// Stream stderr/stdout
-		cmdCtx.Stderr = errWriter
-		cmdCtx.Stdout = outWriter
-
-		logWg.Add(2)
-		go streamStdErr(errReader, cmdDesc, logWg)
-		go streamStdOut(outReader, cmdDesc, logWg)
-	}
-
-	err := cmdCtx.Start()
-
-	if err != nil {
-		errWriter.Close()
-		outWriter.Close()
-		return err
-	}
-
-	err = cmdCtx.Wait()
-
-	// Wait for the logs to be done streaming. Otherwise, the Failure/Completion
-	// log entry can be printed before the last logs of the command
-	errWriter.Close()
-	outWriter.Close()
-	logWg.Wait()
-
-	return err
-}
-
-func launchAsyncProcess(ctx context.Context, eGroup *errgroup.Group, proc launchProcess) {
-
-	// The call to eGroup.Go() is here (as opposed to the call site) because of the
-	// closing by reference behavior of inline functions
-	eGroup.Go(func() error {
-		for cmdIndex, cmdArgs := range proc.Commands {
-			cmdDesc := fmt.Sprintf("%s:(%d/%d)", proc.Name, cmdIndex+1, len(proc.Commands))
-
-			err := executeCommand(ctx, cmdDesc, proc.Folder, proc.Environment, cmdArgs, proc.Quiet)
-			if err != nil {
-				// TODO: Find a better way than this
-				if err.Error() == "signal: killed" {
-					log.WithFields(logrus.Fields{
-						"cmd": cmdDesc,
-					}).Debug("Script command killed")
-				} else {
-					log.WithFields(logrus.Fields{
-						"cmd":   cmdDesc,
-						"error": err,
-					}).Debug("Script command failed")
-				}
-				return err
-			}
-
-			log.WithFields(logrus.Fields{
-				"cmd": cmdDesc,
-			}).Trace("Script command completed")
-		}
-
-		log.WithFields(logrus.Fields{
-			"cmd": proc.Name,
-		}).Trace("Script completed")
-
-		return ErrScriptCompleted
-	})
-}
-
-// The function will only return once all child processes have terminated
 // On a OS signal, it will terminate all child processes, and block until all of them have completed.
-func LaunchFromFile(args []string, launcherQuietLevel int) error {
-	minimalOutput := (launcherQuietLevel > 2)
-	err := configureLog(minimalOutput)
-	if err != nil {
-		return err
-	}
-
-	// Most simplistic way to add a "quiet" mode
-	if launcherQuietLevel <= 0 {
-		log.SetLevel(logrus.TraceLevel)
-	} else if launcherQuietLevel == 1 {
-		log.SetLevel(logrus.DebugLevel)
-	} else if launcherQuietLevel >= 2 {
-		log.SetLevel(logrus.InfoLevel)
-	}
-
-	if len(args) < 1 {
-		return fmt.Errorf("launch file (yaml) not provided")
-	}
-
-	filename := args[0]
-	rootPath := filepath.Dir(filename)
-
-	processes, err := parseFile(filename, rootPath, args[1:])
-	if err != nil {
-		return err
-	}
-
+func launchFile(args []string) (*errgroup.Group, error) {
 	rootCtx, cancelCtx := context.WithCancel(context.Background())
 	eGroup, ctx := errgroup.WithContext(rootCtx)
 
@@ -198,17 +84,45 @@ func LaunchFromFile(args []string, launcherQuietLevel int) error {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		sig := <-sigs
-
-		log.WithFields(logrus.Fields{
-			"signal": fmt.Sprintf("%v", sig),
-		}).Trace("Stopping due to signal")
-
+		log.WithField("signal", fmt.Sprintf("%v", sig)).Debug("Stopping")
 		cancelCtx()
 	}()
 
-	for _, proc := range processes {
-		launchAsyncProcess(ctx, eGroup, proc)
+	if len(args) == 0 {
+		return nil, fmt.Errorf("required launch definition file missing")
+	}
+	filename := args[0]
+	launchArgs := args[1:]
+
+	definitionFile, err := parseFile(filename, launchArgs)
+	if err != nil {
+		return nil, err
 	}
 
-	return eGroup.Wait()
+	for index := range definitionFile.processes {
+		procIndex := index
+		eGroup.Go(func() error {
+			return runProcess(ctx, definitionFile, procIndex)
+		})
+	}
+
+	return eGroup, nil
+}
+
+// This function will only return once all child processes have terminated.
+func Launch(args []string, launcherQuietLevel int) error {
+	configureLog(launcherQuietLevel)
+
+	eGroup, err := launchFile(args)
+	if err != nil {
+		return err
+	}
+
+	err = eGroup.Wait()
+	if !errors.Is(err, errScriptCompleted) &&
+		!errors.Is(err, errScriptCancelled) {
+		return err
+	}
+
+	return nil
 }

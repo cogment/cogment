@@ -19,39 +19,57 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"text/template"
 
+	"github.com/hashicorp/terraform/dag"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
+
+	"github.com/cogment/cogment/utils"
 )
+
+// The empty string is not a legal script name, so we use as an internal node
+const dagRootNode = ""
+const dagRootIndex = -1
+
+// Internal representation of definition file (pre-processed)
+type launchDefinition struct {
+	processes []launchProcess
+}
 
 type launchProcess struct {
 	Name        string
 	Folder      string
 	Environment []string
 	Quiet       bool
+	ReadyRegex  *regexp.Regexp
+	Dependency  []int
 
 	Commands [][]string
+	Ready    *utils.SingleEvent
+}
+
+// YAML definition file descriptor structures
+type yamlFile struct {
+	Global  yamlGlobal
+	Scripts map[string]yamlScript
 }
 
 type yamlScript struct {
-	Folder      string
-	Environment yaml.MapSlice
-	Dir         string // Deprecated
-	Quiet       bool
-	Commands    [][]string
+	Folder       string
+	Environment  yaml.MapSlice
+	Dir          string // Deprecated
+	Quiet        bool
+	Ready_output string   //nolint  // Represents the names of nodes used in the file
+	Depends_on   []string //nolint  // Represents the names of nodes used in the file
+	Commands     [][]string
 }
 
 type yamlGlobal struct {
 	Environment yaml.MapSlice
 	Folder      string
-}
-
-// The expected top level structure of the yaml file
-type yamlFile struct {
-	Global  yamlGlobal
-	Scripts map[string]yamlScript
 }
 
 func copyMap(src map[string]string) map[string]string {
@@ -103,7 +121,11 @@ func parseString(text string, dictionary map[string]string) (string, error) {
 
 func parseScript(script *yamlScript, scriptName string, baseDict map[string]string, globalEnv []string, basePath string,
 ) (launchProcess, error) {
-	proc := launchProcess{Name: scriptName, Quiet: script.Quiet}
+	proc := launchProcess{
+		Name:  scriptName,
+		Quiet: script.Quiet,
+		Ready: utils.MakeSingleEvent(),
+	}
 
 	if len(script.Folder) != 0 {
 		if !filepath.IsAbs(script.Folder) {
@@ -141,6 +163,27 @@ func parseScript(script *yamlScript, scriptName string, baseDict map[string]stri
 		proc.Environment = append(proc.Environment, fmt.Sprintf("%v=%v", name, parsedValue))
 	}
 
+	if len(script.Ready_output) > 0 {
+		parsedRegex, err := parseString(script.Ready_output, scriptDict)
+		if err != nil {
+			log.WithFields(logrus.Fields{
+				"cmd":   scriptName,
+				"error": err,
+			}).Debug("Regex string variable substitution failed")
+			return launchProcess{}, err
+		}
+		compiledRegex, err := regexp.Compile(parsedRegex)
+		if err != nil {
+			log.WithFields(logrus.Fields{
+				"cmd":   scriptName,
+				"regex": parsedRegex,
+				"error": err,
+			}).Debug("Regex invalid")
+			return launchProcess{}, err
+		}
+		proc.ReadyRegex = compiledRegex
+	}
+
 	proc.Commands = make([][]string, 0, len(script.Commands))
 	for _, cmd := range script.Commands {
 		var parsedCmd = make([]string, 0, len(cmd))
@@ -162,16 +205,75 @@ func parseScript(script *yamlScript, scriptName string, baseDict map[string]stri
 	return proc, nil
 }
 
-func parseFile(filename string, rootPath string, cliArgs []string) ([]launchProcess, error) {
+func dependsOn(ag *dag.AcyclicGraph, dependent dag.Vertex, independent dag.Vertex) {
+	// Not very efficient to duplicate vertex addition, but low numbers are expected
+	ag.Add(dependent)
+	ag.Add(independent)
+	ag.Connect(dag.BasicEdge(independent, dependent))
+}
+
+func parseDependencies(def launchDefinition, file *yamlFile) error {
+	nameIndex := make(map[string]int)
+	for index, proc := range def.processes {
+		nameIndex[proc.Name] = index
+	}
+
+	testDag := dag.AcyclicGraph{}
+	for _, proc := range def.processes {
+		dependsOn(&testDag, proc.Name, dagRootNode)
+
+		script := file.Scripts[proc.Name]
+		for _, name := range script.Depends_on {
+			_, ok := nameIndex[name]
+			if !ok {
+				return fmt.Errorf("unknown dependency [%s] in script [%s]", name, proc.Name)
+			}
+			dependsOn(&testDag, proc.Name, name)
+		}
+	}
+
+	err := testDag.Validate()
+	if err != nil {
+		return fmt.Errorf("invalid dependency - %w", err)
+	}
+	testDag.TransitiveReduction()
+
+	nameIndex[dagRootNode] = dagRootIndex
+	for index, proc := range def.processes {
+		depEdges := testDag.EdgesTo(proc.Name)
+		for _, edge := range depEdges {
+			var depName string = edge.Source().(string)
+			depIndex, ok := nameIndex[depName]
+			if !ok {
+				return fmt.Errorf("dependency DAG unexpected entry[%v]", depName)
+			}
+			if depIndex == dagRootIndex {
+				continue
+			}
+			if index == depIndex {
+				return fmt.Errorf("dependency DAG inconsistency [%v]", proc.Name)
+			}
+			// TODO: There has got to be a better way! E.g. using proc
+			def.processes[index].Dependency = append(def.processes[index].Dependency, depIndex)
+		}
+	}
+
+	return nil
+}
+
+func parseFile(filename string, cliArgs []string) (launchDefinition, error) {
+
 	yamlDef, err := loadYaml(filename)
 	if err != nil {
-		return nil, err
+		return launchDefinition{}, err
 	}
 	nbScripts := len(yamlDef.Scripts)
 	if nbScripts == 0 {
-		return nil, fmt.Errorf("no script defined")
+		return launchDefinition{}, fmt.Errorf("no script defined")
 	}
-	result := make([]launchProcess, 0, nbScripts)
+	result := launchDefinition{
+		processes: make([]launchProcess, 0, nbScripts),
+	}
 
 	baseDict := make(map[string]string)
 	for _, str := range os.Environ() {
@@ -201,7 +303,7 @@ func parseFile(filename string, rootPath string, cliArgs []string) ([]launchProc
 			log.WithFields(logrus.Fields{
 				"error": err,
 			}).Debug("Global environment variable substitution failed")
-			return nil, err
+			return launchDefinition{}, err
 		}
 		baseDict[name] = parsedValue
 		globalEnv = append(globalEnv, fmt.Sprintf("%v=%v", name, parsedValue))
@@ -211,16 +313,26 @@ func parseFile(filename string, rootPath string, cliArgs []string) ([]launchProc
 	if filepath.IsAbs(yamlDef.Global.Folder) {
 		basePath = yamlDef.Global.Folder
 	} else {
+		rootPath := filepath.Dir(filename)
 		basePath = filepath.Join(rootPath, yamlDef.Global.Folder)
 	}
 
 	for scriptName, script := range yamlDef.Scripts {
-		proc, err := parseScript(&script, scriptName, baseDict, globalEnv, basePath)
-		if err != nil {
-			return nil, err
+		if len(scriptName) == 0 {
+			return launchDefinition{}, fmt.Errorf("empty script name")
 		}
 
-		result = append(result, proc)
+		proc, err := parseScript(&script, scriptName, baseDict, globalEnv, basePath)
+		if err != nil {
+			return launchDefinition{}, err
+		}
+
+		result.processes = append(result.processes, proc)
+	}
+
+	err = parseDependencies(result, yamlDef)
+	if err != nil {
+		return launchDefinition{}, err
 	}
 
 	return result, nil

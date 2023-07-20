@@ -15,14 +15,12 @@
 package cmd
 
 import (
-	"errors"
-
 	"github.com/cogment/cogment/launcher"
 	"github.com/spf13/cobra"
 )
 
 var launchCmd = &cobra.Command{
-	Use:          "launch [-q] <CFG>...",
+	Use:          "launch [-q[q[q]]] <filename> [args...]",
 	Short:        "Launches and manages processes for local deployments",
 	Args:         cobra.MinimumNArgs(1),
 	SilenceUsage: true,
@@ -32,11 +30,7 @@ var launchCmd = &cobra.Command{
 			return err
 		}
 
-		err = launcher.LaunchFromFile(args, quietLevel)
-		if !errors.Is(err, launcher.ErrScriptCompleted) {
-			return err
-		}
-		return nil
+		return launcher.Launch(args, quietLevel)
 	},
 }
 

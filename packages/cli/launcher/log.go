@@ -21,8 +21,9 @@ import (
 
 var log = logrus.New()
 
-func configureLog(min bool) error {
+func configureLog(quietLevel int) {
 	prefixFields := []string{"cmd"}
+
 	levelNames := map[logrus.Level]string{
 		logrus.TraceLevel: "TRACE ",
 		logrus.DebugLevel: "INFO  ", // Repurposed
@@ -32,8 +33,17 @@ func configureLog(min bool) error {
 		logrus.FatalLevel: "FATAL ", // Unused
 		logrus.PanicLevel: "PANIC ", // Unused
 	}
-	loggerFormatter := utils.MakeLoggerFormatter(prefixFields, levelNames, min)
+
+	minimalOutput := (quietLevel > 2)
+
+	loggerFormatter := utils.MakeLoggerFormatter(prefixFields, levelNames, minimalOutput)
 	log.SetFormatter(&loggerFormatter)
 
-	return nil
+	if quietLevel <= 0 {
+		log.SetLevel(logrus.TraceLevel)
+	} else if quietLevel == 1 {
+		log.SetLevel(logrus.DebugLevel)
+	} else if quietLevel >= 2 {
+		log.SetLevel(logrus.InfoLevel)
+	}
 }

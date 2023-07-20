@@ -8,10 +8,11 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/hashicorp/golang-lru v0.5.4
+	github.com/hashicorp/terraform v0.15.3
 	github.com/imdario/mergo v0.3.11
 	github.com/improbable-eng/grpc-web v0.14.1
 	github.com/jinzhu/copier v0.1.0
-	github.com/jstemmer/go-junit-report v0.0.0-20190106144839-af01ea7f8024
+	github.com/jstemmer/go-junit-report v0.9.1
 	github.com/markbates/pkger v0.17.1
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f
 	github.com/mwitkow/grpc-proxy v0.0.0-20181017164139-0f1106ef9c76
@@ -19,7 +20,6 @@ require (
 	github.com/openlyinc/pointy v1.1.2
 	github.com/rogpeppe/go-internal v1.3.0
 	github.com/sirupsen/logrus v1.8.1
-	github.com/spf13/afero v1.2.2 // indirect
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.7.0

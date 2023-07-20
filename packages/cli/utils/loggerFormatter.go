@@ -104,10 +104,12 @@ func (formatter *LoggerFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 				fmt.Fprintf(outBuf, "%v", entry.Data[field])
 			}
 		}
-		outBuf.WriteString("] ")
+		outBuf.WriteString("]")
 
 		// set color back to default
 		outBuf.WriteString("\x1b[0m")
+
+		outBuf.WriteString(" ")
 	}
 
 	// write message
@@ -115,7 +117,11 @@ func (formatter *LoggerFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 
 	// write the other fields
 	for _, field := range otherFields {
-		fmt.Fprintf(outBuf, " [%s:%v]", field, entry.Data[field])
+		if len(field) != 0 {
+			fmt.Fprintf(outBuf, " [%s:%v]", field, entry.Data[field])
+		} else {
+			fmt.Fprintf(outBuf, " [%v]", entry.Data[field])
+		}
 	}
 
 	outBuf.WriteByte('\n')
