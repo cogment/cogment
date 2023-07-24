@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.16.0 - 2023-07-24
+
 ### Fixed
 
 - Add the macos amd64 version back
