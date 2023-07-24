@@ -58,13 +58,13 @@ type yamlFile struct {
 }
 
 type yamlScript struct {
-	Folder       string
-	Environment  yaml.MapSlice
-	Dir          string // Deprecated
-	Quiet        bool
-	Ready_output string   //nolint  // Represents the names of nodes used in the file
-	Depends_on   []string //nolint  // Represents the names of nodes used in the file
-	Commands     [][]string
+	Folder      string
+	Environment yaml.MapSlice
+	Dir         string // Deprecated
+	Quiet       bool
+	ReadyOutput string   `yaml:"ready_output"`
+	DependsOn   []string `yaml:"depends_on"`
+	Commands    [][]string
 }
 
 type yamlGlobal struct {
@@ -163,8 +163,8 @@ func parseScript(script *yamlScript, scriptName string, baseDict map[string]stri
 		proc.Environment = append(proc.Environment, fmt.Sprintf("%v=%v", name, parsedValue))
 	}
 
-	if len(script.Ready_output) > 0 {
-		parsedRegex, err := parseString(script.Ready_output, scriptDict)
+	if len(script.ReadyOutput) > 0 {
+		parsedRegex, err := parseString(script.ReadyOutput, scriptDict)
 		if err != nil {
 			log.WithFields(logrus.Fields{
 				"cmd":   scriptName,
@@ -223,7 +223,7 @@ func parseDependencies(def launchDefinition, file *yamlFile) error {
 		dependsOn(&testDag, proc.Name, dagRootNode)
 
 		script := file.Scripts[proc.Name]
-		for _, name := range script.Depends_on {
+		for _, name := range script.DependsOn {
 			_, ok := nameIndex[name]
 			if !ok {
 				return fmt.Errorf("unknown dependency [%s] in script [%s]", name, proc.Name)

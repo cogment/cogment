@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Pre-compile launch definition file
 
+### Added
+
+- Launch processes dependency chain
+- Directory client wait command
+
 ## v2.15.0 - 2023-07-10
 
 ### Fixed
