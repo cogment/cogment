@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Fixed
+
+- Add the macos amd64 version back
+
 ### Changed
 
 - Pre-compile launch definition file
