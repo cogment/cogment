@@ -63,6 +63,8 @@ var directoryCmd = &cobra.Command{
 }
 
 func init() {
+	directoryViper.AllowEmptyEnv(true)
+
 	directoryViper.SetDefault(directoryPortKey, directory.DefaultOptions.Port)
 	_ = directoryViper.BindEnv(directoryPortKey, directoryPortEnv)
 	directoryCmd.Flags().Uint(

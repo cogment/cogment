@@ -74,9 +74,11 @@ func MakeMemoryDb(filename string) *MemoryDB {
 			if err != nil {
 				log.WithField("filename", filename).Warn("Could not load persistence file - ", err)
 			} else {
-				log.Info("Loaded [", len(md.data), "] entries from persistence file")
+				log.Info("Loaded [", len(md.data), "] entries from persistence file [", filename, "]")
 			}
 		}
+	} else {
+		log.Info("No persistence file")
 	}
 
 	return &md

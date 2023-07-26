@@ -149,7 +149,10 @@ func parseScript(script *yamlScript, scriptName string, baseDict map[string]stri
 
 	for _, item := range script.Environment {
 		name := fmt.Sprintf("%v", item.Key)
-		value := fmt.Sprintf("%v", item.Value)
+		var value string
+		if item.Value != nil {
+			value = fmt.Sprintf("%v", item.Value)
+		}
 
 		parsedValue, err := parseString(value, scriptDict)
 		if err != nil {
@@ -296,7 +299,10 @@ func parseFile(filename string, cliArgs []string) (launchDefinition, error) {
 	globalEnv := os.Environ()
 	for _, item := range yamlDef.Global.Environment {
 		name := fmt.Sprintf("%v", item.Key)
-		value := fmt.Sprintf("%v", item.Value)
+		var value string
+		if item.Value != nil {
+			value = fmt.Sprintf("%v", item.Value)
+		}
 
 		parsedValue, err := parseString(value, baseDict)
 		if err != nil {
