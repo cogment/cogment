@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Allow empty environment variables for the directory
+- Better health checks in directory
 
 ## v2.16.0 - 2023-07-24
 

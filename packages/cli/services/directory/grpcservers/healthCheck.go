@@ -36,7 +36,7 @@ const (
 	healthCheckPeriod     = 30 * time.Second
 	maxFailedHealthChecks = 3
 
-	tcpCheckTimeout     = 1 * time.Second
+	tcpCheckTimeout     = 5 * time.Second
 	cogmentCheckTimeout = 2 * time.Second
 
 	maxLifetime = 168 * time.Hour // 1 * week
@@ -83,26 +83,29 @@ func (ds *DirectoryServer) nowHealthCheck(running *bool, immediateRemoval bool) 
 			break
 		}
 
-		record, err := ds.db.SelectByID(id)
-		if err != nil {
-			// Id was removed in the interim
-			continue
-		}
-
-		if (now - record.LastHealthCheckTimestamp) < uint64(healthCheckPeriod.Nanoseconds()) {
-			continue
-		}
-
-		healthy := healthCheck(record, now)
-		if !healthy && (immediateRemoval || record.NbFailedHealthChecks >= maxFailedHealthChecks) {
-			ds.db.Delete(id)
-
-			if immediateRemoval {
-				log.WithField("service_id", id).Info("Service removed after failing health check")
-			} else {
-				log.WithField("service_id", id).Info("Service removed after failing multiple health checks")
+		recordID := id
+		go func() {
+			record, err := ds.db.SelectByID(recordID)
+			if err != nil {
+				// Id was removed in the interim
+				return
 			}
-		}
+
+			if (now - record.LastHealthCheckTimestamp) < uint64(healthCheckPeriod.Nanoseconds()) {
+				return
+			}
+
+			healthy := healthCheck(record, now)
+			if !healthy && (immediateRemoval || record.NbFailedHealthChecks >= maxFailedHealthChecks) {
+				ds.db.Delete(recordID)
+
+				if immediateRemoval {
+					log.WithField("service_id", recordID).Info("Service removed after failing initial health check")
+				} else {
+					log.WithField("service_id", recordID).Info("Service removed after failing multiple health checks")
+				}
+			}
+		}()
 	}
 }
 
@@ -132,17 +135,35 @@ func healthCheck(record *DbRecord, now uint64) bool {
 	// TODO: The directory could be set with SSL certificates, then we could try to check cogment SSL services
 	if record.Details.Type > cogmentAPI.ServiceType_MODEL_REGISTRY_SERVICE ||
 		record.Endpoint.Protocol == cogmentAPI.ServiceEndpoint_GRPC_SSL {
-		err := tcpCheck(record.Endpoint.Host, record.Endpoint.Port)
+		var err error
+		timeout := tcpCheckTimeout
+		for index := 0; index < 3; index++ {
+			err = tcpCheck(record.Endpoint.Host, record.Endpoint.Port, timeout)
+			if err == nil {
+				break
+			}
+			log.Debug("Failed TCP transient health check for ID [", record.Sid, "] - ", err.Error())
+			timeout *= 2
+		}
 		if err != nil {
-			log.Debug("Failed TCP health check for ID [", record.Sid, "] - ", err.Error())
 			record.NbFailedHealthChecks++
+			log.Debug("Failed TCP health check [", record.NbFailedHealthChecks, "] for ID [", record.Sid, "]")
 			return false
 		}
 	} else {
-		err := cogmentCheck(record.Details.Type, record.Endpoint.Host, record.Endpoint.Port)
+		var err error
+		timeout := cogmentCheckTimeout
+		for index := 0; index < 3; index++ {
+			err = cogmentCheck(record.Details.Type, record.Endpoint.Host, record.Endpoint.Port, timeout)
+			if err == nil {
+				break
+			}
+			log.Debug("Failed Cogment transient health check for ID [", record.Sid, "] - ", err.Error())
+			timeout *= 2
+		}
 		if err != nil {
-			log.Debug("Failed Cogment health check for ID [", record.Sid, "] - ", err.Error())
 			record.NbFailedHealthChecks++
+			log.Debug("Failed Cogment health check [", record.NbFailedHealthChecks, "] for ID [", record.Sid, "]")
 			return false
 		}
 	}
@@ -151,11 +172,11 @@ func healthCheck(record *DbRecord, now uint64) bool {
 	return true
 }
 
-func tcpCheck(host string, port uint32) error {
+func tcpCheck(host string, port uint32, timeout time.Duration) error {
 	address := fmt.Sprintf("%s:%d", host, port)
 
 	var dialer net.Dialer
-	ctx, cancelContext := context.WithTimeout(context.Background(), tcpCheckTimeout)
+	ctx, cancelContext := context.WithTimeout(context.Background(), timeout)
 	defer cancelContext()
 
 	conn, err := dialer.DialContext(ctx, "tcp", address)
@@ -181,10 +202,10 @@ func tcpCheck(host string, port uint32) error {
 	return err
 }
 
-func cogmentCheck(serviceType cogmentAPI.ServiceType, host string, port uint32) error {
+func cogmentCheck(serviceType cogmentAPI.ServiceType, host string, port uint32, timeout time.Duration) error {
 	address := fmt.Sprintf("%s:%d", host, port)
 
-	ctx, cancelContext := context.WithTimeout(context.Background(), cogmentCheckTimeout)
+	ctx, cancelContext := context.WithTimeout(context.Background(), timeout)
 	defer cancelContext()
 
 	connection, err := grpc.DialContext(ctx, address,

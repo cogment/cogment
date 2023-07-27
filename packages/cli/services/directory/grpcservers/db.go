@@ -226,6 +226,7 @@ func (md *MemoryDB) fromFile() error {
 
 		for _, record := range md.data {
 			record.LastHealthCheckTimestamp = 0
+			record.NbFailedHealthChecks = 1
 		}
 	}
 
