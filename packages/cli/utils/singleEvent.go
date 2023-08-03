@@ -21,6 +21,7 @@ type SingleEvent struct {
 	eventCond sync.Cond
 	eventVar  bool
 	disabled  bool
+	readyFunc func()
 }
 
 func MakeSingleEvent() *SingleEvent {
@@ -44,7 +45,15 @@ func (se *SingleEvent) Disable() {
 func (se *SingleEvent) Set() {
 	se.eventCond.L.Lock()
 	se.eventVar = true
+
+	callOnReady := func() {}
+	if se.readyFunc != nil {
+		callOnReady = se.readyFunc
+		se.readyFunc = nil
+	}
 	se.eventCond.L.Unlock()
+
+	callOnReady()
 	se.eventCond.Broadcast()
 }
 
@@ -57,4 +66,16 @@ func (se *SingleEvent) Wait() bool {
 	}
 
 	return se.eventVar
+}
+
+func (se *SingleEvent) ReadyFunc(ready func()) {
+	se.eventCond.L.Lock()
+
+	if se.eventVar {
+		se.eventCond.L.Unlock()
+		ready()
+	} else {
+		se.readyFunc = ready
+		se.eventCond.L.Unlock()
+	}
 }

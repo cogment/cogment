@@ -56,12 +56,12 @@ func (exe *executor) streamOut(out func(args ...interface{}), src *io.PipeReader
 	for scanner.Scan() {
 		text := scanner.Text()
 
-		if !exe.OutputMatched.IsSet() && exe.OutputRegex.MatchString(text) {
-			exe.OutputMatched.Set()
-		}
-
 		if exe.OutputEnabled {
 			out(text)
+		}
+
+		if !exe.OutputMatched.IsSet() && exe.OutputRegex.MatchString(text) {
+			exe.OutputMatched.Set()
 		}
 	}
 }

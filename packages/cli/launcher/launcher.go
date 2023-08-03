@@ -31,17 +31,14 @@ var errScriptCancelled = fmt.Errorf("script cancelled")
 func runProcess(ctx context.Context, def launchDefinition, index int) error {
 	proc := def.processes[index]
 	logger := log.WithField("cmd", proc.Name)
+	proc.Ready.ReadyFunc(func() {
+		logger.Trace("Ready")
+	})
 
 	// Wait for dependencies
 	for _, dependenceIndex := range proc.Dependency {
 		def.processes[dependenceIndex].Ready.Wait()
 	}
-
-	go func() {
-		if proc.Ready.Wait() {
-			logger.Trace("Ready")
-		}
-	}()
 	defer proc.Ready.Disable()
 
 	select {

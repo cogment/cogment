@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Added
+
+- Launch `__ALL_ARGS` and `__NB_ARGS` substitution variables
+
 ## v2.16.1 - 2023-07-27
 
 ### Fixed

@@ -24,7 +24,6 @@ import (
 	"text/template"
 
 	"github.com/hashicorp/terraform/dag"
-	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 
 	"github.com/cogment/cogment/utils"
@@ -72,15 +71,6 @@ type yamlGlobal struct {
 	Folder      string
 }
 
-func copyMap(src map[string]string) map[string]string {
-	result := make(map[string]string)
-	for name, value := range src {
-		result[name] = value
-	}
-
-	return result
-}
-
 // Copy slice in a new array
 func copySlice(src []string) []string {
 	result := make([]string, len(src))
@@ -104,14 +94,14 @@ func loadYaml(fileName string) (*yamlFile, error) {
 	return &result, nil
 }
 
-func parseString(text string, dictionary map[string]string) (string, error) {
+func parseString(text string, dictionary parseDict) (string, error) {
 	parseTemplate, err := template.New("tmp").Parse(text)
 	if err != nil {
 		return "", err
 	}
 
 	var resultBytes bytes.Buffer
-	err = parseTemplate.Execute(&resultBytes, dictionary)
+	err = parseTemplate.Execute(&resultBytes, dictionary.Dict)
 	if err != nil {
 		return "", err
 	}
@@ -119,7 +109,7 @@ func parseString(text string, dictionary map[string]string) (string, error) {
 	return resultBytes.String(), nil
 }
 
-func parseScript(script *yamlScript, scriptName string, baseDict map[string]string, globalEnv []string, basePath string,
+func parseScript(script *yamlScript, scriptName string, baseDict parseDict, globalEnv []string, basePath string,
 ) (launchProcess, error) {
 	proc := launchProcess{
 		Name:  scriptName,
@@ -144,7 +134,7 @@ func parseScript(script *yamlScript, scriptName string, baseDict map[string]stri
 		proc.Folder = basePath
 	}
 
-	scriptDict := copyMap(baseDict)
+	scriptDict := baseDict.Copy()
 	proc.Environment = copySlice(globalEnv)
 
 	for _, item := range script.Environment {
@@ -156,50 +146,48 @@ func parseScript(script *yamlScript, scriptName string, baseDict map[string]stri
 
 		parsedValue, err := parseString(value, scriptDict)
 		if err != nil {
-			log.WithFields(logrus.Fields{
-				"cmd":   scriptName,
-				"error": err,
-			}).Debug("Environment variable substitution failed")
-			return launchProcess{}, err
+			return launchProcess{}, fmt.Errorf("command [%s] environment variable substitution failed: %w",
+				scriptName, err)
 		}
-		scriptDict[name] = parsedValue
-		proc.Environment = append(proc.Environment, fmt.Sprintf("%v=%v", name, parsedValue))
+		proc.Environment = append(proc.Environment, fmt.Sprintf("%s=%s", name, parsedValue))
+
+		if !scriptDict.Add(name, parsedValue) {
+			log.Debug("Variable [", name, "] overwritten with launcher internal value")
+		}
 	}
 
 	if len(script.ReadyOutput) > 0 {
 		parsedRegex, err := parseString(script.ReadyOutput, scriptDict)
 		if err != nil {
-			log.WithFields(logrus.Fields{
-				"cmd":   scriptName,
-				"error": err,
-			}).Debug("Regex string variable substitution failed")
-			return launchProcess{}, err
+			return launchProcess{}, fmt.Errorf("command [%s] ready_output regex variable substitution failed: %w",
+				scriptName, err)
 		}
 		compiledRegex, err := regexp.Compile(parsedRegex)
 		if err != nil {
-			log.WithFields(logrus.Fields{
-				"cmd":   scriptName,
-				"regex": parsedRegex,
-				"error": err,
-			}).Debug("Regex invalid")
-			return launchProcess{}, err
+			return launchProcess{}, fmt.Errorf("command [%s] ready_output regex [%s] invalid: %w",
+				scriptName, parsedRegex, err)
 		}
 		proc.ReadyRegex = compiledRegex
 	}
+
+	// This is a special case where we manually "parse"
+	allCliArgsSubString := fmt.Sprintf("{{.%s}}", allCliArgsName)
 
 	proc.Commands = make([][]string, 0, len(script.Commands))
 	for _, cmd := range script.Commands {
 		var parsedCmd = make([]string, 0, len(cmd))
 		for _, arg := range cmd {
-			parsedArg, err := parseString(arg, scriptDict)
-			if err != nil {
-				log.WithFields(logrus.Fields{
-					"cmd":   scriptName,
-					"error": err,
-				}).Debug("Command variable substitution failed")
-				return launchProcess{}, err
+			if arg == allCliArgsSubString {
+				for index := 0; index < scriptDict.NbArgs; index++ {
+					parsedCmd = append(parsedCmd, scriptDict.GetArg(index+1))
+				}
+			} else {
+				parsedArg, err := parseString(arg, scriptDict)
+				if err != nil {
+					return launchProcess{}, fmt.Errorf("command [%s] variable substitution failed: %w", scriptName, err)
+				}
+				parsedCmd = append(parsedCmd, parsedArg)
 			}
-			parsedCmd = append(parsedCmd, parsedArg)
 		}
 
 		proc.Commands = append(proc.Commands, parsedCmd)
@@ -278,22 +266,20 @@ func parseFile(filename string, cliArgs []string) (launchDefinition, error) {
 		processes: make([]launchProcess, 0, nbScripts),
 	}
 
-	baseDict := make(map[string]string)
+	baseDict := makeParseDict()
+	for index := 0; index < len(cliArgs); index++ {
+		if !baseDict.AddArg(index+1, cliArgs[index]) {
+			log.Debug("Internal error: argument [", index+1, "] failed to register")
+		}
+	}
+
 	for _, str := range os.Environ() {
 		index := strings.IndexRune(str, '=')
 		name := str[:index]
 		value := str[index+1:]
-		baseDict[name] = value
-	}
-
-	argIndex := 0
-	for ; argIndex < len(cliArgs); argIndex++ {
-		argName := fmt.Sprintf("__%v", argIndex+1)
-		baseDict[argName] = cliArgs[argIndex]
-	}
-	for ; argIndex < 9; argIndex++ { // 1 to 9 are always defined
-		argName := fmt.Sprintf("__%v", argIndex+1)
-		baseDict[argName] = ""
+		if !baseDict.Add(name, value) {
+			log.Debug("Environment variable [", name, "] overwritten with launcher internal value")
+		}
 	}
 
 	globalEnv := os.Environ()
@@ -306,13 +292,13 @@ func parseFile(filename string, cliArgs []string) (launchDefinition, error) {
 
 		parsedValue, err := parseString(value, baseDict)
 		if err != nil {
-			log.WithFields(logrus.Fields{
-				"error": err,
-			}).Debug("Global environment variable substitution failed")
-			return launchDefinition{}, err
+			return launchDefinition{}, fmt.Errorf("global environment variable substitution failed: %w", err)
 		}
-		baseDict[name] = parsedValue
-		globalEnv = append(globalEnv, fmt.Sprintf("%v=%v", name, parsedValue))
+		globalEnv = append(globalEnv, fmt.Sprintf("%s=%s", name, parsedValue))
+
+		if !baseDict.Add(name, parsedValue) {
+			log.Debug("Environment variable [", name, "] overwritten with launcher internal value")
+		}
 	}
 
 	var basePath string
