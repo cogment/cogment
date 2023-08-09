@@ -20,6 +20,7 @@ import (
 
 	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/utils"
+	"github.com/cogment/cogment/utils/endpoint"
 
 	directoryClient "github.com/cogment/cogment/clients/directory"
 	"github.com/spf13/cobra"
@@ -63,9 +64,14 @@ var directoryInquireCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), clientViper.GetDuration(clientTimeoutKey))
 		defer cancel()
 
+		directoryEndpoint, err := endpoint.Parse(directoryViper.GetString(directoryEndpointKey))
+		if err != nil {
+			return err
+		}
+
 		client, err := directoryClient.CreateClient(
 			ctx,
-			directoryViper.GetString(directoryEndpointKey),
+			directoryEndpoint,
 			directoryViper.GetString(directoryAuthTokenKey),
 		)
 		if err != nil {

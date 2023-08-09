@@ -53,10 +53,10 @@ A [CMake](https://cmake.org) based systems glues the build of both together
 ### Prerequisites
 
 - Fully working **c++** build toolchain.
-- Fully working **go** setup (1.16), as described in the [official documentation](https://golang.org/doc/install).
+- Fully working **go** setup (1.20), as described in the [official documentation](https://golang.org/doc/install).
 - **`Cmake`** (>= 3.10), the core of the build system, it should be installed as described in the [official documentation](https://cmake.org/install/).
 - **`Make`**, most flavor should work fine.
-- _Optional_, **`golangci-lint`** (v1.50.1) used to run lint on the golang codebase, installed as described in the [official documentation](https://golangci-lint.run/usage/install/).
+- _Optional_, **`golangci-lint`** (v1.53.3) used to run lint on the golang codebase, installed as described in the [official documentation](https://golangci-lint.run/usage/install/).
 - _Optional_, **`clang-format`** (10) used to run lint on the c++ codebase, it can be installed on most linux flavor from <https://apt.llvm.org> and on mac using `brew install clang-format`.
 - _Optional_, a [**docker**](https://www.docker.com/) installation to be able to build the docker image.
 

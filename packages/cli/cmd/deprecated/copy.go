@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+//nolint:all
 func copy(src, _dst string) (int64, error) {
 	sourceFileStat, err := os.Stat(src)
 	if err != nil {

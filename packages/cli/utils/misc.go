@@ -24,7 +24,7 @@ import (
 var base64Pool = "ABCDEFGHIJKLMNOPQRSTUVWZYZabcdefghijklmnopqrstuvwzyz0123456789-_"
 
 func init() {
-	rand.Seed(time.Now().UnixNano())
+	rand.Seed(time.Now().UnixNano()) //nolint
 }
 
 func Timestamp() uint64 {

@@ -15,6 +15,7 @@
 package utils
 
 import (
+	"context"
 	"sync"
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
@@ -96,4 +97,22 @@ func NewGrpcServer(enableReflection bool, opts ...grpc.ServerOption) *grpc.Serve
 	}
 
 	return server
+}
+
+func StopGrpcServer(ctx context.Context, server *grpc.Server) error {
+	log := logrus.WithField("component", "grpc-server")
+
+	gracefullyStopped := make(chan struct{})
+	go func() {
+		server.GracefulStop()
+		gracefullyStopped <- struct{}{}
+	}()
+	select {
+	case <-ctx.Done():
+		log.Warn("Forcefully stopping the grpc server")
+		server.Stop()
+		return ctx.Err()
+	case <-gracefullyStopped:
+		return nil
+	}
 }

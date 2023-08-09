@@ -45,14 +45,14 @@ RUN curl --silent  https://apt.llvm.org/llvm-snapshot.gpg.key|apt-key add - && \
 RUN curl -L --silent https://github.com/Kitware/CMake/releases/download/v3.22.3/cmake-3.22.3-linux-x86_64.sh --output install-cmake.sh && \
   sh install-cmake.sh --prefix=/usr/local/ --exclude-subdir
 
-# Install Go v1.19.10
-RUN curl -L --silent https://go.dev/dl/go1.19.10.linux-amd64.tar.gz --output go-linux-amd64.tar.gz && \
+# Install Go v1.20.7
+RUN curl -L --silent https://go.dev/dl/go1.20.7.linux-amd64.tar.gz --output go-linux-amd64.tar.gz && \
   tar -C /usr/local -xzf go-linux-amd64.tar.gz
 
 ENV GOPATH=/opt/go
 ENV PATH=${PATH}:/usr/local/go/bin:${GOPATH}/bin
 
-RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.50.1
+RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.53.3
 
 # Install shfmt v3.7.0
 RUN go install mvdan.cc/sh/v3/cmd/shfmt@v3.7.0

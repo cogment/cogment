@@ -20,6 +20,7 @@ import (
 	"os"
 
 	directoryClient "github.com/cogment/cogment/clients/directory"
+	"github.com/cogment/cogment/utils/endpoint"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -39,9 +40,14 @@ var directoryWaitForReadyCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), clientViper.GetDuration(clientTimeoutKey))
 		defer cancel()
 
+		directoryEndpoint, err := endpoint.Parse(directoryViper.GetString(directoryEndpointKey))
+		if err != nil {
+			return err
+		}
+
 		client, err := directoryClient.CreateClient(
 			ctx,
-			directoryViper.GetString(directoryEndpointKey),
+			directoryEndpoint,
 			directoryViper.GetString(directoryAuthTokenKey),
 		)
 		if err != nil {

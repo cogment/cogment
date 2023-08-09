@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Launch `__ALL_ARGS` and `__NB_ARGS` substitution variables
+- Preview of `cogment services web_proxy [...]`, a proxy facilitating the usage of Cogment over HTTP the initial version supports implementing actors.
+
+### Changed
+
+- Update to Go 1.20 (from 1.19)
 
 ## v2.16.1 - 2023-07-27
 

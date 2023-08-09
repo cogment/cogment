@@ -124,11 +124,7 @@ func execCommand(command string, directory string, errorString string) error {
 		return err
 	}
 
-	if err := subProcess.Wait(); err != nil {
-		return err
-	}
-
-	return nil
+	return subProcess.Wait()
 }
 
 func runProtoc(protocBinary string, projectRootPath string, protoFiles []string, otherParams []string) error {

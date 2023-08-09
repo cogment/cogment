@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/cogment/cogment/clients/directory"
 	"github.com/cogment/cogment/services/orchestrator/proxy"
 	"github.com/cogment/cogment/services/orchestrator/wrapper"
 	"github.com/cogment/cogment/services/utils"
@@ -27,7 +28,7 @@ import (
 )
 
 type Options struct {
-	utils.DirectoryRegistrationOptions
+	directory.RegistrationOptions
 	LifecyclePort             uint
 	ActorPort                 uint
 	ActorWebPort              uint
@@ -43,18 +44,18 @@ type Options struct {
 }
 
 var DefaultOptions = Options{
-	DirectoryRegistrationOptions: utils.DefaultDirectoryRegistrationOptions,
-	LifecyclePort:                9000,
-	ActorPort:                    9000,
-	ActorWebPort:                 0,
-	ParamsFile:                   "",
-	PrometheusPort:               0,
-	StatusFile:                   "",
-	PrivateKeyFile:               "",
-	RootCertificateFile:          "",
-	TrustChainFile:               "",
-	GarbageCollectorFrequency:    10,
-	DirectoryAutoRegister:        true,
+	RegistrationOptions:       directory.DefaultRegistrationOptions,
+	LifecyclePort:             9000,
+	ActorPort:                 9000,
+	ActorWebPort:              0,
+	ParamsFile:                "",
+	PrometheusPort:            0,
+	StatusFile:                "",
+	PrivateKeyFile:            "",
+	RootCertificateFile:       "",
+	TrustChainFile:            "",
+	GarbageCollectorFrequency: 10,
+	DirectoryAutoRegister:     true,
 }
 
 func Run(ctx context.Context, options Options) error {
@@ -171,8 +172,9 @@ func runOrchestrator(ctx context.Context, options Options, statusListener utils.
 			return err
 		}
 	}
-	if len(options.DirectoryEndpoint) > 0 {
-		err = w.AddDirectoryServicesEndpoint(options.DirectoryEndpoint)
+	if options.DirectoryEndpoint != nil {
+		directoryEndpointURL := options.DirectoryEndpoint.URL()
+		err = w.AddDirectoryServicesEndpoint(directoryEndpointURL.String())
 		if err != nil {
 			return err
 		}

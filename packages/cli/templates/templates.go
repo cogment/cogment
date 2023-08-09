@@ -75,11 +75,7 @@ func GenerateFromTemplate(tmplPath string, config interface{}, outputPath string
 	}
 	defer outputFile.Close()
 
-	if err = t.Execute(outputFile, config); err != nil {
-		return err
-	}
-
-	return nil
+	return t.Execute(outputFile, config)
 }
 
 // RecursivelyGenerateFromTemplates generates a file hierarchy from a template hierarchy

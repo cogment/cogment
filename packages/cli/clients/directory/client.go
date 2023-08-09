@@ -18,41 +18,28 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
-	"net/url"
 
+	"github.com/cogment/cogment/clients"
 	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
+	"github.com/cogment/cogment/utils/endpoint"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 )
 
 type Client struct {
-	host   string
-	port   string
-	ctx    context.Context
-	dialer func(context.Context, string) (net.Conn, error)
+	clients.Client
+	ctx context.Context
 }
 
 const directoryAuthTokenMetadataKey = "authentication-token"
 
-func CreateClient(ctx context.Context, endpoint string, authenticationToken string) (*Client, error) {
-	endpointURL, err := url.Parse(endpoint)
+func CreateClient(ctx context.Context, endpoint endpoint.Endpoint, authenticationToken string) (*Client, error) {
+	subClient, err := clients.CreateClientWithInsecureEndpoint(endpoint)
 	if err != nil {
-		return nil, fmt.Errorf("Not a valid URL [%s]: %w", endpoint, err)
+		return nil, err
 	}
 
-	if endpointURL.Scheme != "grpc" ||
-		endpointURL.Path != "" ||
-		endpointURL.RawQuery != "" ||
-		endpointURL.RawFragment != "" ||
-		endpointURL.User != nil {
-		return nil, fmt.Errorf("Invalid grpc endpoint [%s] (expected 'grpc://<host>:<port>')", endpointURL)
-	}
-
-	client := &Client{}
-	client.host = endpointURL.Hostname()
-	client.port = endpointURL.Port()
+	client := &Client{Client: *subClient}
 
 	if authenticationToken != "" {
 		ctx = metadata.AppendToOutgoingContext(ctx, directoryAuthTokenMetadataKey, authenticationToken)
@@ -63,28 +50,8 @@ func CreateClient(ctx context.Context, endpoint string, authenticationToken stri
 	return client, nil
 }
 
-func (client *Client) connect() (*grpc.ClientConn, error) {
-	hasCustomDialer := client.dialer != nil
-	hasInsecureEndpoint := client.host != "" && client.port != ""
-	if !hasCustomDialer && !hasInsecureEndpoint {
-		return nil, fmt.Errorf("Unable to create client connection, missing endpoint or dialer")
-	}
-
-	var opts []grpc.DialOption
-	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	opts = append(opts, grpc.WithBlock())
-
-	if hasInsecureEndpoint {
-		address := client.host + ":" + client.port
-		return grpc.DialContext(client.ctx, address, opts...)
-	}
-
-	opts = append(opts, grpc.WithContextDialer(client.dialer))
-	return grpc.DialContext(client.ctx, "custom_dialer", opts...)
-}
-
 func (client *Client) Register(request *cogmentAPI.RegisterRequest) (uint64, string, error) {
-	connection, err := client.connect()
+	connection, err := client.Connect(client.ctx)
 	if err != nil {
 		return 0, "", err
 	}
@@ -114,7 +81,7 @@ func (client *Client) Register(request *cogmentAPI.RegisterRequest) (uint64, str
 }
 
 func (client *Client) Deregister(request *cogmentAPI.DeregisterRequest) error {
-	connection, err := client.connect()
+	connection, err := client.Connect(client.ctx)
 	if err != nil {
 		return err
 	}
@@ -144,9 +111,8 @@ func (client *Client) Deregister(request *cogmentAPI.DeregisterRequest) error {
 	return nil
 }
 
-func (client *Client) Inquire(request *cogmentAPI.InquireRequest,
-) (*[]*cogmentAPI.FullServiceData, error) {
-	connection, err := client.connect()
+func (client *Client) Inquire(request *cogmentAPI.InquireRequest) (*[]*cogmentAPI.FullServiceData, error) {
+	connection, err := client.Connect(client.ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +144,7 @@ func (client *Client) WaitForReady() error {
 	request := cogmentAPI.InquireRequest{}
 	request.Inquiry = &cogmentAPI.InquireRequest_ServiceId{ServiceId: 0}
 
-	connection, err := client.connect()
+	connection, err := client.Connect(client.ctx)
 	if err != nil {
 		return err
 	}

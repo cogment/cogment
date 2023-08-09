@@ -18,6 +18,7 @@ import (
 	"context"
 
 	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
+	"github.com/cogment/cogment/utils/endpoint"
 
 	directoryClient "github.com/cogment/cogment/clients/directory"
 	"github.com/spf13/cobra"
@@ -53,9 +54,14 @@ var directoryDeregisterCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), clientViper.GetDuration(clientTimeoutKey))
 		defer cancel() // This causes grpc "cancel" info output, but Go lint forces us to call it!
 
+		directoryEndpoint, err := endpoint.Parse(directoryViper.GetString(directoryEndpointKey))
+		if err != nil {
+			return err
+		}
+
 		client, err := directoryClient.CreateClient(
 			ctx,
-			directoryViper.GetString(directoryEndpointKey),
+			directoryEndpoint,
 			directoryViper.GetString(directoryAuthTokenKey),
 		)
 		if err != nil {

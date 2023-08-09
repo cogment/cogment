@@ -46,8 +46,8 @@ const (
 
 //export log_callback
 func log_callback(
-	_ctx unsafe.Pointer,
-	_loggerName *C.char,
+	ctx unsafe.Pointer, //nolint
+	loggerName *C.char, //nolint
 	level C.int,
 	timestamp C.time_t,
 	threadID C.size_t,

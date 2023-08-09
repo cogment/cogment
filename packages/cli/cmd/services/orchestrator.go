@@ -65,20 +65,25 @@ var orchestratorCmd = &cobra.Command{
 			actorWebPort = orchestratorViper.GetUint("actor_http_port")
 		}
 
+		directoryOptions, err := utils.GetDirectoryRegistrationOptions(orchestratorViper)
+		if err != nil {
+			return err
+		}
+
 		options := orchestrator.Options{
-			DirectoryRegistrationOptions: utils.GetDirectoryRegistrationOptions(orchestratorViper),
-			LifecyclePort:                orchestratorViper.GetUint(orchestratorLifecyclePortKey),
-			ActorPort:                    orchestratorViper.GetUint(orchestratorActorPortKey),
-			ActorWebPort:                 actorWebPort,
-			ParamsFile:                   orchestratorViper.GetString(orchestratorParamsFileKey),
-			DirectoryAutoRegister:        orchestratorViper.GetBool(orchestratorDirectoryAutoRegisterKey),
-			PretrialHooksEndpoints:       orchestratorViper.GetStringSlice(orchestratorPretrialHooksKey),
-			PrometheusPort:               orchestratorViper.GetUint(orchestratorPrometheusPortKey),
-			StatusFile:                   orchestratorViper.GetString(orchestratorStatusFileKey),
-			PrivateKeyFile:               orchestratorViper.GetString(orchestratorPrivateKeyFileKey),
-			RootCertificateFile:          orchestratorViper.GetString(orchestratorRootCertFileKey),
-			TrustChainFile:               orchestratorViper.GetString(orchestratorTrustChainFileKey),
-			GarbageCollectorFrequency:    orchestratorViper.GetUint(orchestratorGcFrequencyKey),
+			RegistrationOptions:       directoryOptions,
+			LifecyclePort:             orchestratorViper.GetUint(orchestratorLifecyclePortKey),
+			ActorPort:                 orchestratorViper.GetUint(orchestratorActorPortKey),
+			ActorWebPort:              actorWebPort,
+			ParamsFile:                orchestratorViper.GetString(orchestratorParamsFileKey),
+			DirectoryAutoRegister:     orchestratorViper.GetBool(orchestratorDirectoryAutoRegisterKey),
+			PretrialHooksEndpoints:    orchestratorViper.GetStringSlice(orchestratorPretrialHooksKey),
+			PrometheusPort:            orchestratorViper.GetUint(orchestratorPrometheusPortKey),
+			StatusFile:                orchestratorViper.GetString(orchestratorStatusFileKey),
+			PrivateKeyFile:            orchestratorViper.GetString(orchestratorPrivateKeyFileKey),
+			RootCertificateFile:       orchestratorViper.GetString(orchestratorRootCertFileKey),
+			TrustChainFile:            orchestratorViper.GetString(orchestratorTrustChainFileKey),
+			GarbageCollectorFrequency: orchestratorViper.GetUint(orchestratorGcFrequencyKey),
 		}
 
 		ctx := utils.ContextWithUserTermination(context.Background())
@@ -138,7 +143,7 @@ func init() {
 
 	utils.PopulateDirectoryRegistrationOptionsFlags(
 		"ORCHESTRATOR", orchestratorCmd, orchestratorViper,
-		orchestrator.DefaultOptions.DirectoryRegistrationOptions,
+		orchestrator.DefaultOptions.RegistrationOptions,
 	)
 
 	orchestratorViper.SetDefault(orchestratorDirectoryAutoRegisterKey, orchestrator.DefaultOptions.DirectoryAutoRegister)

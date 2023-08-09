@@ -77,7 +77,7 @@ func configureLog(cfg *viper.Viper) error {
 	case json:
 		logrus.SetFormatter(&logrus.JSONFormatter{})
 	case text:
-		prefixFields := []string{"component", "backend"}
+		prefixFields := []string{"component", "sub_component"}
 		loggerFormatter := utils.MakeLoggerFormatter(prefixFields, nil, false)
 		logrus.SetFormatter(&loggerFormatter)
 	}

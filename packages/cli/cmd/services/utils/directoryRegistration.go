@@ -21,8 +21,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	servicesUtils "github.com/cogment/cogment/services/utils"
+	"github.com/cogment/cogment/clients/directory"
 	"github.com/cogment/cogment/utils"
+	"github.com/cogment/cogment/utils/endpoint"
 )
 
 var directoryEndpointKey = "directory_endpoint"
@@ -34,7 +35,7 @@ func PopulateDirectoryRegistrationOptionsFlags(
 	serviceName string,
 	cmd *cobra.Command,
 	viper *viper.Viper,
-	defaultValues servicesUtils.DirectoryRegistrationOptions) {
+	defaultValues directory.RegistrationOptions) {
 
 	viper.SetDefault(directoryEndpointKey, defaultValues.DirectoryEndpoint)
 	_ = viper.BindEnv(directoryEndpointKey, "COGMENT_DIRECTORY_ENDPOINT")
@@ -94,11 +95,16 @@ func PopulateDirectoryRegistrationOptionsFlags(
 	)
 }
 
-func GetDirectoryRegistrationOptions(viper *viper.Viper) servicesUtils.DirectoryRegistrationOptions {
-	return servicesUtils.DirectoryRegistrationOptions{
-		DirectoryEndpoint:               viper.GetString(directoryEndpointKey),
+func GetDirectoryRegistrationOptions(viper *viper.Viper) (directory.RegistrationOptions, error) {
+	directoryEndpointStr := viper.GetString(directoryEndpointKey)
+	directoryEndpoint, err := endpoint.Parse(directoryEndpointStr)
+	if err != nil {
+		return directory.RegistrationOptions{}, err
+	}
+	return directory.RegistrationOptions{
+		DirectoryEndpoint:               &directoryEndpoint,
 		DirectoryAuthToken:              viper.GetString(directoryAuthTokenKey),
 		DirectoryRegistrationHost:       viper.GetString(directoryRegistrationHostKey),
 		DirectoryRegistrationProperties: viper.GetStringMapString(directoryRegistrationPropertiesKey),
-	}
+	}, nil
 }

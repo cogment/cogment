@@ -57,9 +57,8 @@ func ParseProperties(str string) (map[string]string, error) {
 		if len(name) == 0 {
 			if nbParts == 1 {
 				continue
-			} else {
-				return nil, fmt.Errorf("Empty property name [%s]", property)
 			}
+			return nil, fmt.Errorf("Empty property name [%s]", property)
 		}
 
 		if nbParts == 2 {

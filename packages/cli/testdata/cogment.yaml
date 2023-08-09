@@ -21,16 +21,19 @@ commands:
 
 actor_classes:
   - id: plane
+    name: plane
     action:
       space: flames.Human_PlaneAction
     observation:
       space: flames.Observation
 
   - id: ai_drone
+    name: ai_drone
     action:
       space: flames.Ai_DroneAction
     observation:
       space: flames.Observation
+    config_type: foo.Data
 
 trial_params:
   environment:
