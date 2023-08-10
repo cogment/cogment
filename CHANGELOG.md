@@ -9,8 +9,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Launch `__ALL_ARGS` and `__NB_ARGS` substitution variables
 - Preview of `cogment services web_proxy [...]`, a proxy facilitating the usage of Cogment over HTTP the initial version supports implementing actors.
+- Launch `__ALL_ARGS` and `__NB_ARGS` substitution variables
+- Directory inquiries now support property `__order_by` that controls the order of the results
 
 ### Changed
 

@@ -24,6 +24,14 @@ import (
 	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
 )
 
+const OrderByPropertyName = "__order_by"
+
+// Default inquiry result sorting order: from more to less recent registration
+const OrderByRegistration = "registration"
+
+// Random inquiry result sorting sorting order: randomized
+const OrderByRandom = "random"
+
 const ActorClassPropertyName = "__actor_class"
 const ImplementationPropertyName = "__implementation"
 const ServiceIDPropertyName = "__id"
@@ -235,7 +243,7 @@ func (endpoint *Endpoint) URL() *url.URL {
 			Host:   ClientHost,
 		}
 	default:
-		return nil
+		return &url.URL{}
 	}
 }
 

@@ -18,11 +18,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math/rand"
 	"sort"
 	"time"
 
 	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/utils"
+	"github.com/cogment/cogment/utils/endpoint"
 
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -40,14 +42,18 @@ type DirectoryServer struct {
 	db              *MemoryDB
 }
 
-// We want to implicitly sort in reverse: from most recent (larger number) to less
-// recent (smaller number). So the "Less" function is actually a "More".
 type sortableRecords []*DbRecord
 
 func (sr sortableRecords) Len() int      { return len(sr) }
 func (sr sortableRecords) Swap(i, j int) { sr[i], sr[j] = sr[j], sr[i] }
-func (sr sortableRecords) Less(i, j int) bool {
-	return sr[i].RegisterTimestamp > sr[j].RegisterTimestamp
+
+// sortableRecordsByRegistrationTimestamp implements `sort.Interface` for `sortableRecords`
+// To sort in reverse: from most recent (larger number) to less recent (smaller number).
+// So the "Less" function is actually a "More".
+type sortableRecordsByRegistrationTimestamp struct{ sortableRecords }
+
+func (sr sortableRecordsByRegistrationTimestamp) Less(i, j int) bool {
+	return sr.sortableRecords[i].RegisterTimestamp > sr.sortableRecords[j].RegisterTimestamp
 }
 
 func (ds *DirectoryServer) dbUpdate(request *cogmentAPI.RegisterRequest, token string) (ServiceID, string, error) {
@@ -174,12 +180,22 @@ func (ds *DirectoryServer) dbDeregister(request *cogmentAPI.DeregisterRequest, t
 func (ds *DirectoryServer) dbInquire(request *cogmentAPI.InquireRequest, token string) (*sortableRecords, error) {
 	var requestDetails *cogmentAPI.ServiceDetails
 	var ids *[]ServiceID
+	var orderBy string
 
 	switch inquiry := request.Inquiry.(type) {
 	case *cogmentAPI.InquireRequest_ServiceId:
 		ids = &[]ServiceID{ServiceID(inquiry.ServiceId)}
+		orderBy = endpoint.OrderByRegistration
 	case *cogmentAPI.InquireRequest_Details:
 		requestDetails = inquiry.Details
+
+		// Deal with the "order_by" property
+		var hasOrderBy bool
+		if orderBy, hasOrderBy = requestDetails.Properties[endpoint.OrderByPropertyName]; !hasOrderBy {
+			orderBy = endpoint.OrderByRegistration
+		}
+		delete(requestDetails.Properties, endpoint.OrderByPropertyName)
+
 		selectionIds, err := ds.db.SelectByDetails(requestDetails)
 		if err != nil {
 			return nil, fmt.Errorf("Unable to inquire service details [%w]", err)
@@ -219,7 +235,14 @@ func (ds *DirectoryServer) dbInquire(request *cogmentAPI.InquireRequest, token s
 		}
 	}
 
-	sort.Sort(matches)
+	switch orderBy {
+	case endpoint.OrderByRegistration:
+		sort.Sort(sortableRecordsByRegistrationTimestamp{matches})
+	case endpoint.OrderByRandom:
+		rand.Shuffle(len(matches), matches.Swap)
+	default:
+		return nil, fmt.Errorf("Unknown value [%s] for property [%s]", orderBy, endpoint.OrderByPropertyName)
+	}
 
 	return &matches, nil
 }

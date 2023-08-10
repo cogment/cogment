@@ -102,7 +102,7 @@ func GetDirectoryRegistrationOptions(viper *viper.Viper) (directory.Registration
 		return directory.RegistrationOptions{}, err
 	}
 	return directory.RegistrationOptions{
-		DirectoryEndpoint:               &directoryEndpoint,
+		DirectoryEndpoint:               directoryEndpoint,
 		DirectoryAuthToken:              viper.GetString(directoryAuthTokenKey),
 		DirectoryRegistrationHost:       viper.GetString(directoryRegistrationHostKey),
 		DirectoryRegistrationProperties: viper.GetStringMapString(directoryRegistrationPropertiesKey),

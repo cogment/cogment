@@ -25,7 +25,7 @@ import (
 func InquireEndpoint(
 	ctx context.Context,
 	inquiredEndpoint endpoint.Endpoint,
-	directoryEndpoint *endpoint.Endpoint,
+	directoryEndpoint endpoint.Endpoint,
 	directoryAuthToken string,
 ) ([]endpoint.Endpoint, error) {
 	log := log.WithField("endpoint", inquiredEndpoint)
@@ -35,9 +35,9 @@ func InquireEndpoint(
 		return []endpoint.Endpoint{inquiredEndpoint}, nil
 	}
 
-	if directoryEndpoint == nil {
+	if !directoryEndpoint.IsValid() {
 		return []endpoint.Endpoint{},
-			fmt.Errorf("Can't inquire endpoint [%s], no directory endpoint provided", inquiredEndpoint)
+			fmt.Errorf("Can't inquire endpoint [%s], no valid directory endpoint provided", inquiredEndpoint)
 	}
 
 	log = log.WithField("directory_endpoint", directoryEndpoint)
@@ -52,7 +52,7 @@ func InquireEndpoint(
 		directoryAuthToken = inquiryDirectoryAuthToken
 	}
 
-	directoryClient, err := CreateClient(ctx, *directoryEndpoint, directoryAuthToken)
+	directoryClient, err := CreateClient(ctx, directoryEndpoint, directoryAuthToken)
 	if err != nil {
 		return []endpoint.Endpoint{}, err
 	}

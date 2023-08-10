@@ -30,14 +30,14 @@ import (
 //
 // This struct is designed to be used as a "mixin" in services options.
 type RegistrationOptions struct {
-	DirectoryEndpoint               *endpoint.Endpoint
+	DirectoryEndpoint               endpoint.Endpoint
 	DirectoryAuthToken              string
 	DirectoryRegistrationHost       string
 	DirectoryRegistrationProperties map[string]string
 }
 
 var DefaultRegistrationOptions = RegistrationOptions{
-	DirectoryEndpoint:               nil,
+	DirectoryEndpoint:               endpoint.Endpoint{},
 	DirectoryAuthToken:              "",
 	DirectoryRegistrationHost:       "",
 	DirectoryRegistrationProperties: map[string]string{},
@@ -95,7 +95,7 @@ func ManageRegistration(
 	serviceType api.ServiceType,
 	options RegistrationOptions,
 ) error {
-	if options.DirectoryEndpoint == nil {
+	if !options.DirectoryEndpoint.IsValid() {
 		return nil
 	}
 
@@ -116,7 +116,7 @@ func ManageRegistration(
 		"endpoint": options.DirectoryEndpoint,
 	})
 
-	directoryClient, err := CreateClient(ctx, *options.DirectoryEndpoint, options.DirectoryAuthToken)
+	directoryClient, err := CreateClient(ctx, options.DirectoryEndpoint, options.DirectoryAuthToken)
 	if err != nil {
 		return err
 	}
@@ -139,7 +139,7 @@ func ManageRegistration(
 		return err
 	}
 
-	defer deregisterService(log, *options.DirectoryEndpoint, options.DirectoryAuthToken, serviceID, serviceSecret)
+	defer deregisterService(log, options.DirectoryEndpoint, options.DirectoryAuthToken, serviceID, serviceSecret)
 
 	// Awaiting context to be done
 	<-ctx.Done()

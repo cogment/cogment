@@ -172,7 +172,7 @@ func runOrchestrator(ctx context.Context, options Options, statusListener utils.
 			return err
 		}
 	}
-	if options.DirectoryEndpoint != nil {
+	if options.DirectoryEndpoint.IsValid() {
 		directoryEndpointURL := options.DirectoryEndpoint.URL()
 		err = w.AddDirectoryServicesEndpoint(directoryEndpointURL.String())
 		if err != nil {

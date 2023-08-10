@@ -25,6 +25,7 @@ import (
 func TestDefaultEndpoint(t *testing.T) {
 	endpoint := Endpoint{}
 	assert.False(t, endpoint.IsValid())
+	assert.Equal(t, "", endpoint.String())
 }
 
 func TestParse(t *testing.T) {
