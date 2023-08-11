@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.17.0 - 2023-08-10
+
 ### Added
 
 - Preview of `cogment services web_proxy [...]`, a proxy facilitating the usage of Cogment over HTTP the initial version supports implementing actors.
