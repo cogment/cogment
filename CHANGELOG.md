@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.17.1 - 2023-08-13
+
 ### Fixed
 
 - CORS settings of the web_proxy now allow the token header to be provided.
