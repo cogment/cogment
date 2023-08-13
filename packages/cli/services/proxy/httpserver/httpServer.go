@@ -24,6 +24,7 @@ import (
 	"github.com/cogment/cogment/services/proxy/actor"
 	"github.com/cogment/cogment/services/proxy/controller"
 	"github.com/cogment/cogment/services/proxy/trialspec"
+	"github.com/cogment/cogment/version"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -67,7 +68,11 @@ func New(
 	router.HandleMethodNotAllowed = true
 
 	// Allows all origins
-	router.Use(cors.Default())
+	corsConfig := cors.DefaultConfig()
+	corsConfig.AllowAllOrigins = true
+	corsConfig.AddAllowHeaders(ActorTrialTokenHeaderKey)
+
+	router.Use(cors.New(corsConfig))
 
 	// Use a custom error handler
 	router.Use(ginErrorHandlerMiddleware)
@@ -78,6 +83,7 @@ func New(
 	// Recovery middleware recovers from any panics and writes a 500 if there was one.
 	router.Use(gin.Recovery())
 
+	router.GET("/", server.getInfo)
 	router.GET("/controller/trials", server.listTrials)
 	router.POST("/controller/trials", server.startTrial)
 	router.POST("/actor/:actor_name/:trial_id", server.joinTrial)
@@ -94,6 +100,22 @@ func New(
 	})
 
 	return server, nil
+}
+
+type infoResponse struct {
+	response
+	Version     string `json:"version"`
+	VersionHash string `json:"version_hash"`
+}
+
+func (server *Server) getInfo(c *gin.Context) {
+	c.JSON(http.StatusOK, infoResponse{
+		response: response{
+			Message: "This is the Cogment Web Proxy",
+		},
+		Version:     version.Version,
+		VersionHash: version.Hash,
+	})
 }
 
 func (server *Server) listTrials(c *gin.Context) {

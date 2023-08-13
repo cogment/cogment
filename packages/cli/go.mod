@@ -8,6 +8,7 @@ require (
 	github.com/codeskyblue/dockerignore v0.0.0-20151214070507-de82dee623d9
 	github.com/gin-contrib/cors v1.4.0
 	github.com/gin-gonic/gin v1.8.1
+	github.com/golang-jwt/jwt/v5 v5.0.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/hashicorp/golang-lru v0.5.4
@@ -49,7 +50,6 @@ require (
 	github.com/go-playground/validator/v10 v10.10.0 // indirect
 	github.com/gobuffalo/here v0.6.0 // indirect
 	github.com/goccy/go-json v0.9.7 // indirect
-	github.com/golang-jwt/jwt/v5 v5.0.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
