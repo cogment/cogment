@@ -15,8 +15,6 @@
 package trialspec
 
 import (
-	"fmt"
-
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -39,7 +37,6 @@ func (dpm *DynamicPbMessage) MarshalJSON() ([]byte, error) {
 }
 
 func (dpm *DynamicPbMessage) UnmarshalJSON(b []byte) (err error) {
-	fmt.Println(dpm == nil, b)
 	return protojson.Unmarshal(b, (*dynamicpb.Message)(dpm))
 }
 

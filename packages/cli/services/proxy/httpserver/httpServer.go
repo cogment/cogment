@@ -138,8 +138,6 @@ type startTrialResponse struct {
 }
 
 func (server *Server) startTrial(c *gin.Context) {
-	log.Info("starting trial")
-
 	request := startTrialRequest{
 		TrialParams: controller.NewTrialParams(server.controller.Spec()),
 	}
@@ -157,8 +155,6 @@ func (server *Server) startTrial(c *gin.Context) {
 		log = log.WithField("trial_id", request.TrialID)
 	}
 	log.Info("starting trial")
-
-	fmt.Println("request", request)
 
 	trialID, err := server.controller.StartTrial(c, request.TrialID, request.TrialParams.TrialParams)
 	if err != nil {
