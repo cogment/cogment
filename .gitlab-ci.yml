@@ -188,107 +188,105 @@ test:
     reports:
       junit: ./packages/cli/report.xml
 
-# INTERNAL AI-R HELPER - Publish the current version from the `develop` branch with the `latest` docker tag.
-push_docker_latest_to_gitlab:
-  stage: publish
+.push_docker_images:
   needs: ["build_docker"]
   extends: .base_docker_build
   variables:
-    COGMENT_BUILD_ENVIRONMENT_IMAGE_CACHE: !reference [build_docker, variables, COGMENT_BUILD_ENVIRONMENT_IMAGE]
-    COGMENT_BUILD_ENVIRONMENT_IMAGE: $CI_REGISTRY_IMAGE/build-environment:latest
-    COGMENT_BUILD_IMAGE_CACHE: $!reference [build_docker, variables, COGMENT_BUILD_IMAGE]
-    COGMENT_BUILD_IMAGE: $CI_REGISTRY_IMAGE/build:latest
-    COGMENT_IMAGE: $CI_REGISTRY_IMAGE:latest
-    COGMENT_CLI_IMAGE: $CI_REGISTRY_IMAGE/cli:latest
-    COGMENT_ORCHESTRATOR_IMAGE: $CI_REGISTRY_IMAGE/orchestrator:latest
-    COGMENT_TRIAL_DATASTORE_IMAGE: $CI_REGISTRY_IMAGE/trial-datastore:latest
-    COGMENT_MODEL_REGISTRY_IMAGE: $CI_REGISTRY_IMAGE/model-registry:latest
+    COGMENT_BUILD_ENVIRONMENT_IMAGE_BUILT: !reference [build_docker, variables, COGMENT_BUILD_ENVIRONMENT_IMAGE]
+    COGMENT_BUILD_ENVIRONMENT_IMAGE_TAGGED: ""
+    COGMENT_BUILD_IMAGE_BUILT: !reference [build_docker, variables, COGMENT_BUILD_IMAGE]
+    COGMENT_BUILD_IMAGE_TAGGED: ""
+    COGMENT_IMAGE_BUILT: !reference [build_docker, variables, COGMENT_IMAGE]
+    COGMENT_IMAGE_TAGGED: ""
+    COGMENT_CLI_IMAGE_BUILT: !reference [build_docker, variables, COGMENT_CLI_IMAGE]
+    COGMENT_CLI_IMAGE_TAGGED: ""
+    COGMENT_ORCHESTRATOR_IMAGE_BUILT: !reference [build_docker, variables, COGMENT_ORCHESTRATOR_IMAGE]
+    COGMENT_ORCHESTRATOR_IMAGE_TAGGED: ""
+    COGMENT_TRIAL_DATASTORE_IMAGE_BUILT: !reference [build_docker, variables, COGMENT_TRIAL_DATASTORE_IMAGE]
+    COGMENT_TRIAL_DATASTORE_IMAGE_TAGGED: ""
+    COGMENT_MODEL_REGISTRY_IMAGE_BUILT: !reference [build_docker, variables, COGMENT_MODEL_REGISTRY_IMAGE]
+    COGMENT_MODEL_REGISTRY_IMAGE_TAGGED: ""
   script:
-    - ./build_docker.sh
-    - docker push $COGMENT_BUILD_ENVIRONMENT_IMAGE
-    - docker push $COGMENT_BUILD_IMAGE
-    - docker push $COGMENT_IMAGE
-    - ./deprecated_docker_images/build_deprecated_docker_images.sh
-    - docker push $COGMENT_CLI_IMAGE
-    - docker push $COGMENT_ORCHESTRATOR_IMAGE
-    - docker push $COGMENT_TRIAL_DATASTORE_IMAGE
-    - docker push $COGMENT_MODEL_REGISTRY_IMAGE
+    # Pull the images built for this commit
+    - docker pull ${COGMENT_BUILD_ENVIRONMENT_IMAGE_BUILT}
+    - docker pull ${COGMENT_BUILD_IMAGE_BUILT}
+    - docker pull ${COGMENT_IMAGE_BUILT}
+    - docker pull ${COGMENT_CLI_IMAGE_BUILT}
+    - docker pull ${COGMENT_ORCHESTRATOR_IMAGE_BUILT}
+    - docker pull ${COGMENT_TRIAL_DATASTORE_IMAGE_BUILT}
+    - docker pull ${COGMENT_MODEL_REGISTRY_IMAGE_BUILT}
+    # Tag them
+    - docker tag ${COGMENT_BUILD_ENVIRONMENT_IMAGE_BUILT} ${COGMENT_BUILD_ENVIRONMENT_IMAGE_TAGGED}
+    - docker tag ${COGMENT_BUILD_IMAGE_BUILT} ${COGMENT_BUILD_IMAGE_TAGGED}
+    - docker tag ${COGMENT_IMAGE_BUILT} ${COGMENT_IMAGE_TAGGED}
+    - docker tag ${COGMENT_CLI_IMAGE_BUILT} ${COGMENT_CLI_IMAGE_TAGGED}
+    - docker tag ${COGMENT_ORCHESTRATOR_IMAGE_BUILT} ${COGMENT_ORCHESTRATOR_IMAGE_TAGGED}
+    - docker tag ${COGMENT_TRIAL_DATASTORE_IMAGE_BUILT} ${COGMENT_TRIAL_DATASTORE_IMAGE_TAGGED}
+    - docker tag ${COGMENT_MODEL_REGISTRY_IMAGE_BUILT} ${COGMENT_MODEL_REGISTRY_IMAGE_TAGGED}
+    # Push them
+    - docker push ${COGMENT_BUILD_ENVIRONMENT_IMAGE_TAGGED}
+    - docker push ${COGMENT_BUILD_IMAGE_TAGGED}
+    - docker push ${COGMENT_IMAGE_TAGGED}
+    - docker push ${COGMENT_CLI_IMAGE_TAGGED}
+    - docker push ${COGMENT_ORCHESTRATOR_IMAGE_TAGGED}
+    - docker push ${COGMENT_TRIAL_DATASTORE_IMAGE_TAGGED}
+    - docker push ${COGMENT_MODEL_REGISTRY_IMAGE_TAGGED}
+
+# INTERNAL AI-R HELPER - Publish the current version from the `develop` branch with the `latest` docker tag.
+push_docker_latest_to_gitlab:
+  stage: publish
+  extends: .push_docker_images
+  variables:
+    COGMENT_BUILD_ENVIRONMENT_IMAGE_TAGGED: $CI_REGISTRY_IMAGE/build-environment:latest
+    COGMENT_BUILD_IMAGE_TAGGED: $CI_REGISTRY_IMAGE/build:latest
+    COGMENT_IMAGE_TAGGED: $CI_REGISTRY_IMAGE:latest
+    COGMENT_CLI_IMAGE_TAGGED: $CI_REGISTRY_IMAGE/cli:latest
+    COGMENT_ORCHESTRATOR_IMAGE_TAGGED: $CI_REGISTRY_IMAGE/orchestrator:latest
+    COGMENT_TRIAL_DATASTORE_IMAGE_TAGGED: $CI_REGISTRY_IMAGE/trial-datastore:latest
+    COGMENT_MODEL_REGISTRY_IMAGE_TAGGED: $CI_REGISTRY_IMAGE/model-registry:latest
   only:
     - main
     - develop
 
 push_docker_latest_to_dockerhub:
   stage: publish
-  needs: ["build_docker"]
-  extends: .base_docker_build
+  extends: .push_docker_images
   variables:
-    COGMENT_BUILD_ENVIRONMENT_IMAGE_CACHE: !reference [build_docker, variables, COGMENT_BUILD_ENVIRONMENT_IMAGE]
-    COGMENT_BUILD_ENVIRONMENT_IMAGE: $CI_REGISTRY_IMAGE/build-environment:latest
-    COGMENT_BUILD_IMAGE_CACHE: $!reference [build_docker, variables, COGMENT_BUILD_IMAGE]
-    COGMENT_BUILD_IMAGE: $CI_REGISTRY_IMAGE/build:latest
-    COGMENT_IMAGE: cogment/cogment:latest
-    COGMENT_CLI_IMAGE: cogment/cli:latest
-    COGMENT_ORCHESTRATOR_IMAGE: cogment/orchestrator:latest
-    COGMENT_TRIAL_DATASTORE_IMAGE: cogment/trial-datastore:latest
-    COGMENT_MODEL_REGISTRY_IMAGE: cogment/model-registry:latest
-  script:
-    - ./build_docker.sh
-    - docker push $COGMENT_IMAGE
-    - ./deprecated_docker_images/build_deprecated_docker_images.sh
-    - docker push $COGMENT_CLI_IMAGE
-    - docker push $COGMENT_ORCHESTRATOR_IMAGE
-    - docker push $COGMENT_TRIAL_DATASTORE_IMAGE
-    - docker push $COGMENT_MODEL_REGISTRY_IMAGE
+    COGMENT_BUILD_ENVIRONMENT_IMAGE_TAGGED: $CI_REGISTRY_IMAGE/build-environment:latest
+    COGMENT_BUILD_IMAGE_TAGGED: $CI_REGISTRY_IMAGE/build:latest
+    COGMENT_IMAGE_TAGGED: cogment:latest
+    COGMENT_CLI_IMAGE_TAGGED: cogment/cli:latest
+    COGMENT_ORCHESTRATOR_IMAGE_TAGGED: cogment/orchestrator:latest
+    COGMENT_TRIAL_DATASTORE_IMAGE_TAGGED: cogment/trial-datastore:latest
+    COGMENT_MODEL_REGISTRY_IMAGE_TAGGED: cogment/model-registry:latest
   only:
     - main
 
 cogment:push_docker_tag_to_gitlab:
   stage: publish
-  needs: ["build_docker"]
-  extends: .base_docker_build
+  extends: .push_docker_images
   variables:
-    COGMENT_BUILD_ENVIRONMENT_IMAGE_CACHE: !reference [build_docker, variables, COGMENT_BUILD_ENVIRONMENT_IMAGE]
-    COGMENT_BUILD_ENVIRONMENT_IMAGE: $CI_REGISTRY_IMAGE/build_environment:latest
-    COGMENT_BUILD_IMAGE_CACHE: $!reference [build_docker, variables, COGMENT_BUILD_IMAGE]
-    COGMENT_BUILD_IMAGE: $CI_REGISTRY_IMAGE/build:latest
-    COGMENT_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
-    COGMENT_CLI_IMAGE: $CI_REGISTRY_IMAGE/cli:$CI_COMMIT_TAG
-    COGMENT_ORCHESTRATOR_IMAGE: $CI_REGISTRY_IMAGE/orchestrator:$CI_COMMIT_TAG
-    COGMENT_TRIAL_DATASTORE_IMAGE: $CI_REGISTRY_IMAGE/trial-datastore:$CI_COMMIT_TAG
-    COGMENT_MODEL_REGISTRY_IMAGE: $CI_REGISTRY_IMAGE/model-registry:$CI_COMMIT_TAG
-  script:
-    - ./build_docker.sh
-    - docker push $COGMENT_IMAGE
-    - ./deprecated_docker_images/build_deprecated_docker_images.sh
-    - docker push $COGMENT_CLI_IMAGE
-    - docker push $COGMENT_ORCHESTRATOR_IMAGE
-    - docker push $COGMENT_TRIAL_DATASTORE_IMAGE
-    - docker push $COGMENT_MODEL_REGISTRY_IMAGE
+    COGMENT_BUILD_ENVIRONMENT_IMAGE_TAGGED: $CI_REGISTRY_IMAGE/build_environment:latest
+    COGMENT_BUILD_IMAGE_TAGGED: $CI_REGISTRY_IMAGE/build:latest
+    COGMENT_IMAGE_TAGGED: $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
+    COGMENT_CLI_IMAGE_TAGGED: $CI_REGISTRY_IMAGE/cli:$CI_COMMIT_TAG
+    COGMENT_ORCHESTRATOR_IMAGE_TAGGED: $CI_REGISTRY_IMAGE/orchestrator:$CI_COMMIT_TAG
+    COGMENT_TRIAL_DATASTORE_IMAGE_TAGGED: $CI_REGISTRY_IMAGE/trial-datastore:$CI_COMMIT_TAG
+    COGMENT_MODEL_REGISTRY_IMAGE_TAGGED: $CI_REGISTRY_IMAGE/model-registry:$CI_COMMIT_TAG
   only:
     - /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+(?:-[[:alnum:]]+)?$/
 
 cogment_push_docker_tag_to_dockerhub:
   stage: publish
-  needs: ["build_docker"]
-  extends: .base_docker_build
+  extends: .push_docker_images
   variables:
-    COGMENT_BUILD_ENVIRONMENT_IMAGE_CACHE: !reference [build_docker, variables, COGMENT_BUILD_ENVIRONMENT_IMAGE]
-    COGMENT_BUILD_ENVIRONMENT_IMAGE: $CI_REGISTRY_IMAGE/build_environment:latest
-    COGMENT_BUILD_IMAGE_CACHE: $!reference [build_docker, variables, COGMENT_BUILD_IMAGE]
-    COGMENT_BUILD_IMAGE: $CI_REGISTRY_IMAGE/build:latest
-    COGMENT_IMAGE: cogment/cogment:$CI_COMMIT_TAG
-    COGMENT_CLI_IMAGE: cogment/cli:$CI_COMMIT_TAG
-    COGMENT_ORCHESTRATOR_IMAGE: cogment/orchestrator:$CI_COMMIT_TAG
-    COGMENT_TRIAL_DATASTORE_IMAGE: cogment/trial-datastore:$CI_COMMIT_TAG
-    COGMENT_MODEL_REGISTRY_IMAGE: cogment/model-registry:$CI_COMMIT_TAG
-  script:
-    - ./build_docker.sh
-    - docker push $COGMENT_IMAGE
-    - ./deprecated_docker_images/build_deprecated_docker_images.sh
-    - docker push $COGMENT_CLI_IMAGE
-    - docker push $COGMENT_ORCHESTRATOR_IMAGE
-    - docker push $COGMENT_TRIAL_DATASTORE_IMAGE
-    - docker push $COGMENT_MODEL_REGISTRY_IMAGE
+    COGMENT_BUILD_ENVIRONMENT_IMAGE_TAGGED: $CI_REGISTRY_IMAGE/build_environment:latest
+    COGMENT_BUILD_IMAGE_TAGGED: $CI_REGISTRY_IMAGE/build:latest
+    COGMENT_IMAGE_TAGGED: cogment/cogment:$CI_COMMIT_TAG
+    COGMENT_CLI_IMAGE_TAGGED: cogment/cli:$CI_COMMIT_TAG
+    COGMENT_ORCHESTRATOR_IMAGE_TAGGED: cogment/orchestrator:$CI_COMMIT_TAG
+    COGMENT_TRIAL_DATASTORE_IMAGE_TAGGED: cogment/trial-datastore:$CI_COMMIT_TAG
+    COGMENT_MODEL_REGISTRY_IMAGE_TAGGED: cogment/model-registry:$CI_COMMIT_TAG
   only:
     - /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+(?:-[[:alnum:]]+)?$/
 
