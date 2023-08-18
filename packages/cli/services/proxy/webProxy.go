@@ -30,6 +30,7 @@ import (
 	"github.com/cogment/cogment/services/proxy/trialspec"
 	"github.com/cogment/cogment/services/utils"
 	"github.com/cogment/cogment/utils/endpoint"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -130,18 +131,30 @@ func Run(ctx context.Context, options Options) error {
 
 	group, ctx := errgroup.WithContext(ctx)
 
-	// Register the agent to the directory
+	// Register the actor to the directory
 	for _, actorClass := range actorManager.Spec().Spec.ActorClasses {
-		directoryOptions := options.RegistrationOptions
-		directoryOptions.DirectoryRegistrationProperties[endpoint.ImplementationPropertyName] = options.Implementation
-		directoryOptions.DirectoryRegistrationProperties[endpoint.ActorClassPropertyName] = actorClass.Name
+		properties := map[string]string{}
+		for key, value := range options.RegistrationOptions.DirectoryRegistrationProperties {
+			properties[key] = value
+		}
+		properties[endpoint.ImplementationPropertyName] = options.Implementation
+		properties[endpoint.ActorClassPropertyName] = actorClass.Name
 		group.Go(func() error {
+			log.WithFields(logrus.Fields{
+				"actor_class":    properties[endpoint.ActorClassPropertyName],
+				"implementation": properties[endpoint.ImplementationPropertyName],
+			}).Debug("Registering the actor to the directory")
 			return directory.ManageRegistration(
 				ctx,
 				grpcPort,
 				grpcapi.ServiceEndpoint_GRPC,
 				grpcapi.ServiceType_ACTOR_SERVICE,
-				directoryOptions,
+				directory.RegistrationOptions{
+					DirectoryEndpoint:               options.DirectoryEndpoint,
+					DirectoryAuthToken:              options.DirectoryAuthToken,
+					DirectoryRegistrationHost:       options.DirectoryRegistrationHost,
+					DirectoryRegistrationProperties: properties,
+				},
 			)
 		})
 	}
