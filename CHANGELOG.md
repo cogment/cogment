@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.17.2 - 2023-08-19
+
 ### Fixed
 
 - Registration of multiple actor classes from the web proxy is now possible.
