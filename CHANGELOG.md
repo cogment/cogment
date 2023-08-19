@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Registration of multiple actor classes from the web proxy is now possible.
+- Web proxy json serialization of user protobuf messages uses `snake_case` for property names.
 
 ## v2.17.1 - 2023-08-13
 

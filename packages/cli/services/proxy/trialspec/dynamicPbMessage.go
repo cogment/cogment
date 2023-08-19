@@ -29,7 +29,7 @@ func NewMessageFromDescriptor(descriptor protoreflect.MessageDescriptor) *Dynami
 
 func (dpm *DynamicPbMessage) MarshalJSON() ([]byte, error) {
 	marshal := protojson.MarshalOptions{
-		UseProtoNames:   false,
+		UseProtoNames:   true, // use the snake_case proto names, as it is Cogment's convention for json anyway.
 		EmitUnpopulated: true,
 		UseEnumNumbers:  false,
 	}
