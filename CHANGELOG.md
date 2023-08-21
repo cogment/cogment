@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.17.3 - 2023-08-21
+
 ### Fixed
 
 - In the web proxy, JSON serialization of `int64` (and `sint64` and `uint64`) is now using string to be aligned with protobuf's behavior and Javascript limitations.
