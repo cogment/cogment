@@ -62,11 +62,12 @@ type rawEnvironmentParams struct {
 }
 
 type rawTrialParams struct {
-	Config          *json.RawMessage     `json:"config,omitempty"`
-	Properties      map[string]string    `json:"properties,omitempty"`
-	MaxSteps        uint32               `json:"max_steps,omitempty"`
-	MaxInactivity   uint32               `json:"max_inactivity,omitempty"`
-	NbBufferedTicks int64                `json:"nb_buffered_ticks,omitempty"`
+	Config        *json.RawMessage  `json:"config,omitempty"`
+	Properties    map[string]string `json:"properties,omitempty"`
+	MaxSteps      uint32            `json:"max_steps,omitempty"`
+	MaxInactivity uint32            `json:"max_inactivity,omitempty"`
+	// int64 / uint64 values are serialized/deserialized as string to be aligned with the behavior of protobuf
+	NbBufferedTicks int64                `json:"nb_buffered_ticks,omitempty,string"`
 	Datalog         rawDatalogParams     `json:"datalog,omitempty"`
 	Environment     rawEnvironmentParams `json:"environment,omitempty"`
 	Actors          []*rawActorParams    `json:"actors,omitempty"`

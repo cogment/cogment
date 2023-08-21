@@ -19,7 +19,8 @@ import (
 )
 
 type SentReward struct {
-	TickID     int64                  `json:"tick_id"`
+	// int64 / uint64 values are serialized/deserialized as string to be aligned with the behavior of protobuf
+	TickID     int64                  `json:"tick_id,string"`
 	Receiver   string                 `json:"receiver"`
 	Value      float32                `json:"value"`
 	Confidence float32                `json:"confidence"`
@@ -27,7 +28,8 @@ type SentReward struct {
 }
 
 type SentEvent struct {
-	TickID  uint64                      `json:"tick_id"`
+	// int64 / uint64 values are serialized/deserialized as string to be aligned with the behavior of protobuf
+	TickID  uint64                      `json:"tick_id,string"`
 	Action  *trialspec.DynamicPbMessage `json:"action,omitempty"`
 	Rewards []SentReward                `json:"rewards,omitempty"`
 }
@@ -40,13 +42,15 @@ type RecvRewardSource struct {
 }
 
 type RecvReward struct {
-	TickID  uint64             `json:"tick_id"`
+	// int64 / uint64 values are serialized/deserialized as string to be aligned with the behavior of protobuf
+	TickID  uint64             `json:"tick_id,string"`
 	Value   float32            `json:"value"`
 	Sources []RecvRewardSource `json:"sources"`
 }
 
 type RecvEvent struct {
-	TickID      uint64                      `json:"tick_id"`
+	// int64 / uint64 values are serialized/deserialized as string to be aligned with the behavior of protobuf
+	TickID      uint64                      `json:"tick_id,string"`
 	Observation *trialspec.DynamicPbMessage `json:"observation,omitempty"`
 	Rewards     []RecvReward                `json:"rewards,omitempty"`
 }
