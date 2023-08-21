@@ -28,7 +28,33 @@ func TestDefaultEndpoint(t *testing.T) {
 	assert.Equal(t, "", endpoint.String())
 }
 
-func TestParse(t *testing.T) {
+func TestParseEmptyEndpoint(t *testing.T) {
+	endpoint, err := Parse("")
+	assert.Error(t, err)
+	assert.False(t, endpoint.IsValid())
+}
+
+func TestParseGrpcEndpoint(t *testing.T) {
+	endpoint, err := Parse("grpc://localhost:46637")
+	assert.NoError(t, err)
+	assert.Equal(t, GrpcEndpoint, endpoint.Type())
+
+	url, err := endpoint.ResolvedURL()
+	assert.NoError(t, err)
+	assert.Equal(t, "localhost:46637", url.Host)
+}
+
+func TestParseGrpcEndpointInconsistendCase(t *testing.T) {
+	endpoint, err := Parse("GRPC://localhost:46637")
+	assert.NoError(t, err)
+	assert.Equal(t, GrpcEndpoint, endpoint.Type())
+
+	url, err := endpoint.ResolvedURL()
+	assert.NoError(t, err)
+	assert.Equal(t, "localhost:46637", url.Host)
+}
+
+func TestParseDiscoveryEndpoint(t *testing.T) {
 	endpoint, err := Parse("cogment://discover/actor?__actor_class=foo")
 	assert.NoError(t, err)
 	assert.Equal(t, DiscoveryEndpoint, endpoint.Type())
