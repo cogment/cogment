@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.17.4 - 2023-08-21
+
 ### Fixed
 
 - No longer fails when a service is not provided with a directory endpoint.
