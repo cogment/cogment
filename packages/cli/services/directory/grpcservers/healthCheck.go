@@ -38,8 +38,6 @@ const (
 
 	tcpCheckTimeout     = 5 * time.Second
 	cogmentCheckTimeout = 2 * time.Second
-
-	maxLifetime = 168 * time.Hour // 1 * week
 )
 
 func (ds *DirectoryServer) PeriodicHealthCheck() (func(), error) {
@@ -115,12 +113,6 @@ func healthCheck(record *DbRecord, now uint64) bool {
 	if record.Permanent {
 		record.NbFailedHealthChecks = 0
 		return true
-	}
-
-	if (now - record.RegisterTimestamp) > uint64(maxLifetime.Nanoseconds()) {
-		log.Debug("Max lifetime reached for ID [", record.Sid, "]")
-		record.NbFailedHealthChecks++
-		return false
 	}
 
 	if record.Endpoint.Protocol != cogmentAPI.ServiceEndpoint_GRPC &&

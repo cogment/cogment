@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - No longer fails when a service is not provided with a directory endpoint.
+- Directory: remove maxLifeTime setting after which healthy services were unregistered.
 
 ## v2.17.3 - 2023-08-21
 
