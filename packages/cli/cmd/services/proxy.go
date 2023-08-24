@@ -62,7 +62,7 @@ var proxyCmd = &cobra.Command{
 
 		log.Warn("The web proxy is currently in preview, API and features might evolve in the future.")
 
-		directoryOptions, err := utils.GetDirectoryRegistrationOptions(orchestratorViper)
+		directoryOptions, err := utils.GetDirectoryRegistrationOptions(proxyViper)
 		if err != nil {
 			return err
 		}

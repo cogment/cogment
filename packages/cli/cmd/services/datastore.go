@@ -22,7 +22,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/cogment/cogment/cmd/services/utils"
-	trialdatastore "github.com/cogment/cogment/services/datastore"
+	"github.com/cogment/cogment/services/datastore"
 	"github.com/cogment/cogment/version"
 )
 
@@ -51,14 +51,14 @@ var datastoreCmd = &cobra.Command{
 			"hash":    version.Hash,
 		}).Info("starting the trial datastore service")
 
-		directoryOptions, err := utils.GetDirectoryRegistrationOptions(orchestratorViper)
+		directoryOptions, err := utils.GetDirectoryRegistrationOptions(datastoreViper)
 		if err != nil {
 			return err
 		}
 
-		options := trialdatastore.Options{
+		options := datastore.Options{
 			RegistrationOptions:         directoryOptions,
-			Storage:                     trialdatastore.Memory,
+			Storage:                     datastore.Memory,
 			Port:                        datastoreViper.GetUint(datastorePortKey),
 			GrpcReflection:              datastoreViper.GetBool(datastoreGrpcReflectionKey),
 			MemoryStorageMaxSamplesSize: datastoreViper.GetUint32(datastoreMemoryStorageMaxSamplesSizeKey),
@@ -66,12 +66,12 @@ var datastoreCmd = &cobra.Command{
 		}
 
 		if datastoreViper.IsSet(datastoreFileStoragePathKey) {
-			options.Storage = trialdatastore.File
+			options.Storage = datastore.File
 		}
 
 		ctx := utils.ContextWithUserTermination(context.Background())
 
-		err = trialdatastore.Run(ctx, options)
+		err = datastore.Run(ctx, options)
 		if err != nil {
 			if err == context.Canceled {
 				log.Info("interrupted by user")
@@ -84,7 +84,7 @@ var datastoreCmd = &cobra.Command{
 }
 
 func init() {
-	datastoreViper.SetDefault(datastorePortKey, trialdatastore.DefaultOptions.Port)
+	datastoreViper.SetDefault(datastorePortKey, datastore.DefaultOptions.Port)
 	_ = datastoreViper.BindEnv(datastorePortKey, "COGMENT_TRIAL_DATASTORE_PORT")
 	datastoreCmd.Flags().Uint(
 		datastorePortKey,
@@ -92,7 +92,7 @@ func init() {
 		"The port to listen on",
 	)
 
-	datastoreViper.SetDefault(datastoreGrpcReflectionKey, trialdatastore.DefaultOptions.GrpcReflection)
+	datastoreViper.SetDefault(datastoreGrpcReflectionKey, datastore.DefaultOptions.GrpcReflection)
 	_ = datastoreViper.BindEnv(datastoreGrpcReflectionKey, "COGMENT_TRIAL_DATASTORE_GRPC_REFLECTION")
 	datastoreCmd.Flags().Bool(
 		datastoreGrpcReflectionKey,
@@ -102,7 +102,7 @@ func init() {
 
 	datastoreViper.SetDefault(
 		datastoreMemoryStorageMaxSamplesSizeKey,
-		trialdatastore.DefaultOptions.MemoryStorageMaxSamplesSize,
+		datastore.DefaultOptions.MemoryStorageMaxSamplesSize,
 	)
 	_ = datastoreViper.BindEnv(
 		datastoreMemoryStorageMaxSamplesSizeKey,
@@ -123,14 +123,14 @@ func init() {
 			"the default in-memory one with the provided file path as its location",
 	)
 	if !datastoreViper.IsSet(datastoreFileStoragePathKey) {
-		datastoreCmd.Flags().Lookup(datastoreFileStoragePathKey).NoOptDefVal = trialdatastore.DefaultOptions.FileStoragePath
+		datastoreCmd.Flags().Lookup(datastoreFileStoragePathKey).NoOptDefVal = datastore.DefaultOptions.FileStoragePath
 	}
 
 	utils.PopulateDirectoryRegistrationOptionsFlags(
 		"TRIAL_DATASTORE",
 		datastoreCmd,
 		datastoreViper,
-		trialdatastore.DefaultOptions.RegistrationOptions,
+		datastore.DefaultOptions.RegistrationOptions,
 	)
 
 	// Don't sort alphabetically, keep insertion order

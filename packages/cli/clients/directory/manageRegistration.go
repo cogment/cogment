@@ -16,6 +16,7 @@ package directory
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"os"
 	"time"
@@ -43,18 +44,24 @@ var DefaultRegistrationOptions = RegistrationOptions{
 	DirectoryRegistrationProperties: map[string]string{},
 }
 
-func getOutboundIP() net.IP {
-	host, _ := os.Hostname()
-	hostIPs, _ := net.LookupIP(host)
+func getOutboundIP() (net.IP, error) {
+	host, err := os.Hostname()
+	if err != nil {
+		return nil, fmt.Errorf("Unable to retrieve outbound ip [%w]", err)
+	}
+	hostIPs, err := net.LookupIP(host)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to retrieve outbound ip [%w]", err)
+	}
 	for _, hostIP := range hostIPs {
 		if hostIP.IsLoopback() {
 			continue
 		}
 		if hostIPv4 := hostIP.To4(); hostIPv4 != nil {
-			return hostIPv4
+			return hostIPv4, err
 		}
 	}
-	return nil
+	return nil, fmt.Errorf("No valid ipv4 outbound ip found")
 }
 
 const serviceDeregisterTimeout = time.Second * 10
@@ -101,7 +108,14 @@ func ManageRegistration(
 
 	host := options.DirectoryRegistrationHost
 	if host == "" {
-		host = getOutboundIP().String()
+		ip, err := getOutboundIP()
+		if err != nil {
+			return fmt.Errorf(
+				"Unable to self discover the host ip, consider providing an explicit directory host [%w]",
+				err,
+			)
+		}
+		host = ip.String()
 		options.DirectoryRegistrationProperties[endpoint.RegistrationSourcePropertyName] = "Self-Implicit"
 	} else {
 		options.DirectoryRegistrationProperties[endpoint.RegistrationSourcePropertyName] = "Self-Command_Line"

@@ -22,7 +22,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/cogment/cogment/cmd/services/utils"
-	modelregistry "github.com/cogment/cogment/services/registry"
+	"github.com/cogment/cogment/services/registry"
 	"github.com/cogment/cogment/version"
 )
 
@@ -52,12 +52,12 @@ var registryCmd = &cobra.Command{
 			"hash":    version.Hash,
 		}).Info("starting the model registry service")
 
-		directoryOptions, err := utils.GetDirectoryRegistrationOptions(orchestratorViper)
+		directoryOptions, err := utils.GetDirectoryRegistrationOptions(registryViper)
 		if err != nil {
 			return err
 		}
 
-		options := modelregistry.Options{
+		options := registry.Options{
 			RegistrationOptions:      directoryOptions,
 			Port:                     registryViper.GetUint(registryPortKey),
 			GrpcReflection:           registryViper.GetBool(registryGrpcReflectionKey),
@@ -68,7 +68,7 @@ var registryCmd = &cobra.Command{
 
 		ctx := utils.ContextWithUserTermination(context.Background())
 
-		err = modelregistry.Run(ctx, options)
+		err = registry.Run(ctx, options)
 		if err != nil {
 			if err == context.Canceled {
 				log.Info("interrupted by user")
@@ -81,11 +81,11 @@ var registryCmd = &cobra.Command{
 }
 
 func init() {
-	registryViper.SetDefault(registryPortKey, modelregistry.DefaultOptions.Port)
+	registryViper.SetDefault(registryPortKey, registry.DefaultOptions.Port)
 	_ = registryViper.BindEnv(registryPortKey, "COGMENT_MODEL_REGISTRY_PORT")
 	registryCmd.Flags().Uint(registryPortKey, registryViper.GetUint(registryPortKey), "The port to listen on")
 
-	registryViper.SetDefault(registryGrpcReflectionKey, modelregistry.DefaultOptions.GrpcReflection)
+	registryViper.SetDefault(registryGrpcReflectionKey, registry.DefaultOptions.GrpcReflection)
 	_ = registryViper.BindEnv(registryGrpcReflectionKey, "COGMENT_MODEL_REGISTRY_GRPC_REFLECTION")
 	registryCmd.Flags().Bool(
 		registryGrpcReflectionKey,
@@ -93,7 +93,7 @@ func init() {
 		"Start the gRPC reflection server",
 	)
 
-	registryViper.SetDefault(registryArchiveDirKey, modelregistry.DefaultOptions.ArchiveDir)
+	registryViper.SetDefault(registryArchiveDirKey, registry.DefaultOptions.ArchiveDir)
 	_ = registryViper.BindEnv(registryArchiveDirKey, "COGMENT_MODEL_REGISTRY_ARCHIVE_DIR")
 	registryCmd.Flags().String(
 		registryArchiveDirKey,
@@ -101,7 +101,7 @@ func init() {
 		"The directory to store model archives",
 	)
 
-	registryViper.SetDefault(registryCacheMaxItemsKey, modelregistry.DefaultOptions.CacheMaxItems)
+	registryViper.SetDefault(registryCacheMaxItemsKey, registry.DefaultOptions.CacheMaxItems)
 	_ = registryViper.BindEnv(registryCacheMaxItemsKey, "COGMENT_MODEL_REGISTRY_VERSION_CACHE_MAX_ITEMS")
 	registryCmd.Flags().Uint32(
 		registryCacheMaxItemsKey,
@@ -109,7 +109,7 @@ func init() {
 		"Maximum number of model versions the memory storage holds before evicting least recently used",
 	)
 
-	registryViper.SetDefault(registrySentVersionChunkSizeKey, modelregistry.DefaultOptions.SentVersionDataChunkSize)
+	registryViper.SetDefault(registrySentVersionChunkSizeKey, registry.DefaultOptions.SentVersionDataChunkSize)
 	_ = registryViper.BindEnv(
 		registrySentVersionChunkSizeKey,
 		"COGMENT_MODEL_REGISTRY_SENT_MODEL_VERSION_DATA_CHUNK_SIZE",
@@ -124,7 +124,7 @@ func init() {
 		"MODEL_REGISTRY",
 		registryCmd,
 		registryViper,
-		modelregistry.DefaultOptions.RegistrationOptions,
+		registry.DefaultOptions.RegistrationOptions,
 	)
 
 	// Don't sort alphabetically, keep insertion order
