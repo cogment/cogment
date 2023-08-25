@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.17.5 - 2023-08-24
+
 ### Fixed
 
 - Explicit directory registration host properly taken into account by model registry, trial datastore and web proxy
