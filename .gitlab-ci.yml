@@ -254,7 +254,7 @@ push_docker_latest_to_dockerhub:
   variables:
     COGMENT_BUILD_ENVIRONMENT_IMAGE_TAGGED: $CI_REGISTRY_IMAGE/build-environment:latest
     COGMENT_BUILD_IMAGE_TAGGED: $CI_REGISTRY_IMAGE/build:latest
-    COGMENT_IMAGE_TAGGED: cogment:latest
+    COGMENT_IMAGE_TAGGED: cogment/cogment:latest
     COGMENT_CLI_IMAGE_TAGGED: cogment/cli:latest
     COGMENT_ORCHESTRATOR_IMAGE_TAGGED: cogment/orchestrator:latest
     COGMENT_TRIAL_DATASTORE_IMAGE_TAGGED: cogment/trial-datastore:latest
