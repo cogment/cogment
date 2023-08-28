@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Explicit directory registration host properly taken into account by model registry, trial datastore and web proxy
 - Failure of host self discovery are now reported
+- Revert and remove `__order_by` implementation
 
 ## v2.17.4 - 2023-08-21
 

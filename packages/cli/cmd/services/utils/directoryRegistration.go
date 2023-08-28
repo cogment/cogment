@@ -96,14 +96,15 @@ func PopulateDirectoryRegistrationOptionsFlags(
 }
 
 func GetDirectoryRegistrationOptions(viper *viper.Viper) (directory.RegistrationOptions, error) {
-	directoryEndpoint := endpoint.Endpoint{}
 	directoryEndpointStr := viper.GetString(directoryEndpointKey)
-	if directoryEndpointStr != "" {
+
+	directoryEndpoint := endpoint.Endpoint{}
+	if len(directoryEndpointStr) > 0 {
 		var err error
 		directoryEndpoint, err = endpoint.Parse(directoryEndpointStr)
 		if err != nil {
 			return directory.RegistrationOptions{},
-				fmt.Errorf("Invalid directory endpoint [%s]: %w", directoryEndpointStr, err)
+				fmt.Errorf("invalid directory endpoint [%s]: %w", directoryEndpointStr, err)
 		}
 	}
 
