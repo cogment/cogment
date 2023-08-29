@@ -130,16 +130,17 @@ func Run(ctx context.Context, options Options) error {
 	})
 
 	group.Go(func() error {
-		return directory.ManageRegistration(
+		err := directory.ManageRegistration(
 			ctx,
 			port,
 			api.ServiceEndpoint_GRPC,
 			api.ServiceType_DATASTORE_SERVICE,
 			options.RegistrationOptions,
 		)
-	})
+		if err != nil {
+			return err
+		}
 
-	group.Go(func() error {
 		return directory.ManageRegistration(
 			ctx,
 			port,
