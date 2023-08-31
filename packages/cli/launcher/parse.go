@@ -71,13 +71,6 @@ type yamlGlobal struct {
 	Folder      string
 }
 
-// Copy slice in a new array
-func copySlice(src []string) []string {
-	result := make([]string, len(src))
-	copy(result, src)
-	return result
-}
-
 func loadYaml(fileName string) (*yamlFile, error) {
 	var result yamlFile
 
@@ -135,7 +128,7 @@ func parseScript(script *yamlScript, scriptName string, baseDict parseDict, glob
 	}
 
 	scriptDict := baseDict.Copy()
-	proc.Environment = copySlice(globalEnv)
+	proc.Environment = utils.CopyStrSlice(globalEnv)
 
 	for _, item := range script.Environment {
 		name := fmt.Sprintf("%v", item.Key)

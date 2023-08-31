@@ -53,7 +53,7 @@ func makeParseDict() parseDict {
 
 func (pd *parseDict) Copy() parseDict {
 	var newPd parseDict
-	newPd.Dict = copyMap(pd.Dict)
+	newPd.Dict = utils.CopyStrMap(pd.Dict)
 	newPd.reservedName = pd.reservedName.Copy()
 	newPd.NbArgs = pd.NbArgs
 	return newPd
@@ -103,13 +103,4 @@ func (pd *parseDict) Add(name string, val string) bool {
 
 func (pd *parseDict) Get(name string) string {
 	return pd.Dict[name]
-}
-
-func copyMap(src map[string]string) map[string]string {
-	result := make(map[string]string, len(src))
-	for name, value := range src {
-		result[name] = value
-	}
-
-	return result
 }

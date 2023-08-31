@@ -22,8 +22,10 @@ import (
 	"time"
 
 	"github.com/cogment/cogment/grpcapi/cogment/api"
+	"github.com/cogment/cogment/utils"
 	"github.com/cogment/cogment/utils/endpoint"
 	"github.com/cogment/cogment/version"
+
 	"github.com/sirupsen/logrus"
 )
 
@@ -35,6 +37,13 @@ type RegistrationOptions struct {
 	DirectoryAuthToken              string
 	DirectoryRegistrationHost       string
 	DirectoryRegistrationProperties map[string]string
+}
+
+func (options *RegistrationOptions) Copy() RegistrationOptions {
+	result := *options
+	result.DirectoryEndpoint = options.DirectoryEndpoint.Copy()
+	result.DirectoryRegistrationProperties = utils.CopyStrMap(options.DirectoryRegistrationProperties)
+	return result
 }
 
 var DefaultRegistrationOptions = RegistrationOptions{
@@ -106,7 +115,11 @@ func ManageRegistration(
 		return nil
 	}
 
-	host := options.DirectoryRegistrationHost
+	// Copy options to become independent of reference argument
+	opt := options.Copy()
+
+	host := opt.DirectoryRegistrationHost
+	properties := opt.DirectoryRegistrationProperties
 	if host == "" {
 		ip, err := getOutboundIP()
 		if err != nil {
@@ -116,21 +129,21 @@ func ManageRegistration(
 			)
 		}
 		host = ip.String()
-		options.DirectoryRegistrationProperties[endpoint.RegistrationSourcePropertyName] = "Self-Implicit"
+		properties[endpoint.RegistrationSourcePropertyName] = "Self-Implicit"
 	} else {
-		options.DirectoryRegistrationProperties[endpoint.RegistrationSourcePropertyName] = "Self-Command_Line"
+		properties[endpoint.RegistrationSourcePropertyName] = "Self-Command_Line"
 	}
-	options.DirectoryRegistrationProperties[endpoint.VersionPropertyName] = version.Version
+	properties[endpoint.VersionPropertyName] = version.Version
 
 	log := log.WithFields(logrus.Fields{
 		"protocol": protocol,
 		"host":     host,
 		"port":     port,
 		"type":     serviceType,
-		"endpoint": options.DirectoryEndpoint,
+		"endpoint": opt.DirectoryEndpoint,
 	})
 
-	directoryClient, err := CreateClient(ctx, options.DirectoryEndpoint, options.DirectoryAuthToken)
+	directoryClient, err := CreateClient(ctx, opt.DirectoryEndpoint, opt.DirectoryAuthToken)
 	if err != nil {
 		return err
 	}
@@ -145,7 +158,7 @@ func ManageRegistration(
 		},
 		Details: &api.ServiceDetails{
 			Type:       serviceType,
-			Properties: options.DirectoryRegistrationProperties,
+			Properties: properties,
 		},
 		Permanent: false,
 	})
@@ -153,7 +166,7 @@ func ManageRegistration(
 		return err
 	}
 
-	defer deregisterService(log, options.DirectoryEndpoint, options.DirectoryAuthToken, serviceID, serviceSecret)
+	defer deregisterService(log, opt.DirectoryEndpoint, opt.DirectoryAuthToken, serviceID, serviceSecret)
 
 	// Awaiting context to be done
 	<-ctx.Done()

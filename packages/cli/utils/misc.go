@@ -57,3 +57,19 @@ func RandomString(length int, sources ...string) string {
 
 	return result.String()
 }
+
+// Copy string slice in a new array
+func CopyStrSlice(src []string) []string {
+	result := make([]string, len(src))
+	copy(result, src)
+	return result
+}
+
+func CopyStrMap(src map[string]string) map[string]string {
+	result := make(map[string]string, len(src))
+	for name, value := range src {
+		result[name] = value
+	}
+
+	return result
+}

@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
+	"github.com/cogment/cogment/utils"
 )
 
 const ActorClassPropertyName = "__actor_class"
@@ -201,6 +202,12 @@ func MustParse(endpointStr string) Endpoint {
 		panic(err)
 	}
 	return endpoint
+}
+
+func (endpoint *Endpoint) Copy() Endpoint {
+	result := *endpoint
+	result.properties = utils.CopyStrMap(endpoint.properties)
+	return result
 }
 
 func (endpoint *Endpoint) IsValid() bool {
