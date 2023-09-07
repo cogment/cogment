@@ -36,6 +36,7 @@ type DbRecord struct {
 	// consistently persisted)
 	LastHealthCheckTimestamp uint64
 	NbFailedHealthChecks     uint // since the last successful health check
+	MachineLoad              int  // Machine load on last health check
 
 	// External service data
 	Permanent           bool

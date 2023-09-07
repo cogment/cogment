@@ -42,6 +42,9 @@ service TrialDatastoreSP {
   rpc DeleteTrials(DeleteTrialsRequest) returns (DeleteTrialsReply) {}
 
   rpc Version(VersionRequest) returns (VersionInfo) {}
+
+  // Expected metadata: None
+  rpc Status(StatusRequest) returns (StatusReply) {}
 }
 
 // --- Reply/Request Messages

@@ -46,6 +46,9 @@ service TrialLifecycleSP {
   // Expected headers: None
   rpc Version(VersionRequest) returns (VersionInfo) {}
 
+  // Expected metadata: None
+  rpc Status(StatusRequest) returns (StatusReply) {}
+
 }
 
 // Encodes a request from a master to start a new trial.
@@ -134,4 +137,7 @@ service ClientActorSP {
 
   // Expected metadata: None
   rpc Version(VersionRequest) returns (VersionInfo) {}
+
+  // Expected metadata: None
+  rpc Status(StatusRequest) returns (StatusReply) {}
 }

@@ -46,6 +46,33 @@ func (s *trialDatastoreServer) Version(
 	return res, nil
 }
 
+// gRPC interface
+func (s *trialDatastoreServer) Status(_ context.Context, request *grpcapi.StatusRequest,
+) (*grpcapi.StatusReply, error) {
+	reply := grpcapi.StatusReply{}
+
+	if len(request.Names) == 0 {
+		return &reply, nil
+	}
+	reply.Statuses = make(map[string]string)
+
+	// We purposefully don't scan for "*" ahead of time to allow explicit values before.
+	all := false
+	for _, name := range request.Names {
+		if name == "*" {
+			all = true
+		}
+		if all || name == "overall_load" {
+			reply.Statuses["overall_load"] = "0"
+		}
+		if all {
+			break
+		}
+	}
+
+	return &reply, nil
+}
+
 func (s *trialDatastoreServer) RetrieveTrials(
 	ctx context.Context,
 	req *grpcapi.RetrieveTrialsRequest,

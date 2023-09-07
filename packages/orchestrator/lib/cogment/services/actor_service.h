@@ -27,6 +27,8 @@ public:
   grpc::Status RunTrial(grpc::ServerContext* ctx, ServerStream::StreamType* stream) override;
   grpc::Status Version(grpc::ServerContext* ctx, const cogmentAPI::VersionRequest* in,
                        cogmentAPI::VersionInfo* out) override;
+  grpc::Status Status(grpc::ServerContext*, const cogmentAPI::StatusRequest* request,
+                      cogmentAPI::StatusReply* reply) override;
 
 private:
   Orchestrator* m_orchestrator;

@@ -38,6 +38,9 @@ service ModelRegistrySP {
   rpc VersionUpdate(VersionUpdateRequest) returns (stream VersionUpdateReply) {}
 
   rpc Version(VersionRequest) returns (VersionInfo) {}
+
+  // Expected metadata: None
+  rpc Status(StatusRequest) returns (StatusReply) {}
 }
 
 // Information about a model

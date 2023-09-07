@@ -302,6 +302,32 @@ func (s *datalogServer) Version(context.Context, *grpcapi.VersionRequest) (*grpc
 	return res, nil
 }
 
+// gRPC interface
+func (s *datalogServer) Status(_ context.Context, request *grpcapi.StatusRequest) (*grpcapi.StatusReply, error) {
+	reply := grpcapi.StatusReply{}
+
+	if len(request.Names) == 0 {
+		return &reply, nil
+	}
+	reply.Statuses = make(map[string]string)
+
+	// We purposefully don't scan for "*" ahead of time to allow explicit values before.
+	all := false
+	for _, name := range request.Names {
+		if name == "*" {
+			all = true
+		}
+		if all || name == "overall_load" {
+			reply.Statuses["overall_load"] = "0"
+		}
+		if all {
+			break
+		}
+	}
+
+	return &reply, nil
+}
+
 // RegisterDatalogServer registers a DatalogServer to a gRPC server.
 func RegisterDatalogServer(grpcServer grpc.ServiceRegistrar, backend backend.Backend) error {
 	server := &datalogServer{

@@ -18,7 +18,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math/rand"
 	"sort"
+	"strconv"
+	"sync"
 	"time"
 
 	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
@@ -33,22 +36,63 @@ import (
 )
 
 const secretLength = 5
+const (
+	unserviceableLoad   = 255
+	acceptableLoadRange = 10
+)
+
+type ServerParameters struct {
+	RegistrationLag uint
+	LoadBalancing   bool
+	CheckOnInquire  bool
+}
 
 type DirectoryServer struct {
 	cogmentAPI.UnimplementedDirectorySPServer
-	registrationLag uint
-	db              *MemoryDB
+	params ServerParameters
+	db     *MemoryDB
 }
 
-// We want to implicitly sort in reverse: from most recent (larger number) to less
-// recent (smaller number). So the "Less" function is actually a "More".
-type sortableRecords []*DbRecord
+type sortType int
 
-func (sr sortableRecords) Len() int      { return len(sr) }
-func (sr sortableRecords) Swap(i, j int) { sr[i], sr[j] = sr[j], sr[i] }
-func (sr sortableRecords) Less(i, j int) bool {
-	return sr[i].RegisterTimestamp > sr[j].RegisterTimestamp
+const (
+	none sortType = iota
+	timestamp
+	machineLoad
+)
+
+type resultRecords struct {
+	List    []*DbRecord
+	sortVar sortType
 }
+
+func (sr *resultRecords) Add(record *DbRecord) { sr.List = append(sr.List, record) }
+func (sr *resultRecords) Len() int             { return len(sr.List) }
+func (sr *resultRecords) Swap(i, j int)        { sr.List[i], sr.List[j] = sr.List[j], sr.List[i] }
+func (sr *resultRecords) Less(i, j int) bool {
+	switch sr.sortVar {
+	case timestamp:
+		// Sort in reverse: from most recent (larger number) to less recent (smaller number).
+		// So the "Less" function effectively becomes a "More" function.
+		return sr.List[i].RegisterTimestamp > sr.List[j].RegisterTimestamp
+
+	case machineLoad:
+		// From small loads to larger loads
+		return sr.List[i].MachineLoad < sr.List[j].MachineLoad
+
+	default:
+		return sr.List[i].Sid < sr.List[j].Sid
+	}
+}
+func (sr *resultRecords) SortByTime() {
+	sr.sortVar = timestamp
+	sort.Sort(sr)
+}
+func (sr *resultRecords) SortByLoad() {
+	sr.sortVar = machineLoad
+	sort.Sort(sr)
+}
+func (sr *resultRecords) Shuffle() { rand.Shuffle(sr.Len(), sr.Swap) }
 
 func (ds *DirectoryServer) dbUpdate(request *cogmentAPI.RegisterRequest, token string) (ServiceID, string, error) {
 	if !request.Permanent {
@@ -141,7 +185,7 @@ func (ds *DirectoryServer) dbRegister(request *cogmentAPI.RegisterRequest, token
 		"details":    newRecord.Details.String(),
 	}).Debug("New service")
 
-	if !healthCheck(&newRecord, newRecord.RegisterTimestamp) {
+	if !healthCheck(&newRecord, newRecord.RegisterTimestamp, defaultHealthCheckNbRounds) {
 		log.WithFields(logrus.Fields{"service_id": newRecord.Sid}).Debug("Failed initial health check")
 	}
 
@@ -171,7 +215,7 @@ func (ds *DirectoryServer) dbDeregister(request *cogmentAPI.DeregisterRequest, t
 	return nil
 }
 
-func (ds *DirectoryServer) dbInquire(request *cogmentAPI.InquireRequest, token string) (*sortableRecords, error) {
+func (ds *DirectoryServer) dbInquire(request *cogmentAPI.InquireRequest, token string) (*resultRecords, error) {
 	var requestDetails *cogmentAPI.ServiceDetails
 	var ids *[]ServiceID
 
@@ -191,7 +235,7 @@ func (ds *DirectoryServer) dbInquire(request *cogmentAPI.InquireRequest, token s
 		return nil, fmt.Errorf("Unknown request type [%T]", inquiry)
 	}
 
-	var matches sortableRecords
+	matches := resultRecords{}
 	for _, id := range *ids {
 		record, err := ds.db.SelectByID(id)
 		if err != nil {
@@ -215,11 +259,32 @@ func (ds *DirectoryServer) dbInquire(request *cogmentAPI.InquireRequest, token s
 			logAuth.Debug("Authentication failure")
 
 		} else if record.NbFailedHealthChecks == 0 {
-			matches = append(matches, record)
+			matches.Add(record)
 		}
 	}
 
-	sort.Sort(matches)
+	if ds.params.CheckOnInquire {
+		now := utils.Timestamp()
+		var group sync.WaitGroup
+		var mutex sync.Mutex
+		healthyList := make([]*DbRecord, 0, matches.Len())
+
+		group.Add(matches.Len())
+		for _, record := range matches.List {
+			go func(rec *DbRecord) {
+				defer group.Done()
+
+				if healthCheck(rec, now, 1) {
+					mutex.Lock()
+					defer mutex.Unlock()
+					healthyList = append(healthyList, rec)
+				}
+			}(record)
+		}
+
+		group.Wait()
+		matches.List = healthyList
+	}
 
 	return &matches, nil
 }
@@ -362,7 +427,7 @@ func (ds *DirectoryServer) Inquire(request *cogmentAPI.InquireRequest, outStream
 		return err
 	}
 
-	for count := ds.registrationLag; matches.Len() == 0 && count > 0; count-- {
+	for count := ds.params.RegistrationLag; matches.Len() == 0 && count > 0; count-- {
 		time.Sleep(1 * time.Second)
 
 		matches, err = ds.dbInquire(request, token)
@@ -371,7 +436,38 @@ func (ds *DirectoryServer) Inquire(request *cogmentAPI.InquireRequest, outStream
 		}
 	}
 
-	for _, record := range *matches {
+	if matches.Len() == 0 {
+		return nil
+	}
+
+	if !ds.params.LoadBalancing {
+		matches.SortByTime()
+	} else {
+		matches.SortByLoad()
+
+		for lastServiceableIndex := matches.Len() - 1; lastServiceableIndex >= 0; lastServiceableIndex-- {
+			if matches.List[lastServiceableIndex].MachineLoad < unserviceableLoad {
+				matches.List = matches.List[:lastServiceableIndex+1]
+				break
+			}
+		}
+		if matches.Len() == 0 {
+			return nil
+		}
+
+		lowestLoad := matches.List[0].MachineLoad
+		maxLowLoad := lowestLoad + acceptableLoadRange
+		for lowLoadIndex := 1; lowLoadIndex < matches.Len(); lowLoadIndex++ {
+			if matches.List[lowLoadIndex].MachineLoad > maxLowLoad {
+				matches.List = matches.List[:lowLoadIndex]
+				break
+			}
+		}
+
+		matches.Shuffle()
+	}
+
+	for _, record := range matches.List {
 		data := cogmentAPI.FullServiceData{
 			Endpoint:  &record.Endpoint,
 			ServiceId: uint64(record.Sid),
@@ -395,11 +491,52 @@ func (ds *DirectoryServer) Version(context.Context, *cogmentAPI.VersionRequest) 
 	return &cogmentAPI.VersionInfo{}, nil
 }
 
-func RegisterDirectoryServer(grpcServer grpc.ServiceRegistrar, regLag uint, persistenceFilename string,
-) (*DirectoryServer, error) {
+// gRPC interface
+func (ds *DirectoryServer) Status(_ context.Context, request *cogmentAPI.StatusRequest,
+) (*cogmentAPI.StatusReply, error) {
+	reply := cogmentAPI.StatusReply{}
+
+	if len(request.Names) == 0 {
+		return &reply, nil
+	}
+	reply.Statuses = make(map[string]string)
+
+	// We purposefully don't scan for "*" ahead of time to allow explicit values before.
+	all := false
+	for _, name := range request.Names {
+		if name == "*" {
+			all = true
+		}
+
+		if all || name == "overall_load" {
+			reply.Statuses["overall_load"] = "0"
+		}
+
+		if all || name == "nb_entries" {
+			reply.Statuses["nb_entries"] = strconv.Itoa(len(ds.db.data))
+		}
+
+		if all || name == "load_balancing" {
+			if ds.params.LoadBalancing {
+				reply.Statuses["load_balancing"] = "enabled"
+			} else {
+				reply.Statuses["load_balancing"] = "disabled"
+			}
+		}
+
+		if all {
+			break
+		}
+	}
+
+	return &reply, nil
+}
+
+func RegisterDirectoryServer(grpcServer grpc.ServiceRegistrar, persistenceFilename string,
+	parameters ServerParameters) (*DirectoryServer, error) {
 	server := DirectoryServer{
-		db:              MakeMemoryDb(persistenceFilename),
-		registrationLag: regLag,
+		db:     MakeMemoryDb(persistenceFilename),
+		params: parameters,
 	}
 
 	cogmentAPI.RegisterDirectorySPServer(grpcServer, &server)

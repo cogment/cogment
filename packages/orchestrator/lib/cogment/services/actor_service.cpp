@@ -69,4 +69,35 @@ grpc::Status ActorService::Version(grpc::ServerContext*, const cogmentAPI::Versi
   return grpc::Status::OK;
 }
 
+grpc::Status ActorService::Status(grpc::ServerContext*, const cogmentAPI::StatusRequest* request,
+                                  cogmentAPI::StatusReply* reply) {
+  SPDLOG_TRACE("ActorService::Status()");
+
+  try {
+    if (request->names().size() > 0) {
+      // We purposefully don't scan for "*" ahead of time to allow explicit values before.
+      bool all = false;
+      for (auto name : request->names()) {
+        if (name == "*") {
+          all = true;
+        }
+        if (all || name == "overall_load") {
+          (*reply->mutable_statuses())["overall_load"] = "0";
+        }
+        if (all) {
+          break;
+        }
+      }
+    }
+  }
+  catch (const std::exception& exc) {
+    return MakeErrorStatus("ClientActorSP::Status failure: [{}]", exc.what());
+  }
+  catch (...) {
+    return MakeErrorStatus("ClientActorSP::Status failure");
+  }
+
+  return grpc::Status::OK;
+}
+
 }  // namespace cogment

@@ -28,6 +28,9 @@ service EnvironmentSP {
   rpc RunTrial(stream EnvRunTrialInput) returns (stream EnvRunTrialOutput) {}
 
   rpc Version(VersionRequest) returns (VersionInfo) {}
+
+  // Expected metadata: None
+  rpc Status(StatusRequest) returns (StatusReply) {}
 }
 
 

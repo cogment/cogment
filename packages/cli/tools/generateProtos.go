@@ -49,7 +49,6 @@ func main() {
 		"cogment/api/datalog.proto",
 		"cogment/api/directory.proto",
 		"cogment/api/environment.proto",
-		"cogment/api/health.proto",
 		"cogment/api/hooks.proto",
 		"cogment/api/model_registry.proto",
 		"cogment/api/orchestrator.proto",

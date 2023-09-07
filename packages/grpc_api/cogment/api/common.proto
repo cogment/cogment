@@ -31,6 +31,15 @@ message VersionInfo {
   repeated Version versions = 1;
 }
 
+// **************** SERVICE STATUS *****************
+message StatusRequest {
+  repeated string names = 1;
+}
+
+message StatusReply {
+  map<string, string> statuses = 1;  // <name, value>
+}
+
 // **************** PARAMETERS *****************
 
 // This is used for optional content.

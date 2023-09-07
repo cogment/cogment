@@ -62,9 +62,9 @@ func NewGrpcServer(enableReflection bool, opts ...grpc.ServerOption) *grpc.Serve
 		internalLog.SetOutput(logrus.StandardLogger().Out)
 		internalLog.SetFormatter(logrus.StandardLogger().Formatter)
 
-		// gRPC is quite verbose, only unleash it on debug or below
+		// gRPC is quite verbose, only unleash it on trace level
 		internalLog.SetLevel(logrus.ErrorLevel)
-		if logrus.StandardLogger().GetLevel() >= logrus.DebugLevel {
+		if logrus.StandardLogger().GetLevel() >= logrus.TraceLevel {
 			internalLog.SetLevel(logrus.StandardLogger().GetLevel())
 		}
 

@@ -25,20 +25,31 @@ import (
 type Options struct {
 	Port                uint
 	GrpcReflection      bool
-	RegistrationLag     uint
 	PersistenceFilename string
+
+	RegistrationLag uint
+	LoadBalancing   bool
+	CheckOnInquire  bool
 }
 
 var DefaultOptions = Options{
 	Port:                9005,
 	GrpcReflection:      false,
-	RegistrationLag:     0,
 	PersistenceFilename: ".cogment-directory-data",
+
+	RegistrationLag: 0,
+	LoadBalancing:   false,
+	CheckOnInquire:  false,
 }
 
 func Run(options Options) error {
 	server := utils.NewGrpcServer(options.GrpcReflection)
-	dirServer, err := grpcservers.RegisterDirectoryServer(server, options.RegistrationLag, options.PersistenceFilename)
+	parameters := grpcservers.ServerParameters{
+		RegistrationLag: options.RegistrationLag,
+		LoadBalancing:   options.LoadBalancing,
+		CheckOnInquire:  options.CheckOnInquire,
+	}
+	dirServer, err := grpcservers.RegisterDirectoryServer(server, options.PersistenceFilename, parameters)
 	if err != nil {
 		return err
 	}

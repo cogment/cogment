@@ -27,6 +27,9 @@ service TrialHooksSP {
   
   // Expected headers: None
   rpc Version(VersionRequest) returns (VersionInfo) {}
+
+  // Expected metadata: None
+  rpc Status(StatusRequest) returns (StatusReply) {}
 }
 
 message PreTrialParams {

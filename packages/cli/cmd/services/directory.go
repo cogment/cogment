@@ -32,6 +32,10 @@ const (
 	directoryRegistrationLagEnv     = "COGMENT_DIRECTORY_REGISTRATION_LAG"
 	directoryPersistenceFilenameKey = "persistence_file"
 	directoryPersistenceFilenameEnv = "COGMENT_DIRECTORY_PERSISTENCE_FILE"
+	directoryLoadBalancingKey       = "load_balancing"
+	directoryLoadBalancingEnv       = "COGMENT_DIRECTORY_LOAD_BALANCING"
+	directoryCheckOnInquireKey      = "check_on_inquire"
+	directoryCheckOnInquireEnv      = "COGMENT_DIRECTORY_CHECK_ON_INQUIRE"
 )
 
 var directoryViper = viper.New()
@@ -56,6 +60,8 @@ var directoryCmd = &cobra.Command{
 			GrpcReflection:      directoryViper.GetBool(directoryGrpcReflectionKey),
 			RegistrationLag:     directoryViper.GetUint(directoryRegistrationLagKey),
 			PersistenceFilename: directoryViper.GetString(directoryPersistenceFilenameKey),
+			LoadBalancing:       directoryViper.GetBool(directoryLoadBalancingKey),
+			CheckOnInquire:      directoryViper.GetBool(directoryCheckOnInquireKey),
 		}
 
 		return directory.Run(options)
@@ -95,6 +101,22 @@ func init() {
 		directoryPersistenceFilenameKey,
 		directoryViper.GetString(directoryPersistenceFilenameKey),
 		"Filename where to store persistence data",
+	)
+
+	directoryViper.SetDefault(directoryLoadBalancingKey, directory.DefaultOptions.LoadBalancing)
+	_ = directoryViper.BindEnv(directoryLoadBalancingKey, directoryLoadBalancingEnv)
+	directoryCmd.Flags().Bool(
+		directoryLoadBalancingKey,
+		directoryViper.GetBool(directoryLoadBalancingKey),
+		"Enable load balancing",
+	)
+
+	directoryViper.SetDefault(directoryCheckOnInquireKey, directory.DefaultOptions.CheckOnInquire)
+	_ = directoryViper.BindEnv(directoryCheckOnInquireKey, directoryCheckOnInquireEnv)
+	directoryCmd.Flags().Bool(
+		directoryCheckOnInquireKey,
+		directoryViper.GetBool(directoryCheckOnInquireKey),
+		"Check health and status when an inquiry is made",
 	)
 
 	// Don't sort alphabetically, keep insertion order

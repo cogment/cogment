@@ -43,6 +43,9 @@ service DirectorySP {
 
   // Expected metadata: None
   rpc Version(VersionRequest) returns (VersionInfo) {}
+
+  // Expected metadata: None
+  rpc Status(StatusRequest) returns (StatusReply) {}
 }
 
 message RegisterRequest {

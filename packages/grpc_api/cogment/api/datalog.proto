@@ -30,6 +30,9 @@ service DatalogSP {
 
   // Expected headers: None
   rpc Version(VersionRequest) returns (VersionInfo) {}
+
+  // Expected metadata: None
+  rpc Status(StatusRequest) returns (StatusReply) {}
 }
 
 // Received by datalog service on rpc call

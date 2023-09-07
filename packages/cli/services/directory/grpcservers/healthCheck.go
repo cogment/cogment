@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strconv"
 	"time"
 
 	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
@@ -33,7 +34,9 @@ const (
 	dbScanPeriod      = 5 * time.Second
 	dbScanPeriodTicks = int(dbScanPeriod / tickPeriod)
 
-	healthCheckPeriod     = 30 * time.Second
+	defaultHealthCheckNbRounds = 3
+
+	healthCheckPeriod     = 60 * time.Second
 	maxFailedHealthChecks = 3
 
 	tcpCheckTimeout     = 5 * time.Second
@@ -93,7 +96,7 @@ func (ds *DirectoryServer) nowHealthCheck(running *bool, immediateRemoval bool) 
 				return
 			}
 
-			healthy := healthCheck(record, now)
+			healthy := healthCheck(record, now, defaultHealthCheckNbRounds)
 			if !healthy && (immediateRemoval || record.NbFailedHealthChecks >= maxFailedHealthChecks) {
 				ds.db.Delete(recordID)
 
@@ -107,7 +110,11 @@ func (ds *DirectoryServer) nowHealthCheck(running *bool, immediateRemoval bool) 
 	}
 }
 
-func healthCheck(record *DbRecord, now uint64) bool {
+func healthCheck(record *DbRecord, now uint64, nbRounds int) bool {
+	if now-record.LastHealthCheckTimestamp < uint64(tickPeriod.Nanoseconds()) {
+		return (record.NbFailedHealthChecks == 0)
+	}
+
 	record.LastHealthCheckTimestamp = now
 
 	if record.Permanent {
@@ -129,7 +136,7 @@ func healthCheck(record *DbRecord, now uint64) bool {
 		record.Endpoint.Protocol == cogmentAPI.ServiceEndpoint_GRPC_SSL {
 		var err error
 		timeout := tcpCheckTimeout
-		for index := 0; index < 3; index++ {
+		for index := 0; index < nbRounds; index++ {
 			err = tcpCheck(record.Endpoint.Host, record.Endpoint.Port, timeout)
 			if err == nil {
 				break
@@ -145,12 +152,24 @@ func healthCheck(record *DbRecord, now uint64) bool {
 	} else {
 		var err error
 		timeout := cogmentCheckTimeout
-		for index := 0; index < 3; index++ {
-			err = cogmentCheck(record.Details.Type, record.Endpoint.Host, record.Endpoint.Port, timeout)
+		for index := 0; index < nbRounds; index++ {
+			var load int
+			load, err = cogmentStatus(record.Details.Type, record.Endpoint.Host, record.Endpoint.Port, timeout)
 			if err == nil {
+				record.MachineLoad = load
 				break
 			}
+
+			// Backup in case service is running an older version and does not have the "Status" RPC
+			// TODO: Remove in next major version change (with the "Version" RPC)
+			err = cogmentVersionCheck(record.Details.Type, record.Endpoint.Host, record.Endpoint.Port, timeout/2)
+			if err == nil {
+				record.MachineLoad = 0
+				break
+			}
+
 			log.Debug("Failed Cogment transient health check for ID [", record.Sid, "] - ", err.Error())
+			record.MachineLoad = unserviceableLoad
 			timeout *= 2
 		}
 		if err != nil {
@@ -194,7 +213,8 @@ func tcpCheck(host string, port uint32, timeout time.Duration) error {
 	return err
 }
 
-func cogmentCheck(serviceType cogmentAPI.ServiceType, host string, port uint32, timeout time.Duration) error {
+// TODO: eventually we want to remove this function and the use of the `Version` procedure.
+func cogmentVersionCheck(serviceType cogmentAPI.ServiceType, host string, port uint32, timeout time.Duration) error {
 	address := fmt.Sprintf("%s:%d", host, port)
 
 	ctx, cancelContext := context.WithTimeout(context.Background(), timeout)
@@ -232,9 +252,71 @@ func cogmentCheck(serviceType cogmentAPI.ServiceType, host string, port uint32, 
 		method = "/?/Version"
 	}
 
-	// We could use two generic empty protobuf instead
 	in := cogmentAPI.VersionRequest{}
 	out := cogmentAPI.VersionInfo{}
 	err = connection.Invoke(ctx, method, &in, &out, grpc.WaitForReady(false))
 	return err
+}
+
+func cogmentStatus(serviceType cogmentAPI.ServiceType, host string, port uint32, timeout time.Duration) (int, error) {
+	address := fmt.Sprintf("%s:%d", host, port)
+
+	ctx, cancelContext := context.WithTimeout(context.Background(), timeout)
+	defer cancelContext()
+
+	connection, err := grpc.DialContext(ctx, address,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithBlock(),
+	)
+	if err != nil {
+		return 0, err
+	}
+	defer connection.Close()
+
+	method := ""
+	switch serviceType {
+	case cogmentAPI.ServiceType_TRIAL_LIFE_CYCLE_SERVICE:
+		method = "/cogmentAPI.TrialLifecycleSP/Status"
+	case cogmentAPI.ServiceType_CLIENT_ACTOR_CONNECTION_SERVICE:
+		method = "/cogmentAPI.ClientActorSP/Status"
+	case cogmentAPI.ServiceType_ACTOR_SERVICE:
+		method = "/cogmentAPI.ServiceActorSP/Status"
+	case cogmentAPI.ServiceType_ENVIRONMENT_SERVICE:
+		method = "/cogmentAPI.EnvironmentSP/Status"
+	case cogmentAPI.ServiceType_PRE_HOOK_SERVICE:
+		method = "/cogmentAPI.TrialHooksSP/Status"
+	case cogmentAPI.ServiceType_DATALOG_SERVICE:
+		method = "/cogmentAPI.DatalogSP/Status"
+	case cogmentAPI.ServiceType_DATASTORE_SERVICE:
+		method = "/cogmentAPI.TrialDatastoreSP/Status"
+	case cogmentAPI.ServiceType_MODEL_REGISTRY_SERVICE:
+		method = "/cogmentAPI.ModelRegistrySP/Status"
+	default:
+		log.Error("Unknown gRPC service type [", serviceType, "]")
+		method = "/?/Status"
+	}
+
+	in := cogmentAPI.StatusRequest{
+		Names: []string{"overall_load"},
+	}
+	//in.Names = append(in.Names, "overall_load")
+	out := cogmentAPI.StatusReply{}
+	err = connection.Invoke(ctx, method, &in, &out, grpc.WaitForReady(false))
+	if err != nil {
+		return 0, err
+	}
+
+	var loadVal int
+
+	valStr, exist := out.Statuses["overall_load"]
+	if exist {
+		val, err := strconv.ParseUint(valStr, 10, 8)
+		if err == nil {
+			loadVal = int(val)
+		}
+	}
+
+	log.Debugf("[%s] at [%s]: overall_load [%t][%d]", method, address, exist, loadVal)
+
+	return loadVal, err
 }
