@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Added
+
+- Directory load balancing
+- Directory pre-inquiry health checks
+- Services 'Status' RPC
+
 ## v2.17.5 - 2023-08-24
 
 ### Fixed
