@@ -142,5 +142,6 @@ enum ServiceType {
   DATALOG_SERVICE = 6;
   DATASTORE_SERVICE = 7;
   MODEL_REGISTRY_SERVICE = 8;
+  DIRECTORY_SERVICE = 9;
   OTHER_SERVICE = 100;  // In this case, the properties will define the service
 }

@@ -93,6 +93,7 @@ void test_reply(const cogmentAPI::FullServiceData& reply, const EndpointData& re
   case EndpointData::PathType::ACTSERVICE:
   case EndpointData::PathType::DATASTORE:
   case EndpointData::PathType::MODELREGISTRY:
+  case EndpointData::PathType::DIRECTORY:
   case EndpointData::PathType::EMPTY_PATH:
   case EndpointData::PathType::UNKNOWN_PATH:
     throw MakeException("Internal error: path type [{}] should not have been requested from directory",
@@ -180,6 +181,11 @@ cogmentAPI::ServiceType Directory::get_service_type(const EndpointData& data, ui
 
   case EndpointData::PathType::MODELREGISTRY: {
     throw MakeException("The orchestrator does not connect to 'modelregistry' services: [{}]", data.original_endpoint);
+    break;
+  }
+
+  case EndpointData::PathType::DIRECTORY: {
+    throw MakeException("The orchestrator cannot request another directory: [{}]", data.original_endpoint);
     break;
   }
 

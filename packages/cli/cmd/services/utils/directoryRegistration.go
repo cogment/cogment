@@ -23,13 +23,9 @@ import (
 
 	"github.com/cogment/cogment/clients/directory"
 	"github.com/cogment/cogment/utils"
+	"github.com/cogment/cogment/utils/constants"
 	"github.com/cogment/cogment/utils/endpoint"
 )
-
-var directoryEndpointKey = "directory_endpoint"
-var directoryAuthTokenKey = "directory_authentication_token"
-var directoryRegistrationHostKey = "directory_registration_host"
-var directoryRegistrationPropertiesKey = "directory_registration_properties"
 
 func PopulateDirectoryRegistrationOptionsFlags(
 	serviceName string,
@@ -37,30 +33,30 @@ func PopulateDirectoryRegistrationOptionsFlags(
 	viper *viper.Viper,
 	defaultValues directory.RegistrationOptions) {
 
-	viper.SetDefault(directoryEndpointKey, defaultValues.DirectoryEndpoint)
-	_ = viper.BindEnv(directoryEndpointKey, "COGMENT_DIRECTORY_ENDPOINT")
+	viper.SetDefault(constants.DirectoryEndpointKey, defaultValues.DirectoryEndpoint)
+	_ = viper.BindEnv(constants.DirectoryEndpointKey, constants.DirectoryEndpointEnv)
 	cmd.Flags().String(
-		directoryEndpointKey,
-		viper.GetString(directoryEndpointKey),
-		"Directory service gRPC endpoint",
+		constants.DirectoryEndpointKey,
+		viper.GetString(constants.DirectoryEndpointKey),
+		constants.DirectoryEndpointDesc,
 	)
 
-	viper.SetDefault(directoryAuthTokenKey, defaultValues.DirectoryAuthToken)
-	_ = viper.BindEnv(directoryAuthTokenKey, "COGMENT_DIRECTORY_AUTHENTICATION_TOKEN")
+	viper.SetDefault(constants.DirectoryAuthTokenKey, defaultValues.DirectoryAuthToken)
+	_ = viper.BindEnv(constants.DirectoryAuthTokenKey, constants.DirectoryAuthTokenEnv)
 	cmd.Flags().String(
-		directoryAuthTokenKey,
-		viper.GetString(directoryAuthTokenKey),
-		"Authentication token for directory services",
+		constants.DirectoryAuthTokenKey,
+		viper.GetString(constants.DirectoryAuthTokenKey),
+		constants.DirectoryAuthTokenDesc,
 	)
 
-	viper.SetDefault(directoryRegistrationHostKey, defaultValues.DirectoryRegistrationHost)
+	viper.SetDefault(constants.DirectoryRegistrationHostKey, defaultValues.DirectoryRegistrationHost)
 	_ = viper.BindEnv(
-		directoryRegistrationHostKey,
+		constants.DirectoryRegistrationHostKey,
 		fmt.Sprintf("COGMENT_%s_DIRECTORY_REGISTRATION_HOST", serviceName),
 	)
 	cmd.Flags().String(
-		directoryRegistrationHostKey,
-		viper.GetString(directoryRegistrationHostKey),
+		constants.DirectoryRegistrationHostKey,
+		viper.GetString(constants.DirectoryRegistrationHostKey),
 		fmt.Sprintf("Host to register as the %s in the Directory (self discover host by default)", serviceName),
 	)
 
@@ -85,20 +81,20 @@ func PopulateDirectoryRegistrationOptionsFlags(
 		}
 	}
 	viper.SetDefault(
-		directoryRegistrationPropertiesKey,
+		constants.DirectoryRegistrationPropertiesKey,
 		directoryUsageRegistrationPropertiesDefaultValue,
 	)
 	cmd.Flags().StringToString(
-		directoryRegistrationPropertiesKey,
-		viper.GetStringMapString(directoryRegistrationPropertiesKey),
+		constants.DirectoryRegistrationPropertiesKey,
+		viper.GetStringMapString(constants.DirectoryRegistrationPropertiesKey),
 		fmt.Sprintf("Properties to register to the Directory for the %s", serviceName),
 	)
 }
 
 func GetDirectoryRegistrationOptions(viper *viper.Viper) (directory.RegistrationOptions, error) {
-	directoryEndpointStr := viper.GetString(directoryEndpointKey)
+	directoryEndpointStr := viper.GetString(constants.DirectoryEndpointKey)
 
-	directoryEndpoint := endpoint.Endpoint{}
+	directoryEndpoint := &endpoint.Endpoint{}
 	if len(directoryEndpointStr) > 0 {
 		var err error
 		directoryEndpoint, err = endpoint.Parse(directoryEndpointStr)
@@ -110,8 +106,8 @@ func GetDirectoryRegistrationOptions(viper *viper.Viper) (directory.Registration
 
 	return directory.RegistrationOptions{
 		DirectoryEndpoint:               directoryEndpoint,
-		DirectoryAuthToken:              viper.GetString(directoryAuthTokenKey),
-		DirectoryRegistrationHost:       viper.GetString(directoryRegistrationHostKey),
-		DirectoryRegistrationProperties: viper.GetStringMapString(directoryRegistrationPropertiesKey),
+		DirectoryAuthToken:              viper.GetString(constants.DirectoryAuthTokenKey),
+		DirectoryRegistrationHost:       viper.GetString(constants.DirectoryRegistrationHostKey),
+		DirectoryRegistrationProperties: viper.GetStringMapString(constants.DirectoryRegistrationPropertiesKey),
 	}, nil
 }

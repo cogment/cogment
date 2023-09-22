@@ -69,7 +69,7 @@ var datastoreCmd = &cobra.Command{
 			options.Storage = datastore.File
 		}
 
-		ctx := utils.ContextWithUserTermination(context.Background())
+		ctx := utils.ContextWithUserTermination()
 
 		err = datastore.Run(ctx, options)
 		if err != nil {

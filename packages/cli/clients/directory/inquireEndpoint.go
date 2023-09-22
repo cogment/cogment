@@ -24,25 +24,25 @@ import (
 
 func InquireEndpoint(
 	ctx context.Context,
-	inquiredEndpoint endpoint.Endpoint,
-	directoryEndpoint endpoint.Endpoint,
+	inquiredEndpoint *endpoint.Endpoint,
+	directoryEndpoint *endpoint.Endpoint,
 	directoryAuthToken string,
-) ([]endpoint.Endpoint, error) {
+) ([]*endpoint.Endpoint, error) {
 	log := log.WithField("endpoint", inquiredEndpoint)
 
 	if inquiredEndpoint.IsResolved() {
 		log.Debug("No need to inquire directory, endpoint is already resolved")
-		return []endpoint.Endpoint{inquiredEndpoint}, nil
+		return []*endpoint.Endpoint{inquiredEndpoint}, nil
 	}
 
 	if !directoryEndpoint.IsValid() {
-		return []endpoint.Endpoint{},
+		return []*endpoint.Endpoint{},
 			fmt.Errorf("Can't inquire endpoint [%s], no valid directory endpoint provided", inquiredEndpoint)
 	}
 
 	log = log.WithField("directory_endpoint", directoryEndpoint)
-	if inquiredEndpoint.Type() != endpoint.DiscoveryEndpoint {
-		return []endpoint.Endpoint{},
+	if inquiredEndpoint.Category != endpoint.DiscoveryEndpoint {
+		return []*endpoint.Endpoint{},
 			fmt.Errorf("Can't inquire non-discovery endpoint [%s]", inquiredEndpoint)
 	}
 
@@ -54,35 +54,32 @@ func InquireEndpoint(
 
 	directoryClient, err := CreateClient(ctx, directoryEndpoint, directoryAuthToken)
 	if err != nil {
-		return []endpoint.Endpoint{}, err
+		return []*endpoint.Endpoint{}, err
 	}
 
 	var request grpcapi.InquireRequest
-	if serviceID, ok := inquiredEndpoint.ServiceID(); ok {
+	if inquiredEndpoint.ServiceDiscoveryID != 0 {
 		request = grpcapi.InquireRequest{
 			Inquiry: &grpcapi.InquireRequest_ServiceId{
-				ServiceId: serviceID,
+				ServiceId: inquiredEndpoint.ServiceDiscoveryID,
 			},
 		}
 	} else {
 		request = grpcapi.InquireRequest{
 			Inquiry: &grpcapi.InquireRequest_Details{
-				Details: &grpcapi.ServiceDetails{
-					Type:       inquiredEndpoint.ServiceType(),
-					Properties: inquiredEndpoint.Properties(),
-				},
+				Details: inquiredEndpoint.Details,
 			},
 		}
 	}
 	services, err := directoryClient.Inquire(&request)
 	if err != nil {
-		return []endpoint.Endpoint{}, err
+		return []*endpoint.Endpoint{}, err
 	}
 	if len(*services) == 0 {
-		return []endpoint.Endpoint{},
+		return []*endpoint.Endpoint{},
 			fmt.Errorf("No service matching endpoint [%s] found in directory [%s]", inquiredEndpoint, directoryEndpoint)
 	}
-	resolvedEndpoints := []endpoint.Endpoint{}
+	resolvedEndpoints := []*endpoint.Endpoint{}
 	for _, service := range *services {
 		resolvedEndpoint, err := inquiredEndpoint.Resolve(
 			service.ServiceId,
@@ -91,7 +88,7 @@ func InquireEndpoint(
 			service.Details.Type,
 		)
 		if err != nil {
-			return []endpoint.Endpoint{}, err
+			return []*endpoint.Endpoint{}, err
 		}
 		resolvedEndpoints = append(resolvedEndpoints, resolvedEndpoint)
 	}

@@ -33,7 +33,7 @@ type Client struct {
 
 const directoryAuthTokenMetadataKey = "authentication-token"
 
-func CreateClient(ctx context.Context, endpoint endpoint.Endpoint, authenticationToken string) (*Client, error) {
+func CreateClient(ctx context.Context, endpoint *endpoint.Endpoint, authenticationToken string) (*Client, error) {
 	subClient, err := clients.CreateClientWithInsecureEndpoint(endpoint)
 	if err != nil {
 		return nil, err

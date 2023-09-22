@@ -86,7 +86,7 @@ var orchestratorCmd = &cobra.Command{
 			GarbageCollectorFrequency: orchestratorViper.GetUint(orchestratorGcFrequencyKey),
 		}
 
-		ctx := utils.ContextWithUserTermination(context.Background())
+		ctx := utils.ContextWithUserTermination()
 
 		err = orchestrator.Run(ctx, options)
 		if err != nil {

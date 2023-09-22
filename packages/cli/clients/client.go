@@ -30,10 +30,10 @@ type Client struct {
 }
 
 func CreateClientWithInsecureEndpoint(
-	endpoint endpoint.Endpoint,
+	endpoint *endpoint.Endpoint,
 ) (*Client, error) {
 	return &Client{
-		endpoint: &endpoint,
+		endpoint: endpoint,
 	}, nil
 }
 

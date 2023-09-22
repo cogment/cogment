@@ -20,6 +20,7 @@ import (
 
 	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/utils"
+	"github.com/cogment/cogment/utils/constants"
 	"github.com/cogment/cogment/utils/endpoint"
 
 	directoryClient "github.com/cogment/cogment/clients/directory"
@@ -41,8 +42,7 @@ func init() {
 	directoryInquireCmd.Flags().String(
 		directoryServiceTypeKey,
 		directoryInquireViper.GetString(directoryServiceTypeKey),
-		"Type of service to inquire from the Directory (actor, environment, "+
-			"prehook, datalog, lifecycle, actservice, datastore, modelregistry or other)",
+		fmt.Sprintf("Type of service to inquire from the Directory (%s)", constants.ServiceTypeAllDesc),
 	)
 
 	directoryInquireViper.SetDefault(directoryServicePropertiesKey, "")
@@ -64,7 +64,7 @@ var directoryInquireCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), clientViper.GetDuration(clientTimeoutKey))
 		defer cancel()
 
-		directoryEndpoint, err := endpoint.Parse(directoryViper.GetString(directoryEndpointKey))
+		directoryEndpoint, err := endpoint.Parse(directoryViper.GetString(constants.DirectoryEndpointKey))
 		if err != nil {
 			return err
 		}
@@ -72,7 +72,7 @@ var directoryInquireCmd = &cobra.Command{
 		client, err := directoryClient.CreateClient(
 			ctx,
 			directoryEndpoint,
-			directoryViper.GetString(directoryAuthTokenKey),
+			directoryViper.GetString(constants.DirectoryAuthTokenKey),
 		)
 		if err != nil {
 			return err
@@ -93,7 +93,7 @@ var directoryInquireCmd = &cobra.Command{
 		} else {
 			details := cogmentAPI.ServiceDetails{}
 
-			serviceType, err := strToAPIServiceType(typeStr)
+			serviceType, err := utils.StrToAPIServiceType(typeStr)
 			if err != nil {
 				return err
 			}
@@ -121,9 +121,9 @@ var directoryInquireCmd = &cobra.Command{
 		fmt.Printf("[%d] Services found\n", len(*services))
 		for _, service := range *services {
 			fmt.Printf("Service ID [%d]\n", service.ServiceId)
-			endpoint, ssl := endpointToString(service.Endpoint)
+			endpoint, ssl := utils.EndpointToString(service.Endpoint)
 			fmt.Printf("\tEndpoint [%s] SSL required [%t]\n", endpoint, ssl)
-			fmt.Printf("\tType [%s]\n", apiServiceTypeToStr(service.Details.Type))
+			fmt.Printf("\tType [%s]\n", utils.APIServiceTypeToStr(service.Details.Type))
 			fmt.Printf("\tPermanent [%t]\n", service.Permanent)
 			for name, value := range service.Details.Properties {
 				fmt.Printf("\t[%s] = [%s]\n", name, value)

@@ -46,6 +46,7 @@ constexpr std::string_view LIFECYCLE("lifecycle");
 constexpr std::string_view ACTSERVICE("actservice");
 constexpr std::string_view DATASTORE("datastore");
 constexpr std::string_view MODELREGISTRY("modelregistry");
+constexpr std::string_view DIRECTORY("directory");
 
 // Separator characters
 constexpr char SCHEME_SEPARATOR1 = ':';
@@ -192,6 +193,9 @@ void fake_url_parser(const std::string_view in_url, EndpointData* data) {
   }
   else if (update_if_starts(&url, MODELREGISTRY, QUERY_SEPARATOR)) {
     data->path = EndpointData::PathType::MODELREGISTRY;
+  }
+  else if (update_if_starts(&url, DIRECTORY, QUERY_SEPARATOR)) {
+    data->path = EndpointData::PathType::DIRECTORY;
   }
   else {
     data->path = EndpointData::PathType::UNKNOWN_PATH;

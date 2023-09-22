@@ -19,6 +19,7 @@ import (
 	"os"
 
 	"github.com/cogment/cogment/utils"
+	"github.com/cogment/cogment/utils/constants"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
@@ -67,7 +68,7 @@ func configureLog(cfg *viper.Viper) error {
 				expectedLogLevels,
 			)
 		}
-	} else if cfg.IsSet(servicesLogFileKey) {
+	} else if cfg.IsSet(constants.LogFileKey) {
 		// default for file is json
 		desiredFormat = json
 	}
@@ -82,8 +83,8 @@ func configureLog(cfg *viper.Viper) error {
 		logrus.SetFormatter(&loggerFormatter)
 	}
 
-	if cfg.IsSet(servicesLogFileKey) {
-		path := cfg.GetString(servicesLogFileKey)
+	if cfg.IsSet(constants.LogFileKey) {
+		path := cfg.GetString(constants.LogFileKey)
 		file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err != nil {
 			return fmt.Errorf("unable to open log file %q: %w", path, err)
@@ -94,7 +95,7 @@ func configureLog(cfg *viper.Viper) error {
 		return nil
 	}
 
-	logLevelStr := cfg.GetString(servicesLogLevelKey)
+	logLevelStr := cfg.GetString(constants.LogLevelKey)
 	for _, expectedLogLevel := range expectedLogLevels {
 		if expectedLogLevel == logLevelStr {
 			if logLevelStr == LogLevelOff {
@@ -113,7 +114,7 @@ func configureLog(cfg *viper.Viper) error {
 	}
 	return fmt.Errorf(
 		"invalid log level specified %q expecting one of %v",
-		cfg.GetString(servicesLogLevelKey),
+		cfg.GetString(constants.LogLevelKey),
 		expectedLogLevels,
 	)
 }

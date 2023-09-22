@@ -327,7 +327,7 @@ func (ds *DirectoryServer) Register(inOutStream cogmentAPI.DirectorySP_RegisterS
 			reply.ErrorMsg = fmt.Sprintf("Invalid protocol [%d]", int32(protocol))
 			log.WithFields(logrus.Fields{"protocol": int32(protocol)}).Debug("Invalid protocol for registration")
 		} else if (serviceType < cogmentAPI.ServiceType_TRIAL_LIFE_CYCLE_SERVICE ||
-			serviceType > cogmentAPI.ServiceType_MODEL_REGISTRY_SERVICE) &&
+			serviceType > cogmentAPI.ServiceType_DIRECTORY_SERVICE) &&
 			serviceType != cogmentAPI.ServiceType_OTHER_SERVICE {
 			reply.Status = cogmentAPI.RegisterReply_FAILED
 			reply.ErrorMsg = fmt.Sprintf("Invalid service type [%d]", int32(serviceType))

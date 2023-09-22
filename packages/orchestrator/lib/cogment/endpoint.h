@@ -43,7 +43,8 @@ struct EndpointData {
     LIFECYCLE,
     ACTSERVICE,
     DATASTORE,
-    MODELREGISTRY
+    MODELREGISTRY,
+    DIRECTORY
   };
 
   std::string original_endpoint;  // The original endpoint and underlying base for 'std::string_view'

@@ -50,6 +50,7 @@ public:
     DATALOG = cogmentAPI::ServiceType::DATALOG_SERVICE,
     DATASTORE = cogmentAPI::ServiceType::DATASTORE_SERVICE,
     MODEL_REGISTRY = cogmentAPI::ServiceType::MODEL_REGISTRY_SERVICE,
+    DIRECTORY = cogmentAPI::ServiceType::DIRECTORY_SERVICE,
     OTHER = cogmentAPI::ServiceType::OTHER_SERVICE,
   };
 

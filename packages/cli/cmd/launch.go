@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"github.com/cogment/cogment/launcher"
+	"github.com/cogment/cogment/utils/constants"
 	"github.com/spf13/cobra"
 )
 
@@ -25,7 +26,7 @@ var launchCmd = &cobra.Command{
 	Args:         cobra.MinimumNArgs(1),
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		quietLevel, err := cmd.Flags().GetCount("quiet")
+		quietLevel, err := cmd.Flags().GetCount(constants.QuietKey)
 		if err != nil {
 			return err
 		}
@@ -35,5 +36,5 @@ var launchCmd = &cobra.Command{
 }
 
 func init() {
-	launchCmd.Flags().CountP("quiet", "q", "")
+	launchCmd.Flags().CountP(constants.QuietKey, constants.QuietShortKey, constants.QuietDesc)
 }

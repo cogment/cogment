@@ -37,17 +37,7 @@ func TestParseEmptyEndpoint(t *testing.T) {
 func TestParseGrpcEndpoint(t *testing.T) {
 	endpoint, err := Parse("grpc://localhost:46637")
 	assert.NoError(t, err)
-	assert.Equal(t, GrpcEndpoint, endpoint.Type())
-
-	url, err := endpoint.ResolvedURL()
-	assert.NoError(t, err)
-	assert.Equal(t, "localhost:46637", url.Host)
-}
-
-func TestParseGrpcEndpointInconsistendCase(t *testing.T) {
-	endpoint, err := Parse("GRPC://localhost:46637")
-	assert.NoError(t, err)
-	assert.Equal(t, GrpcEndpoint, endpoint.Type())
+	assert.Equal(t, GrpcEndpoint, endpoint.Category)
 
 	url, err := endpoint.ResolvedURL()
 	assert.NoError(t, err)
@@ -57,27 +47,26 @@ func TestParseGrpcEndpointInconsistendCase(t *testing.T) {
 func TestParseDiscoveryEndpoint(t *testing.T) {
 	endpoint, err := Parse("cogment://discover/actor?__actor_class=foo")
 	assert.NoError(t, err)
-	assert.Equal(t, DiscoveryEndpoint, endpoint.Type())
-	assert.Equal(t, grpcapi.ServiceType_ACTOR_SERVICE, endpoint.ServiceType())
-	assert.Contains(t, endpoint.Properties(), ActorClassPropertyName)
-	assert.Equal(t, "foo", endpoint.Properties()[ActorClassPropertyName])
+	assert.Equal(t, DiscoveryEndpoint, endpoint.Category)
+	assert.Equal(t, grpcapi.ServiceType_ACTOR_SERVICE, endpoint.Details.Type)
+	assert.Contains(t, endpoint.Details.Properties, ActorClassPropertyName)
+	assert.Equal(t, "foo", endpoint.Details.Properties[ActorClassPropertyName])
+	assert.Equal(t, uint64(0), endpoint.ServiceDiscoveryID)
 }
 
 type TestStruct struct {
-	Endpoint Endpoint `json:"endpoint"`
-	Foo      int      `json:"foo"`
+	Endpoint *Endpoint `json:"endpoint"`
+	Foo      int       `json:"foo"`
 }
 
 func TestUnmarshalJSON(t *testing.T) {
 	test := TestStruct{}
-	err := json.Unmarshal([]byte("{\"endpoint\":\"cogment://discover?__id=12345\",\"foo\":42}"), &test)
+	err := json.Unmarshal([]byte("{\"endpoint\":\"cogment://discover/service?__id=12345\",\"foo\":42}"), &test)
 	assert.NoError(t, err)
 	assert.Equal(t, 42, test.Foo)
-	assert.Equal(t, DiscoveryEndpoint, test.Endpoint.Type())
-	assert.Equal(t, grpcapi.ServiceType_UNKNOWN_SERVICE, test.Endpoint.ServiceType())
-	serviceID, hasServiceID := test.Endpoint.ServiceID()
-	assert.True(t, hasServiceID)
-	assert.Equal(t, 12345, int(serviceID))
+	assert.Equal(t, DiscoveryEndpoint, test.Endpoint.Category)
+	assert.Equal(t, grpcapi.ServiceType_UNKNOWN_SERVICE, test.Endpoint.Details.Type)
+	assert.Equal(t, uint64(12345), test.Endpoint.ServiceDiscoveryID)
 }
 
 func TestMarshalJSON(t *testing.T) {
@@ -100,7 +89,7 @@ func TestMarshalJSONPtr(t *testing.T) {
 	endpoint, err := Parse("cogment://client")
 	assert.NoError(t, err)
 	test := TestStructPtr{
-		Endpoint: &endpoint,
+		Endpoint: endpoint,
 	}
 	b, err := json.Marshal(test)
 	assert.NoError(t, err)

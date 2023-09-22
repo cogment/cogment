@@ -12,26 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package utils
+package constants
 
-import (
-	"context"
-	"os"
-	"os/signal"
-	"syscall"
+const (
+	DefaultDirectoryPort = 9005
+
+	GrpcScheme    = "grpc"
+	CogmentScheme = "cogment"
+
+	DiscoveryHost = "discover"
+	ClientHost    = "client"
 )
-
-func ContextWithUserTermination() context.Context {
-	ctx, cancel := context.WithCancel(context.Background())
-	// using a buffered channel cf. https://link.medium.com/M8dPZv9Wuob
-	interruptChan := make(chan os.Signal, 1)
-	signal.Notify(interruptChan, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-interruptChan
-		log.Debug("SIGTERM received")
-		signal.Stop(interruptChan) // Stopping registration to this channel
-		cancel()
-	}()
-
-	return ctx
-}

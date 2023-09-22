@@ -34,7 +34,7 @@ type ActiveTrialInfo struct {
 }
 
 type Controller struct {
-	orchestratorEndpoint endpoint.Endpoint
+	orchestratorEndpoint *endpoint.Endpoint
 	trialSpecManager     *trialspec.Manager
 	workersContext       context.Context
 	cancelWorkers        context.CancelFunc
@@ -92,7 +92,7 @@ func (controller *Controller) startWatchTrialsWorker(retryTimeout time.Duration)
 	}()
 }
 
-func NewController(orchestratorEndpoint endpoint.Endpoint, trialSpecManager *trialspec.Manager) (*Controller, error) {
+func NewController(orchestratorEndpoint *endpoint.Endpoint, trialSpecManager *trialspec.Manager) (*Controller, error) {
 	workersContext, cancelWorkers := context.WithCancel(context.Background())
 	controller := Controller{
 		orchestratorEndpoint: orchestratorEndpoint,
@@ -137,7 +137,7 @@ func (controller *Controller) StartTrial(
 		if err != nil {
 			return "", err
 		}
-		if environmentEndpoint.Type() == endpoint.GrpcEndpoint {
+		if environmentEndpoint.Category == endpoint.GrpcEndpoint {
 			return "", fmt.Errorf("web proxy controller doesn't support starting trial referring to grpc endpoints")
 		}
 	}
@@ -146,7 +146,7 @@ func (controller *Controller) StartTrial(
 		if err != nil {
 			return "", err
 		}
-		if datalogEndpoint.Type() == endpoint.GrpcEndpoint {
+		if datalogEndpoint.Category == endpoint.GrpcEndpoint {
 			return "", fmt.Errorf("web proxy controller doesn't support starting trial referring to grpc endpoints")
 		}
 	}
@@ -157,7 +157,7 @@ func (controller *Controller) StartTrial(
 			if err != nil {
 				return "", err
 			}
-			if actorEndpoint.Type() == endpoint.GrpcEndpoint {
+			if actorEndpoint.Category == endpoint.GrpcEndpoint {
 				return "", fmt.Errorf("web proxy controller doesn't support starting trial referring to grpc endpoints")
 			}
 		}

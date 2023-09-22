@@ -36,7 +36,7 @@ import (
 
 type Options struct {
 	directory.RegistrationOptions
-	OrchestratorEndpoint endpoint.Endpoint
+	OrchestratorEndpoint *endpoint.Endpoint
 	WebPort              uint
 	SpecFile             string
 	Implementation       string
@@ -57,7 +57,7 @@ var DefaultOptions = Options{
 }
 
 func Run(ctx context.Context, options Options) error {
-	switch options.OrchestratorEndpoint.ServiceType() {
+	switch options.OrchestratorEndpoint.Details.Type {
 	case grpcapi.ServiceType_UNKNOWN_SERVICE:
 		options.OrchestratorEndpoint.SetServiceType(grpcapi.ServiceType_TRIAL_LIFE_CYCLE_SERVICE)
 	case grpcapi.ServiceType_TRIAL_LIFE_CYCLE_SERVICE:
@@ -65,7 +65,7 @@ func Run(ctx context.Context, options Options) error {
 	default:
 		return fmt.Errorf(
 			"Orchestrator endpoint [%s] doesn't have a valid service type",
-			&options.OrchestratorEndpoint,
+			options.OrchestratorEndpoint,
 		)
 	}
 

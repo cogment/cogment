@@ -21,182 +21,187 @@ import (
 	"strconv"
 	"strings"
 
+	"google.golang.org/protobuf/proto"
+
 	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/utils"
+	"github.com/cogment/cogment/utils/constants"
 )
 
-const ActorClassPropertyName = "__actor_class"
-const ImplementationPropertyName = "__implementation"
-const ServiceIDPropertyName = "__id"
-const AuthenticationTokenPropertyName = "__authentication-token"
-const RegistrationSourcePropertyName = "__registration_source"
-const VersionPropertyName = "__registration_source"
+const (
+	ActorClassPropertyName          = "__actor_class"
+	ImplementationPropertyName      = "__implementation"
+	ServiceIDPropertyName           = "__id"
+	AuthenticationTokenPropertyName = "__authentication-token"
+	RegistrationSourcePropertyName  = "__registration_source"
+	VersionPropertyName             = "__version"
+)
 
-const GrpcScheme = "grpc"
-const CogmentScheme = "cogment"
-const DiscoveryHost = "discover"
-const ClientHost = "client"
+const servicePath = "service"
 
-type Type int
+type CategoryType int
 
 const (
-	InvalidEndpoint Type = iota
+	InvalidEndpoint CategoryType = iota
 	GrpcEndpoint
 	DiscoveryEndpoint
 	ClientEndpoint
 )
 
-var serviceTypesPath = map[grpcapi.ServiceType]string{
-	grpcapi.ServiceType_ACTOR_SERVICE:                   "actor",
-	grpcapi.ServiceType_ENVIRONMENT_SERVICE:             "environment",
-	grpcapi.ServiceType_DATALOG_SERVICE:                 "datalog",
-	grpcapi.ServiceType_TRIAL_LIFE_CYCLE_SERVICE:        "lifecycle",
-	grpcapi.ServiceType_CLIENT_ACTOR_CONNECTION_SERVICE: "actservice",
-	grpcapi.ServiceType_MODEL_REGISTRY_SERVICE:          "modelregistry",
-	grpcapi.ServiceType_OTHER_SERVICE:                   "service",
-}
-
-func parseServiceType(path string) (grpcapi.ServiceType, error) {
-	path = strings.TrimPrefix(path, "/")
-	switch path {
-	case serviceTypesPath[grpcapi.ServiceType_ACTOR_SERVICE]:
-		return grpcapi.ServiceType_ACTOR_SERVICE, nil
-	case serviceTypesPath[grpcapi.ServiceType_ACTOR_SERVICE]:
-		return grpcapi.ServiceType_ENVIRONMENT_SERVICE, nil
-	case serviceTypesPath[grpcapi.ServiceType_ACTOR_SERVICE]:
-		return grpcapi.ServiceType_DATALOG_SERVICE, nil
-	case serviceTypesPath[grpcapi.ServiceType_ACTOR_SERVICE]:
-		return grpcapi.ServiceType_TRIAL_LIFE_CYCLE_SERVICE, nil
-	case serviceTypesPath[grpcapi.ServiceType_ACTOR_SERVICE]:
-		return grpcapi.ServiceType_CLIENT_ACTOR_CONNECTION_SERVICE, nil
-	case serviceTypesPath[grpcapi.ServiceType_ACTOR_SERVICE]:
-		return grpcapi.ServiceType_MODEL_REGISTRY_SERVICE, nil
-	case "":
-		// Considering that an empty serviceStr is the same as "service" to handle "cogment://discover"
-		fallthrough
-	case serviceTypesPath[grpcapi.ServiceType_ACTOR_SERVICE]:
-		return grpcapi.ServiceType_UNKNOWN_SERVICE, nil
-	default:
-		return grpcapi.ServiceType_UNKNOWN_SERVICE, fmt.Errorf(
-			"Invalid cogment service type [%s]",
-			path,
-		)
-	}
-}
-
 type Endpoint struct {
-	endpointType     Type
-	resolvedHostname string
-	resolvedPort     uint32
-	serviceType      grpcapi.ServiceType
-	properties       map[string]string
+	Category           CategoryType
+	APIEndpoint        *grpcapi.ServiceEndpoint
+	Details            *grpcapi.ServiceDetails
+	ServiceDiscoveryID uint64
 }
 
-func Parse(endpointStr string) (Endpoint, error) {
+func endpointCopy(dst *Endpoint, src *Endpoint) {
+	dst.Category = src.Category
+	dst.APIEndpoint = proto.Clone(src.APIEndpoint).(*grpcapi.ServiceEndpoint)
+	dst.ServiceDiscoveryID = src.ServiceDiscoveryID
+
+	dst.Details = proto.Clone(src.Details).(*grpcapi.ServiceDetails)
+	dst.Details.Properties = utils.CopyStrMap(src.Details.Properties)
+}
+
+func Parse(endpointStr string) (*Endpoint, error) {
 	endpointURL, err := url.Parse(endpointStr)
 	if err != nil {
-		return Endpoint{}, fmt.Errorf("Not a valid URL [%s]: %w", endpointStr, err)
+		return &Endpoint{}, fmt.Errorf("Not a valid URL [%s]: %w", endpointStr, err)
 	}
 	switch endpointURL.Scheme {
-	case GrpcScheme:
+	case constants.GrpcScheme:
 		if endpointURL.Path != "" ||
 			endpointURL.RawQuery != "" ||
 			endpointURL.RawFragment != "" ||
 			endpointURL.User != nil ||
 			endpointURL.Port() == "" {
-			return Endpoint{}, fmt.Errorf(
+			return &Endpoint{}, fmt.Errorf(
 				"Invalid grpc endpoint [%s], expected 'grpc://<hostname>:<port>'",
 				endpointURL,
 			)
 		}
 		port, err := strconv.ParseUint(endpointURL.Port(), 10, 32)
 		if err != nil {
-			return Endpoint{}, fmt.Errorf(
+			return &Endpoint{}, fmt.Errorf(
 				"Invalid grpc endpoint [%s], expected unsigned integer port",
 				endpointURL,
 			)
 		}
-		return Endpoint{
-			endpointType:     GrpcEndpoint,
-			resolvedHostname: endpointURL.Hostname(),
-			resolvedPort:     uint32(port),
-			serviceType:      grpcapi.ServiceType_UNKNOWN_SERVICE,
-			properties:       map[string]string{},
+		return &Endpoint{
+			Category: GrpcEndpoint,
+			APIEndpoint: &grpcapi.ServiceEndpoint{
+				Host: endpointURL.Hostname(),
+				Port: uint32(port),
+			},
+			Details: &grpcapi.ServiceDetails{
+				Type:       grpcapi.ServiceType_UNKNOWN_SERVICE,
+				Properties: map[string]string{},
+			},
 		}, nil
-	case CogmentScheme:
+	case constants.CogmentScheme:
 		switch endpointURL.Host {
-		case DiscoveryHost:
+		case constants.DiscoveryHost:
 			if endpointURL.RawFragment != "" ||
 				endpointURL.User != nil {
-				return Endpoint{}, fmt.Errorf(
+				return &Endpoint{}, fmt.Errorf(
 					"Invalid cogment discover endpoint [%s], expected 'cogment://discover/<service_type>?prop=value'",
 					endpointURL,
 				)
 			}
-			serviceType, err := parseServiceType(endpointURL.Path)
-			if err != nil {
-				return Endpoint{}, err
+
+			var serviceType grpcapi.ServiceType
+			var discoveryServicePath bool
+			path := strings.TrimPrefix(endpointURL.Path, "/")
+			if len(path) == 0 {
+				serviceType = grpcapi.ServiceType_UNKNOWN_SERVICE
+			} else if path == servicePath {
+				serviceType = grpcapi.ServiceType_UNKNOWN_SERVICE
+				discoveryServicePath = true
+			} else {
+				serviceType, err = utils.StrToAPIServiceType(path)
+				if err != nil {
+					return &Endpoint{}, err
+				}
 			}
+
 			endpoint := Endpoint{
-				endpointType:     DiscoveryEndpoint,
-				resolvedHostname: "",
-				resolvedPort:     0,
-				serviceType:      serviceType,
-				properties:       map[string]string{},
+				Category: DiscoveryEndpoint,
+				Details: &grpcapi.ServiceDetails{
+					Type:       serviceType,
+					Properties: map[string]string{},
+				},
 			}
-			for key, values := range endpointURL.Query() {
-				if len(values) > 1 {
-					return Endpoint{}, fmt.Errorf(
+
+			for key, valueList := range endpointURL.Query() {
+				if len(valueList) > 1 {
+					return &Endpoint{}, fmt.Errorf(
 						"Invalid cogment endpoint [%s], multiple values defined for property [%s]",
 						endpointURL,
 						key,
 					)
-				} else if len(values) == 1 {
-					value := values[0]
-					if key == ServiceIDPropertyName {
-						if _, err := strconv.ParseUint(value, 10, 64); err != nil {
-							return Endpoint{}, fmt.Errorf(
+				} else if len(valueList) == 1 {
+					value := valueList[0]
+					if discoveryServicePath && key == ServiceIDPropertyName {
+						if len(endpointURL.Query()) > 1 {
+							return &Endpoint{}, fmt.Errorf(
+								"A cogment discovery endpoint with '%s' path only accepts '%s' as query [%s]",
+								servicePath,
+								ServiceIDPropertyName,
+								endpointURL,
+							)
+						}
+						intValue, err := strconv.ParseUint(value, 10, 64)
+						if err != nil || intValue == 0 {
+							return &Endpoint{}, fmt.Errorf(
 								"Invalid cogment endpoint [%s], invalid service id [%s]",
 								endpointURL,
 								value,
 							)
 						}
+						endpoint.ServiceDiscoveryID = intValue
 					}
-					endpoint.properties[key] = value
+					endpoint.Details.Properties[key] = value
 				} else {
-					endpoint.properties[key] = ""
+					endpoint.Details.Properties[key] = ""
 				}
 			}
-			return endpoint, nil
-		case ClientHost:
+
+			if discoveryServicePath && endpoint.ServiceDiscoveryID == 0 {
+				return &Endpoint{}, fmt.Errorf(
+					"Invalid cogment service endpoint [%s], expected '%s' query",
+					endpointURL,
+					ServiceIDPropertyName,
+				)
+			}
+
+			return &endpoint, nil
+		case constants.ClientHost:
 			if endpointURL.Path != "" ||
 				endpointURL.RawQuery != "" ||
 				endpointURL.RawFragment != "" ||
 				endpointURL.User != nil {
-				return Endpoint{}, fmt.Errorf(
+				return &Endpoint{}, fmt.Errorf(
 					"Invalid cogment client endpoint [%s], expected 'cogment://client'",
 					endpointURL,
 				)
 			}
-			return Endpoint{
-				endpointType:     ClientEndpoint,
-				resolvedHostname: "",
-				resolvedPort:     0,
-				properties:       map[string]string{},
+			return &Endpoint{
+				Category: ClientEndpoint,
 			}, nil
 		default:
-			return Endpoint{}, fmt.Errorf(
+			return &Endpoint{}, fmt.Errorf(
 				"Invalid cogment endpoint [%s], unexpected host",
 				endpointURL,
 			)
 		}
 	default:
-		return Endpoint{},
+		return &Endpoint{},
 			fmt.Errorf("Invalid endpoint [%s], unexpected scheme", endpointURL)
 	}
 }
 
-func MustParse(endpointStr string) Endpoint {
+func MustParse(endpointStr string) *Endpoint {
 	endpoint, err := Parse(endpointStr)
 	if err != nil {
 		panic(err)
@@ -204,42 +209,56 @@ func MustParse(endpointStr string) Endpoint {
 	return endpoint
 }
 
-func (endpoint *Endpoint) Copy() Endpoint {
-	result := *endpoint
-	result.properties = utils.CopyStrMap(endpoint.properties)
-	return result
+func (endpoint *Endpoint) Copy() *Endpoint {
+	newEndpoint := Endpoint{}
+	endpointCopy(&newEndpoint, endpoint)
+	return &newEndpoint
 }
 
 func (endpoint *Endpoint) IsValid() bool {
-	return endpoint.endpointType != InvalidEndpoint
+	return endpoint.Category != InvalidEndpoint
 }
 
-func (endpoint *Endpoint) Type() Type {
-	return endpoint.endpointType
+func (endpoint *Endpoint) Address() string {
+	return fmt.Sprintf("%s:%d", endpoint.Host(), endpoint.Port())
+}
+
+func (endpoint *Endpoint) Host() string {
+	return endpoint.APIEndpoint.Host
+}
+
+func (endpoint *Endpoint) Port() uint32 {
+	return endpoint.APIEndpoint.Port
 }
 
 func (endpoint *Endpoint) URL() *url.URL {
-	switch endpoint.endpointType {
+	switch endpoint.Category {
 	case GrpcEndpoint:
 		return &url.URL{
-			Scheme: GrpcScheme,
-			Host:   fmt.Sprintf("%s:%d", endpoint.resolvedHostname, endpoint.resolvedPort),
+			Scheme: constants.GrpcScheme,
+			Host:   endpoint.Address(),
 		}
 	case DiscoveryEndpoint:
 		query := url.Values{}
-		for propertyKey, propertyValue := range endpoint.properties {
+		for propertyKey, propertyValue := range endpoint.Details.Properties {
 			query.Set(propertyKey, propertyValue)
 		}
+		var path string
+		if endpoint.ServiceDiscoveryID != 0 {
+			path = servicePath
+		} else {
+			path = utils.APIServiceTypeToStr(endpoint.Details.Type)
+		}
 		return &url.URL{
-			Scheme:   CogmentScheme,
-			Host:     DiscoveryHost,
-			Path:     serviceTypesPath[endpoint.serviceType],
+			Scheme:   constants.CogmentScheme,
+			Host:     constants.DiscoveryHost,
+			Path:     path,
 			RawQuery: query.Encode(),
 		}
 	case ClientEndpoint:
 		return &url.URL{
-			Scheme: CogmentScheme,
-			Host:   ClientHost,
+			Scheme: constants.CogmentScheme,
+			Host:   constants.ClientHost,
 		}
 	default:
 		return &url.URL{}
@@ -247,25 +266,25 @@ func (endpoint *Endpoint) URL() *url.URL {
 }
 
 func (endpoint *Endpoint) IsResolved() bool {
-	switch endpoint.endpointType {
+	switch endpoint.Category {
 	case GrpcEndpoint:
 		return true
 	case DiscoveryEndpoint:
-		return endpoint.resolvedHostname != ""
+		return endpoint.Host() != ""
 	default:
 		return false
 	}
 }
 
 func (endpoint *Endpoint) ResolvedURL() (*url.URL, error) {
-	switch endpoint.endpointType {
+	switch endpoint.Category {
 	case GrpcEndpoint:
 		return endpoint.URL(), nil
 	case DiscoveryEndpoint:
-		if endpoint.resolvedHostname != "" {
+		if endpoint.Host() != "" {
 			return &url.URL{
-				Scheme: GrpcScheme,
-				Host:   fmt.Sprintf("%s:%d", endpoint.resolvedHostname, endpoint.resolvedPort),
+				Scheme: constants.GrpcScheme,
+				Host:   endpoint.Address(),
 			}, nil
 		}
 		return nil, errors.New("Unresolved discovery endpoint")
@@ -281,98 +300,70 @@ func (endpoint *Endpoint) Resolve(
 	hostname string,
 	port uint32,
 	serviceType grpcapi.ServiceType,
-) (Endpoint, error) {
-	switch endpoint.endpointType {
+) (*Endpoint, error) {
+	switch endpoint.Category {
 	case GrpcEndpoint:
-		return Endpoint{}, errors.New("gRPC endpoint, already resolved")
+		return &Endpoint{}, errors.New("gRPC endpoint, already resolved")
 	case DiscoveryEndpoint:
-		if endpoint.resolvedHostname != "" {
-			return Endpoint{}, errors.New("discovery endpoint was already resolved")
+		if endpoint.Host() != "" {
+			return &Endpoint{}, errors.New("discovery endpoint was already resolved")
 		}
-		if endpoint.serviceType != grpcapi.ServiceType_UNKNOWN_SERVICE && endpoint.serviceType != serviceType {
-			return Endpoint{}, fmt.Errorf(
+		if endpoint.Details.Type != grpcapi.ServiceType_UNKNOWN_SERVICE && endpoint.Details.Type != serviceType {
+			return &Endpoint{}, fmt.Errorf(
 				"requested service type [%s] doesn't match resolved one [%s]",
-				endpoint.serviceType,
+				endpoint.Details.Type,
 				serviceType,
 			)
 		}
 
-		if requestedServiceID, ok := endpoint.ServiceID(); ok {
+		if requestedServiceID := endpoint.ServiceDiscoveryID; requestedServiceID != 0 {
 			if requestedServiceID != serviceID {
-				return Endpoint{}, fmt.Errorf(
+				return &Endpoint{}, fmt.Errorf(
 					"requested service id [%d] doesn't match resolved one [%d]",
 					requestedServiceID,
 					serviceID,
 				)
 			}
 		}
-		return Endpoint{
-			endpointType:     DiscoveryEndpoint,
-			resolvedHostname: hostname,
-			resolvedPort:     port,
-			serviceType:      serviceType,
-			properties:       endpoint.properties,
+		return &Endpoint{
+			Category: DiscoveryEndpoint,
+			APIEndpoint: &grpcapi.ServiceEndpoint{
+				Host: hostname,
+				Port: port,
+			},
+			Details: &grpcapi.ServiceDetails{
+				Type:       serviceType,
+				Properties: endpoint.Details.Properties,
+			},
 		}, nil
 	case ClientEndpoint:
-		return Endpoint{}, errors.New("Client endpoints can't be resolved")
+		return &Endpoint{}, errors.New("Client endpoints can't be resolved")
 	default:
-		return Endpoint{}, errors.New("Invalid endpoint")
+		return &Endpoint{}, errors.New("Invalid endpoint")
 	}
 }
 
 func (endpoint *Endpoint) SetServiceType(serviceType grpcapi.ServiceType) {
-	endpoint.serviceType = serviceType
-}
-
-func (endpoint *Endpoint) ServiceType() grpcapi.ServiceType {
-	return endpoint.serviceType
-}
-
-func (endpoint *Endpoint) ServiceID() (uint64, bool) {
-	switch endpoint.endpointType {
-	case DiscoveryEndpoint:
-		serviceIDStr, ok := endpoint.properties[ServiceIDPropertyName]
-		if !ok {
-			return 0, false
-		}
-
-		// Validity already checked in `Parse`
-		serviceID, _ := strconv.ParseUint(serviceIDStr, 10, 64)
-		return serviceID, true
-	case GrpcEndpoint:
-		fallthrough
-	case ClientEndpoint:
-		fallthrough
-	default:
-		return 0, false
-	}
+	endpoint.Details.Type = serviceType
 }
 
 func (endpoint *Endpoint) AuthenticationToken() (string, bool) {
-	switch endpoint.endpointType {
+	switch endpoint.Category {
 	case DiscoveryEndpoint:
-		token, found := endpoint.properties[AuthenticationTokenPropertyName]
+		token, found := endpoint.Details.Properties[AuthenticationTokenPropertyName]
 		return token, found
 	default:
 		return "", false
 	}
 }
 
-func (endpoint *Endpoint) Properties() map[string]string {
-	return endpoint.properties
-}
-
-func (endpoint Endpoint) String() string {
+func (endpoint *Endpoint) String() string {
 	url := endpoint.URL()
-	switch endpoint.endpointType {
+	switch endpoint.Category {
 	case DiscoveryEndpoint:
 		str := url.String()
-		if endpoint.resolvedHostname != "" {
-			str += fmt.Sprintf(
-				" [resolved to grpc://%s:%d]",
-				endpoint.resolvedHostname,
-				endpoint.resolvedPort,
-			)
+		if endpoint.Host() != "" {
+			str += fmt.Sprintf(" [resolved to grpc://%s]", endpoint.Address())
 		}
 		return str
 	default:
@@ -380,8 +371,8 @@ func (endpoint Endpoint) String() string {
 	}
 }
 
-func (endpoint Endpoint) MarshalString() string {
-	switch endpoint.endpointType {
+func (endpoint *Endpoint) MarshalString() string {
+	switch endpoint.Category {
 	case InvalidEndpoint:
 		return ""
 	default:
@@ -389,12 +380,12 @@ func (endpoint Endpoint) MarshalString() string {
 	}
 }
 
-func (endpoint Endpoint) MarshalText() ([]byte, error) {
+func (endpoint *Endpoint) MarshalText() ([]byte, error) {
 	return []byte(endpoint.MarshalString()), nil
 }
 
 func (endpoint *Endpoint) UnmarshalText(b []byte) error {
-	var err error
-	*endpoint, err = Parse(string(b))
+	parsedVal, err := Parse(string(b))
+	endpointCopy(endpoint, parsedVal)
 	return err
 }

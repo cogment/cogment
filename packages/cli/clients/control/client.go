@@ -29,7 +29,7 @@ type Client struct {
 	userID string
 }
 
-func CreateClientWithInsecureEndpoint(endpoint endpoint.Endpoint, userID string) (*Client, error) {
+func CreateClientWithInsecureEndpoint(endpoint *endpoint.Endpoint, userID string) (*Client, error) {
 	subClient, err := clients.CreateClientWithInsecureEndpoint(endpoint)
 	if err != nil {
 		return nil, err

@@ -20,6 +20,7 @@ import (
 
 	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/utils"
+	"github.com/cogment/cogment/utils/constants"
 	"github.com/cogment/cogment/utils/endpoint"
 
 	directoryClient "github.com/cogment/cogment/clients/directory"
@@ -62,7 +63,7 @@ func init() {
 	directoryRegisterCmd.Flags().String(
 		directoryServiceTypeKey,
 		directoryRegisterViper.GetString(directoryServiceTypeKey),
-		"Type of service to be registered in the Directory (e.g. 'actor', 'environment')",
+		fmt.Sprintf("Type of service to be registered in the Directory (%s)", constants.ServiceTypeAllDesc),
 	)
 
 	directoryRegisterViper.SetDefault(directoryServicePropertiesKey, "")
@@ -91,7 +92,7 @@ var directoryRegisterCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), clientViper.GetDuration(clientTimeoutKey))
 		defer cancel() // This causes grpc "cancel" info output, but Go lint forces us to call it!
 
-		directoryEndpoint, err := endpoint.Parse(directoryViper.GetString(directoryEndpointKey))
+		directoryEndpoint, err := endpoint.Parse(directoryViper.GetString(constants.DirectoryEndpointKey))
 		if err != nil {
 			return err
 		}
@@ -99,7 +100,7 @@ var directoryRegisterCmd = &cobra.Command{
 		client, err := directoryClient.CreateClient(
 			ctx,
 			directoryEndpoint,
-			directoryViper.GetString(directoryAuthTokenKey),
+			directoryViper.GetString(constants.DirectoryAuthTokenKey),
 		)
 		if err != nil {
 			return err
@@ -114,14 +115,14 @@ var directoryRegisterCmd = &cobra.Command{
 
 		ssl := directoryRegisterViper.GetBool(directoryRegisterSslKey)
 		protocolStr := directoryRegisterViper.GetString(directoryRegisterProtocolKey)
-		protocol, err := strToAPIProtocol(protocolStr, ssl)
+		protocol, err := utils.StrToAPIProtocol(protocolStr, ssl)
 		if err != nil {
 			return err
 		}
 		request.Endpoint.Protocol = protocol
 
 		typeStr := directoryRegisterViper.GetString(directoryServiceTypeKey)
-		serviceType, err := strToAPIServiceType(typeStr)
+		serviceType, err := utils.StrToAPIServiceType(typeStr)
 		if err != nil {
 			return err
 		}

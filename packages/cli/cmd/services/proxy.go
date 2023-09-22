@@ -82,7 +82,7 @@ var proxyCmd = &cobra.Command{
 			Secret:               proxyViper.GetString(proxySecretKey),
 		}
 
-		ctx := utils.ContextWithUserTermination(context.Background())
+		ctx := utils.ContextWithUserTermination()
 
 		err = proxy.Run(ctx, options)
 		if err != nil {

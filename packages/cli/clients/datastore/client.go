@@ -32,7 +32,7 @@ type Client struct {
 
 const chunkTrialsCount = 20
 
-func CreateClientWithInsecureEndpoint(endpoint endpoint.Endpoint) (*Client, error) {
+func CreateClientWithInsecureEndpoint(endpoint *endpoint.Endpoint) (*Client, error) {
 	subClient, err := clients.CreateClientWithInsecureEndpoint(endpoint)
 	if err != nil {
 		return nil, err

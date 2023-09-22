@@ -33,7 +33,7 @@ import (
 //
 // This struct is designed to be used as a "mixin" in services options.
 type RegistrationOptions struct {
-	DirectoryEndpoint               endpoint.Endpoint
+	DirectoryEndpoint               *endpoint.Endpoint
 	DirectoryAuthToken              string
 	DirectoryRegistrationHost       string
 	DirectoryRegistrationProperties map[string]string
@@ -47,7 +47,7 @@ func (options *RegistrationOptions) Copy() RegistrationOptions {
 }
 
 var DefaultRegistrationOptions = RegistrationOptions{
-	DirectoryEndpoint:               endpoint.Endpoint{},
+	DirectoryEndpoint:               &endpoint.Endpoint{},
 	DirectoryAuthToken:              "",
 	DirectoryRegistrationHost:       "",
 	DirectoryRegistrationProperties: map[string]string{},
@@ -77,7 +77,7 @@ const serviceDeregisterTimeout = time.Second * 10
 
 func deregisterService(
 	log *logrus.Entry,
-	directoryEndpoint endpoint.Endpoint,
+	directoryEndpoint *endpoint.Endpoint,
 	directoryAuthToken string,
 	serviceID uint64,
 	serviceSecret string,

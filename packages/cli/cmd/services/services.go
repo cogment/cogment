@@ -21,13 +21,13 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"github.com/cogment/cogment/utils/constants"
 )
 
 // servicesViper represents the configuration of the services command
 var servicesViper = viper.New()
 
-var servicesLogLevelKey = "log_level"
-var servicesLogFileKey = "log_file"
 var servicesLogFormatKey = "log_format"
 
 // ServicesCmd represents the services command
@@ -38,19 +38,19 @@ var ServicesCmd = &cobra.Command{
 }
 
 func init() {
-	servicesViper.SetDefault(servicesLogLevelKey, logrus.InfoLevel.String())
-	_ = servicesViper.BindEnv(servicesLogLevelKey, "COGMENT_LOG_LEVEL")
+	servicesViper.SetDefault(constants.LogLevelKey, logrus.InfoLevel.String())
+	_ = servicesViper.BindEnv(constants.LogLevelKey, constants.LogLevelEnv)
 	ServicesCmd.PersistentFlags().String(
-		servicesLogLevelKey,
-		servicesViper.GetString(servicesLogLevelKey),
-		fmt.Sprintf("Minimum logging level as one of %v", expectedLogLevels),
+		constants.LogLevelKey,
+		servicesViper.GetString(constants.LogLevelKey),
+		constants.LogLevelDesc,
 	)
 
-	_ = servicesViper.BindEnv(servicesLogFileKey, "COGMENT_LOG_FILE")
+	_ = servicesViper.BindEnv(constants.LogFileKey, constants.LogFileEnv)
 	ServicesCmd.PersistentFlags().String(
-		servicesLogFileKey,
-		servicesViper.GetString(servicesLogFileKey),
-		"Log file output",
+		constants.LogFileKey,
+		servicesViper.GetString(constants.LogFileKey),
+		constants.LogFileDesc,
 	)
 
 	_ = servicesViper.BindEnv(servicesLogFormatKey, "COGMENT_LOG_FORMAT")

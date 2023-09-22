@@ -52,6 +52,9 @@ func init() {
 	// Launch
 	rootCmd.AddCommand(launchCmd)
 
+	// Status client
+	rootCmd.AddCommand(statusCmd)
+
 	// Deprecated commands
 	rootCmd.AddCommand(deprecated.CopyCmd)
 	rootCmd.AddCommand(deprecated.GenerateCmd)

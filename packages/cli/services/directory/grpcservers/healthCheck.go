@@ -132,7 +132,7 @@ func healthCheck(record *DbRecord, now uint64, nbRounds int) bool {
 	// We don't check cogment health if not a cogment service (or if SSL required), only tcp health.
 	// TODO: Should we really check non cogment services? They could be UDP, or something else completely!
 	// TODO: The directory could be set with SSL certificates, then we could try to check cogment SSL services
-	if record.Details.Type > cogmentAPI.ServiceType_MODEL_REGISTRY_SERVICE ||
+	if record.Details.Type > cogmentAPI.ServiceType_DIRECTORY_SERVICE ||
 		record.Endpoint.Protocol == cogmentAPI.ServiceEndpoint_GRPC_SSL {
 		var err error
 		timeout := tcpCheckTimeout
@@ -229,27 +229,10 @@ func cogmentVersionCheck(serviceType cogmentAPI.ServiceType, host string, port u
 	}
 	defer connection.Close()
 
-	method := ""
-	switch serviceType {
-	case cogmentAPI.ServiceType_TRIAL_LIFE_CYCLE_SERVICE:
-		method = "/cogmentAPI.TrialLifecycleSP/Version"
-	case cogmentAPI.ServiceType_CLIENT_ACTOR_CONNECTION_SERVICE:
-		method = "/cogmentAPI.ClientActorSP/Version"
-	case cogmentAPI.ServiceType_ACTOR_SERVICE:
-		method = "/cogmentAPI.ServiceActorSP/Version"
-	case cogmentAPI.ServiceType_ENVIRONMENT_SERVICE:
-		method = "/cogmentAPI.EnvironmentSP/Version"
-	case cogmentAPI.ServiceType_PRE_HOOK_SERVICE:
-		method = "/cogmentAPI.TrialHooksSP/Version"
-	case cogmentAPI.ServiceType_DATALOG_SERVICE:
-		method = "/cogmentAPI.DatalogSP/Version"
-	case cogmentAPI.ServiceType_DATASTORE_SERVICE:
-		method = "/cogmentAPI.TrialDatastoreSP/Version"
-	case cogmentAPI.ServiceType_MODEL_REGISTRY_SERVICE:
-		method = "/cogmentAPI.ModelRegistrySP/Version"
-	default:
-		log.Error("Unknown gRPC service type [", serviceType, "]")
-		method = "/?/Version"
+	method, err := utils.ServiceTypeToMethodStr(serviceType)
+	if err != nil {
+		log.Errorf("Internal failure in directory DB: %v", err)
+		return err
 	}
 
 	in := cogmentAPI.VersionRequest{}
@@ -273,33 +256,15 @@ func cogmentStatus(serviceType cogmentAPI.ServiceType, host string, port uint32,
 	}
 	defer connection.Close()
 
-	method := ""
-	switch serviceType {
-	case cogmentAPI.ServiceType_TRIAL_LIFE_CYCLE_SERVICE:
-		method = "/cogmentAPI.TrialLifecycleSP/Status"
-	case cogmentAPI.ServiceType_CLIENT_ACTOR_CONNECTION_SERVICE:
-		method = "/cogmentAPI.ClientActorSP/Status"
-	case cogmentAPI.ServiceType_ACTOR_SERVICE:
-		method = "/cogmentAPI.ServiceActorSP/Status"
-	case cogmentAPI.ServiceType_ENVIRONMENT_SERVICE:
-		method = "/cogmentAPI.EnvironmentSP/Status"
-	case cogmentAPI.ServiceType_PRE_HOOK_SERVICE:
-		method = "/cogmentAPI.TrialHooksSP/Status"
-	case cogmentAPI.ServiceType_DATALOG_SERVICE:
-		method = "/cogmentAPI.DatalogSP/Status"
-	case cogmentAPI.ServiceType_DATASTORE_SERVICE:
-		method = "/cogmentAPI.TrialDatastoreSP/Status"
-	case cogmentAPI.ServiceType_MODEL_REGISTRY_SERVICE:
-		method = "/cogmentAPI.ModelRegistrySP/Status"
-	default:
-		log.Error("Unknown gRPC service type [", serviceType, "]")
-		method = "/?/Status"
+	method, err := utils.ServiceTypeToMethodStr(serviceType)
+	if err != nil {
+		log.Errorf("Internal failure in directory DB: %v", err)
+		return 0, err
 	}
 
 	in := cogmentAPI.StatusRequest{
 		Names: []string{"overall_load"},
 	}
-	//in.Names = append(in.Names, "overall_load")
 	out := cogmentAPI.StatusReply{}
 	err = connection.Invoke(ctx, method, &in, &out, grpc.WaitForReady(false))
 	if err != nil {

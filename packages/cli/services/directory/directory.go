@@ -20,6 +20,7 @@ import (
 
 	"github.com/cogment/cogment/services/directory/grpcservers"
 	"github.com/cogment/cogment/services/utils"
+	"github.com/cogment/cogment/utils/constants"
 )
 
 type Options struct {
@@ -33,7 +34,7 @@ type Options struct {
 }
 
 var DefaultOptions = Options{
-	Port:                9005,
+	Port:                constants.DefaultDirectoryPort,
 	GrpcReflection:      false,
 	PersistenceFilename: ".cogment-directory-data",
 

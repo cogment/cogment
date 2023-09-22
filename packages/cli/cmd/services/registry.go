@@ -66,7 +66,7 @@ var registryCmd = &cobra.Command{
 			SentVersionDataChunkSize: registryViper.GetInt(registrySentVersionChunkSizeKey),
 		}
 
-		ctx := utils.ContextWithUserTermination(context.Background())
+		ctx := utils.ContextWithUserTermination()
 
 		err = registry.Run(ctx, options)
 		if err != nil {
