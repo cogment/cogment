@@ -185,7 +185,6 @@ void Orchestrator::register_to_directory(std::string_view host, uint16_t actor_p
   constexpr char PROPERTY_SEPARATOR = ',';
   constexpr char VALUE_SEPARATOR = '=';
   auto properties = parse_properties(props, PROPERTY_SEPARATOR, VALUE_SEPARATOR);
-  properties.emplace_back("__version", COGMENT_VERSION_STR);
 
   std::string host_address;
   std::string_view self_host;

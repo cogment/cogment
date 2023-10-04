@@ -18,7 +18,6 @@ import (
 	"fmt"
 
 	"github.com/cogment/cogment/utils/constants"
-	"github.com/cogment/cogment/version"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -39,7 +38,6 @@ const (
 
 var additionalRegistrationProperties = map[string]string{
 	"__registration_source": "Cogment-Command_Line",
-	"__version":             version.Version,
 }
 var directoryViper = viper.New()
 
