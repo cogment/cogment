@@ -53,7 +53,7 @@ func serviceOutput(ctx context.Context, srvType cogmentAPI.ServiceType, endpoint
 	)
 	cancel()
 	if err != nil {
-		return fmt.Errorf("Failed to connect: %w", err)
+		return fmt.Errorf("Failed to connect to [%s]: %w", address, err)
 	}
 	defer connection.Close()
 
@@ -79,7 +79,7 @@ func serviceOutput(ctx context.Context, srvType cogmentAPI.ServiceType, endpoint
 	}
 
 	if err != nil {
-		return fmt.Errorf("Status call failed: %w", err)
+		return fmt.Errorf("Status call to [%s] failed: %w", address, err)
 	}
 
 	return nil
