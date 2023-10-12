@@ -34,6 +34,7 @@ const (
 	ServiceIDPropertyName           = "__id"
 	AuthenticationTokenPropertyName = "__authentication-token"
 	RegistrationSourcePropertyName  = "__registration_source"
+	VersionPropertyName             = "__version"
 )
 
 const servicePath = "service"

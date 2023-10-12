@@ -24,6 +24,7 @@ import (
 	"github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/utils"
 	"github.com/cogment/cogment/utils/endpoint"
+	"github.com/cogment/cogment/version"
 
 	"github.com/sirupsen/logrus"
 )
@@ -132,6 +133,7 @@ func ManageRegistration(
 	} else {
 		properties[endpoint.RegistrationSourcePropertyName] = "Self-Command_Line"
 	}
+	properties[endpoint.VersionPropertyName] = version.Version
 
 	log := log.WithFields(logrus.Fields{
 		"protocol": protocol,
