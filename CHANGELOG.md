@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.19.1 - 2023-10-13
+
 ### Fixed
 
 - Directory health check are again fully operational on services that don't implement yet the Status API.
