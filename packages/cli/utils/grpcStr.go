@@ -136,23 +136,23 @@ func ServiceTypeToMethodStr(serviceType cogmentAPI.ServiceType) (string, error) 
 	case cogmentAPI.ServiceType_UNKNOWN_SERVICE:
 		return method, fmt.Errorf("Unknown service type [%v]", serviceType)
 	case cogmentAPI.ServiceType_ACTOR_SERVICE:
-		method = "/cogmentAPI.ServiceActorSP/Status"
+		method = "/cogmentAPI.ServiceActorSP"
 	case cogmentAPI.ServiceType_ENVIRONMENT_SERVICE:
-		method = "/cogmentAPI.EnvironmentSP/Status"
+		method = "/cogmentAPI.EnvironmentSP"
 	case cogmentAPI.ServiceType_PRE_HOOK_SERVICE:
-		method = "/cogmentAPI.TrialHooksSP/Status"
+		method = "/cogmentAPI.TrialHooksSP"
 	case cogmentAPI.ServiceType_DATALOG_SERVICE:
-		method = "/cogmentAPI.DatalogSP/Status"
+		method = "/cogmentAPI.DatalogSP"
 	case cogmentAPI.ServiceType_TRIAL_LIFE_CYCLE_SERVICE:
-		method = "/cogmentAPI.TrialLifecycleSP/Status"
+		method = "/cogmentAPI.TrialLifecycleSP"
 	case cogmentAPI.ServiceType_CLIENT_ACTOR_CONNECTION_SERVICE:
-		method = "/cogmentAPI.ClientActorSP/Status"
+		method = "/cogmentAPI.ClientActorSP"
 	case cogmentAPI.ServiceType_DATASTORE_SERVICE:
-		method = "/cogmentAPI.TrialDatastoreSP/Status"
+		method = "/cogmentAPI.TrialDatastoreSP"
 	case cogmentAPI.ServiceType_MODEL_REGISTRY_SERVICE:
-		method = "/cogmentAPI.ModelRegistrySP/Status"
+		method = "/cogmentAPI.ModelRegistrySP"
 	case cogmentAPI.ServiceType_DIRECTORY_SERVICE:
-		method = "/cogmentAPI.DirectorySP/Status"
+		method = "/cogmentAPI.DirectorySP"
 	case cogmentAPI.ServiceType_OTHER_SERVICE:
 		return method, fmt.Errorf("Not a Cogment service type [%v]", serviceType)
 	default:

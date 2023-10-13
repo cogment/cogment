@@ -64,6 +64,7 @@ func serviceOutput(ctx context.Context, srvType cogmentAPI.ServiceType, endpoint
 		if typeErr != nil {
 			return typeErr
 		}
+		method += "/Status"
 
 		err = connection.Invoke(ctx, method, &request, &reply, grpc.WaitForReady(false))
 		if err == nil {

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- Directory health check are again fully operational on services that don't implement yet the Status API.
 - Web proxy options for directory's registration host and authentication token are now usable.
 - Calls to `Endpoint.toString()` on discovery endpoints are now working as expected; the issue was leading to a crash on web proxy startup.
 

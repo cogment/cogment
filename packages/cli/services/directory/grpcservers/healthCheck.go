@@ -234,6 +234,7 @@ func cogmentVersionCheck(serviceType cogmentAPI.ServiceType, host string, port u
 		log.Errorf("Internal failure in directory DB: %v", err)
 		return err
 	}
+	method += "/Version"
 
 	in := cogmentAPI.VersionRequest{}
 	out := cogmentAPI.VersionInfo{}
@@ -261,6 +262,7 @@ func cogmentStatus(serviceType cogmentAPI.ServiceType, host string, port uint32,
 		log.Errorf("Internal failure in directory DB: %v", err)
 		return 0, err
 	}
+	method += "/Status"
 
 	in := cogmentAPI.StatusRequest{
 		Names: []string{"overall_load"},

@@ -141,8 +141,10 @@ func Run(ctx context.Context, options Options) error {
 		properties[endpoint.ActorClassPropertyName] = actorClass.Name
 		group.Go(func() error {
 			log.WithFields(logrus.Fields{
-				"actor_class":    properties[endpoint.ActorClassPropertyName],
-				"implementation": properties[endpoint.ImplementationPropertyName],
+				"actor_class":                 properties[endpoint.ActorClassPropertyName],
+				"implementation":              properties[endpoint.ImplementationPropertyName],
+				"directory_endpoint":          options.DirectoryEndpoint,
+				"directory_registration_host": options.DirectoryRegistrationHost,
 			}).Debug("Registering the actor to the directory")
 			return directory.ManageRegistration(
 				ctx,
