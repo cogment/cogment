@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Fixed
+
+- Web proxy options for directory's registration host and authentication token are now usable.
+- Calls to `Endpoint.toString()` on discovery endpoints are now working as expected; the issue was leading to a crash on web proxy startup.
+
+### Changed
+
+- HTTP calls to the web proxy are now only logged in Debug.
+
 ## v2.19.0 - 2023-09-23
 
 ### Added

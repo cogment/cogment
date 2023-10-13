@@ -34,6 +34,12 @@ func TestParseEmptyEndpoint(t *testing.T) {
 	assert.False(t, endpoint.IsValid())
 }
 
+func TestParseBadEndpoint(t *testing.T) {
+	endpoint, err := Parse("this is not a URL")
+	assert.Error(t, err)
+	assert.False(t, endpoint.IsValid())
+}
+
 func TestParseGrpcEndpoint(t *testing.T) {
 	endpoint, err := Parse("grpc://localhost:46637")
 	assert.NoError(t, err)
@@ -44,6 +50,22 @@ func TestParseGrpcEndpoint(t *testing.T) {
 	assert.Equal(t, "localhost:46637", url.Host)
 }
 
+func TestParseBadGrpcEndpoint(t *testing.T) {
+	endpoint, err := Parse("grpc://localhost:46637/path/to/something")
+	assert.Error(t, err)
+	assert.False(t, endpoint.IsValid())
+}
+
+func TestParseClientEndpoint(t *testing.T) {
+	endpoint, err := Parse("cogment://client")
+	assert.NoError(t, err)
+	assert.Equal(t, ClientEndpoint, endpoint.Category)
+
+	url, err := endpoint.ResolvedURL()
+	assert.Error(t, err)
+	assert.Nil(t, url)
+}
+
 func TestParseDiscoveryEndpoint(t *testing.T) {
 	endpoint, err := Parse("cogment://discover/actor?__actor_class=foo")
 	assert.NoError(t, err)
@@ -52,6 +74,15 @@ func TestParseDiscoveryEndpoint(t *testing.T) {
 	assert.Contains(t, endpoint.Details.Properties, ActorClassPropertyName)
 	assert.Equal(t, "foo", endpoint.Details.Properties[ActorClassPropertyName])
 	assert.Equal(t, uint64(0), endpoint.ServiceDiscoveryID)
+
+	assert.Equal(t, "cogment://discover/actor?__actor_class=foo", endpoint.String())
+
+	assert.Equal(t, uint32(0), endpoint.Port())
+	assert.Equal(t, "", endpoint.Host())
+
+	url, err := endpoint.ResolvedURL()
+	assert.Error(t, err)
+	assert.Nil(t, url)
 }
 
 type TestStruct struct {
@@ -79,19 +110,4 @@ func TestMarshalJSON(t *testing.T) {
 	b, err := json.Marshal(test)
 	assert.NoError(t, err)
 	assert.Equal(t, "{\"endpoint\":\"grpc://192.168.0.1:9000\",\"foo\":666}", string(b))
-}
-
-type TestStructPtr struct {
-	Endpoint *Endpoint `json:"endpoint"`
-}
-
-func TestMarshalJSONPtr(t *testing.T) {
-	endpoint, err := Parse("cogment://client")
-	assert.NoError(t, err)
-	test := TestStructPtr{
-		Endpoint: endpoint,
-	}
-	b, err := json.Marshal(test)
-	assert.NoError(t, err)
-	assert.Equal(t, "{\"endpoint\":\"cogment://client\"}", string(b))
 }

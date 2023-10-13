@@ -126,7 +126,8 @@ func Parse(endpointStr string) (*Endpoint, error) {
 			}
 
 			endpoint := Endpoint{
-				Category: DiscoveryEndpoint,
+				Category:    DiscoveryEndpoint,
+				APIEndpoint: &grpcapi.ServiceEndpoint{},
 				Details: &grpcapi.ServiceDetails{
 					Type:       serviceType,
 					Properties: map[string]string{},

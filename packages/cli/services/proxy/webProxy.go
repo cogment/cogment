@@ -73,7 +73,7 @@ func Run(ctx context.Context, options Options) error {
 		ctx,
 		options.OrchestratorEndpoint,
 		options.DirectoryEndpoint,
-		options.DirectoryRegistrationHost,
+		options.DirectoryAuthToken,
 	)
 	if err != nil {
 		return err

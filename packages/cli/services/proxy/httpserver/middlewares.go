@@ -47,11 +47,11 @@ func ginLoggerMiddleware(c *gin.Context) {
 	})
 
 	if statusCode >= http.StatusInternalServerError {
-		entry.Errorf("%s %q - 5XX internal error", method, path)
+		entry.Errorf("[%s] [%s] - 5XX internal error", method, path)
 	} else if statusCode >= http.StatusBadRequest {
-		entry.Warnf("%s %q - 4XX request error", method, path)
+		entry.Warnf("[%s] [%s] - 4XX request error", method, path)
 	} else {
-		entry.Infof("%s %q", method, path)
+		entry.Debugf("[%s] [%s]", method, path)
 	}
 }
 
