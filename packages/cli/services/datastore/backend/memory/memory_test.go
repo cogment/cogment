@@ -172,3 +172,14 @@ func TestTriaEviction(t *testing.T) {
 	}
 
 }
+
+func BenchmarkMemoryBackendReadWrite(b *testing.B) {
+	test.ReadWriteSamples(b, func() backend.Backend {
+		bck, err := CreateMemoryBackend(DefaultMaxSampleSize)
+		assert.NoError(b, err)
+		return bck
+	}, func(bck backend.Backend) {
+		mb := bck.(*memoryBackend)
+		mb.Destroy()
+	})
+}

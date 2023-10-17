@@ -33,9 +33,9 @@ func TestSuiteBoltBackend(t *testing.T) {
 		// close and remove the temporary file
 		defer f.Close()
 
-		b, err := CreateBoltBackend(f.Name())
+		bolt, err := CreateBoltBackend(f.Name())
 		assert.NoError(t, err)
-		return b
+		return bolt
 	}, func(b backend.Backend) {
 		rb := b.(*boltBackend)
 
@@ -53,9 +53,29 @@ func BenchmarkBoltBackend(b *testing.B) {
 		// close and remove the temporary file
 		defer f.Close()
 
-		bck, err := CreateBoltBackend(f.Name())
+		bolt, err := CreateBoltBackend(f.Name())
 		assert.NoError(b, err)
-		return bck
+		return bolt
+	}, func(bck backend.Backend) {
+		rb := bck.(*boltBackend)
+
+		defer os.Remove(rb.filePath)
+		defer rb.Destroy()
+	})
+}
+
+func BenchmarkReadWriteSamples(b *testing.B) {
+	test.ReadWriteSamples(b, func() backend.Backend {
+		// create and open a temporary file
+		f, err := os.CreateTemp("", "trial-datastore-bolt-ReadWriteSamples")
+		assert.NoError(b, err)
+
+		// close and remove the temporary file
+		defer f.Close()
+
+		bolt, err := CreateBoltBackend(f.Name())
+		assert.NoError(b, err)
+		return bolt
 	}, func(bck backend.Backend) {
 		rb := bck.(*boltBackend)
 

@@ -264,6 +264,8 @@ func (s *datalogServer) RunTrialDatalog(stream grpcapi.DatalogSP_RunTrialDatalog
 		actorIndices[actorConfig.Name] = uint32(actorIndex)
 	}
 
+	errors := make(chan error)
+	defer close(errors)
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -283,15 +285,25 @@ func (s *datalogServer) RunTrialDatalog(stream grpcapi.DatalogSP_RunTrialDatalog
 		if err != nil {
 			return status.Errorf(codes.Internal, "DatalogServer.RunTrialDatalog: internal error %q", err)
 		}
-		err = s.backend.AddSamples(ctx, []*grpcapi.StoredTrialSample{trialSample})
-		if err != nil {
-			return status.Errorf(codes.Internal, "DatalogServer.RunTrialDatalog: internal error %q", err)
-		}
+
+		go func() {
+			err = s.backend.AddSamples(ctx, []*grpcapi.StoredTrialSample{trialSample})
+			if err != nil {
+				errors <- status.Errorf(codes.Internal, "DatalogServer.RunTrialDatalog: internal error %q", err)
+			}
+		}()
 
 		// Acknowledge the handling of the following "sample" message
 		err = stream.Send(&grpcapi.RunTrialDatalogOutput{})
 		if err != nil {
 			return err
+		}
+
+		select {
+		case err := <-errors:
+			return err
+		default:
+			continue
 		}
 	}
 }

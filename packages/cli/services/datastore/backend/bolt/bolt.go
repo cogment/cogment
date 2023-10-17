@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/gob"
 	"fmt"
+	"sort"
 	"strconv"
 	"time"
 
@@ -45,9 +46,16 @@ type metadata struct {
 
 // Bucket structure is
 //	trials	> {trial_id}			> samples			> {tick_id}	> {grpcapi.StoredTrialSample}
-//														>	params			>	{grpcapi.TrialParams}
-//														> metadata		>	{boltBackend.metadata}
+//                                  > sampleCount       > {int}
+//									> params			> {grpcapi.TrialParams}
+//									> metadata		    > {boltBackend.metadata}
 //	trial_indices	>	trial_idx	>	{trial_idx}	>	{trial_id}
+//  schema_history  > {schema_version} > emptyarray
+
+// {schema_version}: function_to_run_when_migrating
+var migrationCatalog = map[string]func(*boltBackend) error{
+	"2.20.0": computeStoredSampleCount,
+}
 
 var trialsBucketName = []byte("trials")
 
@@ -59,15 +67,28 @@ func getTrialsBucket(tx *bolt.Tx) *bolt.Bucket {
 	return trialsBucket
 }
 
+// NOTE: bbolt key-values are stored as []byte
 var samplesBucketName = []byte("samples")
 
 var paramsKey = []byte("params")
 
 var metadataKey = []byte("metadata")
 
+var sampleCountKey = []byte("sample_count")
+
 var indicesBucketName = []byte("trial_indices")
 
 var trialsIdxBucketName = []byte("trial_idx")
+
+var schemaHistoryBucketName = []byte("schema_history")
+
+func getSchemaHistoryBucket(tx *bolt.Tx) *bolt.Bucket {
+	bucket := tx.Bucket(schemaHistoryBucketName)
+	if bucket == nil {
+		log.Fatal("schema history bucket doesn't exist")
+	}
+	return bucket
+}
 
 func getTrialsIdxBucket(tx *bolt.Tx) *bolt.Bucket {
 	indicesBucket := tx.Bucket(indicesBucketName)
@@ -156,6 +177,85 @@ func deserializeTrialMetadata(v []byte) (*metadata, error) {
 	return metadata, nil
 }
 
+func serializeMigrationVersion(version string) []byte {
+	return []byte(version)
+}
+
+func deserializeMigrationVersion(value []byte) string {
+	return string(value)
+}
+
+func (b *boltBackend) persistSucessfulMigration(version string) error {
+	err := b.db.Update(func(tx *bolt.Tx) error {
+		bucket := getSchemaHistoryBucket(tx)
+		err := bucket.Put(serializeMigrationVersion(version), []byte{})
+		if err != nil {
+			return backend.NewUnexpectedError("unable to persist successful migration (%v) (%w)", version, err)
+		}
+		return nil
+	})
+	return err
+}
+
+func (b *boltBackend) readSuccessfulMigrations() ([]string, error) {
+	var acc = []string{}
+	err := b.db.View(func(tx *bolt.Tx) error {
+		schemaHistory := getSchemaHistoryBucket(tx)
+		return schemaHistory.ForEach(func(k, v []byte) error {
+			acc = append(acc, deserializeMigrationVersion(k))
+			return nil
+		})
+	})
+	return acc, err
+}
+
+func (b *boltBackend) runMigrations() error {
+
+	appliedMigrations, err := b.readSuccessfulMigrations()
+	if err != nil {
+		return err
+	}
+	log.Infof("Migrations already applied (%v)", appliedMigrations)
+
+	pendingMigrations := make([]string, 0, len(migrationCatalog))
+	for version := range migrationCatalog {
+		found := false
+		for _, migrationVersion := range appliedMigrations {
+			log.Debugf("Comparing migrations (%v) (%v)", version, migrationVersion)
+			if version == migrationVersion {
+				found = true
+				break
+			}
+		}
+		if !found {
+			pendingMigrations = append(pendingMigrations, version)
+		}
+	}
+
+	if len(pendingMigrations) == 0 {
+		log.Info("No pending migration")
+		return nil
+	}
+
+	sort.Strings(pendingMigrations)
+
+	for _, version := range pendingMigrations {
+		log.Infof("Migrating to version (%v)", version)
+
+		err := migrationCatalog[version](b)
+		if err != nil {
+			return err
+		}
+		err = b.persistSucessfulMigration(version)
+		if err != nil {
+			return err
+		}
+		log.Infof("Migrated to version (%v)", version)
+	}
+
+	return nil
+}
+
 // CreateBoltBackend creates a Backend that will store samples in a blot-managed file
 func CreateBoltBackend(filePath string) (backend.Backend, error) {
 	db, err := bolt.Open(filePath, 0600, &bolt.Options{Timeout: 1 * time.Second})
@@ -177,6 +277,10 @@ func CreateBoltBackend(filePath string) (backend.Backend, error) {
 		if err != nil {
 			return backend.NewUnexpectedError("unable to create the trial idx bucket (%w)", err)
 		}
+		_, err = tx.CreateBucketIfNotExists(schemaHistoryBucketName)
+		if err != nil {
+			return backend.NewUnexpectedError("unable to create the schema history bucket (%w)", err)
+		}
 		return nil
 	})
 	if err != nil {
@@ -184,12 +288,17 @@ func CreateBoltBackend(filePath string) (backend.Backend, error) {
 		return nil, err
 	}
 
-	b := &boltBackend{
+	bolt := boltBackend{
 		db:                    db,
 		filePath:              filePath,
 		observeDbPollingDelay: 100 * time.Millisecond,
 	}
-	return b, nil
+	err = bolt.runMigrations()
+	if err != nil {
+		return nil, err
+	}
+
+	return &bolt, nil
 }
 
 func (b *boltBackend) Destroy() {
@@ -213,6 +322,15 @@ func (b *boltBackend) CreateOrUpdateTrials(_ context.Context, paramsList []*back
 				trialBucket, err = trialsBucket.CreateBucket(trialKey)
 				if err != nil {
 					return backend.NewUnexpectedError("unable to add trial %q bucket (%w)", params.TrialID, err)
+				}
+
+				// Initialize new trial sample count to zero
+				err = trialBucket.Put(sampleCountKey, serializeNumID(uint64(0)))
+				if err != nil {
+					return backend.NewUnexpectedError(
+						"unable to put sample count [%d] for trial [%q]: %w",
+						uint64(0), params.TrialID, err,
+					)
 				}
 
 				// Because we use `NextSequence` here the trialIdx starts at 1
@@ -279,6 +397,62 @@ func (b *boltBackend) CreateOrUpdateTrials(_ context.Context, paramsList []*back
 	return nil
 }
 
+func computeStoredSampleCount(b *boltBackend) error {
+	log.Debug("Migrating bolt backend to precomputed sample count ...")
+	log.Debug("Listing trials ...")
+	trialIDKeys := [][]byte{}
+	err := b.db.View(func(tx *bolt.Tx) error {
+		trialsIdxBucket := getTrialsIdxBucket(tx)
+		err := trialsIdxBucket.ForEach(func(k, v []byte) error {
+			trialIDKeys = append(trialIDKeys, v)
+			return nil
+		})
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	trialCount := len(trialIDKeys)
+	log.Debugf("Listing trials - Done %v", trialCount)
+
+	for i, key := range trialIDKeys {
+		err := b.db.Update(func(tx *bolt.Tx) error {
+			trialBucket := getTrialsBucket(tx).Bucket(key)
+			log.Debugf("Computing sampleCount for trial [%q] [%v/%v] ...", key, i, trialCount)
+			sampleCount := getSampleCount(trialBucket, deserializeTrialID(key))
+			log.Debugf("Computing sampleCount for trial [%q] [%v/%v] - Done counting [%v] samples",
+				key, i, trialCount, sampleCount)
+			err := trialBucket.Put(sampleCountKey, serializeNumID(uint64(sampleCount)))
+			return err
+		})
+		if err != nil {
+			return err
+		}
+	}
+	log.Debug("Migrating bolt backend to precomputed sample count - Done")
+
+	return nil
+}
+
+func getSampleCount(trialBucket *bolt.Bucket, trialID string) int {
+
+	byteValue := trialBucket.Get(sampleCountKey)
+	if byteValue == nil {
+		log.Warnf("No precomputed sample count for trialID [%q]. Computing from scratch", trialID)
+		sampleCount := trialBucket.Bucket(samplesBucketName).Stats().KeyN
+		return sampleCount
+	}
+
+	count, err := deserializeNumIDAsInt(byteValue)
+	if err != nil {
+		log.Warnf("Could not deserialize sampleCount for trialID [%q]. Computing from scratch", trialID)
+		sampleCount := trialBucket.Bucket(samplesBucketName).Stats().KeyN
+		return sampleCount
+	}
+
+	return count
+}
+
 func (b *boltBackend) RetrieveTrials(
 	_ context.Context,
 	filter backend.TrialFilter,
@@ -327,12 +501,14 @@ func (b *boltBackend) RetrieveTrials(
 					continue
 				}
 
-				// Retrieve the last samples
+				// Retrieve the number of samples
 				samplesBucket := trialBucket.Bucket(samplesBucketName)
 				if samplesBucket == nil {
 					return backend.NewUnexpectedError("no sample bucket for trial %q", trialID)
 				}
-				samplesCount := samplesBucket.Stats().KeyN
+				samplesCount := getSampleCount(trialBucket, trialID)
+
+				// Retrieve the last samples
 				state := grpcapi.TrialState_UNKNOWN
 				if samplesCount > 0 {
 					_, v := samplesBucket.Cursor().Last()
@@ -548,18 +724,30 @@ func (b *boltBackend) AddSamples(_ context.Context, samples []*grpcapi.StoredTri
 				return backend.NewUnexpectedError("no sample bucket for trial %q", sample.TrialId)
 			}
 
-			sampleV, err := serializeSample(sample)
+			sampleValue, err := serializeSample(sample)
 			if err != nil {
 				return err
 			}
+			sampleKey := serializeNumID(sample.TickId)
 
-			err = samplesBucket.Put(serializeNumID(sample.TickId), sampleV)
+			tickExists := samplesBucket.Get(sampleKey)
+			err = samplesBucket.Put(sampleKey, sampleValue)
 			if err != nil {
 				return backend.NewUnexpectedError(
 					"unable to put sample %d for trial %q (%w)",
 					sample.TickId, sample.TrialId, err,
 				)
 			}
+
+			//increment sample count if tick id didn't exist
+			if tickExists == nil {
+				prevCount := getSampleCount(trialBucket, sample.TrialId)
+				err = trialBucket.Put(sampleCountKey, serializeNumID(uint64(prevCount+1)))
+				if err != nil {
+					return err
+				}
+			}
+
 		}
 		return nil
 	})

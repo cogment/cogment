@@ -18,10 +18,12 @@ import (
 	"context"
 	"io"
 	"net"
+	"os"
 	"testing"
 
 	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/services/datastore/backend"
+	"github.com/cogment/cogment/services/datastore/backend/bolt"
 	"github.com/cogment/cogment/services/datastore/backend/memory"
 	"github.com/cogment/cogment/services/utils"
 	"github.com/stretchr/testify/assert"
@@ -37,6 +39,67 @@ type datalogServerTestFixture struct {
 	ctx        context.Context
 	client     grpcapi.DatalogSPClient
 	connection *grpc.ClientConn
+}
+type persistentDatalogServerTestFixture struct {
+	backend    backend.Backend
+	ctx        context.Context
+	client     grpcapi.DatalogSPClient
+	connection *grpc.ClientConn
+	file       *os.File
+}
+
+func createPersistentDatalogServerTestFixture() (persistentDatalogServerTestFixture, error) {
+	f, err := os.CreateTemp("", "datalog-server")
+	if err != nil {
+		return persistentDatalogServerTestFixture{}, err
+	}
+
+	backend, err := bolt.CreateBoltBackend(f.Name())
+	if err != nil {
+		return persistentDatalogServerTestFixture{}, err
+	}
+
+	server := utils.NewGrpcServer(false)
+	err = RegisterDatalogServer(server, backend)
+	if err != nil {
+		return persistentDatalogServerTestFixture{}, err
+	}
+
+	listener := bufconn.Listen(1024 * 1024)
+	go func() {
+		if err := server.Serve(listener); err != nil {
+			log.Fatalf("Server exited with error: %v", err)
+		}
+	}()
+
+	bufDialer := func(context.Context, string) (net.Conn, error) {
+		return listener.Dial()
+	}
+
+	ctx := context.Background()
+
+	connection, err := grpc.DialContext(
+		ctx, "bufnet",
+		grpc.WithContextDialer(bufDialer),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		return persistentDatalogServerTestFixture{}, err
+	}
+
+	return persistentDatalogServerTestFixture{
+		backend:    backend,
+		ctx:        ctx,
+		client:     grpcapi.NewDatalogSPClient(connection),
+		connection: connection,
+		file:       f,
+	}, nil
+}
+func (fxt *persistentDatalogServerTestFixture) destroy() {
+	fxt.connection.Close()
+	fxt.backend.Destroy()
+	os.Remove(fxt.file.Name())
+
 }
 
 func createDatalogServerTestFixture() (datalogServerTestFixture, error) {
@@ -82,6 +145,124 @@ func createDatalogServerTestFixture() (datalogServerTestFixture, error) {
 func (fxt *datalogServerTestFixture) destroy() {
 	fxt.connection.Close()
 	fxt.backend.Destroy()
+}
+
+func BenchmarkDatalog(b *testing.B) {
+	b.StopTimer()
+	fxt, err := createPersistentDatalogServerTestFixture()
+	assert.NoError(b, err)
+	defer fxt.destroy()
+
+	trialID := "mytrial"
+
+	ctx := metadata.AppendToOutgoingContext(fxt.ctx, "trial-id", trialID)
+	stream, err := fxt.client.RunTrialDatalog(ctx)
+	assert.NoError(b, err)
+	defer func() {
+		err = stream.CloseSend()
+		assert.NoError(b, err)
+	}()
+	// listen for ack of msg sent
+	ack := make(chan int)
+	go func() {
+		for {
+			_, err := stream.Recv()
+			if err == io.EOF {
+				// read done.
+				close(ack)
+				return
+			} else if err != nil {
+				return
+			}
+			assert.NoError(b, err)
+			ack <- 200
+		}
+	}()
+
+	// Send the trial params
+	trialParams := grpcapi.RunTrialDatalogInput{
+		Msg: &grpcapi.RunTrialDatalogInput_TrialParams{
+			TrialParams: &grpcapi.TrialParams{
+				Actors: []*grpcapi.ActorParams{{
+					Name:       "myactor",
+					ActorClass: "class1",
+				},
+					{
+						Name:       "myactor2",
+						ActorClass: "class1",
+					},
+					{
+						Name:       "myactor3",
+						ActorClass: "class2",
+					},
+					{
+						Name:       "myactor4",
+						ActorClass: "class2",
+					}},
+				MaxSteps: 72,
+			},
+		},
+	}
+	err = stream.Send(&trialParams)
+	assert.NoError(b, err)
+	<-ack
+
+	nthSample := func(i int64) *grpcapi.RunTrialDatalogInput {
+		return &grpcapi.RunTrialDatalogInput{
+			Msg: &grpcapi.RunTrialDatalogInput_Sample{
+				Sample: &grpcapi.DatalogSample{
+					Info: &grpcapi.SampleInfo{
+						TickId: uint64(i),
+					},
+					Observations: &grpcapi.ObservationSet{
+						TickId:       i,
+						ActorsMap:    []int32{0},
+						Observations: [][]byte{[]byte("an_observation")},
+					},
+					Actions: []*grpcapi.Action{{
+						TickId:  i,
+						Content: []byte("an_action"),
+					}},
+				},
+			},
+		}
+	}
+	chunkSize := 2000
+	sampleCount := chunkSize * b.N
+	samples := make([]*grpcapi.RunTrialDatalogInput, 0, sampleCount)
+	for i := 0; i < sampleCount; i++ {
+		samples = append(samples, nthSample(int64(i)))
+	}
+
+	storedSamples := make(chan *grpcapi.StoredTrialSample)
+	go func() {
+		err := fxt.backend.ObserveSamples(fxt.ctx, backend.TrialSampleFilter{TrialIDs: []string{trialID}}, storedSamples)
+		assert.NoError(b, err)
+		close(storedSamples)
+	}()
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		go func() {
+			for _, sample := range samples[i*chunkSize : i*chunkSize+chunkSize] {
+				_ = stream.Send(sample)
+			}
+		}()
+		// block until all samples are observables
+		for j := 0; j < chunkSize; j++ {
+			<-storedSamples
+		}
+	}
+	b.StopTimer()
+
+	//Close trial
+	closingSample := samples[len(samples)-1]
+	closingSample.GetSample().GetInfo().TickId = uint64(len(samples))
+	closingSample.GetSample().GetInfo().State = grpcapi.TrialState_ENDED
+	err = stream.Send(closingSample)
+	assert.NoError(b, err)
+	<-storedSamples
+
 }
 
 func TestRunTrialDatalogSimple(t *testing.T) {
@@ -300,6 +481,7 @@ func TestRunTrialDatalogSimple(t *testing.T) {
 				Sample: &grpcapi.DatalogSample{
 					Info: &grpcapi.SampleInfo{
 						TickId: 1,
+						State:  grpcapi.TrialState_ENDED,
 					},
 					Observations: &grpcapi.ObservationSet{
 						TickId:       1,
