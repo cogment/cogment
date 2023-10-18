@@ -23,7 +23,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/utils"
 	"github.com/cogment/cogment/utils/constants"
 )
@@ -50,17 +50,17 @@ const (
 
 type Endpoint struct {
 	Category           CategoryType
-	APIEndpoint        *grpcapi.ServiceEndpoint
-	Details            *grpcapi.ServiceDetails
+	APIEndpoint        *cogmentAPI.ServiceEndpoint
+	Details            *cogmentAPI.ServiceDetails
 	ServiceDiscoveryID uint64
 }
 
 func endpointCopy(dst *Endpoint, src *Endpoint) {
 	dst.Category = src.Category
-	dst.APIEndpoint = proto.Clone(src.APIEndpoint).(*grpcapi.ServiceEndpoint)
+	dst.APIEndpoint = proto.Clone(src.APIEndpoint).(*cogmentAPI.ServiceEndpoint)
 	dst.ServiceDiscoveryID = src.ServiceDiscoveryID
 
-	dst.Details = proto.Clone(src.Details).(*grpcapi.ServiceDetails)
+	dst.Details = proto.Clone(src.Details).(*cogmentAPI.ServiceDetails)
 	dst.Details.Properties = utils.CopyStrMap(src.Details.Properties)
 }
 
@@ -90,12 +90,12 @@ func Parse(endpointStr string) (*Endpoint, error) {
 		}
 		return &Endpoint{
 			Category: GrpcEndpoint,
-			APIEndpoint: &grpcapi.ServiceEndpoint{
+			APIEndpoint: &cogmentAPI.ServiceEndpoint{
 				Host: endpointURL.Hostname(),
 				Port: uint32(port),
 			},
-			Details: &grpcapi.ServiceDetails{
-				Type:       grpcapi.ServiceType_UNKNOWN_SERVICE,
+			Details: &cogmentAPI.ServiceDetails{
+				Type:       cogmentAPI.ServiceType_UNKNOWN_SERVICE,
 				Properties: map[string]string{},
 			},
 		}, nil
@@ -110,13 +110,13 @@ func Parse(endpointStr string) (*Endpoint, error) {
 				)
 			}
 
-			var serviceType grpcapi.ServiceType
+			var serviceType cogmentAPI.ServiceType
 			var discoveryServicePath bool
 			path := strings.TrimPrefix(endpointURL.Path, "/")
 			if len(path) == 0 {
-				serviceType = grpcapi.ServiceType_UNKNOWN_SERVICE
+				serviceType = cogmentAPI.ServiceType_UNKNOWN_SERVICE
 			} else if path == servicePath {
-				serviceType = grpcapi.ServiceType_UNKNOWN_SERVICE
+				serviceType = cogmentAPI.ServiceType_UNKNOWN_SERVICE
 				discoveryServicePath = true
 			} else {
 				serviceType, err = utils.StrToAPIServiceType(path)
@@ -127,8 +127,8 @@ func Parse(endpointStr string) (*Endpoint, error) {
 
 			endpoint := Endpoint{
 				Category:    DiscoveryEndpoint,
-				APIEndpoint: &grpcapi.ServiceEndpoint{},
-				Details: &grpcapi.ServiceDetails{
+				APIEndpoint: &cogmentAPI.ServiceEndpoint{},
+				Details: &cogmentAPI.ServiceDetails{
 					Type:       serviceType,
 					Properties: map[string]string{},
 				},
@@ -300,7 +300,7 @@ func (endpoint *Endpoint) Resolve(
 	serviceID uint64,
 	hostname string,
 	port uint32,
-	serviceType grpcapi.ServiceType,
+	serviceType cogmentAPI.ServiceType,
 ) (*Endpoint, error) {
 	switch endpoint.Category {
 	case GrpcEndpoint:
@@ -309,7 +309,7 @@ func (endpoint *Endpoint) Resolve(
 		if endpoint.Host() != "" {
 			return &Endpoint{}, errors.New("discovery endpoint was already resolved")
 		}
-		if endpoint.Details.Type != grpcapi.ServiceType_UNKNOWN_SERVICE && endpoint.Details.Type != serviceType {
+		if endpoint.Details.Type != cogmentAPI.ServiceType_UNKNOWN_SERVICE && endpoint.Details.Type != serviceType {
 			return &Endpoint{}, fmt.Errorf(
 				"requested service type [%s] doesn't match resolved one [%s]",
 				endpoint.Details.Type,
@@ -328,11 +328,11 @@ func (endpoint *Endpoint) Resolve(
 		}
 		return &Endpoint{
 			Category: DiscoveryEndpoint,
-			APIEndpoint: &grpcapi.ServiceEndpoint{
+			APIEndpoint: &cogmentAPI.ServiceEndpoint{
 				Host: hostname,
 				Port: port,
 			},
-			Details: &grpcapi.ServiceDetails{
+			Details: &cogmentAPI.ServiceDetails{
 				Type:       serviceType,
 				Properties: endpoint.Details.Properties,
 			},
@@ -344,7 +344,7 @@ func (endpoint *Endpoint) Resolve(
 	}
 }
 
-func (endpoint *Endpoint) SetServiceType(serviceType grpcapi.ServiceType) {
+func (endpoint *Endpoint) SetServiceType(serviceType cogmentAPI.ServiceType) {
 	endpoint.Details.Type = serviceType
 }
 

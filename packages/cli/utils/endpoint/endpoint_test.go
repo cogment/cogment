@@ -18,7 +18,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -70,7 +70,7 @@ func TestParseDiscoveryEndpoint(t *testing.T) {
 	endpoint, err := Parse("cogment://discover/actor?__actor_class=foo")
 	assert.NoError(t, err)
 	assert.Equal(t, DiscoveryEndpoint, endpoint.Category)
-	assert.Equal(t, grpcapi.ServiceType_ACTOR_SERVICE, endpoint.Details.Type)
+	assert.Equal(t, cogmentAPI.ServiceType_ACTOR_SERVICE, endpoint.Details.Type)
 	assert.Contains(t, endpoint.Details.Properties, ActorClassPropertyName)
 	assert.Equal(t, "foo", endpoint.Details.Properties[ActorClassPropertyName])
 	assert.Equal(t, uint64(0), endpoint.ServiceDiscoveryID)
@@ -96,7 +96,7 @@ func TestUnmarshalJSON(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 42, test.Foo)
 	assert.Equal(t, DiscoveryEndpoint, test.Endpoint.Category)
-	assert.Equal(t, grpcapi.ServiceType_UNKNOWN_SERVICE, test.Endpoint.Details.Type)
+	assert.Equal(t, cogmentAPI.ServiceType_UNKNOWN_SERVICE, test.Endpoint.Details.Type)
 	assert.Equal(t, uint64(12345), test.Endpoint.ServiceDiscoveryID)
 }
 

@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/services/registry/backend"
 	"github.com/cogment/cogment/services/registry/backend/files"
 	"github.com/cogment/cogment/services/registry/backend/memorycache"
@@ -38,7 +38,7 @@ import (
 type testContext struct {
 	backend    backend.Backend
 	grpcCtx    context.Context
-	client     grpcapi.ModelRegistrySPClient
+	client     cogmentAPI.ModelRegistrySPClient
 	connection *grpc.ClientConn
 }
 
@@ -96,7 +96,7 @@ func createContext(t *testing.T, sentModelVersionDataChunkSize int) (testContext
 	return testContext{
 		backend:    backend,
 		grpcCtx:    grpcCtx,
-		client:     grpcapi.NewModelRegistrySPClient(connection),
+		client:     cogmentAPI.NewModelRegistrySPClient(connection),
 		connection: connection,
 	}, nil
 }
@@ -119,12 +119,12 @@ func TestCreateOrUpdateModel(t *testing.T) {
 	{
 		_, err := ctx.client.CreateOrUpdateModel(
 			ctx.grpcCtx,
-			&grpcapi.CreateOrUpdateModelRequest{ModelInfo: &grpcapi.ModelInfo{ModelId: "foo", UserData: modelUserData}},
+			&cogmentAPI.CreateOrUpdateModelRequest{ModelInfo: &cogmentAPI.ModelInfo{ModelId: "foo", UserData: modelUserData}},
 		)
 		assert.NoError(t, err)
 	}
 	{
-		rep, err := ctx.client.RetrieveVersionInfos(ctx.grpcCtx, &grpcapi.RetrieveVersionInfosRequest{ModelId: "foo"})
+		rep, err := ctx.client.RetrieveVersionInfos(ctx.grpcCtx, &cogmentAPI.RetrieveVersionInfosRequest{ModelId: "foo"})
 		assert.NoError(t, err)
 		assert.Len(t, rep.VersionInfos, 0)
 		assert.Equal(t, "0", rep.NextVersionHandle)
@@ -132,12 +132,12 @@ func TestCreateOrUpdateModel(t *testing.T) {
 	{
 		_, err := ctx.client.CreateOrUpdateModel(
 			ctx.grpcCtx,
-			&grpcapi.CreateOrUpdateModelRequest{ModelInfo: &grpcapi.ModelInfo{ModelId: "bar", UserData: modelUserData}},
+			&cogmentAPI.CreateOrUpdateModelRequest{ModelInfo: &cogmentAPI.ModelInfo{ModelId: "bar", UserData: modelUserData}},
 		)
 		assert.NoError(t, err)
 	}
 	{
-		rep, err := ctx.client.RetrieveModels(ctx.grpcCtx, &grpcapi.RetrieveModelsRequest{})
+		rep, err := ctx.client.RetrieveModels(ctx.grpcCtx, &cogmentAPI.RetrieveModelsRequest{})
 		assert.NoError(t, err)
 		assert.Len(t, rep.ModelInfos, 2)
 		assert.Equal(t, "2", rep.NextModelHandle)
@@ -153,7 +153,7 @@ func TestCreateOrUpdateModel(t *testing.T) {
 		assert.Equal(t, rep.ModelInfos[1].UserData["model_test3"], "model_test3")
 	}
 	{
-		_, err := ctx.client.DeleteModel(ctx.grpcCtx, &grpcapi.DeleteModelRequest{ModelId: "foo"})
+		_, err := ctx.client.DeleteModel(ctx.grpcCtx, &cogmentAPI.DeleteModelRequest{ModelId: "foo"})
 		assert.NoError(t, err)
 	}
 }
@@ -170,23 +170,23 @@ func TestDeleteModel(t *testing.T) {
 	{
 		_, err := ctx.client.CreateOrUpdateModel(
 			ctx.grpcCtx,
-			&grpcapi.CreateOrUpdateModelRequest{ModelInfo: &grpcapi.ModelInfo{ModelId: "foo", UserData: modelUserData}},
+			&cogmentAPI.CreateOrUpdateModelRequest{ModelInfo: &cogmentAPI.ModelInfo{ModelId: "foo", UserData: modelUserData}},
 		)
 		assert.NoError(t, err)
 	}
 	{
 		_, err := ctx.client.CreateOrUpdateModel(
 			ctx.grpcCtx,
-			&grpcapi.CreateOrUpdateModelRequest{ModelInfo: &grpcapi.ModelInfo{ModelId: "bar", UserData: modelUserData}},
+			&cogmentAPI.CreateOrUpdateModelRequest{ModelInfo: &cogmentAPI.ModelInfo{ModelId: "bar", UserData: modelUserData}},
 		)
 		assert.NoError(t, err)
 	}
 	{
-		_, err := ctx.client.DeleteModel(ctx.grpcCtx, &grpcapi.DeleteModelRequest{ModelId: "bar"})
+		_, err := ctx.client.DeleteModel(ctx.grpcCtx, &cogmentAPI.DeleteModelRequest{ModelId: "bar"})
 		assert.NoError(t, err)
 	}
 	{
-		rep, err := ctx.client.DeleteModel(ctx.grpcCtx, &grpcapi.DeleteModelRequest{ModelId: "baz"})
+		rep, err := ctx.client.DeleteModel(ctx.grpcCtx, &cogmentAPI.DeleteModelRequest{ModelId: "baz"})
 		assert.Error(t, err)
 		assert.Equal(t, codes.NotFound, status.Code(err))
 		assert.Nil(t, rep)
@@ -194,7 +194,7 @@ func TestDeleteModel(t *testing.T) {
 	{
 		_, err := ctx.client.CreateOrUpdateModel(
 			ctx.grpcCtx,
-			&grpcapi.CreateOrUpdateModelRequest{ModelInfo: &grpcapi.ModelInfo{ModelId: "bar", UserData: modelUserData}},
+			&cogmentAPI.CreateOrUpdateModelRequest{ModelInfo: &cogmentAPI.ModelInfo{ModelId: "bar", UserData: modelUserData}},
 		)
 		assert.NoError(t, err)
 	}
@@ -218,17 +218,17 @@ func TestCreateVersion(t *testing.T) {
 	{
 		_, err := ctx.client.CreateOrUpdateModel(
 			ctx.grpcCtx,
-			&grpcapi.CreateOrUpdateModelRequest{ModelInfo: &grpcapi.ModelInfo{ModelId: "foo", UserData: modelUserData}},
+			&cogmentAPI.CreateOrUpdateModelRequest{ModelInfo: &cogmentAPI.ModelInfo{ModelId: "foo", UserData: modelUserData}},
 		)
 		assert.NoError(t, err)
 	}
 	{
 		stream, err := ctx.client.CreateVersion(ctx.grpcCtx)
 		assert.NoError(t, err)
-		err = stream.Send(&grpcapi.CreateVersionRequestChunk{
-			Msg: &grpcapi.CreateVersionRequestChunk_Header_{
-				Header: &grpcapi.CreateVersionRequestChunk_Header{
-					VersionInfo: &grpcapi.ModelVersionInfo{
+		err = stream.Send(&cogmentAPI.CreateVersionRequestChunk{
+			Msg: &cogmentAPI.CreateVersionRequestChunk_Header_{
+				Header: &cogmentAPI.CreateVersionRequestChunk_Header{
+					VersionInfo: &cogmentAPI.ModelVersionInfo{
 						ModelId:           "foo",
 						CreationTimestamp: nsTimestampFromTime(time.Now()),
 						Archived:          false,
@@ -240,9 +240,9 @@ func TestCreateVersion(t *testing.T) {
 			},
 		})
 		assert.NoError(t, err)
-		err = stream.Send(&grpcapi.CreateVersionRequestChunk{
-			Msg: &grpcapi.CreateVersionRequestChunk_Body_{
-				Body: &grpcapi.CreateVersionRequestChunk_Body{
+		err = stream.Send(&cogmentAPI.CreateVersionRequestChunk{
+			Msg: &cogmentAPI.CreateVersionRequestChunk_Body_{
+				Body: &cogmentAPI.CreateVersionRequestChunk_Body{
 					DataChunk: modelData,
 				},
 			},
@@ -260,10 +260,10 @@ func TestCreateVersion(t *testing.T) {
 	{
 		stream, err := ctx.client.CreateVersion(ctx.grpcCtx)
 		assert.NoError(t, err)
-		err = stream.Send(&grpcapi.CreateVersionRequestChunk{
-			Msg: &grpcapi.CreateVersionRequestChunk_Header_{
-				Header: &grpcapi.CreateVersionRequestChunk_Header{
-					VersionInfo: &grpcapi.ModelVersionInfo{
+		err = stream.Send(&cogmentAPI.CreateVersionRequestChunk{
+			Msg: &cogmentAPI.CreateVersionRequestChunk_Header_{
+				Header: &cogmentAPI.CreateVersionRequestChunk_Header{
+					VersionInfo: &cogmentAPI.ModelVersionInfo{
 						ModelId:           "foo",
 						CreationTimestamp: nsTimestampFromTime(time.Now()),
 						Archived:          true,
@@ -275,17 +275,17 @@ func TestCreateVersion(t *testing.T) {
 			},
 		})
 		assert.NoError(t, err)
-		err = stream.Send(&grpcapi.CreateVersionRequestChunk{
-			Msg: &grpcapi.CreateVersionRequestChunk_Body_{
-				Body: &grpcapi.CreateVersionRequestChunk_Body{
+		err = stream.Send(&cogmentAPI.CreateVersionRequestChunk{
+			Msg: &cogmentAPI.CreateVersionRequestChunk_Body_{
+				Body: &cogmentAPI.CreateVersionRequestChunk_Body{
 					DataChunk: modelData[:20],
 				},
 			},
 		})
 		assert.NoError(t, err)
-		err = stream.Send(&grpcapi.CreateVersionRequestChunk{
-			Msg: &grpcapi.CreateVersionRequestChunk_Body_{
-				Body: &grpcapi.CreateVersionRequestChunk_Body{
+		err = stream.Send(&cogmentAPI.CreateVersionRequestChunk{
+			Msg: &cogmentAPI.CreateVersionRequestChunk_Body_{
+				Body: &cogmentAPI.CreateVersionRequestChunk_Body{
 					DataChunk: modelData[20:],
 				},
 			},
@@ -301,7 +301,7 @@ func TestCreateVersion(t *testing.T) {
 		assert.Equal(t, versionUserData, rep.VersionInfo.UserData)
 	}
 	{
-		rep, err := ctx.client.RetrieveVersionInfos(ctx.grpcCtx, &grpcapi.RetrieveVersionInfosRequest{ModelId: "foo"})
+		rep, err := ctx.client.RetrieveVersionInfos(ctx.grpcCtx, &cogmentAPI.RetrieveVersionInfosRequest{ModelId: "foo"})
 		assert.NoError(t, err)
 		assert.Equal(t, "3", rep.NextVersionHandle)
 		assert.Len(t, rep.VersionInfos, 2)
@@ -334,7 +334,7 @@ func TestRetrieveVersionInfosAll(t *testing.T) {
 	{
 		_, err := ctx.client.CreateOrUpdateModel(
 			ctx.grpcCtx,
-			&grpcapi.CreateOrUpdateModelRequest{ModelInfo: &grpcapi.ModelInfo{ModelId: "bar", UserData: modelUserData}},
+			&cogmentAPI.CreateOrUpdateModelRequest{ModelInfo: &cogmentAPI.ModelInfo{ModelId: "bar", UserData: modelUserData}},
 		)
 		assert.NoError(t, err)
 	}
@@ -342,10 +342,10 @@ func TestRetrieveVersionInfosAll(t *testing.T) {
 		for i := 1; i <= 10; i++ {
 			stream, err := ctx.client.CreateVersion(ctx.grpcCtx)
 			assert.NoError(t, err)
-			err = stream.Send(&grpcapi.CreateVersionRequestChunk{
-				Msg: &grpcapi.CreateVersionRequestChunk_Header_{
-					Header: &grpcapi.CreateVersionRequestChunk_Header{
-						VersionInfo: &grpcapi.ModelVersionInfo{
+			err = stream.Send(&cogmentAPI.CreateVersionRequestChunk{
+				Msg: &cogmentAPI.CreateVersionRequestChunk_Header_{
+					Header: &cogmentAPI.CreateVersionRequestChunk_Header{
+						VersionInfo: &cogmentAPI.ModelVersionInfo{
 							ModelId:           "bar",
 							CreationTimestamp: nsTimestampFromTime(time.Now()),
 							Archived:          i%5 == 0,
@@ -357,8 +357,8 @@ func TestRetrieveVersionInfosAll(t *testing.T) {
 				},
 			})
 			assert.NoError(t, err)
-			err = stream.Send(&grpcapi.CreateVersionRequestChunk{
-				Msg: &grpcapi.CreateVersionRequestChunk_Body_{Body: &grpcapi.CreateVersionRequestChunk_Body{
+			err = stream.Send(&cogmentAPI.CreateVersionRequestChunk{
+				Msg: &cogmentAPI.CreateVersionRequestChunk_Body_{Body: &cogmentAPI.CreateVersionRequestChunk_Body{
 					DataChunk: modelData,
 				}}})
 			assert.NoError(t, err)
@@ -370,7 +370,7 @@ func TestRetrieveVersionInfosAll(t *testing.T) {
 	{
 		rep, err := ctx.client.RetrieveVersionInfos(
 			ctx.grpcCtx,
-			&grpcapi.RetrieveVersionInfosRequest{ModelId: "bar", VersionsCount: 5},
+			&cogmentAPI.RetrieveVersionInfosRequest{ModelId: "bar", VersionsCount: 5},
 		)
 		assert.NoError(t, err)
 
@@ -392,7 +392,7 @@ func TestRetrieveVersionInfosAll(t *testing.T) {
 	{
 		rep, err := ctx.client.RetrieveVersionInfos(
 			ctx.grpcCtx,
-			&grpcapi.RetrieveVersionInfosRequest{ModelId: "bar", VersionsCount: 5, VersionHandle: "7"},
+			&cogmentAPI.RetrieveVersionInfosRequest{ModelId: "bar", VersionsCount: 5, VersionHandle: "7"},
 		)
 		assert.NoError(t, err)
 
@@ -414,7 +414,7 @@ func TestRetrieveVersionInfosAll(t *testing.T) {
 	{
 		rep, err := ctx.client.RetrieveVersionInfos(
 			ctx.grpcCtx,
-			&grpcapi.RetrieveVersionInfosRequest{ModelId: "bar", VersionsCount: 5, VersionHandle: "11"},
+			&cogmentAPI.RetrieveVersionInfosRequest{ModelId: "bar", VersionsCount: 5, VersionHandle: "11"},
 		)
 		assert.NoError(t, err)
 
@@ -430,8 +430,8 @@ func TestConcurrentRetrieveVersionInfos(t *testing.T) {
 	{
 		_, err := ctx.client.CreateOrUpdateModel(
 			ctx.grpcCtx,
-			&grpcapi.CreateOrUpdateModelRequest{
-				ModelInfo: &grpcapi.ModelInfo{ModelId: "bar", UserData: make(map[string]string)},
+			&cogmentAPI.CreateOrUpdateModelRequest{
+				ModelInfo: &cogmentAPI.ModelInfo{ModelId: "bar", UserData: make(map[string]string)},
 			},
 		)
 		assert.NoError(t, err)
@@ -446,10 +446,10 @@ func TestConcurrentRetrieveVersionInfos(t *testing.T) {
 			stream, err := ctx.client.CreateVersion(ctx.grpcCtx)
 			assert.NoError(t, err)
 			// Send the header
-			err = stream.Send(&grpcapi.CreateVersionRequestChunk{
-				Msg: &grpcapi.CreateVersionRequestChunk_Header_{
-					Header: &grpcapi.CreateVersionRequestChunk_Header{
-						VersionInfo: &grpcapi.ModelVersionInfo{
+			err = stream.Send(&cogmentAPI.CreateVersionRequestChunk{
+				Msg: &cogmentAPI.CreateVersionRequestChunk_Header_{
+					Header: &cogmentAPI.CreateVersionRequestChunk_Header{
+						VersionInfo: &cogmentAPI.ModelVersionInfo{
 							ModelId:           "bar",
 							CreationTimestamp: nsTimestampFromTime(time.Now()),
 							Archived:          i%2 == 0,
@@ -463,9 +463,9 @@ func TestConcurrentRetrieveVersionInfos(t *testing.T) {
 			assert.NoError(t, err)
 			time.Sleep(50 * time.Millisecond)
 			// Send the first chunk
-			err = stream.Send(&grpcapi.CreateVersionRequestChunk{
-				Msg: &grpcapi.CreateVersionRequestChunk_Body_{
-					Body: &grpcapi.CreateVersionRequestChunk_Body{
+			err = stream.Send(&cogmentAPI.CreateVersionRequestChunk{
+				Msg: &cogmentAPI.CreateVersionRequestChunk_Body_{
+					Body: &cogmentAPI.CreateVersionRequestChunk_Body{
 						DataChunk: modelData[:50],
 					},
 				},
@@ -473,9 +473,9 @@ func TestConcurrentRetrieveVersionInfos(t *testing.T) {
 			assert.NoError(t, err)
 			time.Sleep(50 * time.Millisecond)
 			// Send the second chunk
-			err = stream.Send(&grpcapi.CreateVersionRequestChunk{
-				Msg: &grpcapi.CreateVersionRequestChunk_Body_{
-					Body: &grpcapi.CreateVersionRequestChunk_Body{
+			err = stream.Send(&cogmentAPI.CreateVersionRequestChunk{
+				Msg: &cogmentAPI.CreateVersionRequestChunk_Body_{
+					Body: &cogmentAPI.CreateVersionRequestChunk_Body{
 						DataChunk: modelData[50:],
 					},
 				},
@@ -498,7 +498,7 @@ func TestConcurrentRetrieveVersionInfos(t *testing.T) {
 			for j := 0; j < 10; j++ {
 				_, err := ctx.client.RetrieveVersionInfos(
 					ctx.grpcCtx,
-					&grpcapi.RetrieveVersionInfosRequest{ModelId: "bar", VersionNumbers: []int32{-1}},
+					&cogmentAPI.RetrieveVersionInfosRequest{ModelId: "bar", VersionNumbers: []int32{-1}},
 				)
 				assert.NoError(t, err)
 
@@ -527,7 +527,7 @@ func TestRetrieveVersionInfosSome(t *testing.T) {
 	{
 		_, err := ctx.client.CreateOrUpdateModel(
 			ctx.grpcCtx,
-			&grpcapi.CreateOrUpdateModelRequest{ModelInfo: &grpcapi.ModelInfo{ModelId: "bar", UserData: modelUserData}},
+			&cogmentAPI.CreateOrUpdateModelRequest{ModelInfo: &cogmentAPI.ModelInfo{ModelId: "bar", UserData: modelUserData}},
 		)
 		assert.NoError(t, err)
 	}
@@ -535,10 +535,10 @@ func TestRetrieveVersionInfosSome(t *testing.T) {
 		for i := 1; i <= 10; i++ {
 			stream, err := ctx.client.CreateVersion(ctx.grpcCtx)
 			assert.NoError(t, err)
-			err = stream.Send(&grpcapi.CreateVersionRequestChunk{
-				Msg: &grpcapi.CreateVersionRequestChunk_Header_{
-					Header: &grpcapi.CreateVersionRequestChunk_Header{
-						VersionInfo: &grpcapi.ModelVersionInfo{
+			err = stream.Send(&cogmentAPI.CreateVersionRequestChunk{
+				Msg: &cogmentAPI.CreateVersionRequestChunk_Header_{
+					Header: &cogmentAPI.CreateVersionRequestChunk_Header{
+						VersionInfo: &cogmentAPI.ModelVersionInfo{
 							ModelId:           "bar",
 							CreationTimestamp: nsTimestampFromTime(time.Now()),
 							Archived:          i%5 == 0,
@@ -550,9 +550,9 @@ func TestRetrieveVersionInfosSome(t *testing.T) {
 				},
 			})
 			assert.NoError(t, err)
-			err = stream.Send(&grpcapi.CreateVersionRequestChunk{
-				Msg: &grpcapi.CreateVersionRequestChunk_Body_{
-					Body: &grpcapi.CreateVersionRequestChunk_Body{
+			err = stream.Send(&cogmentAPI.CreateVersionRequestChunk{
+				Msg: &cogmentAPI.CreateVersionRequestChunk_Body_{
+					Body: &cogmentAPI.CreateVersionRequestChunk_Body{
 						DataChunk: modelData,
 					},
 				},
@@ -565,7 +565,7 @@ func TestRetrieveVersionInfosSome(t *testing.T) {
 	{
 		rep, err := ctx.client.RetrieveVersionInfos(
 			ctx.grpcCtx,
-			&grpcapi.RetrieveVersionInfosRequest{ModelId: "bar", VersionNumbers: []int32{1}},
+			&cogmentAPI.RetrieveVersionInfosRequest{ModelId: "bar", VersionNumbers: []int32{1}},
 		)
 		assert.NoError(t, err)
 		assert.Len(t, rep.VersionInfos, 1)
@@ -580,7 +580,7 @@ func TestRetrieveVersionInfosSome(t *testing.T) {
 	{
 		rep, err := ctx.client.RetrieveVersionInfos(
 			ctx.grpcCtx,
-			&grpcapi.RetrieveVersionInfosRequest{ModelId: "bar", VersionNumbers: []int32{5}},
+			&cogmentAPI.RetrieveVersionInfosRequest{ModelId: "bar", VersionNumbers: []int32{5}},
 		)
 		assert.NoError(t, err)
 		assert.Len(t, rep.VersionInfos, 1)
@@ -595,7 +595,7 @@ func TestRetrieveVersionInfosSome(t *testing.T) {
 	{
 		rep, err := ctx.client.RetrieveVersionInfos(
 			ctx.grpcCtx,
-			&grpcapi.RetrieveVersionInfosRequest{ModelId: "bar", VersionNumbers: []int32{-1}},
+			&cogmentAPI.RetrieveVersionInfosRequest{ModelId: "bar", VersionNumbers: []int32{-1}},
 		)
 		assert.NoError(t, err)
 		assert.Len(t, rep.VersionInfos, 1)
@@ -610,7 +610,7 @@ func TestRetrieveVersionInfosSome(t *testing.T) {
 	{
 		rep, err := ctx.client.RetrieveVersionInfos(
 			ctx.grpcCtx,
-			&grpcapi.RetrieveVersionInfosRequest{ModelId: "bar", VersionNumbers: []int32{28}},
+			&cogmentAPI.RetrieveVersionInfosRequest{ModelId: "bar", VersionNumbers: []int32{28}},
 		)
 		assert.Error(t, err)
 		assert.Equal(t, codes.NotFound, status.Code(err))
@@ -635,17 +635,17 @@ func TestGetModelVersionData(t *testing.T) {
 	{
 		_, err := ctx.client.CreateOrUpdateModel(
 			ctx.grpcCtx,
-			&grpcapi.CreateOrUpdateModelRequest{ModelInfo: &grpcapi.ModelInfo{ModelId: "baz", UserData: modelUserData}},
+			&cogmentAPI.CreateOrUpdateModelRequest{ModelInfo: &cogmentAPI.ModelInfo{ModelId: "baz", UserData: modelUserData}},
 		)
 		assert.NoError(t, err)
 	}
 	{
 		stream, err := ctx.client.CreateVersion(ctx.grpcCtx)
 		assert.NoError(t, err)
-		err = stream.Send(&grpcapi.CreateVersionRequestChunk{
-			Msg: &grpcapi.CreateVersionRequestChunk_Header_{
-				Header: &grpcapi.CreateVersionRequestChunk_Header{
-					VersionInfo: &grpcapi.ModelVersionInfo{
+		err = stream.Send(&cogmentAPI.CreateVersionRequestChunk{
+			Msg: &cogmentAPI.CreateVersionRequestChunk_Header_{
+				Header: &cogmentAPI.CreateVersionRequestChunk_Header{
+					VersionInfo: &cogmentAPI.ModelVersionInfo{
 						ModelId:           "baz",
 						CreationTimestamp: nsTimestampFromTime(time.Now()),
 						Archived:          false,
@@ -657,9 +657,9 @@ func TestGetModelVersionData(t *testing.T) {
 			},
 		})
 		assert.NoError(t, err)
-		err = stream.Send(&grpcapi.CreateVersionRequestChunk{
-			Msg: &grpcapi.CreateVersionRequestChunk_Body_{
-				Body: &grpcapi.CreateVersionRequestChunk_Body{
+		err = stream.Send(&cogmentAPI.CreateVersionRequestChunk{
+			Msg: &cogmentAPI.CreateVersionRequestChunk_Body_{
+				Body: &cogmentAPI.CreateVersionRequestChunk_Body{
 					DataChunk: modelData,
 				},
 			},
@@ -671,10 +671,10 @@ func TestGetModelVersionData(t *testing.T) {
 	{
 		stream, err := ctx.client.RetrieveVersionData(
 			ctx.grpcCtx,
-			&grpcapi.RetrieveVersionDataRequest{ModelId: "baz", VersionNumber: -1},
+			&cogmentAPI.RetrieveVersionDataRequest{ModelId: "baz", VersionNumber: -1},
 		)
 		assert.NoError(t, err)
-		chunks := []*grpcapi.RetrieveVersionDataReplyChunk{}
+		chunks := []*cogmentAPI.RetrieveVersionDataReplyChunk{}
 		data := []byte{}
 		for {
 			chunk, err := stream.Recv()
@@ -697,7 +697,7 @@ func TestGetModelVersionData(t *testing.T) {
 	{
 		stream, err := ctx.client.RetrieveVersionData(
 			ctx.grpcCtx,
-			&grpcapi.RetrieveVersionDataRequest{ModelId: "baz", VersionNumber: 4},
+			&cogmentAPI.RetrieveVersionDataRequest{ModelId: "baz", VersionNumber: 4},
 		)
 		assert.NoError(t, err)
 		chunk, err := stream.Recv()

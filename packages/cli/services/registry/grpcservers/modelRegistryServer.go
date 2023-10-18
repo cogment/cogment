@@ -22,7 +22,7 @@ import (
 	"sync"
 	"time"
 
-	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/services/registry/backend"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -39,14 +39,14 @@ func nsTimestampFromTime(timestamp time.Time) uint64 {
 }
 
 type ModelRegistryServer struct {
-	grpcapi.UnimplementedModelRegistrySPServer
+	cogmentAPI.UnimplementedModelRegistrySPServer
 	backendPromise                BackendPromise
 	sentModelVersionDataChunkSize int
 	newVersion                    *sync.Cond
 }
 
-func makePbModelVersionInfo(modelVersionInfo backend.VersionInfo) grpcapi.ModelVersionInfo {
-	return grpcapi.ModelVersionInfo{
+func makePbModelVersionInfo(modelVersionInfo backend.VersionInfo) cogmentAPI.ModelVersionInfo {
+	return cogmentAPI.ModelVersionInfo{
 		ModelId:           modelVersionInfo.ModelID,
 		VersionNumber:     uint32(modelVersionInfo.VersionNumber),
 		CreationTimestamp: nsTimestampFromTime(modelVersionInfo.CreationTimestamp),
@@ -63,18 +63,18 @@ func (s *ModelRegistryServer) SetBackend(b backend.Backend) {
 
 func (s *ModelRegistryServer) Version(
 	_ context.Context,
-	_ *grpcapi.VersionRequest,
-) (*grpcapi.VersionInfo, error) {
+	_ *cogmentAPI.VersionRequest,
+) (*cogmentAPI.VersionInfo, error) {
 
 	// TODO: Return proper version info. Current version is minimal to serve a health check for directory.
-	res := &grpcapi.VersionInfo{}
+	res := &cogmentAPI.VersionInfo{}
 	return res, nil
 }
 
 // gRPC interface
-func (s *ModelRegistryServer) Status(_ context.Context, request *grpcapi.StatusRequest,
-) (*grpcapi.StatusReply, error) {
-	reply := grpcapi.StatusReply{}
+func (s *ModelRegistryServer) Status(_ context.Context, request *cogmentAPI.StatusRequest,
+) (*cogmentAPI.StatusReply, error) {
+	reply := cogmentAPI.StatusReply{}
 
 	if len(request.Names) == 0 {
 		return &reply, nil
@@ -100,8 +100,8 @@ func (s *ModelRegistryServer) Status(_ context.Context, request *grpcapi.StatusR
 
 func (s *ModelRegistryServer) CreateOrUpdateModel(
 	ctx context.Context,
-	req *grpcapi.CreateOrUpdateModelRequest,
-) (*grpcapi.CreateOrUpdateModelReply, error) {
+	req *cogmentAPI.CreateOrUpdateModelRequest,
+) (*cogmentAPI.CreateOrUpdateModelReply, error) {
 	log := log.WithFields(logrus.Fields{
 		"model_id": req.ModelInfo.ModelId,
 		"method":   "CreateOrUpdateModel",
@@ -125,13 +125,13 @@ func (s *ModelRegistryServer) CreateOrUpdateModel(
 		return nil, status.Errorf(codes.Internal, "unexpected error while creating model %q: %s", modelInfo.ModelID, err)
 	}
 
-	return &grpcapi.CreateOrUpdateModelReply{}, nil
+	return &cogmentAPI.CreateOrUpdateModelReply{}, nil
 }
 
 func (s *ModelRegistryServer) DeleteModel(
 	ctx context.Context,
-	req *grpcapi.DeleteModelRequest,
-) (*grpcapi.DeleteModelReply, error) {
+	req *cogmentAPI.DeleteModelRequest,
+) (*cogmentAPI.DeleteModelReply, error) {
 	log := log.WithFields(logrus.Fields{
 		"model_id": req.ModelId,
 		"method":   "DeleteModel",
@@ -153,13 +153,13 @@ func (s *ModelRegistryServer) DeleteModel(
 		return nil, status.Errorf(codes.Internal, "unexpected error while deleting model %q: %s", req.ModelId, err)
 	}
 
-	return &grpcapi.DeleteModelReply{}, nil
+	return &cogmentAPI.DeleteModelReply{}, nil
 }
 
 func (s *ModelRegistryServer) RetrieveModels(
 	ctx context.Context,
-	req *grpcapi.RetrieveModelsRequest,
-) (*grpcapi.RetrieveModelsReply, error) {
+	req *cogmentAPI.RetrieveModelsRequest,
+) (*cogmentAPI.RetrieveModelsReply, error) {
 	log := log.WithFields(logrus.Fields{
 		"model_ids":    req.ModelIds,
 		"models_count": req.ModelsCount,
@@ -188,7 +188,7 @@ func (s *ModelRegistryServer) RetrieveModels(
 		return nil, err
 	}
 
-	pbModelInfos := []*grpcapi.ModelInfo{}
+	pbModelInfos := []*cogmentAPI.ModelInfo{}
 
 	if len(req.ModelIds) == 0 {
 		// Retrieve all models
@@ -199,7 +199,7 @@ func (s *ModelRegistryServer) RetrieveModels(
 		}
 
 		for _, modelInfo := range modelInfos {
-			pbModelInfo := grpcapi.ModelInfo{ModelId: modelInfo.ModelID, UserData: modelInfo.UserData}
+			pbModelInfo := cogmentAPI.ModelInfo{ModelId: modelInfo.ModelID, UserData: modelInfo.UserData}
 			pbModelInfos = append(pbModelInfos, &pbModelInfo)
 		}
 	} else {
@@ -217,20 +217,20 @@ func (s *ModelRegistryServer) RetrieveModels(
 				return nil, status.Errorf(codes.Internal, `unexpected error while retrieving models: %s`, err)
 			}
 
-			pbModelInfo := grpcapi.ModelInfo{ModelId: modelInfo.ModelID, UserData: modelInfo.UserData}
+			pbModelInfo := cogmentAPI.ModelInfo{ModelId: modelInfo.ModelID, UserData: modelInfo.UserData}
 			pbModelInfos = append(pbModelInfos, &pbModelInfo)
 		}
 	}
 
 	nextOffset := offset + len(pbModelInfos)
 
-	return &grpcapi.RetrieveModelsReply{
+	return &cogmentAPI.RetrieveModelsReply{
 		ModelInfos:      pbModelInfos,
 		NextModelHandle: strconv.FormatInt(int64(nextOffset), 10),
 	}, nil
 }
 
-func (s *ModelRegistryServer) CreateVersion(inStream grpcapi.ModelRegistrySP_CreateVersionServer) error {
+func (s *ModelRegistryServer) CreateVersion(inStream cogmentAPI.ModelRegistrySP_CreateVersionServer) error {
 	log := log.WithFields(logrus.Fields{
 		"method": "CreateVersion",
 	})
@@ -321,13 +321,13 @@ func (s *ModelRegistryServer) CreateVersion(inStream grpcapi.ModelRegistrySP_Cre
 	s.newVersion.Broadcast()
 
 	pbVersionInfo := makePbModelVersionInfo(versionInfo)
-	return inStream.SendAndClose(&grpcapi.CreateVersionReply{VersionInfo: &pbVersionInfo})
+	return inStream.SendAndClose(&cogmentAPI.CreateVersionReply{VersionInfo: &pbVersionInfo})
 }
 
 func (s *ModelRegistryServer) RetrieveVersionInfos(
 	ctx context.Context,
-	req *grpcapi.RetrieveVersionInfosRequest,
-) (*grpcapi.RetrieveVersionInfosReply, error) {
+	req *cogmentAPI.RetrieveVersionInfosRequest,
+) (*cogmentAPI.RetrieveVersionInfosReply, error) {
 	log := log.WithFields(logrus.Fields{
 		"model_id":        req.ModelId,
 		"versions_number": req.VersionNumbers,
@@ -371,7 +371,7 @@ func (s *ModelRegistryServer) RetrieveVersionInfos(
 			)
 		}
 
-		pbVersionInfos := []*grpcapi.ModelVersionInfo{}
+		pbVersionInfos := []*cogmentAPI.ModelVersionInfo{}
 
 		nextVersionNumber := initialVersionNumber
 		for _, versionInfo := range versionInfos {
@@ -380,13 +380,13 @@ func (s *ModelRegistryServer) RetrieveVersionInfos(
 			nextVersionNumber = versionInfo.VersionNumber + 1
 		}
 
-		return &grpcapi.RetrieveVersionInfosReply{
+		return &cogmentAPI.RetrieveVersionInfosReply{
 			VersionInfos:      pbVersionInfos,
 			NextVersionHandle: strconv.FormatUint(uint64(nextVersionNumber), 10),
 		}, nil
 	}
 
-	pbVersionInfos := []*grpcapi.ModelVersionInfo{}
+	pbVersionInfos := []*cogmentAPI.ModelVersionInfo{}
 	versionNumberSlice := req.VersionNumbers[initialVersionNumber:]
 	if req.VersionsCount > 0 {
 		versionNumberSlice = versionNumberSlice[:req.VersionsCount]
@@ -417,15 +417,15 @@ func (s *ModelRegistryServer) RetrieveVersionInfos(
 		nextVersionNumber = versionInfo.VersionNumber + 1
 	}
 
-	return &grpcapi.RetrieveVersionInfosReply{
+	return &cogmentAPI.RetrieveVersionInfosReply{
 		VersionInfos:      pbVersionInfos,
 		NextVersionHandle: strconv.FormatUint(uint64(nextVersionNumber), 10),
 	}, nil
 }
 
 func (s *ModelRegistryServer) RetrieveVersionData(
-	req *grpcapi.RetrieveVersionDataRequest,
-	outStream grpcapi.ModelRegistrySP_RetrieveVersionDataServer,
+	req *cogmentAPI.RetrieveVersionDataRequest,
+	outStream cogmentAPI.ModelRegistrySP_RetrieveVersionDataServer,
 ) error {
 	log := log.WithFields(logrus.Fields{
 		"model_id":       req.ModelId,
@@ -458,15 +458,15 @@ func (s *ModelRegistryServer) RetrieveVersionData(
 
 	dataLen := len(modelData)
 	if dataLen == 0 {
-		return outStream.Send(&grpcapi.RetrieveVersionDataReplyChunk{})
+		return outStream.Send(&cogmentAPI.RetrieveVersionDataReplyChunk{})
 	}
 
 	for i := 0; i < dataLen; i += s.sentModelVersionDataChunkSize {
-		var replyChunk grpcapi.RetrieveVersionDataReplyChunk
+		var replyChunk cogmentAPI.RetrieveVersionDataReplyChunk
 		if i+s.sentModelVersionDataChunkSize >= dataLen {
-			replyChunk = grpcapi.RetrieveVersionDataReplyChunk{DataChunk: modelData[i:dataLen]}
+			replyChunk = cogmentAPI.RetrieveVersionDataReplyChunk{DataChunk: modelData[i:dataLen]}
 		} else {
-			replyChunk = grpcapi.RetrieveVersionDataReplyChunk{DataChunk: modelData[i : i+s.sentModelVersionDataChunkSize]}
+			replyChunk = cogmentAPI.RetrieveVersionDataReplyChunk{DataChunk: modelData[i : i+s.sentModelVersionDataChunkSize]}
 		}
 		err := outStream.Send(&replyChunk)
 		if err != nil {
@@ -478,8 +478,8 @@ func (s *ModelRegistryServer) RetrieveVersionData(
 }
 
 func (s *ModelRegistryServer) VersionUpdate(
-	req *grpcapi.VersionUpdateRequest,
-	outStream grpcapi.ModelRegistrySP_VersionUpdateServer,
+	req *cogmentAPI.VersionUpdateRequest,
+	outStream cogmentAPI.ModelRegistrySP_VersionUpdateServer,
 ) error {
 	log := log.WithFields(logrus.Fields{
 		"model_id": req.ModelId,
@@ -511,7 +511,7 @@ func (s *ModelRegistryServer) VersionUpdate(
 		// In case no version is available, 'VersionNumber' is set to default (0).
 		if versionInfo.VersionNumber > lastVersion {
 			pbVersionInfo := makePbModelVersionInfo(versionInfo)
-			reply := grpcapi.VersionUpdateReply{VersionInfo: &pbVersionInfo}
+			reply := cogmentAPI.VersionUpdateReply{VersionInfo: &pbVersionInfo}
 			err = outStream.Send(&reply)
 			if err != nil {
 				if lastVersion == 0 {
@@ -553,6 +553,6 @@ func RegisterModelRegistryServer(
 		newVersion:                    sync.NewCond(&lock),
 	}
 
-	grpcapi.RegisterModelRegistrySPServer(grpcServer, server)
+	cogmentAPI.RegisterModelRegistrySPServer(grpcServer, server)
 	return server, nil
 }

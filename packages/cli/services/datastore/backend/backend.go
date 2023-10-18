@@ -19,14 +19,14 @@ import (
 	"errors"
 	"fmt"
 
-	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 )
 
 // TrialInfo represents the storage status of the samples in a trial.
 type TrialInfo struct {
 	TrialID            string
 	UserID             string
-	State              grpcapi.TrialState
+	State              cogmentAPI.TrialState
 	SamplesCount       int
 	StoredSamplesCount int
 }
@@ -42,10 +42,10 @@ type TrialsInfoObserver chan TrialsInfoResult
 type TrialParams struct {
 	TrialID string
 	UserID  string
-	Params  *grpcapi.TrialParams
+	Params  *cogmentAPI.TrialParams
 }
 
-type TrialSampleObserver chan *grpcapi.StoredTrialSample
+type TrialSampleObserver chan *cogmentAPI.StoredTrialSample
 
 // Backend defines the interface for a datalogger backend
 type Backend interface {
@@ -58,8 +58,8 @@ type Backend interface {
 
 	GetTrialParams(ctx context.Context, trialIDs []string) ([]*TrialParams, error)
 
-	AddSamples(ctx context.Context, samples []*grpcapi.StoredTrialSample) error
-	ObserveSamples(ctx context.Context, filter TrialSampleFilter, out chan<- *grpcapi.StoredTrialSample) error
+	AddSamples(ctx context.Context, samples []*cogmentAPI.StoredTrialSample) error
+	ObserveSamples(ctx context.Context, filter TrialSampleFilter, out chan<- *cogmentAPI.StoredTrialSample) error
 }
 
 // UnknownTrialError is raised when trying to operate on an unknown trial

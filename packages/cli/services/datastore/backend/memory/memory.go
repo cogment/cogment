@@ -22,7 +22,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/services/datastore/backend"
 	"github.com/cogment/cogment/services/datastore/utils"
 	"golang.org/x/sync/errgroup"
@@ -30,9 +30,9 @@ import (
 )
 
 type trialData struct {
-	params            *grpcapi.TrialParams
+	params            *cogmentAPI.TrialParams
 	userID            string
-	trialState        grpcapi.TrialState
+	trialState        cogmentAPI.TrialState
 	samplesCount      int
 	storedSamplesSize uint32
 	storedSamples     utils.ObservableList
@@ -201,7 +201,7 @@ func (b *memoryBackend) CreateOrUpdateTrials(_ context.Context, trialsParams []*
 			data := &trialData{
 				params:            trialParams.Params,
 				userID:            trialParams.UserID,
-				trialState:        grpcapi.TrialState_UNKNOWN,
+				trialState:        cogmentAPI.TrialState_UNKNOWN,
 				samplesCount:      0,
 				storedSamples:     utils.NewObservableList(),
 				storedSamplesSize: 0,
@@ -351,7 +351,7 @@ func (b *memoryBackend) GetTrialParams(_ context.Context, trialIDs []string) ([]
 	return trialParams, nil
 }
 
-func (b *memoryBackend) AddSamples(_ context.Context, samples []*grpcapi.StoredTrialSample) error {
+func (b *memoryBackend) AddSamples(_ context.Context, samples []*cogmentAPI.StoredTrialSample) error {
 	trialIDs := make([]string, len(samples))
 	for idx, sample := range samples {
 		trialIDs[idx] = sample.TrialId
@@ -369,7 +369,7 @@ func (b *memoryBackend) AddSamples(_ context.Context, samples []*grpcapi.StoredT
 		sampleSize := uint32(len(serializedSample))
 		atomic.AddUint32(&b.samplesSize, sampleSize)
 		t.storedSamplesSize += sampleSize
-		t.storedSamples.Append(serializedSample, sample.State == grpcapi.TrialState_ENDED)
+		t.storedSamples.Append(serializedSample, sample.State == cogmentAPI.TrialState_ENDED)
 		t.trialState = sample.State
 		t.samplesCount++
 	}
@@ -385,7 +385,7 @@ func (b *memoryBackend) AddSamples(_ context.Context, samples []*grpcapi.StoredT
 func (b *memoryBackend) ObserveSamples(
 	ctx context.Context,
 	filter backend.TrialSampleFilter,
-	out chan<- *grpcapi.StoredTrialSample,
+	out chan<- *cogmentAPI.StoredTrialSample,
 ) error {
 	trialDatas, err := b.retrieveTrialDatas(filter.TrialIDs)
 	if err != nil {
@@ -407,7 +407,7 @@ func (b *memoryBackend) ObserveSamples(
 			// No filtering done on this trial's samples
 			g.Go(func() error {
 				for serializedSample := range observer {
-					sample := &grpcapi.StoredTrialSample{}
+					sample := &cogmentAPI.StoredTrialSample{}
 					if err := proto.Unmarshal(serializedSample.([]byte), sample); err != nil {
 						return backend.NewUnexpectedError("unable to deserialize sample (%w)", err)
 					}
@@ -419,7 +419,7 @@ func (b *memoryBackend) ObserveSamples(
 			// Some filtering done on this trial samples
 			g.Go(func() error {
 				for serializedSample := range observer {
-					sample := &grpcapi.StoredTrialSample{}
+					sample := &cogmentAPI.StoredTrialSample{}
 					if err := proto.Unmarshal(serializedSample.([]byte), sample); err != nil {
 						return backend.NewUnexpectedError("unable to deserialize sample (%w)", err)
 					}

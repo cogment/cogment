@@ -21,16 +21,16 @@ import (
 	"time"
 
 	"github.com/cogment/cogment/clients/control"
-	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/services/proxy/trialspec"
 	"github.com/cogment/cogment/utils/endpoint"
 )
 
 type ActiveTrialInfo struct {
-	TrialID    string             `json:"trial_id"`
-	EnvName    string             `json:"env_name,omitempty"`
-	State      grpcapi.TrialState `json:"state,omitempty"`
-	Properties map[string]string  `json:"properties,omitempty"`
+	TrialID    string                `json:"trial_id"`
+	EnvName    string                `json:"env_name,omitempty"`
+	State      cogmentAPI.TrialState `json:"state,omitempty"`
+	Properties map[string]string     `json:"properties,omitempty"`
 }
 
 type Controller struct {
@@ -43,7 +43,7 @@ type Controller struct {
 }
 
 func (controller *Controller) startWatchTrialsWorker(retryTimeout time.Duration) {
-	observer := make(chan *grpcapi.TrialInfo)
+	observer := make(chan *cogmentAPI.TrialInfo)
 
 	go func() {
 		for {
@@ -77,7 +77,7 @@ func (controller *Controller) startWatchTrialsWorker(retryTimeout time.Duration)
 	go func() {
 		for trialInfo := range observer {
 			controller.activeTrialsMutex.Lock()
-			if trialInfo.State == grpcapi.TrialState_ENDED {
+			if trialInfo.State == cogmentAPI.TrialState_ENDED {
 				delete(controller.activeTrials, trialInfo.TrialId)
 			} else {
 				controller.activeTrials[trialInfo.TrialId] = ActiveTrialInfo{
@@ -129,7 +129,7 @@ func (controller *Controller) GetActiveTrials() ([]ActiveTrialInfo, error) {
 func (controller *Controller) StartTrial(
 	ctx context.Context,
 	requestedTrialID string,
-	params *grpcapi.TrialParams,
+	params *cogmentAPI.TrialParams,
 ) (string, error) {
 	// Forbidding any grpc endpoint
 	if params.Environment != nil && params.Environment.Endpoint != "" {

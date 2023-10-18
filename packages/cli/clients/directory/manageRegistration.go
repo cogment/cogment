@@ -21,7 +21,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/utils"
 	"github.com/cogment/cogment/utils/endpoint"
 	"github.com/cogment/cogment/version"
@@ -92,7 +92,7 @@ func deregisterService(
 	log.WithFields(logrus.Fields{
 		"serviceID": serviceID,
 	}).Debug("Deregistering service from the directory")
-	err = directoryClient.Deregister(&api.DeregisterRequest{
+	err = directoryClient.Deregister(&cogmentAPI.DeregisterRequest{
 		ServiceId: serviceID,
 		Secret:    serviceSecret,
 	})
@@ -107,8 +107,8 @@ func deregisterService(
 func ManageRegistration(
 	ctx context.Context,
 	port uint,
-	protocol api.ServiceEndpoint_Protocol,
-	serviceType api.ServiceType,
+	protocol cogmentAPI.ServiceEndpoint_Protocol,
+	serviceType cogmentAPI.ServiceType,
 	options RegistrationOptions,
 ) error {
 	if !options.DirectoryEndpoint.IsValid() {
@@ -150,13 +150,13 @@ func ManageRegistration(
 
 	log.Debug("Registering service to the directory...")
 
-	serviceID, serviceSecret, err := directoryClient.Register(&api.RegisterRequest{
-		Endpoint: &api.ServiceEndpoint{
+	serviceID, serviceSecret, err := directoryClient.Register(&cogmentAPI.RegisterRequest{
+		Endpoint: &cogmentAPI.ServiceEndpoint{
 			Protocol: protocol,
 			Host:     host,
 			Port:     uint32(port),
 		},
-		Details: &api.ServiceDetails{
+		Details: &cogmentAPI.ServiceDetails{
 			Type:       serviceType,
 			Properties: properties,
 		},

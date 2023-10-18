@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/services/datastore/backend"
 	"github.com/cogment/cogment/services/datastore/backend/memory"
 	"github.com/cogment/cogment/services/utils"
@@ -39,7 +39,7 @@ import (
 type trialDatastoreServerTestFixture struct {
 	backend    backend.Backend
 	ctx        context.Context
-	client     grpcapi.TrialDatastoreSPClient
+	client     cogmentAPI.TrialDatastoreSPClient
 	connection *grpc.ClientConn
 }
 
@@ -77,7 +77,7 @@ func createTrialDatastoreServerTestFixture() (trialDatastoreServerTestFixture, e
 	return trialDatastoreServerTestFixture{
 		backend:    backend,
 		ctx:        ctx,
-		client:     grpcapi.NewTrialDatastoreSPClient(connection),
+		client:     cogmentAPI.NewTrialDatastoreSPClient(connection),
 		connection: connection,
 	}, nil
 }
@@ -97,27 +97,27 @@ func TestListenToTrialSequential(t *testing.T) {
 	{
 		err = fxt.backend.CreateOrUpdateTrials(
 			fxt.ctx,
-			[]*backend.TrialParams{{TrialID: trialID, UserID: "foo", Params: &grpcapi.TrialParams{MaxSteps: 72}}},
+			[]*backend.TrialParams{{TrialID: trialID, UserID: "foo", Params: &cogmentAPI.TrialParams{MaxSteps: 72}}},
 		)
 		assert.NoError(t, err)
 		err = fxt.backend.AddSamples(
 			fxt.ctx,
-			[]*grpcapi.StoredTrialSample{{TrialId: trialID, UserId: "foo", State: grpcapi.TrialState_RUNNING}},
+			[]*cogmentAPI.StoredTrialSample{{TrialId: trialID, UserId: "foo", State: cogmentAPI.TrialState_RUNNING}},
 		)
 		assert.NoError(t, err)
 		err = fxt.backend.AddSamples(
 			fxt.ctx,
-			[]*grpcapi.StoredTrialSample{{TrialId: trialID, UserId: "bar", State: grpcapi.TrialState_RUNNING}},
+			[]*cogmentAPI.StoredTrialSample{{TrialId: trialID, UserId: "bar", State: cogmentAPI.TrialState_RUNNING}},
 		)
 		assert.NoError(t, err)
 		err = fxt.backend.AddSamples(
 			fxt.ctx,
-			[]*grpcapi.StoredTrialSample{{TrialId: trialID, UserId: "baz", State: grpcapi.TrialState_ENDED}},
+			[]*cogmentAPI.StoredTrialSample{{TrialId: trialID, UserId: "baz", State: cogmentAPI.TrialState_ENDED}},
 		)
 		assert.NoError(t, err)
 	}
 	{
-		stream, err := fxt.client.RetrieveSamples(fxt.ctx, &grpcapi.RetrieveSamplesRequest{TrialIds: []string{trialID}})
+		stream, err := fxt.client.RetrieveSamples(fxt.ctx, &cogmentAPI.RetrieveSamplesRequest{TrialIds: []string{trialID}})
 		assert.NoError(t, err)
 
 		// message #1 should be the first sample
@@ -158,7 +158,7 @@ func TestListenToTrialConcurrentTrials(t *testing.T) {
 		defer wg.Done()
 		err := fxt.backend.CreateOrUpdateTrials(
 			fxt.ctx,
-			[]*backend.TrialParams{{TrialID: trialID, UserID: "test", Params: &grpcapi.TrialParams{MaxSteps: 72}}},
+			[]*backend.TrialParams{{TrialID: trialID, UserID: "test", Params: &cogmentAPI.TrialParams{MaxSteps: 72}}},
 		)
 		assert.NoError(t, err)
 
@@ -167,20 +167,20 @@ func TestListenToTrialConcurrentTrials(t *testing.T) {
 			if tickIdx < len(ticks)-1 {
 				err = fxt.backend.AddSamples(
 					fxt.ctx,
-					[]*grpcapi.StoredTrialSample{{
+					[]*cogmentAPI.StoredTrialSample{{
 						TrialId: trialID,
 						UserId:  "test",
-						TickId:  tickID, State: grpcapi.TrialState_RUNNING,
+						TickId:  tickID, State: cogmentAPI.TrialState_RUNNING,
 					}},
 				)
 				assert.NoError(t, err)
 			} else {
 				err = fxt.backend.AddSamples(
 					fxt.ctx,
-					[]*grpcapi.StoredTrialSample{{
+					[]*cogmentAPI.StoredTrialSample{{
 						TrialId: trialID,
 						UserId:  "test",
-						TickId:  tickID, State: grpcapi.TrialState_ENDED,
+						TickId:  tickID, State: cogmentAPI.TrialState_ENDED,
 					}},
 				)
 				assert.NoError(t, err)
@@ -198,7 +198,7 @@ func TestListenToTrialConcurrentTrials(t *testing.T) {
 		defer wg.Done()
 		retrievedSamplesTicks := []uint64{}
 
-		stream, err := fxt.client.RetrieveSamples(fxt.ctx, &grpcapi.RetrieveSamplesRequest{TrialIds: trialIDs})
+		stream, err := fxt.client.RetrieveSamples(fxt.ctx, &cogmentAPI.RetrieveSamplesRequest{TrialIds: trialIDs})
 		assert.NoError(t, err)
 
 		for {
@@ -238,9 +238,9 @@ func TestListenToTrialConcurrentTrials(t *testing.T) {
 func createTrials(t *testing.T, fxt *trialDatastoreServerTestFixture, trialCount int) {
 	for i := 0; i < trialCount; i++ {
 		ctx := metadata.AppendToOutgoingContext(fxt.ctx, "trial-id", fmt.Sprintf("trial%d", i))
-		_, err := fxt.client.AddTrial(ctx, &grpcapi.AddTrialRequest{
+		_, err := fxt.client.AddTrial(ctx, &cogmentAPI.AddTrialRequest{
 			UserId: "test",
-			TrialParams: &grpcapi.TrialParams{
+			TrialParams: &cogmentAPI.TrialParams{
 				MaxSteps: uint32(10 * (i + 1)),
 			},
 		})
@@ -257,13 +257,13 @@ func TestAddAndListTrials(t *testing.T) {
 	createTrials(t, &fxt, 10)
 
 	// Retrieve everything in one page
-	rep, err := fxt.client.RetrieveTrials(fxt.ctx, &grpcapi.RetrieveTrialsRequest{})
+	rep, err := fxt.client.RetrieveTrials(fxt.ctx, &cogmentAPI.RetrieveTrialsRequest{})
 	assert.NoError(t, err)
 
 	assert.Len(t, rep.TrialInfos, 10)
 	for i := 0; i < 10; i++ {
 		assert.Equal(t, fmt.Sprintf("trial%d", i), rep.TrialInfos[i].TrialId)
-		assert.Equal(t, grpcapi.TrialState_UNKNOWN, rep.TrialInfos[i].LastState)
+		assert.Equal(t, cogmentAPI.TrialState_UNKNOWN, rep.TrialInfos[i].LastState)
 		assert.Equal(t, "test", rep.TrialInfos[i].UserId)
 	}
 
@@ -277,13 +277,13 @@ func TestAddAndListTrialsPaginated(t *testing.T) {
 
 	createTrials(t, &fxt, 10)
 
-	rep, err := fxt.client.RetrieveTrials(fxt.ctx, &grpcapi.RetrieveTrialsRequest{TrialsCount: 5})
+	rep, err := fxt.client.RetrieveTrials(fxt.ctx, &cogmentAPI.RetrieveTrialsRequest{TrialsCount: 5})
 	assert.NoError(t, err)
 
 	assert.Len(t, rep.TrialInfos, 5)
 	for i := 0; i < 5; i++ {
 		assert.Equal(t, fmt.Sprintf("trial%d", i), rep.TrialInfos[i].TrialId)
-		assert.Equal(t, grpcapi.TrialState_UNKNOWN, rep.TrialInfos[i].LastState)
+		assert.Equal(t, cogmentAPI.TrialState_UNKNOWN, rep.TrialInfos[i].LastState)
 		assert.Equal(t, "test", rep.TrialInfos[i].UserId)
 	}
 
@@ -291,14 +291,14 @@ func TestAddAndListTrialsPaginated(t *testing.T) {
 
 	rep, err = fxt.client.RetrieveTrials(
 		fxt.ctx,
-		&grpcapi.RetrieveTrialsRequest{TrialsCount: 5, TrialHandle: rep.NextTrialHandle},
+		&cogmentAPI.RetrieveTrialsRequest{TrialsCount: 5, TrialHandle: rep.NextTrialHandle},
 	)
 	assert.NoError(t, err)
 
 	assert.Len(t, rep.TrialInfos, 5)
 	for i := 0; i < 5; i++ {
 		assert.Equal(t, fmt.Sprintf("trial%d", i+5), rep.TrialInfos[i].TrialId)
-		assert.Equal(t, grpcapi.TrialState_UNKNOWN, rep.TrialInfos[i].LastState)
+		assert.Equal(t, cogmentAPI.TrialState_UNKNOWN, rep.TrialInfos[i].LastState)
 		assert.Equal(t, "test", rep.TrialInfos[i].UserId)
 	}
 
@@ -316,13 +316,13 @@ func TestAddAndListTrialsPaginatedWithTimeout(t *testing.T) {
 		createTrials(t, &fxt, 10)
 	}()
 
-	rep, err := fxt.client.RetrieveTrials(fxt.ctx, &grpcapi.RetrieveTrialsRequest{TrialsCount: 5, Timeout: 1000})
+	rep, err := fxt.client.RetrieveTrials(fxt.ctx, &cogmentAPI.RetrieveTrialsRequest{TrialsCount: 5, Timeout: 1000})
 	assert.NoError(t, err)
 
 	assert.Len(t, rep.TrialInfos, 5)
 	for i := 0; i < 5; i++ {
 		assert.Equal(t, fmt.Sprintf("trial%d", i), rep.TrialInfos[i].TrialId)
-		assert.Equal(t, grpcapi.TrialState_UNKNOWN, rep.TrialInfos[i].LastState)
+		assert.Equal(t, cogmentAPI.TrialState_UNKNOWN, rep.TrialInfos[i].LastState)
 		assert.Equal(t, "test", rep.TrialInfos[i].UserId)
 	}
 
@@ -330,14 +330,14 @@ func TestAddAndListTrialsPaginatedWithTimeout(t *testing.T) {
 
 	rep, err = fxt.client.RetrieveTrials(
 		fxt.ctx,
-		&grpcapi.RetrieveTrialsRequest{TrialsCount: 5, TrialHandle: rep.NextTrialHandle, Timeout: 1000},
+		&cogmentAPI.RetrieveTrialsRequest{TrialsCount: 5, TrialHandle: rep.NextTrialHandle, Timeout: 1000},
 	)
 	assert.NoError(t, err)
 
 	assert.Len(t, rep.TrialInfos, 5)
 	for i := 0; i < 5; i++ {
 		assert.Equal(t, fmt.Sprintf("trial%d", i+5), rep.TrialInfos[i].TrialId)
-		assert.Equal(t, grpcapi.TrialState_UNKNOWN, rep.TrialInfos[i].LastState)
+		assert.Equal(t, cogmentAPI.TrialState_UNKNOWN, rep.TrialInfos[i].LastState)
 		assert.Equal(t, "test", rep.TrialInfos[i].UserId)
 	}
 
@@ -356,14 +356,14 @@ func TestAddAndListTrialsSelectedAndPaginated(t *testing.T) {
 	expectedTrialIds := []string{"trial0", "trial2", "trial3", "trial5", "trial9"}
 	rep, err := fxt.client.RetrieveTrials(
 		fxt.ctx,
-		&grpcapi.RetrieveTrialsRequest{TrialIds: selectedTrialIds, TrialsCount: 3},
+		&cogmentAPI.RetrieveTrialsRequest{TrialIds: selectedTrialIds, TrialsCount: 3},
 	)
 	assert.NoError(t, err)
 
 	assert.Len(t, rep.TrialInfos, 3)
 	for i := 0; i < 3; i++ {
 		assert.Equal(t, expectedTrialIds[i], rep.TrialInfos[i].TrialId)
-		assert.Equal(t, grpcapi.TrialState_UNKNOWN, rep.TrialInfos[i].LastState)
+		assert.Equal(t, cogmentAPI.TrialState_UNKNOWN, rep.TrialInfos[i].LastState)
 		assert.Equal(t, "test", rep.TrialInfos[i].UserId)
 	}
 
@@ -371,14 +371,14 @@ func TestAddAndListTrialsSelectedAndPaginated(t *testing.T) {
 
 	rep, err = fxt.client.RetrieveTrials(
 		fxt.ctx,
-		&grpcapi.RetrieveTrialsRequest{TrialIds: selectedTrialIds, TrialsCount: 3, TrialHandle: rep.NextTrialHandle},
+		&cogmentAPI.RetrieveTrialsRequest{TrialIds: selectedTrialIds, TrialsCount: 3, TrialHandle: rep.NextTrialHandle},
 	)
 	assert.NoError(t, err)
 
 	assert.Len(t, rep.TrialInfos, 2)
 	for i := 0; i < 2; i++ {
 		assert.Equal(t, expectedTrialIds[i+3], rep.TrialInfos[i].TrialId)
-		assert.Equal(t, grpcapi.TrialState_UNKNOWN, rep.TrialInfos[i].LastState)
+		assert.Equal(t, cogmentAPI.TrialState_UNKNOWN, rep.TrialInfos[i].LastState)
 		assert.Equal(t, "test", rep.TrialInfos[i].UserId)
 	}
 
@@ -403,14 +403,14 @@ func TestAddAndListTrialsSelectedAndPaginatedAsync(t *testing.T) {
 	expectedTrialIds := []string{"trial0", "trial2", "trial3", "trial5", "trial9"}
 	rep, err := fxt.client.RetrieveTrials(
 		fxt.ctx,
-		&grpcapi.RetrieveTrialsRequest{TrialIds: selectedTrialIds, TrialsCount: 3, Timeout: 1000},
+		&cogmentAPI.RetrieveTrialsRequest{TrialIds: selectedTrialIds, TrialsCount: 3, Timeout: 1000},
 	)
 	assert.NoError(t, err)
 
 	assert.Len(t, rep.TrialInfos, 3)
 	for i := 0; i < 3; i++ {
 		assert.Equal(t, expectedTrialIds[i], rep.TrialInfos[i].TrialId)
-		assert.Equal(t, grpcapi.TrialState_UNKNOWN, rep.TrialInfos[i].LastState)
+		assert.Equal(t, cogmentAPI.TrialState_UNKNOWN, rep.TrialInfos[i].LastState)
 		assert.Equal(t, "test", rep.TrialInfos[i].UserId)
 	}
 
@@ -418,7 +418,7 @@ func TestAddAndListTrialsSelectedAndPaginatedAsync(t *testing.T) {
 
 	rep, err = fxt.client.RetrieveTrials(
 		fxt.ctx,
-		&grpcapi.RetrieveTrialsRequest{
+		&cogmentAPI.RetrieveTrialsRequest{
 			TrialIds:    selectedTrialIds,
 			TrialsCount: 3,
 			TrialHandle: rep.NextTrialHandle,
@@ -430,7 +430,7 @@ func TestAddAndListTrialsSelectedAndPaginatedAsync(t *testing.T) {
 	assert.Len(t, rep.TrialInfos, 2)
 	for i := 0; i < 2; i++ {
 		assert.Equal(t, expectedTrialIds[i+3], rep.TrialInfos[i].TrialId)
-		assert.Equal(t, grpcapi.TrialState_UNKNOWN, rep.TrialInfos[i].LastState)
+		assert.Equal(t, cogmentAPI.TrialState_UNKNOWN, rep.TrialInfos[i].LastState)
 		assert.Equal(t, "test", rep.TrialInfos[i].UserId)
 	}
 
@@ -450,8 +450,9 @@ func TestAddSamplesSimple(t *testing.T) {
 		ctx := metadata.AppendToOutgoingContext(fxt.ctx, "trial-id", "trial0")
 		stream, err := fxt.client.AddSample(ctx)
 		assert.NoError(t, err)
-		err = stream.Send(&grpcapi.AddSampleRequest{
-			TrialSample: &grpcapi.StoredTrialSample{TrialId: "trial0", UserId: "my_user", State: grpcapi.TrialState_RUNNING},
+		err = stream.Send(&cogmentAPI.AddSampleRequest{
+			TrialSample: &cogmentAPI.StoredTrialSample{TrialId: "trial0", UserId: "my_user",
+				State: cogmentAPI.TrialState_RUNNING},
 		})
 		assert.NoError(t, err)
 		_, err = stream.CloseAndRecv()
@@ -462,8 +463,8 @@ func TestAddSamplesSimple(t *testing.T) {
 		ctx := metadata.AppendToOutgoingContext(fxt.ctx, "trial-id", "trial0")
 		stream, err := fxt.client.AddSample(ctx)
 		assert.NoError(t, err)
-		err = stream.Send(&grpcapi.AddSampleRequest{
-			TrialSample: &grpcapi.StoredTrialSample{UserId: "my_user", State: grpcapi.TrialState_RUNNING},
+		err = stream.Send(&cogmentAPI.AddSampleRequest{
+			TrialSample: &cogmentAPI.StoredTrialSample{UserId: "my_user", State: cogmentAPI.TrialState_RUNNING},
 		})
 		assert.NoError(t, err)
 		_, err = stream.CloseAndRecv()
@@ -481,8 +482,8 @@ func TestAddSamplesInconsistentTrialId(t *testing.T) {
 	ctx := metadata.AppendToOutgoingContext(fxt.ctx, "trial-id", "trial0")
 	stream, err := fxt.client.AddSample(ctx)
 	assert.NoError(t, err)
-	err = stream.Send(&grpcapi.AddSampleRequest{
-		TrialSample: &grpcapi.StoredTrialSample{TrialId: "foo", UserId: "my_user", State: grpcapi.TrialState_RUNNING},
+	err = stream.Send(&cogmentAPI.AddSampleRequest{
+		TrialSample: &cogmentAPI.StoredTrialSample{TrialId: "foo", UserId: "my_user", State: cogmentAPI.TrialState_RUNNING},
 	})
 	assert.NoError(t, err)
 	_, err = stream.CloseAndRecv()
@@ -512,20 +513,20 @@ func TestAddAndRetrieveSamplesConcurrent(t *testing.T) {
 			assert.NoError(t, err)
 
 			for i := 0; i < 1000; i++ {
-				err = stream.Send(&grpcapi.AddSampleRequest{
-					TrialSample: &grpcapi.StoredTrialSample{
+				err = stream.Send(&cogmentAPI.AddSampleRequest{
+					TrialSample: &cogmentAPI.StoredTrialSample{
 						UserId: "my_user",
-						State:  grpcapi.TrialState_RUNNING,
+						State:  cogmentAPI.TrialState_RUNNING,
 						TickId: uint64(i),
 					},
 				})
 				assert.NoError(t, err)
 			}
 
-			err = stream.Send(&grpcapi.AddSampleRequest{
-				TrialSample: &grpcapi.StoredTrialSample{
+			err = stream.Send(&cogmentAPI.AddSampleRequest{
+				TrialSample: &cogmentAPI.StoredTrialSample{
 					UserId: "my_user",
-					State:  grpcapi.TrialState_ENDED,
+					State:  cogmentAPI.TrialState_ENDED,
 					TickId: uint64(1000),
 				},
 			})
@@ -543,7 +544,7 @@ func TestAddAndRetrieveSamplesConcurrent(t *testing.T) {
 
 			stream, err := fxt.client.RetrieveSamples(
 				fxt.ctx,
-				&grpcapi.RetrieveSamplesRequest{TrialIds: []string{"trial0", "trial1"}},
+				&cogmentAPI.RetrieveSamplesRequest{TrialIds: []string{"trial0", "trial1"}},
 			)
 			assert.NoError(t, err)
 
@@ -588,14 +589,14 @@ func TestDeleteTrials(t *testing.T) {
 		expectedTrialIds := []string{"trial0", "trial2", "trial3", "trial5", "trial9"}
 		rep, err := fxt.client.RetrieveTrials(
 			fxt.ctx,
-			&grpcapi.RetrieveTrialsRequest{TrialIds: selectedTrialIds, Timeout: 500},
+			&cogmentAPI.RetrieveTrialsRequest{TrialIds: selectedTrialIds, Timeout: 500},
 		)
 		assert.NoError(t, err)
 		assert.Equal(t, rep.NextTrialHandle, "10")
 		assert.Len(t, rep.TrialInfos, len(expectedTrialIds))
 		for i, trialInfo := range rep.TrialInfos {
 			assert.Equal(t, expectedTrialIds[i], trialInfo.TrialId)
-			assert.Equal(t, grpcapi.TrialState_UNKNOWN, trialInfo.LastState)
+			assert.Equal(t, cogmentAPI.TrialState_UNKNOWN, trialInfo.LastState)
 			assert.Equal(t, "test", trialInfo.UserId)
 		}
 	}
@@ -604,7 +605,7 @@ func TestDeleteTrials(t *testing.T) {
 		// Delete a few trials
 		_, err = fxt.client.DeleteTrials(
 			fxt.ctx,
-			&grpcapi.DeleteTrialsRequest{TrialIds: []string{"trial2", "trial3", "trial4"}},
+			&cogmentAPI.DeleteTrialsRequest{TrialIds: []string{"trial2", "trial3", "trial4"}},
 		)
 		assert.NoError(t, err)
 	}
@@ -614,14 +615,14 @@ func TestDeleteTrials(t *testing.T) {
 		expectedTrialIds := []string{"trial0", "trial5", "trial9"}
 		rep, err := fxt.client.RetrieveTrials(
 			fxt.ctx,
-			&grpcapi.RetrieveTrialsRequest{TrialIds: selectedTrialIds, Timeout: 500},
+			&cogmentAPI.RetrieveTrialsRequest{TrialIds: selectedTrialIds, Timeout: 500},
 		)
 		assert.NoError(t, err)
 		assert.Equal(t, rep.NextTrialHandle, "10")
 		assert.Len(t, rep.TrialInfos, len(expectedTrialIds))
 		for i, trialInfo := range rep.TrialInfos {
 			assert.Equal(t, expectedTrialIds[i], trialInfo.TrialId)
-			assert.Equal(t, grpcapi.TrialState_UNKNOWN, trialInfo.LastState)
+			assert.Equal(t, cogmentAPI.TrialState_UNKNOWN, trialInfo.LastState)
 			assert.Equal(t, "test", trialInfo.UserId)
 		}
 	})
@@ -631,14 +632,14 @@ func TestDeleteTrials(t *testing.T) {
 		expectedTrialIds := []string{"trial0", "trial5", "trial9"}
 		rep, err := fxt.client.RetrieveTrials(
 			fxt.ctx,
-			&grpcapi.RetrieveTrialsRequest{TrialIds: selectedTrialIds},
+			&cogmentAPI.RetrieveTrialsRequest{TrialIds: selectedTrialIds},
 		)
 		assert.NoError(t, err)
 		assert.Equal(t, rep.NextTrialHandle, "10")
 		assert.Len(t, rep.TrialInfos, len(expectedTrialIds))
 		for i, trialInfo := range rep.TrialInfos {
 			assert.Equal(t, expectedTrialIds[i], trialInfo.TrialId)
-			assert.Equal(t, grpcapi.TrialState_UNKNOWN, trialInfo.LastState)
+			assert.Equal(t, cogmentAPI.TrialState_UNKNOWN, trialInfo.LastState)
 			assert.Equal(t, "test", trialInfo.UserId)
 		}
 	})
@@ -647,8 +648,9 @@ func TestDeleteTrials(t *testing.T) {
 		ctx := metadata.AppendToOutgoingContext(fxt.ctx, "trial-id", "trial3")
 		stream, err := fxt.client.AddSample(ctx)
 		assert.NoError(t, err)
-		err = stream.Send(&grpcapi.AddSampleRequest{
-			TrialSample: &grpcapi.StoredTrialSample{TrialId: "foo", UserId: "my_user", State: grpcapi.TrialState_RUNNING},
+		err = stream.Send(&cogmentAPI.AddSampleRequest{
+			TrialSample: &cogmentAPI.StoredTrialSample{TrialId: "foo", UserId: "my_user",
+				State: cogmentAPI.TrialState_RUNNING},
 		})
 		assert.NoError(t, err)
 		_, err = stream.CloseAndRecv()

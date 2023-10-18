@@ -25,19 +25,19 @@ import (
 	"github.com/openlyinc/pointy"
 	"github.com/stretchr/testify/assert"
 
-	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/services/datastore/backend"
 )
 
 var nextTickID uint64 // = 0
 
-func generateTrialParams(actorCount int, maxSteps uint32) *grpcapi.TrialParams {
-	params := &grpcapi.TrialParams{
-		Actors:   make([]*grpcapi.ActorParams, actorCount),
+func generateTrialParams(actorCount int, maxSteps uint32) *cogmentAPI.TrialParams {
+	params := &cogmentAPI.TrialParams{
+		Actors:   make([]*cogmentAPI.ActorParams, actorCount),
 		MaxSteps: maxSteps,
 	}
 	for actorIdx := range params.Actors {
-		actorParams := &grpcapi.ActorParams{}
+		actorParams := &cogmentAPI.ActorParams{}
 		actorParams.Name = fmt.Sprintf("actor-%d", actorIdx)
 		params.Actors[actorIdx] = actorParams
 	}
@@ -48,7 +48,7 @@ func generateTrialParamsWithProperties(
 	actorCount int,
 	maxSteps uint32,
 	properties map[string]string,
-) *grpcapi.TrialParams {
+) *cogmentAPI.TrialParams {
 	params := generateTrialParams(actorCount, maxSteps)
 	params.Properties = properties
 	return params
@@ -72,10 +72,10 @@ func makePayloads(payloadSize int, payloadCount int) [][]byte {
 	return payloads
 }
 
-func makeActorSamples(actorCount int, actorPayloadSize int) []*grpcapi.StoredTrialActorSample {
-	actorSamples := make([]*grpcapi.StoredTrialActorSample, actorCount)
+func makeActorSamples(actorCount int, actorPayloadSize int) []*cogmentAPI.StoredTrialActorSample {
+	actorSamples := make([]*cogmentAPI.StoredTrialActorSample, actorCount)
 	for i := range actorSamples {
-		actorSample := &grpcapi.StoredTrialActorSample{}
+		actorSample := &cogmentAPI.StoredTrialActorSample{}
 		actorSample.Actor = uint32(i)
 		actorSample.Observation = pointy.Uint32(uint32(i % actorPayloadSize))
 		actorSample.Action = pointy.Uint32(uint32(i % actorPayloadSize))
@@ -84,17 +84,17 @@ func makeActorSamples(actorCount int, actorPayloadSize int) []*grpcapi.StoredTri
 	return actorSamples
 }
 
-func generateSample(trialID string, actorCount int, actorPayloadSize int, end bool) *grpcapi.StoredTrialSample {
-	sample := &grpcapi.StoredTrialSample{
+func generateSample(trialID string, actorCount int, actorPayloadSize int, end bool) *cogmentAPI.StoredTrialSample {
+	sample := &cogmentAPI.StoredTrialSample{
 		TrialId:      trialID,
 		TickId:       nextTickID,
 		Timestamp:    uint64(time.Now().Unix()),
-		State:        grpcapi.TrialState_RUNNING,
+		State:        cogmentAPI.TrialState_RUNNING,
 		ActorSamples: makeActorSamples(actorCount, actorPayloadSize),
 		Payloads:     makePayloads(actorCount, actorPayloadSize),
 	}
 	if end {
-		sample.State = grpcapi.TrialState_ENDED
+		sample.State = cogmentAPI.TrialState_ENDED
 	}
 	nextTickID++
 	return sample
@@ -143,13 +143,13 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 			assert.ElementsMatch(t, r.TrialInfos, []*backend.TrialInfo{
 				{
 					TrialID:            "trial-1",
-					State:              grpcapi.TrialState_UNKNOWN,
+					State:              cogmentAPI.TrialState_UNKNOWN,
 					SamplesCount:       0,
 					StoredSamplesCount: 0,
 				},
 				{
 					TrialID:            "trial-2",
-					State:              grpcapi.TrialState_UNKNOWN,
+					State:              cogmentAPI.TrialState_UNKNOWN,
 					SamplesCount:       0,
 					StoredSamplesCount: 0,
 				},
@@ -179,19 +179,19 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 			assert.ElementsMatch(t, r.TrialInfos, []*backend.TrialInfo{
 				{
 					TrialID:            "trial-1",
-					State:              grpcapi.TrialState_UNKNOWN,
+					State:              cogmentAPI.TrialState_UNKNOWN,
 					SamplesCount:       0,
 					StoredSamplesCount: 0,
 				},
 				{
 					TrialID:            "trial-2",
-					State:              grpcapi.TrialState_UNKNOWN,
+					State:              cogmentAPI.TrialState_UNKNOWN,
 					SamplesCount:       0,
 					StoredSamplesCount: 0,
 				},
 				{
 					TrialID:            "trial-3",
-					State:              grpcapi.TrialState_UNKNOWN,
+					State:              cogmentAPI.TrialState_UNKNOWN,
 					SamplesCount:       0,
 					StoredSamplesCount: 0,
 				},
@@ -207,13 +207,13 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 			assert.ElementsMatch(t, r1.TrialInfos, []*backend.TrialInfo{
 				{
 					TrialID:            "trial-1",
-					State:              grpcapi.TrialState_UNKNOWN,
+					State:              cogmentAPI.TrialState_UNKNOWN,
 					SamplesCount:       0,
 					StoredSamplesCount: 0,
 				},
 				{
 					TrialID:            "trial-2",
-					State:              grpcapi.TrialState_UNKNOWN,
+					State:              cogmentAPI.TrialState_UNKNOWN,
 					SamplesCount:       0,
 					StoredSamplesCount: 0,
 				},
@@ -233,7 +233,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 			assert.ElementsMatch(t, r2.TrialInfos, []*backend.TrialInfo{
 				{
 					TrialID:            "trial-3",
-					State:              grpcapi.TrialState_UNKNOWN,
+					State:              cogmentAPI.TrialState_UNKNOWN,
 					SamplesCount:       0,
 					StoredSamplesCount: 0,
 				},
@@ -275,13 +275,13 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 			assert.ElementsMatch(t, r.TrialInfos, []*backend.TrialInfo{
 				{
 					TrialID:            "trial-1",
-					State:              grpcapi.TrialState_UNKNOWN,
+					State:              cogmentAPI.TrialState_UNKNOWN,
 					SamplesCount:       0,
 					StoredSamplesCount: 0,
 				},
 				{
 					TrialID:            "trial-2",
-					State:              grpcapi.TrialState_UNKNOWN,
+					State:              cogmentAPI.TrialState_UNKNOWN,
 					SamplesCount:       0,
 					StoredSamplesCount: 0,
 				},
@@ -301,7 +301,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 			assert.ElementsMatch(t, r.TrialInfos, []*backend.TrialInfo{
 				{
 					TrialID:            "trial-1",
-					State:              grpcapi.TrialState_UNKNOWN,
+					State:              cogmentAPI.TrialState_UNKNOWN,
 					SamplesCount:       0,
 					StoredSamplesCount: 0,
 				},
@@ -321,7 +321,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 			assert.ElementsMatch(t, r.TrialInfos, []*backend.TrialInfo{
 				{
 					TrialID:            "trial-2",
-					State:              grpcapi.TrialState_UNKNOWN,
+					State:              cogmentAPI.TrialState_UNKNOWN,
 					SamplesCount:       0,
 					StoredSamplesCount: 0,
 				},
@@ -729,7 +729,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 		secondSample := generateSample("my-trial", 12, 512, false)
 		err = b.AddSamples(
 			context.Background(),
-			[]*grpcapi.StoredTrialSample{firstSample, secondSample, generateSample("my-trial", 12, 512, false)},
+			[]*cogmentAPI.StoredTrialSample{firstSample, secondSample, generateSample("my-trial", 12, 512, false)},
 		)
 		assert.NoError(t, err)
 
@@ -743,11 +743,11 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 		assert.Len(t, r.TrialInfos, 1)
 
 		assert.Equal(t, "my-trial", r.TrialInfos[0].TrialID)
-		assert.Equal(t, grpcapi.TrialState_RUNNING, r.TrialInfos[0].State)
+		assert.Equal(t, cogmentAPI.TrialState_RUNNING, r.TrialInfos[0].State)
 		assert.Equal(t, 3, r.TrialInfos[0].SamplesCount)
 		assert.Equal(t, 3, r.TrialInfos[0].StoredSamplesCount)
 
-		err = b.AddSamples(context.Background(), []*grpcapi.StoredTrialSample{
+		err = b.AddSamples(context.Background(), []*cogmentAPI.StoredTrialSample{
 			generateSample("my-trial", 12, 512, false),
 			generateSample("my-trial", 12, 512, false),
 		})
@@ -763,7 +763,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 		assert.Len(t, r.TrialInfos, 1)
 
 		assert.Equal(t, "my-trial", r.TrialInfos[0].TrialID)
-		assert.Equal(t, grpcapi.TrialState_RUNNING, r.TrialInfos[0].State)
+		assert.Equal(t, cogmentAPI.TrialState_RUNNING, r.TrialInfos[0].State)
 		assert.Equal(t, 5, r.TrialInfos[0].SamplesCount)
 		assert.Equal(t, 5, r.TrialInfos[0].StoredSamplesCount)
 
@@ -796,7 +796,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 		}})
 		assert.NoError(t, err)
 
-		samples := make([]*grpcapi.StoredTrialSample, 20)
+		samples := make([]*cogmentAPI.StoredTrialSample, 20)
 		for sampleIdx := range samples {
 			samples[sampleIdx] = generateSample("my-trial", 12, 512, sampleIdx == len(samples)-1)
 		}
@@ -832,7 +832,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 
 		for _, sample := range samples {
 			time.Sleep(50 * time.Millisecond)
-			err = b.AddSamples(context.Background(), []*grpcapi.StoredTrialSample{sample})
+			err = b.AddSamples(context.Background(), []*cogmentAPI.StoredTrialSample{sample})
 			assert.NoError(t, err)
 		}
 		wg.Wait()
@@ -901,7 +901,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 		}})
 		assert.NoError(t, err)
 
-		trial1Samples := make([]*grpcapi.StoredTrialSample, 1)
+		trial1Samples := make([]*cogmentAPI.StoredTrialSample, 1)
 		for sampleIdx := range trial1Samples {
 			trial1Samples[sampleIdx] = generateSample("trial-1", 4, 512, sampleIdx == len(trial1Samples)-1)
 		}
@@ -920,7 +920,7 @@ func RunSuite(t *testing.T, createBackend func() backend.Backend, destroyBackend
 		}})
 		assert.NoError(t, err)
 
-		trial2Samples := make([]*grpcapi.StoredTrialSample, 1)
+		trial2Samples := make([]*cogmentAPI.StoredTrialSample, 1)
 		for sampleIdx := range trial2Samples {
 			trial2Samples[sampleIdx] = generateSample("trial-2", 3, 512, sampleIdx == len(trial2Samples)-1)
 		}

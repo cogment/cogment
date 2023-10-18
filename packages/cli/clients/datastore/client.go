@@ -20,7 +20,7 @@ import (
 	"io"
 
 	"github.com/cogment/cogment/clients"
-	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/utils/endpoint"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -48,16 +48,16 @@ func (client *Client) ListTrials(
 	trialsCount uint,
 	fromHandle string,
 	properties map[string]string,
-) (*grpcapi.RetrieveTrialsReply, error) {
+) (*cogmentAPI.RetrieveTrialsReply, error) {
 	connection, err := client.Connect(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer connection.Close()
 
-	spClient := grpcapi.NewTrialDatastoreSPClient(connection)
+	spClient := cogmentAPI.NewTrialDatastoreSPClient(connection)
 
-	req := &grpcapi.RetrieveTrialsRequest{
+	req := &cogmentAPI.RetrieveTrialsRequest{
 		TrialsCount: uint32(trialsCount),
 		TrialHandle: fromHandle,
 		Properties:  properties,
@@ -78,9 +78,9 @@ func (client *Client) DeleteTrials(ctx context.Context, trialIDs []string) error
 	}
 	defer connection.Close()
 
-	spClient := grpcapi.NewTrialDatastoreSPClient(connection)
+	spClient := cogmentAPI.NewTrialDatastoreSPClient(connection)
 
-	req := &grpcapi.DeleteTrialsRequest{
+	req := &cogmentAPI.DeleteTrialsRequest{
 		TrialIds: trialIDs,
 	}
 
@@ -99,10 +99,10 @@ func (client *Client) ExportTrials(ctx context.Context, trialIDs []string, write
 	}
 	defer connection.Close()
 
-	spClient := grpcapi.NewTrialDatastoreSPClient(connection)
+	spClient := cogmentAPI.NewTrialDatastoreSPClient(connection)
 
 	// Request the trial params
-	trialParams := make(map[string]*grpcapi.TrialParams)
+	trialParams := make(map[string]*cogmentAPI.TrialParams)
 	toBeWrittenSamples := make(map[string]uint32)
 	for chunkStartIdx := 0; chunkStartIdx < len(trialIDs); chunkStartIdx += chunkTrialsCount {
 		chunkEndIdx := chunkStartIdx + chunkTrialsCount
@@ -111,7 +111,7 @@ func (client *Client) ExportTrials(ctx context.Context, trialIDs []string, write
 		}
 		trialIDsChunk := trialIDs[chunkStartIdx:chunkEndIdx]
 
-		retrieveTrialsReq := &grpcapi.RetrieveTrialsRequest{
+		retrieveTrialsReq := &cogmentAPI.RetrieveTrialsRequest{
 			TrialIds: trialIDsChunk,
 		}
 
@@ -135,7 +135,7 @@ func (client *Client) ExportTrials(ctx context.Context, trialIDs []string, write
 	}
 
 	// Request the samples
-	retrieveSamplesReq := &grpcapi.RetrieveSamplesRequest{
+	retrieveSamplesReq := &cogmentAPI.RetrieveSamplesRequest{
 		TrialIds: trialIDs,
 	}
 
@@ -201,7 +201,7 @@ func (client *Client) ImportTrials(
 	}
 	defer connection.Close()
 
-	spClient := grpcapi.NewTrialDatastoreSPClient(connection)
+	spClient := cogmentAPI.NewTrialDatastoreSPClient(connection)
 	fileReader := CreateTrialSamplesFileReader(reader)
 
 	prefixedTrialIDs := []string{}
@@ -218,7 +218,7 @@ func (client *Client) ImportTrials(
 	}
 
 	// Check if some trials already exist
-	req := &grpcapi.RetrieveTrialsRequest{
+	req := &cogmentAPI.RetrieveTrialsRequest{
 		TrialIds: prefixedTrialIDs,
 	}
 	rep, err := spClient.RetrieveTrials(ctx, req, grpc.WaitForReady(true))
@@ -269,7 +269,7 @@ func (client *Client) ImportTrials(
 				)
 			}
 			trialAddCtx := metadata.AppendToOutgoingContext(ctx, "trial-id", prefixedTrialID)
-			req := &grpcapi.AddTrialRequest{
+			req := &cogmentAPI.AddTrialRequest{
 				UserId:      userID,
 				TrialParams: trialParams,
 			}
@@ -289,7 +289,7 @@ func (client *Client) ImportTrials(
 		}
 
 		sample.TrialId = ""
-		err = stream.Send(&grpcapi.AddSampleRequest{
+		err = stream.Send(&cogmentAPI.AddSampleRequest{
 			TrialSample: sample,
 		})
 		if err != nil {

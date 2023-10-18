@@ -20,7 +20,7 @@ import (
 	"io"
 	"time"
 
-	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/services/proxy/actor"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -32,7 +32,7 @@ import (
 )
 
 type actorServer struct {
-	grpcapi.UnimplementedServiceActorSPServer
+	cogmentAPI.UnimplementedServiceActorSPServer
 	actorManager *actor.Manager
 }
 
@@ -41,19 +41,19 @@ func RegisterServiceActorServer(grpcServer grpc.ServiceRegistrar, actorManager *
 		actorManager: actorManager,
 	}
 
-	grpcapi.RegisterServiceActorSPServer(grpcServer, server)
+	cogmentAPI.RegisterServiceActorSPServer(grpcServer, server)
 	return nil
 }
 
-func (s *actorServer) Version(context.Context, *grpcapi.VersionRequest) (*grpcapi.VersionInfo, error) {
+func (s *actorServer) Version(context.Context, *cogmentAPI.VersionRequest) (*cogmentAPI.VersionInfo, error) {
 	// TODO: Return proper version info. Current version is minimal to serve a health check for directory.
-	res := &grpcapi.VersionInfo{}
+	res := &cogmentAPI.VersionInfo{}
 	return res, nil
 }
 
 // gRPC interface
-func (s *actorServer) Status(_ context.Context, request *grpcapi.StatusRequest) (*grpcapi.StatusReply, error) {
-	reply := grpcapi.StatusReply{}
+func (s *actorServer) Status(_ context.Context, request *cogmentAPI.StatusRequest) (*cogmentAPI.StatusReply, error) {
+	reply := cogmentAPI.StatusReply{}
 
 	if len(request.Names) == 0 {
 		return &reply, nil
@@ -77,7 +77,7 @@ func (s *actorServer) Status(_ context.Context, request *grpcapi.StatusRequest) 
 	return &reply, nil
 }
 
-func (s *actorServer) RunTrial(stream grpcapi.ServiceActorSP_RunTrialServer) error {
+func (s *actorServer) RunTrial(stream cogmentAPI.ServiceActorSP_RunTrialServer) error {
 	ctx := stream.Context()
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
@@ -105,21 +105,21 @@ func (s *actorServer) RunTrial(stream grpcapi.ServiceActorSP_RunTrialServer) err
 			return err
 		}
 		switch in.State {
-		case grpcapi.CommunicationState_HEARTBEAT:
+		case cogmentAPI.CommunicationState_HEARTBEAT:
 			log.Trace("Received 'HEARTBEAT' and responding in kind")
-			err := stream.Send(&grpcapi.ActorRunTrialOutput{State: grpcapi.CommunicationState_HEARTBEAT})
+			err := stream.Send(&cogmentAPI.ActorRunTrialOutput{State: cogmentAPI.CommunicationState_HEARTBEAT})
 			if err != nil {
 				return err
 			}
-		case grpcapi.CommunicationState_LAST:
+		case cogmentAPI.CommunicationState_LAST:
 			log.Trace("Received 'LAST' state")
-			err := stream.Send(&grpcapi.ActorRunTrialOutput{State: grpcapi.CommunicationState_LAST_ACK})
+			err := stream.Send(&cogmentAPI.ActorRunTrialOutput{State: cogmentAPI.CommunicationState_LAST_ACK})
 			if err != nil {
 				return err
 			}
-		case grpcapi.CommunicationState_LAST_ACK:
+		case cogmentAPI.CommunicationState_LAST_ACK:
 			log.Warn("Receiving unexpected 'LAST_ACK' state")
-		case grpcapi.CommunicationState_END:
+		case cogmentAPI.CommunicationState_END:
 			if details := in.GetDetails(); details != "" {
 				log = log.WithField("details", details)
 			}
@@ -142,7 +142,7 @@ func (s *actorServer) RunTrial(stream grpcapi.ServiceActorSP_RunTrialServer) err
 			}
 			// Proper end of the trial
 			return nil
-		case grpcapi.CommunicationState_NORMAL:
+		case cogmentAPI.CommunicationState_NORMAL:
 			if !trialInitialized {
 				log.Debug("Trial initialization")
 				initInput := in.GetInitInput()
@@ -194,9 +194,9 @@ func (s *actorServer) RunTrial(stream grpcapi.ServiceActorSP_RunTrialServer) err
 
 				trialInitialized = true
 
-				err = stream.Send(&grpcapi.ActorRunTrialOutput{
-					State: grpcapi.CommunicationState_NORMAL,
-					Data:  &grpcapi.ActorRunTrialOutput_InitOutput{InitOutput: &grpcapi.ActorInitialOutput{}},
+				err = stream.Send(&cogmentAPI.ActorRunTrialOutput{
+					State: cogmentAPI.CommunicationState_NORMAL,
+					Data:  &cogmentAPI.ActorRunTrialOutput_InitOutput{InitOutput: &cogmentAPI.ActorInitialOutput{}},
 				})
 				if err != nil {
 					return err
@@ -252,15 +252,15 @@ func (s *actorServer) RunTrial(stream grpcapi.ServiceActorSP_RunTrialServer) err
 					)
 				}
 
-				action := grpcapi.Action{
+				action := cogmentAPI.Action{
 					TickId:    int64(sentEvent.TickID),
 					Timestamp: uint64(time.Now().UnixNano()),
 					Content:   serializedAction,
 				}
 
-				err = stream.Send(&grpcapi.ActorRunTrialOutput{
-					State: grpcapi.CommunicationState_NORMAL,
-					Data:  &grpcapi.ActorRunTrialOutput_Action{Action: &action},
+				err = stream.Send(&cogmentAPI.ActorRunTrialOutput{
+					State: cogmentAPI.CommunicationState_NORMAL,
+					Data:  &cogmentAPI.ActorRunTrialOutput_Action{Action: &action},
 				})
 				if err != nil {
 					return err
@@ -271,7 +271,7 @@ func (s *actorServer) RunTrial(stream grpcapi.ServiceActorSP_RunTrialServer) err
 						"tick_id":  sentReward.TickID,
 						"receiver": sentReward.Receiver,
 					}).Trace("Send reward")
-					rewardSource := &grpcapi.RewardSource{
+					rewardSource := &cogmentAPI.RewardSource{
 						SenderName: actorName,
 						Value:      sentReward.Value,
 						Confidence: sentReward.Confidence,
@@ -287,14 +287,14 @@ func (s *actorServer) RunTrial(stream grpcapi.ServiceActorSP_RunTrialServer) err
 						}
 						rewardSource.UserData = userDataAnyPb
 					}
-					reward := &grpcapi.Reward{
+					reward := &cogmentAPI.Reward{
 						TickId:       sentReward.TickID,
 						ReceiverName: sentReward.Receiver,
-						Sources:      []*grpcapi.RewardSource{rewardSource},
+						Sources:      []*cogmentAPI.RewardSource{rewardSource},
 					}
-					err = stream.Send(&grpcapi.ActorRunTrialOutput{
-						State: grpcapi.CommunicationState_NORMAL,
-						Data:  &grpcapi.ActorRunTrialOutput_Reward{Reward: reward},
+					err = stream.Send(&cogmentAPI.ActorRunTrialOutput{
+						State: cogmentAPI.CommunicationState_NORMAL,
+						Data:  &cogmentAPI.ActorRunTrialOutput_Reward{Reward: reward},
 					})
 					if err != nil {
 						return err

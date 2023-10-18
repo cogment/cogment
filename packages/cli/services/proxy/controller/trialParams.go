@@ -17,14 +17,14 @@ package controller
 import (
 	"encoding/json"
 
-	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/services/proxy/trialspec"
 	"github.com/cogment/cogment/utils/endpoint"
 )
 
-// Wrapper around `grpcapi.TrialParams` to provide full JSON serialization/deserialization
+// Wrapper around `cogmentAPI.TrialParams` to provide full JSON serialization/deserialization
 type TrialParams struct {
-	*grpcapi.TrialParams
+	*cogmentAPI.TrialParams
 	spec *trialspec.Manager
 }
 
@@ -32,7 +32,7 @@ func NewTrialParams(
 	spec *trialspec.Manager,
 ) *TrialParams {
 	return &TrialParams{
-		TrialParams: &grpcapi.TrialParams{},
+		TrialParams: &cogmentAPI.TrialParams{},
 		spec:        spec,
 	}
 }
@@ -95,11 +95,11 @@ func (trialParams *TrialParams) UnmarshalJSON(b []byte) error {
 			return err
 		}
 
-		trialParams.TrialConfig = &grpcapi.SerializedMessage{
+		trialParams.TrialConfig = &cogmentAPI.SerializedMessage{
 			Content: serializedTrialConfig,
 		}
 	} else {
-		trialParams.TrialConfig = &grpcapi.SerializedMessage{}
+		trialParams.TrialConfig = &cogmentAPI.SerializedMessage{}
 	}
 	trialParams.Properties = rawTrial.Properties
 	trialParams.MaxSteps = rawTrial.MaxSteps
@@ -107,13 +107,13 @@ func (trialParams *TrialParams) UnmarshalJSON(b []byte) error {
 	trialParams.NbBufferedTicks = rawTrial.NbBufferedTicks
 
 	if rawTrial.Datalog.Endpoint.IsValid() {
-		trialParams.Datalog = &grpcapi.DatalogParams{
+		trialParams.Datalog = &cogmentAPI.DatalogParams{
 			Endpoint:      rawTrial.Datalog.Endpoint.MarshalString(),
 			ExcludeFields: rawTrial.Datalog.ExcludeFields,
 		}
 	}
 
-	trialParams.Environment = &grpcapi.EnvironmentParams{}
+	trialParams.Environment = &cogmentAPI.EnvironmentParams{}
 
 	environmentConfig, err := trialParams.spec.NewEnvironmentConfig()
 	if err != nil {
@@ -131,7 +131,7 @@ func (trialParams *TrialParams) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
-	trialParams.Environment.Config = &grpcapi.SerializedMessage{
+	trialParams.Environment.Config = &cogmentAPI.SerializedMessage{
 		Content: serializedEnvironmentConfig,
 	}
 
@@ -139,9 +139,9 @@ func (trialParams *TrialParams) UnmarshalJSON(b []byte) error {
 	trialParams.Environment.Endpoint = rawTrial.Environment.Endpoint.MarshalString()
 	trialParams.Environment.Implementation = rawTrial.Environment.Implementation
 
-	trialParams.Actors = make([]*grpcapi.ActorParams, 0)
+	trialParams.Actors = make([]*cogmentAPI.ActorParams, 0)
 	for _, rawActor := range rawTrial.Actors {
-		actor := &grpcapi.ActorParams{}
+		actor := &cogmentAPI.ActorParams{}
 
 		actorConfig, err := trialParams.spec.NewActorConfig(rawActor.ActorClass)
 		if err != nil {
@@ -161,11 +161,11 @@ func (trialParams *TrialParams) UnmarshalJSON(b []byte) error {
 				return err
 			}
 
-			actor.Config = &grpcapi.SerializedMessage{
+			actor.Config = &cogmentAPI.SerializedMessage{
 				Content: serializedActorConfig,
 			}
 		} else {
-			actor.Config = &grpcapi.SerializedMessage{}
+			actor.Config = &cogmentAPI.SerializedMessage{}
 		}
 
 		defaultAction, err := trialParams.spec.NewAction(rawActor.ActorClass)
@@ -184,7 +184,7 @@ func (trialParams *TrialParams) UnmarshalJSON(b []byte) error {
 			return err
 		}
 
-		actor.DefaultAction = &grpcapi.SerializedMessage{
+		actor.DefaultAction = &cogmentAPI.SerializedMessage{
 			Content: serializedDefaultAction,
 		}
 

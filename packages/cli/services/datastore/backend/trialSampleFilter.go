@@ -15,7 +15,7 @@
 package backend
 
 import (
-	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/utils"
 )
 
@@ -25,17 +25,17 @@ type TrialSampleFilter struct {
 	ActorNames           []string
 	ActorClasses         []string
 	ActorImplementations []string
-	Fields               []grpcapi.StoredTrialSampleField
+	Fields               []cogmentAPI.StoredTrialSampleField
 }
 
 // AppliedTrialSampleFilter represents a TrialSampleFilter applied to a particular trial
 type AppliedTrialSampleFilter struct {
-	trialParams  *grpcapi.TrialParams
+	trialParams  *cogmentAPI.TrialParams
 	actorsFilter *arrayFilter
 	fieldsFilter *arrayFilter
 }
 
-func newActorsFilter(filter TrialSampleFilter, trialParams *grpcapi.TrialParams) *arrayFilter {
+func newActorsFilter(filter TrialSampleFilter, trialParams *cogmentAPI.TrialParams) *arrayFilter {
 
 	actorNamesFilter := utils.NewIDFilter(filter.ActorNames)
 	actorClassesFilter := utils.NewIDFilter(filter.ActorClasses)
@@ -68,8 +68,8 @@ func newActorsFilter(filter TrialSampleFilter, trialParams *grpcapi.TrialParams)
 	return actorsFilter
 }
 
-func newFieldsFilter(fields []grpcapi.StoredTrialSampleField) *arrayFilter {
-	fieldsFilter := newArrayFilter(len(grpcapi.StoredTrialSampleField_value))
+func newFieldsFilter(fields []cogmentAPI.StoredTrialSampleField) *arrayFilter {
+	fieldsFilter := newArrayFilter(len(cogmentAPI.StoredTrialSampleField_value))
 
 	if len(fields) == 0 {
 		fieldsFilter.setAll(true)
@@ -77,14 +77,15 @@ func newFieldsFilter(fields []grpcapi.StoredTrialSampleField) *arrayFilter {
 	}
 	fieldsFilter.setAll(false)
 	for _, field := range fields {
-		if field != grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_UNKNOWN {
+		if field != cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_UNKNOWN {
 			fieldsFilter.set(int(field), true)
 		}
 	}
 	return fieldsFilter
 }
 
-func NewAppliedTrialSampleFilter(filter TrialSampleFilter, trialParams *grpcapi.TrialParams) *AppliedTrialSampleFilter {
+func NewAppliedTrialSampleFilter(filter TrialSampleFilter, trialParams *cogmentAPI.TrialParams,
+) *AppliedTrialSampleFilter {
 	return &AppliedTrialSampleFilter{
 		trialParams:  trialParams,
 		actorsFilter: newActorsFilter(filter, trialParams),
@@ -96,49 +97,50 @@ func (filter *AppliedTrialSampleFilter) SelectsAll() bool {
 	return filter.actorsFilter.selectsAll() && filter.fieldsFilter.selectsAll()
 }
 
-func (filter *AppliedTrialSampleFilter) Filter(sample *grpcapi.StoredTrialSample) *grpcapi.StoredTrialSample {
+func (filter *AppliedTrialSampleFilter) Filter(sample *cogmentAPI.StoredTrialSample) *cogmentAPI.StoredTrialSample {
 	if filter.actorsFilter.selectsAll() && filter.fieldsFilter.selectsAll() {
 		return sample
 	}
 
 	// Initialzed filtered sample and copy the unfilterable fields
-	filteredSample := grpcapi.StoredTrialSample{
+	filteredSample := cogmentAPI.StoredTrialSample{
 		UserId:       sample.UserId,
 		TrialId:      sample.TrialId,
 		TickId:       sample.TickId,
 		Timestamp:    sample.Timestamp,
 		State:        sample.State,
-		ActorSamples: make([]*grpcapi.StoredTrialActorSample, 0, len(sample.ActorSamples)),
+		ActorSamples: make([]*cogmentAPI.StoredTrialActorSample, 0, len(sample.ActorSamples)),
 		Payloads:     make([][]byte, len(sample.Payloads)),
 	}
 
 	// Copy selected fields of selected agents
 	for _, actorSample := range sample.ActorSamples {
 		if filter.actorsFilter.selects(int(actorSample.Actor)) {
-			filteredActorSample := grpcapi.StoredTrialActorSample{
+			filteredActorSample := cogmentAPI.StoredTrialActorSample{
 				Actor:            actorSample.Actor,
-				ReceivedRewards:  make([]*grpcapi.StoredTrialActorSampleReward, 0, len(actorSample.ReceivedRewards)),
-				SentRewards:      make([]*grpcapi.StoredTrialActorSampleReward, 0, len(actorSample.SentRewards)),
-				ReceivedMessages: make([]*grpcapi.StoredTrialActorSampleMessage, 0, len(actorSample.ReceivedMessages)),
-				SentMessages:     make([]*grpcapi.StoredTrialActorSampleMessage, 0, len(actorSample.SentMessages)),
+				ReceivedRewards:  make([]*cogmentAPI.StoredTrialActorSampleReward, 0, len(actorSample.ReceivedRewards)),
+				SentRewards:      make([]*cogmentAPI.StoredTrialActorSampleReward, 0, len(actorSample.SentRewards)),
+				ReceivedMessages: make([]*cogmentAPI.StoredTrialActorSampleMessage, 0, len(actorSample.ReceivedMessages)),
+				SentMessages:     make([]*cogmentAPI.StoredTrialActorSampleMessage, 0, len(actorSample.SentMessages)),
 			}
 			if actorSample.Observation != nil &&
-				filter.fieldsFilter.selects(int(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_OBSERVATION)) {
+				filter.fieldsFilter.selects(int(cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_OBSERVATION)) {
 				filteredActorSample.Observation = actorSample.Observation
 				filteredSample.Payloads[*actorSample.Observation] = sample.Payloads[*actorSample.Observation]
 			}
 
 			if actorSample.Action != nil &&
-				filter.fieldsFilter.selects(int(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_ACTION)) {
+				filter.fieldsFilter.selects(int(cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_ACTION)) {
 				filteredActorSample.Action = actorSample.Action
 				filteredSample.Payloads[*actorSample.Action] = sample.Payloads[*actorSample.Action]
 			}
 
-			if filter.fieldsFilter.selects(int(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_REWARD)) {
+			if filter.fieldsFilter.selects(int(cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_REWARD)) {
 				filteredActorSample.Reward = actorSample.Reward
 			}
 
-			if filter.fieldsFilter.selects(int(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_REWARDS)) {
+			if filter.fieldsFilter.selects(
+				int(cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_REWARDS)) {
 				for _, reward := range actorSample.ReceivedRewards {
 					filteredActorSample.ReceivedRewards = append(filteredActorSample.ReceivedRewards, reward)
 					if reward.UserData != nil {
@@ -147,7 +149,7 @@ func (filter *AppliedTrialSampleFilter) Filter(sample *grpcapi.StoredTrialSample
 				}
 			}
 
-			if filter.fieldsFilter.selects(int(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_REWARDS)) {
+			if filter.fieldsFilter.selects(int(cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_REWARDS)) {
 				for _, reward := range actorSample.SentRewards {
 					filteredActorSample.SentRewards = append(filteredActorSample.SentRewards, reward)
 					if reward.UserData != nil {
@@ -156,14 +158,15 @@ func (filter *AppliedTrialSampleFilter) Filter(sample *grpcapi.StoredTrialSample
 				}
 			}
 
-			if filter.fieldsFilter.selects(int(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_MESSAGES)) {
+			if filter.fieldsFilter.selects(
+				int(cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_MESSAGES)) {
 				for _, message := range actorSample.ReceivedMessages {
 					filteredActorSample.ReceivedMessages = append(filteredActorSample.ReceivedMessages, message)
 					filteredSample.Payloads[message.Payload] = sample.Payloads[message.Payload]
 				}
 			}
 
-			if filter.fieldsFilter.selects(int(grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_MESSAGES)) {
+			if filter.fieldsFilter.selects(int(cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_MESSAGES)) {
 				for _, message := range actorSample.SentMessages {
 					filteredActorSample.SentMessages = append(filteredActorSample.SentMessages, message)
 					filteredSample.Payloads[message.Payload] = sample.Payloads[message.Payload]

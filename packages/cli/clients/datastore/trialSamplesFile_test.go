@@ -20,31 +20,31 @@ import (
 	"testing"
 	"time"
 
-	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/openlyinc/pointy"
 	"github.com/stretchr/testify/assert"
 )
 
-var trialParams *grpcapi.TrialParams = &grpcapi.TrialParams{
-	TrialConfig: &grpcapi.SerializedMessage{
+var trialParams *cogmentAPI.TrialParams = &cogmentAPI.TrialParams{
+	TrialConfig: &cogmentAPI.SerializedMessage{
 		Content: []byte("a trial config"),
 	},
 	MaxSteps:      12,
 	MaxInactivity: 600,
-	Environment: &grpcapi.EnvironmentParams{
+	Environment: &cogmentAPI.EnvironmentParams{
 		Endpoint:       "grpc://environment:9000",
 		Implementation: "my-environment-implementation",
-		Config: &grpcapi.SerializedMessage{
+		Config: &cogmentAPI.SerializedMessage{
 			Content: []byte("an environment config"),
 		},
 	},
-	Actors: []*grpcapi.ActorParams{
+	Actors: []*cogmentAPI.ActorParams{
 		{
 			Name:           "my-actor-1",
 			ActorClass:     "my-actor-class-1",
 			Endpoint:       "grpc://actor:9000",
 			Implementation: "my-actor-implementation",
-			Config: &grpcapi.SerializedMessage{
+			Config: &cogmentAPI.SerializedMessage{
 				Content: []byte("an actor config"),
 			},
 		},
@@ -53,25 +53,25 @@ var trialParams *grpcapi.TrialParams = &grpcapi.TrialParams{
 			ActorClass:     "my-actor-class-2",
 			Endpoint:       "grpc://actor:9000",
 			Implementation: "my-actor-implementation",
-			Config: &grpcapi.SerializedMessage{
+			Config: &cogmentAPI.SerializedMessage{
 				Content: []byte("another actor config"),
 			},
 		},
 	},
 }
 
-var trialSample1 *grpcapi.StoredTrialSample = &grpcapi.StoredTrialSample{
+var trialSample1 *cogmentAPI.StoredTrialSample = &cogmentAPI.StoredTrialSample{
 	UserId:    "my-user-id",
 	TrialId:   "my-trial",
 	TickId:    12,
 	Timestamp: uint64(time.Now().Unix()),
-	ActorSamples: []*grpcapi.StoredTrialActorSample{
+	ActorSamples: []*cogmentAPI.StoredTrialActorSample{
 		{
 			Actor:       0,
 			Observation: pointy.Uint32(0),
 			Action:      pointy.Uint32(1),
 			Reward:      pointy.Float32(0.5),
-			ReceivedRewards: []*grpcapi.StoredTrialActorSampleReward{
+			ReceivedRewards: []*cogmentAPI.StoredTrialActorSampleReward{
 				{
 					Sender:     -1,
 					Reward:     0.5,
@@ -90,7 +90,7 @@ var trialSample1 *grpcapi.StoredTrialSample = &grpcapi.StoredTrialSample{
 			Actor:       1,
 			Observation: pointy.Uint32(0),
 			Action:      pointy.Uint32(3),
-			SentRewards: []*grpcapi.StoredTrialActorSampleReward{
+			SentRewards: []*cogmentAPI.StoredTrialActorSampleReward{
 				{
 					Receiver:   0,
 					Reward:     0.5,
@@ -98,13 +98,13 @@ var trialSample1 *grpcapi.StoredTrialSample = &grpcapi.StoredTrialSample{
 					UserData:   pointy.Uint32(2),
 				},
 			},
-			ReceivedMessages: []*grpcapi.StoredTrialActorSampleMessage{
+			ReceivedMessages: []*cogmentAPI.StoredTrialActorSampleMessage{
 				{
 					Sender:  -1,
 					Payload: 4,
 				},
 			},
-			SentMessages: []*grpcapi.StoredTrialActorSampleMessage{
+			SentMessages: []*cogmentAPI.StoredTrialActorSampleMessage{
 				{
 					Receiver: -1,
 					Payload:  5,
@@ -124,13 +124,13 @@ var trialSample1 *grpcapi.StoredTrialSample = &grpcapi.StoredTrialSample{
 
 func TestReadWriteProtobufMessage(t *testing.T) {
 	var buf bytes.Buffer
-	m := &grpcapi.StoredTrialInfo{TrialId: "foo", LastState: grpcapi.TrialState_PENDING, UserId: "bar"}
+	m := &cogmentAPI.StoredTrialInfo{TrialId: "foo", LastState: cogmentAPI.TrialState_PENDING, UserId: "bar"}
 	n, err := writeProtobufMessage(&buf, m)
 	assert.NoError(t, err)
 	assert.Greater(t, n, 0)
 
 	reader := bytes.NewReader(buf.Bytes())
-	readM := &grpcapi.StoredTrialInfo{}
+	readM := &cogmentAPI.StoredTrialInfo{}
 	err = readProtobufMessage(reader, readM)
 	assert.NoError(t, err)
 
@@ -145,7 +145,7 @@ func TestReadWriteTrialSamplesFile(t *testing.T) {
 
 	assert.Equal(t, fileWriter.Bytes, 0)
 
-	err := fileWriter.WriteHeader(map[string]*grpcapi.TrialParams{
+	err := fileWriter.WriteHeader(map[string]*cogmentAPI.TrialParams{
 		"trial_1": trialParams,
 		"trial_2": trialParams,
 	})

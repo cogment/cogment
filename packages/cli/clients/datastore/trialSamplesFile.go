@@ -20,7 +20,7 @@ import (
 	"io"
 	"time"
 
-	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/utils"
 	"github.com/cogment/cogment/version"
 	"google.golang.org/protobuf/proto"
@@ -51,7 +51,7 @@ func CreateTrialSamplesFileWriter(writer io.Writer) *TrialSamplesFileWriter {
 	}
 }
 
-func (writer *TrialSamplesFileWriter) WriteHeader(trialParams map[string]*grpcapi.TrialParams) error {
+func (writer *TrialSamplesFileWriter) WriteHeader(trialParams map[string]*cogmentAPI.TrialParams) error {
 	if writer.state != expectHeader {
 		return fmt.Errorf("writer not in the expected state")
 	}
@@ -63,9 +63,9 @@ func (writer *TrialSamplesFileWriter) WriteHeader(trialParams map[string]*grpcap
 		return err
 	}
 
-	header := &grpcapi.TrialSamplesFileHeader{
-		VersionInfo: &grpcapi.VersionInfo{
-			Versions: []*grpcapi.VersionInfo_Version{
+	header := &cogmentAPI.TrialSamplesFileHeader{
+		VersionInfo: &cogmentAPI.VersionInfo{
+			Versions: []*cogmentAPI.VersionInfo_Version{
 				{
 					Name:    "cogment",
 					Version: version.Version,
@@ -86,7 +86,7 @@ func (writer *TrialSamplesFileWriter) WriteHeader(trialParams map[string]*grpcap
 	return nil
 }
 
-func (writer *TrialSamplesFileWriter) WriteSample(trialSample *grpcapi.StoredTrialSample) error {
+func (writer *TrialSamplesFileWriter) WriteSample(trialSample *cogmentAPI.StoredTrialSample) error {
 	if writer.state != expectSamples {
 		return fmt.Errorf("writer not in the expected state")
 	}
@@ -112,7 +112,7 @@ func CreateTrialSamplesFileReader(reader io.Reader) *TrialSamplesFileReader {
 	}
 }
 
-func (reader *TrialSamplesFileReader) ReadHeader() (*grpcapi.TrialSamplesFileHeader, error) {
+func (reader *TrialSamplesFileReader) ReadHeader() (*cogmentAPI.TrialSamplesFileHeader, error) {
 	if reader.state != expectHeader {
 		return nil, fmt.Errorf("reader not in the expected state")
 	}
@@ -122,7 +122,7 @@ func (reader *TrialSamplesFileReader) ReadHeader() (*grpcapi.TrialSamplesFileHea
 		return nil, err
 	}
 
-	header := &grpcapi.TrialSamplesFileHeader{}
+	header := &cogmentAPI.TrialSamplesFileHeader{}
 	err = readProtobufMessage(reader.reader, header)
 	if err != nil {
 		reader.state = failure
@@ -132,12 +132,12 @@ func (reader *TrialSamplesFileReader) ReadHeader() (*grpcapi.TrialSamplesFileHea
 	return header, nil
 }
 
-func (reader *TrialSamplesFileReader) ReadSample() (*grpcapi.StoredTrialSample, error) {
+func (reader *TrialSamplesFileReader) ReadSample() (*cogmentAPI.StoredTrialSample, error) {
 	if reader.state != expectSamples {
 		return nil, fmt.Errorf("reader not in the expected state")
 	}
 
-	trialSample := &grpcapi.StoredTrialSample{}
+	trialSample := &cogmentAPI.StoredTrialSample{}
 	err := readProtobufMessage(reader.reader, trialSample)
 	if err != nil {
 		reader.state = failure

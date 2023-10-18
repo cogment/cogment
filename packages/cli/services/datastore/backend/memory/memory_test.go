@@ -21,31 +21,31 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/services/datastore/backend"
 	"github.com/cogment/cogment/services/datastore/backend/test"
 )
 
 var nextTickID uint64 // = 0
 
-func generateTrialParams(actorCount int, maxSteps uint32) *grpcapi.TrialParams {
-	params := &grpcapi.TrialParams{
-		Actors:   make([]*grpcapi.ActorParams, actorCount),
+func generateTrialParams(actorCount int, maxSteps uint32) *cogmentAPI.TrialParams {
+	params := &cogmentAPI.TrialParams{
+		Actors:   make([]*cogmentAPI.ActorParams, actorCount),
 		MaxSteps: maxSteps,
 	}
 	return params
 }
 
-func generateSample(trialID string, actorCount int, end bool) *grpcapi.StoredTrialSample {
-	sample := &grpcapi.StoredTrialSample{
+func generateSample(trialID string, actorCount int, end bool) *cogmentAPI.StoredTrialSample {
+	sample := &cogmentAPI.StoredTrialSample{
 		TrialId:      trialID,
 		TickId:       nextTickID,
 		Timestamp:    uint64(time.Now().Unix()),
-		State:        grpcapi.TrialState_RUNNING,
-		ActorSamples: make([]*grpcapi.StoredTrialActorSample, actorCount),
+		State:        cogmentAPI.TrialState_RUNNING,
+		ActorSamples: make([]*cogmentAPI.StoredTrialActorSample, actorCount),
 	}
 	if end {
-		sample.State = grpcapi.TrialState_ENDED
+		sample.State = cogmentAPI.TrialState_ENDED
 	}
 	nextTickID++
 	return sample
@@ -96,7 +96,7 @@ func TestTriaEviction(t *testing.T) {
 		for i := 0; i < trial1SamplesCount; i++ {
 			err = b.AddSamples(
 				context.Background(),
-				[]*grpcapi.StoredTrialSample{generateSample("trial-1", 12, i == trial1SamplesCount-1)},
+				[]*cogmentAPI.StoredTrialSample{generateSample("trial-1", 12, i == trial1SamplesCount-1)},
 			)
 			assert.NoError(t, err)
 		}
@@ -123,7 +123,7 @@ func TestTriaEviction(t *testing.T) {
 		for i := 0; i < trial2SamplesCount; i++ {
 			err = b.AddSamples(
 				context.Background(),
-				[]*grpcapi.StoredTrialSample{generateSample("trial-2", 12, i == trial2SamplesCount-1)},
+				[]*cogmentAPI.StoredTrialSample{generateSample("trial-2", 12, i == trial2SamplesCount-1)},
 			)
 			assert.NoError(t, err)
 		}
@@ -150,7 +150,7 @@ func TestTriaEviction(t *testing.T) {
 		for i := 0; i < trial3SamplesCount; i++ {
 			err = b.AddSamples(
 				context.Background(),
-				[]*grpcapi.StoredTrialSample{generateSample("trial-3", 12, i == trial3SamplesCount-1)},
+				[]*cogmentAPI.StoredTrialSample{generateSample("trial-3", 12, i == trial3SamplesCount-1)},
 			)
 			assert.NoError(t, err)
 		}

@@ -19,7 +19,7 @@ import (
 	"io"
 	"strings"
 
-	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/services/datastore/backend"
 	"github.com/openlyinc/pointy"
 	"google.golang.org/grpc"
@@ -29,7 +29,7 @@ import (
 )
 
 type datalogServer struct {
-	grpcapi.UnimplementedDatalogSPServer
+	cogmentAPI.UnimplementedDatalogSPServer
 	backend backend.Backend
 }
 
@@ -46,22 +46,22 @@ func actorIndexFromActorName(actorName string, actorIndices map[string]uint32) i
 func trialSampleFromDatalogSample(
 	trialID string,
 	actorIndices map[string]uint32,
-	datalogSample *grpcapi.DatalogSample,
-	trialActors []*grpcapi.ActorParams,
-) (*grpcapi.StoredTrialSample, error) {
+	datalogSample *cogmentAPI.DatalogSample,
+	trialActors []*cogmentAPI.ActorParams,
+) (*cogmentAPI.StoredTrialSample, error) {
 	// Base stuffs
-	sample := grpcapi.StoredTrialSample{
+	sample := cogmentAPI.StoredTrialSample{
 		UserId:       "",
 		TrialId:      trialID,
 		TickId:       datalogSample.Info.TickId,
 		Timestamp:    datalogSample.Info.Timestamp,
 		State:        datalogSample.Info.State,
-		ActorSamples: make([]*grpcapi.StoredTrialActorSample, len(actorIndices)),
+		ActorSamples: make([]*cogmentAPI.StoredTrialActorSample, len(actorIndices)),
 		Payloads:     make([][]byte, 0),
 	}
 	// Initializing the actor samples
 	for actorIndex := range sample.ActorSamples {
-		sample.ActorSamples[actorIndex] = &grpcapi.StoredTrialActorSample{
+		sample.ActorSamples[actorIndex] = &cogmentAPI.StoredTrialActorSample{
 			Actor: uint32(actorIndex),
 		}
 	}
@@ -88,7 +88,7 @@ func trialSampleFromDatalogSample(
 	}
 	// Deal with the rewards
 	{
-		rewardAccumulator := make(map[uint32][]*grpcapi.RewardSource)
+		rewardAccumulator := make(map[uint32][]*cogmentAPI.RewardSource)
 
 		for _, reward := range datalogSample.Rewards {
 
@@ -125,7 +125,7 @@ func trialSampleFromDatalogSample(
 				// Store the reward sources for aggregation later
 				_, exists := rewardAccumulator[actorIndex]
 				if !exists {
-					rewardAccumulator[actorIndex] = make([]*grpcapi.RewardSource, 0)
+					rewardAccumulator[actorIndex] = make([]*cogmentAPI.RewardSource, 0)
 				}
 
 				for _, sourceReward := range reward.Sources {
@@ -138,7 +138,7 @@ func trialSampleFromDatalogSample(
 					}
 
 					senderactorIndex := actorIndexFromActorName(sourceReward.SenderName, actorIndices)
-					receivedReward := grpcapi.StoredTrialActorSampleReward{
+					receivedReward := cogmentAPI.StoredTrialActorSampleReward{
 						Sender:     senderactorIndex,
 						Reward:     sourceReward.Value,
 						Confidence: sourceReward.Confidence,
@@ -150,7 +150,7 @@ func trialSampleFromDatalogSample(
 					)
 
 					if senderactorIndex >= 0 {
-						sentReward := grpcapi.StoredTrialActorSampleReward{
+						sentReward := cogmentAPI.StoredTrialActorSampleReward{
 							Receiver:   int32(actorIndex),
 							Reward:     sourceReward.Value,
 							Confidence: sourceReward.Confidence,
@@ -196,7 +196,7 @@ func trialSampleFromDatalogSample(
 			senderactorIndex := actorIndexFromActorName(message.SenderName, actorIndices)
 
 			if receiveractorIndex >= 0 {
-				receivedMessage := grpcapi.StoredTrialActorSampleMessage{
+				receivedMessage := cogmentAPI.StoredTrialActorSampleMessage{
 					Sender:  senderactorIndex,
 					Payload: payloadIndex,
 				}
@@ -207,7 +207,7 @@ func trialSampleFromDatalogSample(
 			}
 
 			if senderactorIndex >= 0 {
-				sentMessage := grpcapi.StoredTrialActorSampleMessage{
+				sentMessage := cogmentAPI.StoredTrialActorSampleMessage{
 					Receiver: receiveractorIndex,
 					Payload:  payloadIndex,
 				}
@@ -222,7 +222,7 @@ func trialSampleFromDatalogSample(
 	return &sample, nil
 }
 
-func (s *datalogServer) RunTrialDatalog(stream grpcapi.DatalogSP_RunTrialDatalogServer) error {
+func (s *datalogServer) RunTrialDatalog(stream cogmentAPI.DatalogSP_RunTrialDatalogServer) error {
 	ctx := stream.Context()
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
@@ -255,7 +255,7 @@ func (s *datalogServer) RunTrialDatalog(stream grpcapi.DatalogSP_RunTrialDatalog
 	}
 
 	// Acknowledge the handling of the first "params" message
-	err = stream.Send(&grpcapi.RunTrialDatalogOutput{})
+	err = stream.Send(&cogmentAPI.RunTrialDatalogOutput{})
 	if err != nil {
 		return err
 	}
@@ -287,14 +287,14 @@ func (s *datalogServer) RunTrialDatalog(stream grpcapi.DatalogSP_RunTrialDatalog
 		}
 
 		go func() {
-			err = s.backend.AddSamples(ctx, []*grpcapi.StoredTrialSample{trialSample})
+			err = s.backend.AddSamples(ctx, []*cogmentAPI.StoredTrialSample{trialSample})
 			if err != nil {
 				errors <- status.Errorf(codes.Internal, "DatalogServer.RunTrialDatalog: internal error %q", err)
 			}
 		}()
 
 		// Acknowledge the handling of the following "sample" message
-		err = stream.Send(&grpcapi.RunTrialDatalogOutput{})
+		err = stream.Send(&cogmentAPI.RunTrialDatalogOutput{})
 		if err != nil {
 			return err
 		}
@@ -308,15 +308,15 @@ func (s *datalogServer) RunTrialDatalog(stream grpcapi.DatalogSP_RunTrialDatalog
 	}
 }
 
-func (s *datalogServer) Version(context.Context, *grpcapi.VersionRequest) (*grpcapi.VersionInfo, error) {
+func (s *datalogServer) Version(context.Context, *cogmentAPI.VersionRequest) (*cogmentAPI.VersionInfo, error) {
 	// TODO: Return proper version info. Current version is minimal to serve a health check for directory.
-	res := &grpcapi.VersionInfo{}
+	res := &cogmentAPI.VersionInfo{}
 	return res, nil
 }
 
 // gRPC interface
-func (s *datalogServer) Status(_ context.Context, request *grpcapi.StatusRequest) (*grpcapi.StatusReply, error) {
-	reply := grpcapi.StatusReply{}
+func (s *datalogServer) Status(_ context.Context, request *cogmentAPI.StatusRequest) (*cogmentAPI.StatusReply, error) {
+	reply := cogmentAPI.StatusReply{}
 
 	if len(request.Names) == 0 {
 		return &reply, nil
@@ -346,6 +346,6 @@ func RegisterDatalogServer(grpcServer grpc.ServiceRegistrar, backend backend.Bac
 		backend: backend,
 	}
 
-	grpcapi.RegisterDatalogSPServer(grpcServer, server)
+	cogmentAPI.RegisterDatalogSPServer(grpcServer, server)
 	return nil
 }

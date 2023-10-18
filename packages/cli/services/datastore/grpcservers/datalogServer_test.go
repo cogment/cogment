@@ -21,7 +21,7 @@ import (
 	"os"
 	"testing"
 
-	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/services/datastore/backend"
 	"github.com/cogment/cogment/services/datastore/backend/bolt"
 	"github.com/cogment/cogment/services/datastore/backend/memory"
@@ -37,13 +37,13 @@ import (
 type datalogServerTestFixture struct {
 	backend    backend.Backend
 	ctx        context.Context
-	client     grpcapi.DatalogSPClient
+	client     cogmentAPI.DatalogSPClient
 	connection *grpc.ClientConn
 }
 type persistentDatalogServerTestFixture struct {
 	backend    backend.Backend
 	ctx        context.Context
-	client     grpcapi.DatalogSPClient
+	client     cogmentAPI.DatalogSPClient
 	connection *grpc.ClientConn
 	file       *os.File
 }
@@ -90,7 +90,7 @@ func createPersistentDatalogServerTestFixture() (persistentDatalogServerTestFixt
 	return persistentDatalogServerTestFixture{
 		backend:    backend,
 		ctx:        ctx,
-		client:     grpcapi.NewDatalogSPClient(connection),
+		client:     cogmentAPI.NewDatalogSPClient(connection),
 		connection: connection,
 		file:       f,
 	}, nil
@@ -137,7 +137,7 @@ func createDatalogServerTestFixture() (datalogServerTestFixture, error) {
 	return datalogServerTestFixture{
 		backend:    backend,
 		ctx:        ctx,
-		client:     grpcapi.NewDatalogSPClient(connection),
+		client:     cogmentAPI.NewDatalogSPClient(connection),
 		connection: connection,
 	}, nil
 }
@@ -180,10 +180,10 @@ func BenchmarkDatalog(b *testing.B) {
 	}()
 
 	// Send the trial params
-	trialParams := grpcapi.RunTrialDatalogInput{
-		Msg: &grpcapi.RunTrialDatalogInput_TrialParams{
-			TrialParams: &grpcapi.TrialParams{
-				Actors: []*grpcapi.ActorParams{{
+	trialParams := cogmentAPI.RunTrialDatalogInput{
+		Msg: &cogmentAPI.RunTrialDatalogInput_TrialParams{
+			TrialParams: &cogmentAPI.TrialParams{
+				Actors: []*cogmentAPI.ActorParams{{
 					Name:       "myactor",
 					ActorClass: "class1",
 				},
@@ -207,19 +207,19 @@ func BenchmarkDatalog(b *testing.B) {
 	assert.NoError(b, err)
 	<-ack
 
-	nthSample := func(i int64) *grpcapi.RunTrialDatalogInput {
-		return &grpcapi.RunTrialDatalogInput{
-			Msg: &grpcapi.RunTrialDatalogInput_Sample{
-				Sample: &grpcapi.DatalogSample{
-					Info: &grpcapi.SampleInfo{
+	nthSample := func(i int64) *cogmentAPI.RunTrialDatalogInput {
+		return &cogmentAPI.RunTrialDatalogInput{
+			Msg: &cogmentAPI.RunTrialDatalogInput_Sample{
+				Sample: &cogmentAPI.DatalogSample{
+					Info: &cogmentAPI.SampleInfo{
 						TickId: uint64(i),
 					},
-					Observations: &grpcapi.ObservationSet{
+					Observations: &cogmentAPI.ObservationSet{
 						TickId:       i,
 						ActorsMap:    []int32{0},
 						Observations: [][]byte{[]byte("an_observation")},
 					},
-					Actions: []*grpcapi.Action{{
+					Actions: []*cogmentAPI.Action{{
 						TickId:  i,
 						Content: []byte("an_action"),
 					}},
@@ -229,12 +229,12 @@ func BenchmarkDatalog(b *testing.B) {
 	}
 	chunkSize := 2000
 	sampleCount := chunkSize * b.N
-	samples := make([]*grpcapi.RunTrialDatalogInput, 0, sampleCount)
+	samples := make([]*cogmentAPI.RunTrialDatalogInput, 0, sampleCount)
 	for i := 0; i < sampleCount; i++ {
 		samples = append(samples, nthSample(int64(i)))
 	}
 
-	storedSamples := make(chan *grpcapi.StoredTrialSample)
+	storedSamples := make(chan *cogmentAPI.StoredTrialSample)
 	go func() {
 		err := fxt.backend.ObserveSamples(fxt.ctx, backend.TrialSampleFilter{TrialIDs: []string{trialID}}, storedSamples)
 		assert.NoError(b, err)
@@ -258,7 +258,7 @@ func BenchmarkDatalog(b *testing.B) {
 	//Close trial
 	closingSample := samples[len(samples)-1]
 	closingSample.GetSample().GetInfo().TickId = uint64(len(samples))
-	closingSample.GetSample().GetInfo().State = grpcapi.TrialState_ENDED
+	closingSample.GetSample().GetInfo().State = cogmentAPI.TrialState_ENDED
 	err = stream.Send(closingSample)
 	assert.NoError(b, err)
 	<-storedSamples
@@ -292,10 +292,10 @@ func TestRunTrialDatalogSimple(t *testing.T) {
 	}()
 	{
 		// Send the trial params
-		err = stream.Send(&grpcapi.RunTrialDatalogInput{
-			Msg: &grpcapi.RunTrialDatalogInput_TrialParams{
-				TrialParams: &grpcapi.TrialParams{
-					Actors: []*grpcapi.ActorParams{{
+		err = stream.Send(&cogmentAPI.RunTrialDatalogInput{
+			Msg: &cogmentAPI.RunTrialDatalogInput_TrialParams{
+				TrialParams: &cogmentAPI.TrialParams{
+					Actors: []*cogmentAPI.ActorParams{{
 						Name:       "myactor",
 						ActorClass: "class1",
 					},
@@ -332,17 +332,17 @@ func TestRunTrialDatalogSimple(t *testing.T) {
 	}
 	{
 		// Send a sample with only a reward
-		err = stream.Send(&grpcapi.RunTrialDatalogInput{
-			Msg: &grpcapi.RunTrialDatalogInput_Sample{
-				Sample: &grpcapi.DatalogSample{
-					Info: &grpcapi.SampleInfo{
+		err = stream.Send(&cogmentAPI.RunTrialDatalogInput{
+			Msg: &cogmentAPI.RunTrialDatalogInput_Sample{
+				Sample: &cogmentAPI.DatalogSample{
+					Info: &cogmentAPI.SampleInfo{
 						TickId: 0,
 					},
-					Rewards: []*grpcapi.Reward{{
+					Rewards: []*cogmentAPI.Reward{{
 						ReceiverName: "myactor",
 						Value:        12,
 						TickId:       0,
-						Sources: []*grpcapi.RewardSource{{
+						Sources: []*cogmentAPI.RewardSource{{
 							Value:      12,
 							Confidence: 1,
 						}},
@@ -355,7 +355,7 @@ func TestRunTrialDatalogSimple(t *testing.T) {
 	}
 	{
 		// Make sure it is retrieved
-		samples := make(chan *grpcapi.StoredTrialSample)
+		samples := make(chan *cogmentAPI.StoredTrialSample)
 		go func() {
 			err := fxt.backend.ObserveSamples(fxt.ctx, backend.TrialSampleFilter{TrialIDs: []string{trialID}}, samples)
 			assert.NoError(t, err)
@@ -371,22 +371,22 @@ func TestRunTrialDatalogSimple(t *testing.T) {
 		// Send a sample with multiple rewards for the same actor
 		// Test different combinations with the wildcard character '*'
 		// Send a test user_data as well
-		userData, err := anypb.New(&grpcapi.TrialActor{
+		userData, err := anypb.New(&cogmentAPI.TrialActor{
 			Name:       "name",
 			ActorClass: "actor_class",
 		})
 		assert.NoError(t, err)
-		err = stream.Send(&grpcapi.RunTrialDatalogInput{
-			Msg: &grpcapi.RunTrialDatalogInput_Sample{
-				Sample: &grpcapi.DatalogSample{
-					Info: &grpcapi.SampleInfo{
+		err = stream.Send(&cogmentAPI.RunTrialDatalogInput{
+			Msg: &cogmentAPI.RunTrialDatalogInput_Sample{
+				Sample: &cogmentAPI.DatalogSample{
+					Info: &cogmentAPI.SampleInfo{
 						TickId: 0,
 					},
-					Rewards: []*grpcapi.Reward{{
+					Rewards: []*cogmentAPI.Reward{{
 						ReceiverName: "*",
 						Value:        12,
 						TickId:       0,
-						Sources: []*grpcapi.RewardSource{{
+						Sources: []*cogmentAPI.RewardSource{{
 							Value:      12,
 							Confidence: 1,
 							UserData:   userData,
@@ -396,7 +396,7 @@ func TestRunTrialDatalogSimple(t *testing.T) {
 							ReceiverName: "myactor",
 							Value:        8,
 							TickId:       0,
-							Sources: []*grpcapi.RewardSource{{
+							Sources: []*cogmentAPI.RewardSource{{
 								Value:      24,
 								Confidence: 0.5,
 							}},
@@ -405,7 +405,7 @@ func TestRunTrialDatalogSimple(t *testing.T) {
 							ReceiverName: "*.*",
 							Value:        8,
 							TickId:       0,
-							Sources: []*grpcapi.RewardSource{{
+							Sources: []*cogmentAPI.RewardSource{{
 								Value:      24,
 								Confidence: 0.5,
 							}},
@@ -414,7 +414,7 @@ func TestRunTrialDatalogSimple(t *testing.T) {
 							ReceiverName: "class2.*",
 							Value:        8,
 							TickId:       0,
-							Sources: []*grpcapi.RewardSource{{
+							Sources: []*cogmentAPI.RewardSource{{
 								Value:      6,
 								Confidence: 1,
 							}},
@@ -423,7 +423,7 @@ func TestRunTrialDatalogSimple(t *testing.T) {
 							ReceiverName: "class2.myactor4",
 							Value:        8,
 							TickId:       0,
-							Sources: []*grpcapi.RewardSource{{
+							Sources: []*cogmentAPI.RewardSource{{
 								Value:      60,
 								Confidence: 0.5,
 							}},
@@ -432,7 +432,7 @@ func TestRunTrialDatalogSimple(t *testing.T) {
 							ReceiverName: "",
 							Value:        8,
 							TickId:       0,
-							Sources: []*grpcapi.RewardSource{{
+							Sources: []*cogmentAPI.RewardSource{{
 								Value:      24,
 								Confidence: 0.5,
 							}},
@@ -441,7 +441,7 @@ func TestRunTrialDatalogSimple(t *testing.T) {
 							ReceiverName: "class1",
 							Value:        8,
 							TickId:       0,
-							Sources: []*grpcapi.RewardSource{{
+							Sources: []*cogmentAPI.RewardSource{{
 								Value:      24,
 								Confidence: 0.5,
 							}},
@@ -456,7 +456,7 @@ func TestRunTrialDatalogSimple(t *testing.T) {
 	}
 	{
 		// Make sure it is retrieved, and that both rewards are aggregated
-		samples := make(chan *grpcapi.StoredTrialSample)
+		samples := make(chan *cogmentAPI.StoredTrialSample)
 		go func() {
 			err := fxt.backend.ObserveSamples(fxt.ctx, backend.TrialSampleFilter{TrialIDs: []string{trialID}}, samples)
 			assert.NoError(t, err)
@@ -476,19 +476,19 @@ func TestRunTrialDatalogSimple(t *testing.T) {
 	}
 	{
 		// Send a sample with an observation and an action
-		err = stream.Send(&grpcapi.RunTrialDatalogInput{
-			Msg: &grpcapi.RunTrialDatalogInput_Sample{
-				Sample: &grpcapi.DatalogSample{
-					Info: &grpcapi.SampleInfo{
+		err = stream.Send(&cogmentAPI.RunTrialDatalogInput{
+			Msg: &cogmentAPI.RunTrialDatalogInput_Sample{
+				Sample: &cogmentAPI.DatalogSample{
+					Info: &cogmentAPI.SampleInfo{
 						TickId: 1,
-						State:  grpcapi.TrialState_ENDED,
+						State:  cogmentAPI.TrialState_ENDED,
 					},
-					Observations: &grpcapi.ObservationSet{
+					Observations: &cogmentAPI.ObservationSet{
 						TickId:       1,
 						ActorsMap:    []int32{0},
 						Observations: [][]byte{[]byte("an_observation")},
 					},
-					Actions: []*grpcapi.Action{{
+					Actions: []*cogmentAPI.Action{{
 						TickId:  1,
 						Content: []byte("an_action"),
 					}},
@@ -500,7 +500,7 @@ func TestRunTrialDatalogSimple(t *testing.T) {
 	}
 	{
 		// Make sure it is retrieved
-		samples := make(chan *grpcapi.StoredTrialSample)
+		samples := make(chan *cogmentAPI.StoredTrialSample)
 		go func() {
 			err := fxt.backend.ObserveSamples(fxt.ctx, backend.TrialSampleFilter{TrialIDs: []string{trialID}}, samples)
 			assert.NoError(t, err)

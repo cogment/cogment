@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/cogment/cogment/clients/directory"
-	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/services/proxy/actor"
 	"github.com/cogment/cogment/services/proxy/controller"
 	"github.com/cogment/cogment/services/proxy/grpcservers"
@@ -58,9 +58,9 @@ var DefaultOptions = Options{
 
 func Run(ctx context.Context, options Options) error {
 	switch options.OrchestratorEndpoint.Details.Type {
-	case grpcapi.ServiceType_UNKNOWN_SERVICE:
-		options.OrchestratorEndpoint.SetServiceType(grpcapi.ServiceType_TRIAL_LIFE_CYCLE_SERVICE)
-	case grpcapi.ServiceType_TRIAL_LIFE_CYCLE_SERVICE:
+	case cogmentAPI.ServiceType_UNKNOWN_SERVICE:
+		options.OrchestratorEndpoint.SetServiceType(cogmentAPI.ServiceType_TRIAL_LIFE_CYCLE_SERVICE)
+	case cogmentAPI.ServiceType_TRIAL_LIFE_CYCLE_SERVICE:
 		break
 	default:
 		return fmt.Errorf(
@@ -149,8 +149,8 @@ func Run(ctx context.Context, options Options) error {
 			return directory.ManageRegistration(
 				ctx,
 				grpcPort,
-				grpcapi.ServiceEndpoint_GRPC,
-				grpcapi.ServiceType_ACTOR_SERVICE,
+				cogmentAPI.ServiceEndpoint_GRPC,
+				cogmentAPI.ServiceType_ACTOR_SERVICE,
 				directory.RegistrationOptions{
 					DirectoryEndpoint:               options.DirectoryEndpoint,
 					DirectoryAuthToken:              options.DirectoryAuthToken,

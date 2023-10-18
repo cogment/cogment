@@ -18,7 +18,7 @@ import (
 	"context"
 	"fmt"
 
-	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/utils/endpoint"
 )
 
@@ -57,16 +57,16 @@ func InquireEndpoint(
 		return []*endpoint.Endpoint{}, err
 	}
 
-	var request grpcapi.InquireRequest
+	var request cogmentAPI.InquireRequest
 	if inquiredEndpoint.ServiceDiscoveryID != 0 {
-		request = grpcapi.InquireRequest{
-			Inquiry: &grpcapi.InquireRequest_ServiceId{
+		request = cogmentAPI.InquireRequest{
+			Inquiry: &cogmentAPI.InquireRequest_ServiceId{
 				ServiceId: inquiredEndpoint.ServiceDiscoveryID,
 			},
 		}
 	} else {
-		request = grpcapi.InquireRequest{
-			Inquiry: &grpcapi.InquireRequest_Details{
+		request = cogmentAPI.InquireRequest{
+			Inquiry: &cogmentAPI.InquireRequest_Details{
 				Details: inquiredEndpoint.Details,
 			},
 		}

@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"time"
 
-	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/services/datastore/backend"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -31,25 +31,25 @@ import (
 )
 
 type trialDatastoreServer struct {
-	grpcapi.UnimplementedTrialDatastoreSPServer
+	cogmentAPI.UnimplementedTrialDatastoreSPServer
 	backend            backend.Backend
 	addSampleChunkSize int
 }
 
 func (s *trialDatastoreServer) Version(
 	_ context.Context,
-	_ *grpcapi.VersionRequest,
-) (*grpcapi.VersionInfo, error) {
+	_ *cogmentAPI.VersionRequest,
+) (*cogmentAPI.VersionInfo, error) {
 
 	// TODO: Return proper version info. Current version is minimal to serve a health check for directory.
-	res := &grpcapi.VersionInfo{}
+	res := &cogmentAPI.VersionInfo{}
 	return res, nil
 }
 
 // gRPC interface
-func (s *trialDatastoreServer) Status(_ context.Context, request *grpcapi.StatusRequest,
-) (*grpcapi.StatusReply, error) {
-	reply := grpcapi.StatusReply{}
+func (s *trialDatastoreServer) Status(_ context.Context, request *cogmentAPI.StatusRequest,
+) (*cogmentAPI.StatusReply, error) {
+	reply := cogmentAPI.StatusReply{}
 
 	if len(request.Names) == 0 {
 		return &reply, nil
@@ -75,8 +75,8 @@ func (s *trialDatastoreServer) Status(_ context.Context, request *grpcapi.Status
 
 func (s *trialDatastoreServer) RetrieveTrials(
 	ctx context.Context,
-	req *grpcapi.RetrieveTrialsRequest,
-) (*grpcapi.RetrieveTrialsReply, error) {
+	req *cogmentAPI.RetrieveTrialsRequest,
+) (*cogmentAPI.RetrieveTrialsReply, error) {
 	pageOffset := 0
 	if req.TrialHandle != "" {
 		var err error
@@ -148,12 +148,12 @@ func (s *trialDatastoreServer) RetrieveTrials(
 
 		nextTrialHandle := strconv.Itoa(nextPageOffset)
 
-		res := &grpcapi.RetrieveTrialsReply{
-			TrialInfos:      make([]*grpcapi.StoredTrialInfo, len(trialInfos)),
+		res := &cogmentAPI.RetrieveTrialsReply{
+			TrialInfos:      make([]*cogmentAPI.StoredTrialInfo, len(trialInfos)),
 			NextTrialHandle: nextTrialHandle,
 		}
 		for trialInfoIdx, trialInfo := range trialInfos {
-			res.TrialInfos[trialInfoIdx] = &grpcapi.StoredTrialInfo{
+			res.TrialInfos[trialInfoIdx] = &cogmentAPI.StoredTrialInfo{
 				TrialId:      trialInfo.TrialID,
 				UserId:       trialInfo.UserID,
 				LastState:    trialInfo.State,
@@ -167,8 +167,8 @@ func (s *trialDatastoreServer) RetrieveTrials(
 }
 
 func (s *trialDatastoreServer) RetrieveSamples(
-	req *grpcapi.RetrieveSamplesRequest,
-	resStream grpcapi.TrialDatastoreSP_RetrieveSamplesServer,
+	req *cogmentAPI.RetrieveSamplesRequest,
+	resStream cogmentAPI.TrialDatastoreSP_RetrieveSamplesServer,
 ) error {
 	filter := backend.TrialSampleFilter{
 		TrialIDs:             req.TrialIds,
@@ -185,7 +185,7 @@ func (s *trialDatastoreServer) RetrieveSamples(
 	})
 	g.Go(func() error {
 		for sampleResult := range observer {
-			err := resStream.Send(&grpcapi.RetrieveSampleReply{TrialSample: sampleResult})
+			err := resStream.Send(&cogmentAPI.RetrieveSampleReply{TrialSample: sampleResult})
 			if err != nil {
 				return err
 			}
@@ -215,8 +215,8 @@ func trialIDFromHeaderMetadata(ctx context.Context) (string, error) {
 
 func (s *trialDatastoreServer) AddTrial(
 	ctx context.Context,
-	req *grpcapi.AddTrialRequest,
-) (*grpcapi.AddTrialReply, error) {
+	req *cogmentAPI.AddTrialRequest,
+) (*cogmentAPI.AddTrialReply, error) {
 	trialID, err := trialIDFromHeaderMetadata(ctx)
 	if err != nil {
 		return nil, err
@@ -231,17 +231,17 @@ func (s *trialDatastoreServer) AddTrial(
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "TrialDatastoreSPServer.ObserveSamples: internal error %q", err)
 	}
-	return &grpcapi.AddTrialReply{}, nil
+	return &cogmentAPI.AddTrialReply{}, nil
 }
 
-func (s *trialDatastoreServer) AddSample(stream grpcapi.TrialDatastoreSP_AddSampleServer) error {
+func (s *trialDatastoreServer) AddSample(stream cogmentAPI.TrialDatastoreSP_AddSampleServer) error {
 	ctx := stream.Context()
 	trialID, err := trialIDFromHeaderMetadata(ctx)
 	if err != nil {
 		return err
 	}
 
-	samplesChunk := make([]*grpcapi.StoredTrialSample, 0, s.addSampleChunkSize)
+	samplesChunk := make([]*cogmentAPI.StoredTrialSample, 0, s.addSampleChunkSize)
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -275,18 +275,18 @@ func (s *trialDatastoreServer) AddSample(stream grpcapi.TrialDatastoreSP_AddSamp
 		}
 	}
 
-	return stream.SendAndClose(&grpcapi.AddSamplesReply{})
+	return stream.SendAndClose(&cogmentAPI.AddSamplesReply{})
 }
 
 func (s *trialDatastoreServer) DeleteTrials(
 	ctx context.Context,
-	req *grpcapi.DeleteTrialsRequest,
-) (*grpcapi.DeleteTrialsReply, error) {
+	req *cogmentAPI.DeleteTrialsRequest,
+) (*cogmentAPI.DeleteTrialsReply, error) {
 	err := s.backend.DeleteTrials(ctx, req.TrialIds)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "TrialDatastoreSPServer.DeleteTrials: internal error %q", err)
 	}
-	return &grpcapi.DeleteTrialsReply{}, nil
+	return &cogmentAPI.DeleteTrialsReply{}, nil
 }
 
 // RegisterTrialDatastoreServer registers an TrialDatastoreSPServer to a gRPC server.
@@ -296,6 +296,6 @@ func RegisterTrialDatastoreServer(grpcServer grpc.ServiceRegistrar, backend back
 		addSampleChunkSize: 100,
 	}
 
-	grpcapi.RegisterTrialDatastoreSPServer(grpcServer, server)
+	cogmentAPI.RegisterTrialDatastoreSPServer(grpcServer, server)
 	return nil
 }

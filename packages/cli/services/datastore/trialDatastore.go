@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/cogment/cogment/clients/directory"
-	"github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/services/datastore/backend"
 	"github.com/cogment/cogment/services/datastore/backend/bolt"
 	"github.com/cogment/cogment/services/datastore/backend/memory"
@@ -133,8 +133,8 @@ func Run(ctx context.Context, options Options) error {
 		return directory.ManageRegistration(
 			ctx,
 			port,
-			api.ServiceEndpoint_GRPC,
-			api.ServiceType_DATASTORE_SERVICE,
+			cogmentAPI.ServiceEndpoint_GRPC,
+			cogmentAPI.ServiceType_DATASTORE_SERVICE,
 			options.RegistrationOptions,
 		)
 	})
@@ -143,8 +143,8 @@ func Run(ctx context.Context, options Options) error {
 		return directory.ManageRegistration(
 			ctx,
 			port,
-			api.ServiceEndpoint_GRPC,
-			api.ServiceType_DATALOG_SERVICE,
+			cogmentAPI.ServiceEndpoint_GRPC,
+			cogmentAPI.ServiceType_DATALOG_SERVICE,
 			options.RegistrationOptions,
 		)
 	})

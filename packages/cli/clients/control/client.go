@@ -20,7 +20,7 @@ import (
 	"io"
 
 	"github.com/cogment/cogment/clients"
-	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/utils/endpoint"
 )
 
@@ -43,16 +43,16 @@ func CreateClientWithInsecureEndpoint(endpoint *endpoint.Endpoint, userID string
 	return client, nil
 }
 
-func (client *Client) WatchTrials(ctx context.Context, out chan<- *grpcapi.TrialInfo) error {
+func (client *Client) WatchTrials(ctx context.Context, out chan<- *cogmentAPI.TrialInfo) error {
 	connection, err := client.Connect(ctx)
 	if err != nil {
 		return err
 	}
 	defer connection.Close()
 
-	spClient := grpcapi.NewTrialLifecycleSPClient(connection)
+	spClient := cogmentAPI.NewTrialLifecycleSPClient(connection)
 
-	request := grpcapi.TrialListRequest{
+	request := cogmentAPI.TrialListRequest{
 		FullInfo: true,
 	}
 	stream, err := spClient.WatchTrials(ctx, &request)
@@ -78,7 +78,7 @@ func (client *Client) WatchTrials(ctx context.Context, out chan<- *grpcapi.Trial
 func (client *Client) StartTrial(
 	ctx context.Context,
 	requestedTrialID string,
-	params *grpcapi.TrialParams,
+	params *cogmentAPI.TrialParams,
 ) (string, error) {
 	connection, err := client.Connect(ctx)
 	if err != nil {
@@ -86,12 +86,12 @@ func (client *Client) StartTrial(
 	}
 	defer connection.Close()
 
-	spClient := grpcapi.NewTrialLifecycleSPClient(connection)
+	spClient := cogmentAPI.NewTrialLifecycleSPClient(connection)
 
-	request := grpcapi.TrialStartRequest{
+	request := cogmentAPI.TrialStartRequest{
 		UserId:           client.userID,
 		TrialIdRequested: requestedTrialID,
-		StartData: &grpcapi.TrialStartRequest_Params{
+		StartData: &cogmentAPI.TrialStartRequest_Params{
 			Params: params,
 		},
 	}

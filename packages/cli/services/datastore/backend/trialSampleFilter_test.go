@@ -18,32 +18,32 @@ import (
 	"testing"
 	"time"
 
-	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/openlyinc/pointy"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/proto"
 )
 
-var trialParams *grpcapi.TrialParams = &grpcapi.TrialParams{
-	TrialConfig: &grpcapi.SerializedMessage{
+var trialParams *cogmentAPI.TrialParams = &cogmentAPI.TrialParams{
+	TrialConfig: &cogmentAPI.SerializedMessage{
 		Content: []byte("a trial config"),
 	},
 	MaxSteps:      12,
 	MaxInactivity: 600,
-	Environment: &grpcapi.EnvironmentParams{
+	Environment: &cogmentAPI.EnvironmentParams{
 		Endpoint:       "grpc://environment:9000",
 		Implementation: "my-environment-implementation",
-		Config: &grpcapi.SerializedMessage{
+		Config: &cogmentAPI.SerializedMessage{
 			Content: []byte("an environment config"),
 		},
 	},
-	Actors: []*grpcapi.ActorParams{
+	Actors: []*cogmentAPI.ActorParams{
 		{
 			Name:           "my-actor-1",
 			ActorClass:     "my-actor-class-1",
 			Endpoint:       "grpc://actor:9000",
 			Implementation: "my-actor-implementation-1",
-			Config: &grpcapi.SerializedMessage{
+			Config: &cogmentAPI.SerializedMessage{
 				Content: []byte("an actor config"),
 			},
 		},
@@ -52,25 +52,25 @@ var trialParams *grpcapi.TrialParams = &grpcapi.TrialParams{
 			ActorClass:     "my-actor-class-2",
 			Endpoint:       "grpc://actor:9000",
 			Implementation: "my-actor-implementation-2",
-			Config: &grpcapi.SerializedMessage{
+			Config: &cogmentAPI.SerializedMessage{
 				Content: []byte("another actor config"),
 			},
 		},
 	},
 }
 
-var trialSample1 *grpcapi.StoredTrialSample = &grpcapi.StoredTrialSample{
+var trialSample1 *cogmentAPI.StoredTrialSample = &cogmentAPI.StoredTrialSample{
 	UserId:    "my-user-id",
 	TrialId:   "my-trial",
 	TickId:    12,
 	Timestamp: uint64(time.Now().Unix()),
-	ActorSamples: []*grpcapi.StoredTrialActorSample{
+	ActorSamples: []*cogmentAPI.StoredTrialActorSample{
 		{
 			Actor:       0,
 			Observation: pointy.Uint32(0),
 			Action:      pointy.Uint32(1),
 			Reward:      pointy.Float32(0.5),
-			ReceivedRewards: []*grpcapi.StoredTrialActorSampleReward{
+			ReceivedRewards: []*cogmentAPI.StoredTrialActorSampleReward{
 				{
 					Sender:     -1,
 					Reward:     0.5,
@@ -89,7 +89,7 @@ var trialSample1 *grpcapi.StoredTrialSample = &grpcapi.StoredTrialSample{
 			Actor:       1,
 			Observation: pointy.Uint32(0),
 			Action:      pointy.Uint32(3),
-			SentRewards: []*grpcapi.StoredTrialActorSampleReward{
+			SentRewards: []*cogmentAPI.StoredTrialActorSampleReward{
 				{
 					Receiver:   0,
 					Reward:     0.5,
@@ -97,13 +97,13 @@ var trialSample1 *grpcapi.StoredTrialSample = &grpcapi.StoredTrialSample{
 					UserData:   pointy.Uint32(2),
 				},
 			},
-			ReceivedMessages: []*grpcapi.StoredTrialActorSampleMessage{
+			ReceivedMessages: []*cogmentAPI.StoredTrialActorSampleMessage{
 				{
 					Sender:  -1,
 					Payload: 4,
 				},
 			},
-			SentMessages: []*grpcapi.StoredTrialActorSampleMessage{
+			SentMessages: []*cogmentAPI.StoredTrialActorSampleMessage{
 				{
 					Receiver: -1,
 					Payload:  5,
@@ -129,10 +129,10 @@ func TestNoFilters(t *testing.T) {
 
 func TestFieldFiltersFilterOutRewardsAndMessages(t *testing.T) {
 	f := NewAppliedTrialSampleFilter(TrialSampleFilter{
-		Fields: []grpcapi.StoredTrialSampleField{
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_ACTION,
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_OBSERVATION,
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_REWARD,
+		Fields: []cogmentAPI.StoredTrialSampleField{
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_ACTION,
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_OBSERVATION,
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_REWARD,
 		},
 	}, trialParams)
 
@@ -166,13 +166,13 @@ func TestFieldFiltersFilterOutRewardsAndMessages(t *testing.T) {
 
 func TestFieldFiltersFilterOutReward(t *testing.T) {
 	f := NewAppliedTrialSampleFilter(TrialSampleFilter{
-		Fields: []grpcapi.StoredTrialSampleField{
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_ACTION,
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_OBSERVATION,
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_REWARDS,
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_REWARDS,
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_MESSAGES,
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_MESSAGES,
+		Fields: []cogmentAPI.StoredTrialSampleField{
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_ACTION,
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_OBSERVATION,
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_REWARDS,
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_REWARDS,
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_MESSAGES,
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_MESSAGES,
 		},
 	}, trialParams)
 
@@ -190,13 +190,13 @@ func TestFieldFiltersFilterOutReward(t *testing.T) {
 func TestActorNameFilters(t *testing.T) {
 	f := NewAppliedTrialSampleFilter(TrialSampleFilter{
 		ActorNames: []string{"my-actor-2"},
-		Fields: []grpcapi.StoredTrialSampleField{
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_ACTION,
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_OBSERVATION,
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_REWARDS,
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_REWARDS,
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_MESSAGES,
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_MESSAGES,
+		Fields: []cogmentAPI.StoredTrialSampleField{
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_ACTION,
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_OBSERVATION,
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_REWARDS,
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_REWARDS,
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_MESSAGES,
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_MESSAGES,
 		},
 	}, trialParams)
 
@@ -222,13 +222,13 @@ func TestActorNameFilters(t *testing.T) {
 func TestActorClassesFilters(t *testing.T) {
 	f := NewAppliedTrialSampleFilter(TrialSampleFilter{
 		ActorClasses: []string{"my-actor-class-1"},
-		Fields: []grpcapi.StoredTrialSampleField{
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_ACTION,
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_OBSERVATION,
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_REWARDS,
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_REWARDS,
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_MESSAGES,
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_MESSAGES,
+		Fields: []cogmentAPI.StoredTrialSampleField{
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_ACTION,
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_OBSERVATION,
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_REWARDS,
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_REWARDS,
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_MESSAGES,
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_MESSAGES,
 		},
 	}, trialParams)
 
@@ -254,13 +254,13 @@ func TestActorClassesFilters(t *testing.T) {
 func TestActorImplementationsFilters(t *testing.T) {
 	f := NewAppliedTrialSampleFilter(TrialSampleFilter{
 		ActorImplementations: []string{"my-actor-implementation-2"},
-		Fields: []grpcapi.StoredTrialSampleField{
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_ACTION,
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_OBSERVATION,
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_REWARDS,
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_REWARDS,
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_MESSAGES,
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_MESSAGES,
+		Fields: []cogmentAPI.StoredTrialSampleField{
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_ACTION,
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_OBSERVATION,
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_REWARDS,
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_REWARDS,
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_MESSAGES,
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_MESSAGES,
 		},
 	}, trialParams)
 
@@ -287,13 +287,13 @@ func TestActorImplementationsAndClassesFilters(t *testing.T) {
 	f := NewAppliedTrialSampleFilter(TrialSampleFilter{
 		ActorClasses:         []string{"my-actor-class-2"},
 		ActorImplementations: []string{"my-actor-implementation-1"},
-		Fields: []grpcapi.StoredTrialSampleField{
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_ACTION,
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_OBSERVATION,
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_REWARDS,
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_REWARDS,
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_MESSAGES,
-			grpcapi.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_MESSAGES,
+		Fields: []cogmentAPI.StoredTrialSampleField{
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_ACTION,
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_OBSERVATION,
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_REWARDS,
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_REWARDS,
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_RECEIVED_MESSAGES,
+			cogmentAPI.StoredTrialSampleField_STORED_TRIAL_SAMPLE_FIELD_SENT_MESSAGES,
 		},
 	}, trialParams)
 

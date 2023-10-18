@@ -23,7 +23,7 @@ import (
 	"testing"
 
 	"github.com/cogment/cogment/clients"
-	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	service "github.com/cogment/cogment/services/datastore"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/metadata"
@@ -77,13 +77,13 @@ func createTrials(t *testing.T, fxt *fixture, prefix string, trialCount int, pro
 	assert.NoError(t, err)
 	defer connection.Close()
 
-	spClient := grpcapi.NewTrialDatastoreSPClient(connection)
+	spClient := cogmentAPI.NewTrialDatastoreSPClient(connection)
 
 	for i := 0; i < trialCount; i++ {
 		ctx := metadata.AppendToOutgoingContext(fxt.ctx, "trial-id", fmt.Sprintf("%s%d", prefix, i))
-		_, err := spClient.AddTrial(ctx, &grpcapi.AddTrialRequest{
+		_, err := spClient.AddTrial(ctx, &cogmentAPI.AddTrialRequest{
 			UserId: "test",
-			TrialParams: &grpcapi.TrialParams{
+			TrialParams: &cogmentAPI.TrialParams{
 				MaxSteps:   uint32(10 * (i + 1)),
 				Properties: properties,
 			},
@@ -97,19 +97,19 @@ func createTrialSamples(t *testing.T, fxt *fixture, trialID string, sampleCount 
 	assert.NoError(t, err)
 	defer connection.Close()
 
-	spClient := grpcapi.NewTrialDatastoreSPClient(connection)
+	spClient := cogmentAPI.NewTrialDatastoreSPClient(connection)
 
 	for i := 0; i < sampleCount; i++ {
 		ctx := metadata.AppendToOutgoingContext(fxt.ctx, "trial-id", trialID)
 		stream, err := spClient.AddSample(ctx)
 		assert.NoError(t, err)
-		state := grpcapi.TrialState_RUNNING
+		state := cogmentAPI.TrialState_RUNNING
 		if endTrial && i == sampleCount-1 {
-			state = grpcapi.TrialState_ENDED
+			state = cogmentAPI.TrialState_ENDED
 		}
 
-		err = stream.Send(&grpcapi.AddSampleRequest{
-			TrialSample: &grpcapi.StoredTrialSample{TrialId: trialID, UserId: "my_user", State: state},
+		err = stream.Send(&cogmentAPI.AddSampleRequest{
+			TrialSample: &cogmentAPI.StoredTrialSample{TrialId: trialID, UserId: "my_user", State: state},
 		})
 		assert.NoError(t, err)
 
@@ -141,7 +141,7 @@ func TestListTrialsSimple(t *testing.T) {
 
 	for _, trialInfo := range rep1.TrialInfos {
 		assert.Equal(t, "test", trialInfo.UserId)
-		assert.Equal(t, grpcapi.TrialState_UNKNOWN, trialInfo.LastState)
+		assert.Equal(t, cogmentAPI.TrialState_UNKNOWN, trialInfo.LastState)
 		assert.Equal(t, "value", trialInfo.Params.Properties["key"])
 	}
 
@@ -151,7 +151,7 @@ func TestListTrialsSimple(t *testing.T) {
 
 	for _, trialInfo := range rep2.TrialInfos {
 		assert.Equal(t, "test", trialInfo.UserId)
-		assert.Equal(t, grpcapi.TrialState_UNKNOWN, trialInfo.LastState)
+		assert.Equal(t, cogmentAPI.TrialState_UNKNOWN, trialInfo.LastState)
 		assert.Equal(t, "value", trialInfo.Params.Properties["key"])
 	}
 }
@@ -171,7 +171,7 @@ func TestListTrialsFilter(t *testing.T) {
 
 	for _, trialInfo := range rep1.TrialInfos {
 		assert.Equal(t, "test", trialInfo.UserId)
-		assert.Equal(t, grpcapi.TrialState_UNKNOWN, trialInfo.LastState)
+		assert.Equal(t, cogmentAPI.TrialState_UNKNOWN, trialInfo.LastState)
 		assert.Equal(t, "value", trialInfo.Params.Properties["key"])
 		if value, ok := trialInfo.Params.Properties["key2"]; ok {
 			assert.Equal(t, "value2", value)
@@ -184,7 +184,7 @@ func TestListTrialsFilter(t *testing.T) {
 
 	for _, trialInfo := range rep2.TrialInfos {
 		assert.Equal(t, "test", trialInfo.UserId)
-		assert.Equal(t, grpcapi.TrialState_UNKNOWN, trialInfo.LastState)
+		assert.Equal(t, cogmentAPI.TrialState_UNKNOWN, trialInfo.LastState)
 		assert.Equal(t, "value", trialInfo.Params.Properties["key"])
 		assert.Equal(t, "value2", trialInfo.Params.Properties["key2"])
 	}
@@ -240,11 +240,11 @@ func TestExportImportTrialsSimple(t *testing.T) {
 		} else if trialInfo.TrialId == "prefix-trial0" {
 			assert.Equal(t, 20, int(trialInfo.SamplesCount))
 			assert.Equal(t, "import-test", trialInfo.UserId)
-			assert.Equal(t, grpcapi.TrialState_ENDED, trialInfo.LastState)
+			assert.Equal(t, cogmentAPI.TrialState_ENDED, trialInfo.LastState)
 		} else if trialInfo.TrialId == "prefix-trial2" {
 			assert.Equal(t, 30, int(trialInfo.SamplesCount))
 			assert.Equal(t, "import-test", trialInfo.UserId)
-			assert.Equal(t, grpcapi.TrialState_RUNNING, trialInfo.LastState)
+			assert.Equal(t, cogmentAPI.TrialState_RUNNING, trialInfo.LastState)
 		}
 	}
 }

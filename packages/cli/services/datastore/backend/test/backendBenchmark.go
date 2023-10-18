@@ -20,7 +20,7 @@ import (
 	"sync"
 	"testing"
 
-	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/services/datastore/backend"
 	"github.com/stretchr/testify/assert"
 )
@@ -116,7 +116,7 @@ func runBenchmark(
 						cfg.actorPayloadSize,
 						sampleIdx == cfg.samplesPerTrialCount-1,
 					)
-					err = bck.AddSamples(context.Background(), []*grpcapi.StoredTrialSample{sample})
+					err = bck.AddSamples(context.Background(), []*cogmentAPI.StoredTrialSample{sample})
 					assert.NoError(b, err)
 				}
 			}()
@@ -222,7 +222,7 @@ func observeSamples(
 		err := bck.CreateOrUpdateTrials(context.Background(), []*backend.TrialParams{trialParams})
 		assert.NoError(b, err)
 
-		samples := make([]*grpcapi.StoredTrialSample, 0, cfg.samplesPerTrialCount)
+		samples := make([]*cogmentAPI.StoredTrialSample, 0, cfg.samplesPerTrialCount)
 		for sampleIdx := 0; sampleIdx < cfg.samplesPerTrialCount; sampleIdx++ {
 			sample := generateSample(
 				trialID,
@@ -308,7 +308,7 @@ func writeSamplesBatch(
 	}
 
 	// add samples
-	samples := make([]*grpcapi.StoredTrialSample, 0, cfg.samplesPerTrialCount)
+	samples := make([]*cogmentAPI.StoredTrialSample, 0, cfg.samplesPerTrialCount)
 	for _, trialID := range trialIDs {
 		for sampleIdx := 0; sampleIdx < cfg.samplesPerTrialCount; sampleIdx++ {
 			sample := generateSample(
@@ -361,7 +361,7 @@ func writeSamplesGoroutine(
 	}
 
 	// gen samples
-	samples := make([]*grpcapi.StoredTrialSample, 0, cfg.samplesPerTrialCount)
+	samples := make([]*cogmentAPI.StoredTrialSample, 0, cfg.samplesPerTrialCount)
 	for _, trialID := range trialIDs {
 
 		for sampleIdx := 0; sampleIdx < cfg.samplesPerTrialCount; sampleIdx++ {
@@ -382,11 +382,11 @@ func writeSamplesGoroutine(
 		// Asynchronously add
 		for _, sample := range samples {
 			wg.Add(1)
-			go func(samples []*grpcapi.StoredTrialSample) {
+			go func(samples []*cogmentAPI.StoredTrialSample) {
 				defer wg.Done()
 				err := bck.AddSamples(context.Background(), samples)
 				assert.NoError(b, err)
-			}([]*grpcapi.StoredTrialSample{sample})
+			}([]*cogmentAPI.StoredTrialSample{sample})
 		}
 		// Wait for all the async tasks to end
 		wg.Wait()

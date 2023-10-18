@@ -27,7 +27,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
 
-	grpcapi "github.com/cogment/cogment/grpcapi/cogment/api"
+	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/services/datastore/backend"
 )
 
@@ -45,9 +45,9 @@ type metadata struct {
 }
 
 // Bucket structure is
-//	trials	> {trial_id}			> samples			> {tick_id}	> {grpcapi.StoredTrialSample}
+//	trials	> {trial_id}			> samples			> {tick_id}	> {cogmentAPI.StoredTrialSample}
 //                                  > sampleCount       > {int}
-//									> params			> {grpcapi.TrialParams}
+//									> params			> {cogmentAPI.TrialParams}
 //									> metadata		    > {boltBackend.metadata}
 //	trial_indices	>	trial_idx	>	{trial_idx}	>	{trial_id}
 //  schema_history  > {schema_version} > emptyarray
@@ -123,7 +123,7 @@ func deserializeTrialID(value []byte) string {
 	return string(value)
 }
 
-func serializeTrialParams(params *grpcapi.TrialParams) ([]byte, error) {
+func serializeTrialParams(params *cogmentAPI.TrialParams) ([]byte, error) {
 	v, err := proto.Marshal(params)
 	if err != nil {
 		return nil, backend.NewUnexpectedError("unable to serialize trial params (%w)", err)
@@ -131,8 +131,8 @@ func serializeTrialParams(params *grpcapi.TrialParams) ([]byte, error) {
 	return v, nil
 }
 
-func deserializeTrialParams(v []byte) (*grpcapi.TrialParams, error) {
-	params := &grpcapi.TrialParams{}
+func deserializeTrialParams(v []byte) (*cogmentAPI.TrialParams, error) {
+	params := &cogmentAPI.TrialParams{}
 	err := proto.Unmarshal(v, params)
 	if err != nil {
 		return nil, backend.NewUnexpectedError("unable to deserialize trial params (%w)", err)
@@ -140,7 +140,7 @@ func deserializeTrialParams(v []byte) (*grpcapi.TrialParams, error) {
 	return params, nil
 }
 
-func serializeSample(sample *grpcapi.StoredTrialSample) ([]byte, error) {
+func serializeSample(sample *cogmentAPI.StoredTrialSample) ([]byte, error) {
 	v, err := proto.Marshal(sample)
 	if err != nil {
 		return nil, backend.NewUnexpectedError("unable to serialize sample (%w)", err)
@@ -148,8 +148,8 @@ func serializeSample(sample *grpcapi.StoredTrialSample) ([]byte, error) {
 	return v, nil
 }
 
-func deserializeSample(v []byte) (*grpcapi.StoredTrialSample, error) {
-	sample := &grpcapi.StoredTrialSample{}
+func deserializeSample(v []byte) (*cogmentAPI.StoredTrialSample, error) {
+	sample := &cogmentAPI.StoredTrialSample{}
 	err := proto.Unmarshal(v, sample)
 	if err != nil {
 		return nil, backend.NewUnexpectedError("unable to deserialize sample (%w)", err)
@@ -509,10 +509,10 @@ func (b *boltBackend) RetrieveTrials(
 				samplesCount := getSampleCount(trialBucket, trialID)
 
 				// Retrieve the last samples
-				state := grpcapi.TrialState_UNKNOWN
+				state := cogmentAPI.TrialState_UNKNOWN
 				if samplesCount > 0 {
 					_, v := samplesBucket.Cursor().Last()
-					lastSample := &grpcapi.StoredTrialSample{}
+					lastSample := &cogmentAPI.StoredTrialSample{}
 					err := proto.Unmarshal(v, lastSample)
 					if err != nil {
 						return backend.NewUnexpectedError("unable to deserialize the last stored sample of trial %q", trialID)
@@ -708,7 +708,7 @@ func (b *boltBackend) GetTrialParams(_ context.Context, trialIDs []string) ([]*b
 	return paramsList, nil
 }
 
-func (b *boltBackend) AddSamples(_ context.Context, samples []*grpcapi.StoredTrialSample) error {
+func (b *boltBackend) AddSamples(_ context.Context, samples []*cogmentAPI.StoredTrialSample) error {
 	err := b.db.Batch(func(tx *bolt.Tx) error {
 		// Function must be idempotent as it might be called multiple times
 		trialsBucket := getTrialsBucket(tx)
@@ -763,7 +763,7 @@ func (b *boltBackend) AddSamples(_ context.Context, samples []*grpcapi.StoredTri
 func (b *boltBackend) ObserveSamples(
 	ctx context.Context,
 	filter backend.TrialSampleFilter,
-	out chan<- *grpcapi.StoredTrialSample,
+	out chan<- *cogmentAPI.StoredTrialSample,
 ) error {
 	paramsList := []*backend.TrialParams{}
 	err := b.db.View(func(tx *bolt.Tx) error {
@@ -808,7 +808,7 @@ func (b *boltBackend) ObserveSamples(
 							return err
 						}
 
-						trialEnded = sample.State == grpcapi.TrialState_ENDED
+						trialEnded = sample.State == cogmentAPI.TrialState_ENDED
 						filteredSample := appliedFilter.Filter(sample)
 
 						select {
