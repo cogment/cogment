@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.20.0 - 2023-10-25
+
 ### Changed
 - datastore: compute number of samples in a trial at write time instead of at query time (includes an automatic migration).
 - datastore: pass samples to persistence layer asynchronously
