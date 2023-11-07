@@ -31,6 +31,7 @@ type Options struct {
 	RegistrationLag uint
 	LoadBalancing   bool
 	CheckOnInquire  bool
+	ForcePermanent  bool
 }
 
 var DefaultOptions = Options{
@@ -41,6 +42,7 @@ var DefaultOptions = Options{
 	RegistrationLag: 0,
 	LoadBalancing:   false,
 	CheckOnInquire:  false,
+	ForcePermanent:  false,
 }
 
 func Run(options Options) error {
@@ -49,6 +51,7 @@ func Run(options Options) error {
 		RegistrationLag: options.RegistrationLag,
 		LoadBalancing:   options.LoadBalancing,
 		CheckOnInquire:  options.CheckOnInquire,
+		ForcePermanent:  options.ForcePermanent,
 	}
 	dirServer, err := grpcservers.RegisterDirectoryServer(server, options.PersistenceFilename, parameters)
 	if err != nil {

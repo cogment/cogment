@@ -36,6 +36,8 @@ const (
 	directoryLoadBalancingEnv       = "COGMENT_DIRECTORY_LOAD_BALANCING"
 	directoryCheckOnInquireKey      = "check_on_inquire"
 	directoryCheckOnInquireEnv      = "COGMENT_DIRECTORY_CHECK_ON_INQUIRE"
+	directoryForcePermanentKey      = "force_permanent"
+	directoryForcePermanentEnv      = "COGMENT_DIRECTORY_FORCE_PERMANENT"
 )
 
 var directoryViper = viper.New()
@@ -62,6 +64,7 @@ var directoryCmd = &cobra.Command{
 			PersistenceFilename: directoryViper.GetString(directoryPersistenceFilenameKey),
 			LoadBalancing:       directoryViper.GetBool(directoryLoadBalancingKey),
 			CheckOnInquire:      directoryViper.GetBool(directoryCheckOnInquireKey),
+			ForcePermanent:      directoryViper.GetBool(directoryForcePermanentKey),
 		}
 
 		return directory.Run(options)
@@ -117,6 +120,14 @@ func init() {
 		directoryCheckOnInquireKey,
 		directoryViper.GetBool(directoryCheckOnInquireKey),
 		"Check health and status when an inquiry is made",
+	)
+
+	directoryViper.SetDefault(directoryForcePermanentKey, directory.DefaultOptions.ForcePermanent)
+	_ = directoryViper.BindEnv(directoryForcePermanentKey, directoryForcePermanentEnv)
+	directoryCmd.Flags().Bool(
+		directoryForcePermanentKey,
+		directoryViper.GetBool(directoryForcePermanentKey),
+		"Force all entries to be 'permanent' (no health checks, no duplicates)",
 	)
 
 	// Don't sort alphabetically, keep insertion order

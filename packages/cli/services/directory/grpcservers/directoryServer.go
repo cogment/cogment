@@ -45,6 +45,7 @@ type ServerParameters struct {
 	RegistrationLag uint
 	LoadBalancing   bool
 	CheckOnInquire  bool
+	ForcePermanent  bool
 }
 
 type DirectoryServer struct {
@@ -108,6 +109,11 @@ func (ds *DirectoryServer) dbUpdate(request *cogmentAPI.RegisterRequest, token s
 		return 0, "", nil
 	}
 
+	permanent := request.Permanent
+	if ds.params.ForcePermanent {
+		permanent = true
+	}
+
 	var updatedID ServiceID
 	var secret string
 	for _, id := range selectionIds {
@@ -115,7 +121,7 @@ func (ds *DirectoryServer) dbUpdate(request *cogmentAPI.RegisterRequest, token s
 		if err != nil {
 			continue
 		}
-		if !record.Permanent {
+		if !permanent {
 			continue
 		}
 		if record.AuthenticationToken != token {
@@ -156,10 +162,15 @@ func (ds *DirectoryServer) dbUpdate(request *cogmentAPI.RegisterRequest, token s
 func (ds *DirectoryServer) dbRegister(request *cogmentAPI.RegisterRequest, token string) (ServiceID, string, error) {
 	secret := utils.RandomString(secretLength)
 
+	permanent := request.Permanent
+	if ds.params.ForcePermanent {
+		permanent = true
+	}
+
 	newRecord := DbRecord{
 		LastHealthCheckTimestamp: 0,
 		NbFailedHealthChecks:     0,
-		Permanent:                request.Permanent,
+		Permanent:                permanent,
 		AuthenticationToken:      token,
 		Secret:                   secret,
 	}
