@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.21.0 - 2023-11-08
+
 ### Added
 
 - Directory: ForcePermanent option
