@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.21.1 - 2023-11-13
+
 ### Changed
 
 - launch: reworked to give better, and more, information about processes run
