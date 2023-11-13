@@ -16,22 +16,16 @@ package launcher
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
-
-	"golang.org/x/sync/errgroup"
 )
 
-var errScriptCompleted = fmt.Errorf("script completed")
-var errScriptCancelled = fmt.Errorf("script cancelled")
-
-func runProcess(ctx context.Context, def launchDefinition, index int) error {
+func runProcess(ctx context.Context, def launchDefinition, index int) {
 	proc := def.processes[index]
 	logger := log.WithField("cmd", proc.Name)
-	proc.Ready.ReadyFunc(func() {
+	proc.Ready.SetCallback(func() {
 		logger.Trace("Ready")
 	})
 
@@ -44,7 +38,7 @@ func runProcess(ctx context.Context, def launchDefinition, index int) error {
 	select {
 	case <-ctx.Done():
 		logger.Debug("Cancelled")
-		return errScriptCancelled
+		return
 	default:
 	}
 
@@ -62,63 +56,69 @@ func runProcess(ctx context.Context, def launchDefinition, index int) error {
 
 		err := exe.execute(cmdDesc, cmdArgs)
 		if err != nil {
-			return err
+			if err == errCtxDone {
+				logger.Trace("Stopped")
+			} else {
+				logger.Debug("Failed")
+			}
+			return
 		}
 	}
 
 	logger.Trace("Completed")
-
-	return errScriptCompleted
-}
-
-// On a OS signal, it will terminate all child processes, and block until all of them have completed.
-func launchFile(args []string) (*errgroup.Group, error) {
-	rootCtx, cancelCtx := context.WithCancel(context.Background())
-	eGroup, ctx := errgroup.WithContext(rootCtx)
-
-	// Setup signal handling
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		sig := <-sigs
-		log.WithField("signal", fmt.Sprintf("%v", sig)).Debug("Stopping")
-		cancelCtx()
-	}()
-
-	if len(args) == 0 {
-		return nil, fmt.Errorf("required launch definition file missing")
-	}
-	filename := args[0]
-	launchArgs := args[1:]
-
-	definitionFile, err := parseFile(filename, launchArgs)
-	if err != nil {
-		return nil, err
-	}
-
-	for index := range definitionFile.processes {
-		procIndex := index
-		eGroup.Go(func() error {
-			return runProcess(ctx, definitionFile, procIndex)
-		})
-	}
-
-	return eGroup, nil
 }
 
 // This function will only return once all child processes have terminated.
 func Launch(args []string, launcherQuietLevel int) error {
 	configureLog(launcherQuietLevel)
 
-	eGroup, err := launchFile(args)
+	if len(args) == 0 {
+		return fmt.Errorf("required launch definition file missing")
+	}
+	filename := args[0]
+	launchArgs := args[1:]
+
+	definitionFile, err := parseFile(filename, launchArgs)
 	if err != nil {
 		return err
 	}
 
-	err = eGroup.Wait()
-	if !errors.Is(err, errScriptCompleted) &&
-		!errors.Is(err, errScriptCancelled) {
-		return err
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	processReturns := make(chan int, len(definitionFile.processes))
+	returnCount := new(int)
+
+	// Setup signal handling
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		select {
+		case <-processReturns:
+			*returnCount++
+
+		case sig := <-sigs:
+			log.Debug("User signal [", sig, "]. Stopping...")
+		}
+		cancelCtx()
+	}()
+
+	for index := range definitionFile.processes {
+		procIndex := index
+		go func() {
+			runProcess(ctx, definitionFile, procIndex)
+			processReturns <- procIndex
+		}()
+	}
+
+	<-ctx.Done()
+
+	// Give a chance to all processes to report their exit
+	for {
+		<-processReturns
+		*returnCount++
+		if *returnCount >= len(definitionFile.processes) {
+			break
+		}
 	}
 
 	return nil

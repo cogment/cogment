@@ -17,14 +17,16 @@ package launcher
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"io"
 	"os/exec"
 	"regexp"
-	"strings"
 	"sync"
 
 	"github.com/cogment/cogment/utils"
 )
+
+var errCtxDone = fmt.Errorf("stopped by user")
 
 type executor struct {
 	Ctx           context.Context
@@ -108,36 +110,36 @@ func (exe *executor) execute(cmdDesc string, cmdArgs []string) error {
 		cmdLine += " " + arg
 	}
 	if exe.OutputEnabled {
-		logger.WithField("", cmdLine).Trace("Launch")
+		logger.Trace("Launch [", cmdLine, "]")
 	} else {
-		logger.WithField("", cmdLine).Trace("Launch quiet")
+		logger.Trace("Launch quiet [", cmdLine, "]")
 	}
 
 	err := cmdCtx.Start()
 	if err != nil {
-		logger.WithField("error", err).Debug("Failed")
-		return err
-	}
-
-	err = cmdCtx.Wait()
-	if err != nil {
-		// TODO: Find a better way than this. Maybe using cmdCtl.Process or cmdCtx.Err
-		if err.Error() == "signal: killed" {
-			// This happens when another go routine in the `errgroup` ends with an error.
-			// An "error" is also generated when a process ends normally.
-			logger.Debug("Killed")
-			return errScriptCancelled
-		} else if strings.HasPrefix(err.Error(), "signal: ") {
-			// This happens when the context is cancelled (e.g. CTRL-C).
-			logger.Debug(err.Error())
-			return errScriptCancelled
-		} else {
-			logger.WithField("error", err).Debug("Failed")
+		select {
+		case <-exe.Ctx.Done():
+			logger.Trace("Stopped")
+			return errCtxDone
+		default:
+			logger.Debug("Failed [", err, "]")
 			return err
 		}
 	}
 
-	logger.Trace("Completed")
+	err = cmdCtx.Wait()
+	logger.Trace("Time: User [", cmdCtx.ProcessState.UserTime(), "] System [", cmdCtx.ProcessState.SystemTime(), "]")
+	if err != nil {
+		select {
+		case <-exe.Ctx.Done():
+			logger.Trace("Stopped")
+			return errCtxDone
+		default:
+			logger.Debug("Failed [", err, "]")
+			return err
+		}
+	}
+	logger.Trace("Completed. Exit code [", cmdCtx.ProcessState.ExitCode(), "]")
 
 	return nil
 }
