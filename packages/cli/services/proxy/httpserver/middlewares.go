@@ -54,29 +54,3 @@ func ginLoggerMiddleware(c *gin.Context) {
 		entry.Debugf("[%s] [%s]", method, path)
 	}
 }
-
-func ginErrorHandlerMiddleware(c *gin.Context) {
-	c.Next()
-
-	statusCode := c.Writer.Status()
-	log := log.WithField("status", statusCode)
-
-	for errIndex, err := range c.Errors {
-		if statusCode >= http.StatusInternalServerError {
-			log.Errorf("Error #%02d - %s", errIndex+1, err)
-		} else if statusCode >= http.StatusBadRequest {
-			log.Debugf("Error #%02d - %s", errIndex+1, err)
-		}
-	}
-
-	if len(c.Errors) > 0 {
-		ret := gin.H{
-			"message": c.Errors.Last().Error(),
-		}
-		if len(c.Errors) > 1 {
-			ret["errors"] = c.Errors
-		}
-
-		c.JSON(statusCode, ret)
-	}
-}

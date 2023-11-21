@@ -103,10 +103,10 @@ func (trial *actorTrial) Matches(trialID string, actorName string) bool {
 }
 
 type TrialInfo struct {
-	TrialID             string `json:"trial_id,omitempty"`
-	ActorName           string `json:"actor_name,omitempty"`
-	ActorClass          string `json:"actor_class,omitempty"`
-	ActorImplementation string `json:"actor_implementation,omitempty"`
+	TrialID             string `json:"trial_id,omitempty" description:"The trial identifier"`
+	ActorName           string `json:"actor_name,omitempty" description:"The actor name"`
+	ActorClass          string `json:"actor_class,omitempty" description:"The actor class"`
+	ActorImplementation string `json:"actor_implementation,omitempty" description:"The actor implementation"`
 }
 
 func (trial *actorTrial) Info() TrialInfo {

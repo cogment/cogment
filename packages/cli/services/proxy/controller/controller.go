@@ -17,109 +17,161 @@ package controller
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/cogment/cogment/clients/control"
+	"github.com/cogment/cogment/clients/directory"
 	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/services/proxy/trialspec"
 	"github.com/cogment/cogment/utils/endpoint"
+	"golang.org/x/sync/errgroup"
 )
-
-type ActiveTrialInfo struct {
-	TrialID    string                `json:"trial_id"`
-	EnvName    string                `json:"env_name,omitempty"`
-	State      cogmentAPI.TrialState `json:"state,omitempty"`
-	Properties map[string]string     `json:"properties,omitempty"`
-}
 
 type Controller struct {
 	orchestratorEndpoint *endpoint.Endpoint
+	directoryEndpoint    *endpoint.Endpoint
+	directoryAuthToken   string
 	trialSpecManager     *trialspec.Manager
-	workersContext       context.Context
-	cancelWorkers        context.CancelFunc
-	activeTrialsMutex    sync.RWMutex
-	activeTrials         map[string]ActiveTrialInfo
 }
 
-func (controller *Controller) startWatchTrialsWorker(retryTimeout time.Duration) {
-	observer := make(chan *cogmentAPI.TrialInfo)
-
-	go func() {
-		for {
-			client, err := control.CreateClientWithInsecureEndpoint(
-				controller.orchestratorEndpoint,
-				"web_proxy_controller/watch_trials_worker",
-			)
-			if err != nil {
-				log.WithField("error", err).Errorf("Error while connecting to the orchestrator, retrying in %v", retryTimeout)
-			} else {
-				err = client.WatchTrials(controller.workersContext, observer)
-				if err == nil {
-					log.Errorf("Unexpected watch trial termination, retrying in %v", retryTimeout)
-				} else if err == context.Canceled {
-					log.Debug("Watch trial canceled")
-					break
-				} else {
-					log.WithField("error", err).Errorf("Error while watching trials, retrying in %v", retryTimeout)
-				}
-			}
-			select {
-			case <-time.After(retryTimeout):
-				continue
-			case <-controller.workersContext.Done():
-				log.Debug("Watch trial canceled")
-				break
-			}
-		}
-	}()
-
-	go func() {
-		for trialInfo := range observer {
-			controller.activeTrialsMutex.Lock()
-			if trialInfo.State == cogmentAPI.TrialState_ENDED {
-				delete(controller.activeTrials, trialInfo.TrialId)
-			} else {
-				controller.activeTrials[trialInfo.TrialId] = ActiveTrialInfo{
-					TrialID:    trialInfo.TrialId,
-					EnvName:    trialInfo.EnvName,
-					State:      trialInfo.State,
-					Properties: trialInfo.Properties,
-				}
-			}
-			controller.activeTrialsMutex.Unlock()
-		}
-	}()
-}
-
-func NewController(orchestratorEndpoint *endpoint.Endpoint, trialSpecManager *trialspec.Manager) (*Controller, error) {
-	workersContext, cancelWorkers := context.WithCancel(context.Background())
+func NewController(
+	orchestratorEndpoint *endpoint.Endpoint,
+	directoryEndpoint *endpoint.Endpoint,
+	directoryAuthToken string,
+	trialSpecManager *trialspec.Manager,
+) (*Controller, error) {
 	controller := Controller{
 		orchestratorEndpoint: orchestratorEndpoint,
+		directoryEndpoint:    directoryEndpoint,
+		directoryAuthToken:   directoryAuthToken,
 		trialSpecManager:     trialSpecManager,
-		workersContext:       workersContext,
-		cancelWorkers:        cancelWorkers,
-		activeTrialsMutex:    sync.RWMutex{},
-		activeTrials:         map[string]ActiveTrialInfo{},
 	}
-	controller.startWatchTrialsWorker(2 * time.Second)
 	return &controller, nil
 }
 
+func (controller *Controller) createClient(ctx context.Context, userID string) (*control.Client, error) {
+	// TODO caching the inquiry result ?
+	orchestratorEndpoints, err := directory.InquireEndpoint(
+		ctx,
+		controller.orchestratorEndpoint,
+		controller.directoryEndpoint,
+		controller.directoryAuthToken,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("Error while inquiring the orchestrator's lifecycle endpoint: %w", err)
+	}
+
+	orchestratorEndpoint := orchestratorEndpoints[0]
+	if len(orchestratorEndpoints) > 1 {
+		log.WithField("orchestrator", orchestratorEndpoint).Warning(
+			"More that one matching orchestrator found, picking the first",
+		)
+	}
+
+	return control.CreateClientWithInsecureEndpoint(
+		orchestratorEndpoint,
+		userID,
+	)
+}
+
 func (controller *Controller) Destroy() {
-	controller.cancelWorkers()
+	// NOTHING
 }
 
 func (controller *Controller) Spec() *trialspec.Manager {
 	return controller.trialSpecManager
 }
 
-// GetActiveTrials retrieves the current list of active trials
-func (controller *Controller) GetActiveTrials() ([]ActiveTrialInfo, error) {
-	infoList := []ActiveTrialInfo{}
-	controller.activeTrialsMutex.RLock()
-	defer controller.activeTrialsMutex.RUnlock()
-	for _, info := range controller.activeTrials {
+type TrialInfo struct {
+	TrialID    string                `json:"trial_id" description:"The trial identifier"`
+	EnvName    string                `json:"env_name,omitempty" description:"Name of the environment"`
+	State      cogmentAPI.TrialState `json:"state,omitempty" description:"Current state of the trial"`
+	Properties map[string]string     `json:"properties,omitempty"`
+}
+
+// WatchTrials retrieves the current list of active trials
+func (controller *Controller) WatchTrials(ctx context.Context, out chan<- TrialInfo) error {
+	client, err := controller.createClient(ctx, "web_proxy_controller/watch_active_trials")
+	if err != nil {
+		return err
+	}
+	observer := make(chan *cogmentAPI.TrialInfo)
+	group, ctx := errgroup.WithContext(ctx)
+	group.Go(func() error {
+		defer close(observer)
+		return client.WatchTrials(ctx, observer)
+	})
+	group.Go(func() error {
+		for trialInfo := range observer {
+			activeTrialInfo := TrialInfo{
+				TrialID:    trialInfo.TrialId,
+				EnvName:    trialInfo.EnvName,
+				State:      trialInfo.State,
+				Properties: trialInfo.Properties,
+			}
+			select {
+			case out <- activeTrialInfo:
+				continue
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+		return nil
+	})
+	return group.Wait()
+}
+
+// GetActiveTrials retrieves the current list of active trials.
+// In practice, it listens to trial activities until the timeout is reached and then return the active trials.
+func (controller *Controller) GetActiveTrials(
+	ctx context.Context,
+	inactivityTimeout time.Duration,
+) ([]TrialInfo, error) {
+	client, err := controller.createClient(ctx, "web_proxy_controller/get_active_trials")
+	if err != nil {
+		return nil, err
+	}
+
+	observer := make(chan *cogmentAPI.TrialInfo)
+	activeTrials := map[string]TrialInfo{}
+
+	ctx, cancel := context.WithCancelCause(ctx)
+	inactivityTimeoutCause := fmt.Errorf("inactivity timeout reached")
+
+	group, ctx := errgroup.WithContext(ctx)
+	group.Go(func() error {
+		defer close(observer)
+		return client.WatchTrials(ctx, observer)
+	})
+	group.Go(func() error {
+		for {
+			select {
+			case trialInfo := <-observer:
+				if trialInfo.State == cogmentAPI.TrialState_ENDED {
+					delete(activeTrials, trialInfo.TrialId)
+				} else {
+					activeTrials[trialInfo.TrialId] = TrialInfo{
+						TrialID:    trialInfo.TrialId,
+						EnvName:    trialInfo.EnvName,
+						State:      trialInfo.State,
+						Properties: trialInfo.Properties,
+					}
+				}
+			case <-time.After(inactivityTimeout):
+				cancel(inactivityTimeoutCause)
+				return nil
+			}
+		}
+	})
+
+	err = group.Wait()
+
+	if err != nil && context.Cause(ctx) != inactivityTimeoutCause {
+		return nil, err
+	}
+
+	infoList := []TrialInfo{}
+	for _, info := range activeTrials {
 		infoList = append(infoList, info)
 	}
 	return infoList, nil
@@ -163,10 +215,10 @@ func (controller *Controller) StartTrial(
 		}
 	}
 
-	client, err := control.CreateClientWithInsecureEndpoint(
-		controller.orchestratorEndpoint,
-		"web_proxy_controller/start_trial",
-	)
+	client, err := controller.createClient(ctx, "web_proxy_controller/start_trial")
+	if err != nil {
+		return "", err
+	}
 	if err != nil {
 		return "", err
 	}

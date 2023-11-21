@@ -107,7 +107,7 @@ build_linux_amd64:
   image: macos-12-xcode-14
   before_script:
     - brew install go@1.20
-    - export PATH="/usr/local/opt/go@1.20/bin:$PATH" # Make sure 1.20 is the first in the path
+    - export PATH="/opt/homebrew/opt/go@1.20/bin:$PATH" # Make sure 1.20 is the first in the path
     - go version
     - mkdir -p .go
     - export PATH=$PATH:$(go env GOPATH)/bin
@@ -187,6 +187,19 @@ test:
     when: always
     reports:
       junit: ./packages/cli/report.xml
+
+build_web_proxy_openapi_json:
+  stage: build
+  needs: ["build_linux_amd64"]
+  extends: .base_linux_build
+  script:
+    - ./install/linux_amd64/bin/cogment internal generate_proxy_api_spec
+  artifacts:
+    name: cogment_web_proxy_openapi_json
+    expose_as: cogment_web_proxy_openapi_json
+    expire_in: 1 week
+    paths:
+      - ./web-proxy-openapi.json
 
 .push_docker_images:
   needs: ["build_docker"]
@@ -336,6 +349,8 @@ publish_tag_to_github:
       artifacts: true
     - job: build_windows_amd64
       artifacts: true
+    - job: build_web_proxy_openapi_json
+      artifacts: true
   script:
     # Publish the tag
     - git checkout ${CI_COMMIT_BRANCH} # Checkout the branch not the sha1
@@ -349,6 +364,7 @@ publish_tag_to_github:
     - cp ./install/macos_amd64/bin/cogment ./release/cogment-macos-amd64
     - cp ./install/windows_amd64/bin/cogment.exe ./release/cogment-windows-amd64.exe
     - tar czf ./release/cogment-api.tar.gz --directory=./install/linux_amd64/include/cogment .
+    - cp ./web-proxy-openapi.json ./release/web-proxy-openapi.json
     # Generate the changes for the target version
     - ./scripts/extract_version_changes.sh $CI_COMMIT_TAG > ./RELEASE_NOTES.md
     # gh release authenticates to github using the GH_TOKEN environment variable

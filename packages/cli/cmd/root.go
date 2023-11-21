@@ -20,6 +20,7 @@ import (
 
 	"github.com/cogment/cogment/cmd/client"
 	"github.com/cogment/cogment/cmd/deprecated"
+	"github.com/cogment/cogment/cmd/internal"
 	"github.com/cogment/cogment/cmd/services"
 	"github.com/spf13/cobra"
 )
@@ -60,4 +61,7 @@ func init() {
 	rootCmd.AddCommand(deprecated.GenerateCmd)
 	rootCmd.AddCommand(deprecated.InitCmd)
 	rootCmd.AddCommand(deprecated.RunCmd)
+
+	// Internal commands
+	rootCmd.AddCommand(internal.InternalCmd)
 }

@@ -16,23 +16,26 @@ package controller
 
 import (
 	"encoding/json"
+	"fmt"
 	"path"
 	"testing"
 
 	"github.com/cogment/cogment/services/proxy/trialspec"
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/go-playground/validator.v8"
 )
 
 const testDataDir string = "../../../testdata"
 
-func TestTrialParamsJSON(t *testing.T) {
+func TestTrialParamsFromJSON(t *testing.T) {
 	tsm, err := trialspec.NewFromFile(path.Join(testDataDir, "cogment.yaml"))
 	assert.NoError(t, err)
 
-	params := NewTrialParams(tsm)
+	params := &TrialParams{}
 
 	input := `{` +
 		`"config":{"foo":"testing unmarshalling"},` +
+		`"environment":{"implementation":"my_environment"},` +
 		`"actors": [` +
 		`{"actor_class": "plane","default_action": {"path": [{"x": 1, "y": 1},{"x": 2, "y": 2}]}},` +
 		`{"actor_class": "ai_drone","config": {"member": "a member"}}` +
@@ -40,4 +43,32 @@ func TestTrialParamsJSON(t *testing.T) {
 	err = json.Unmarshal([]byte(input), &params)
 	assert.NoError(t, err)
 	assert.Len(t, params.Actors, 2)
+
+	pbParams, err := params.FullyUnmarshal(tsm)
+	assert.NoError(t, err)
+	assert.Len(t, pbParams.Actors, 2)
+}
+
+func TestInvalidTrialParamsFromJSON(t *testing.T) {
+	tsm, err := trialspec.NewFromFile(path.Join(testDataDir, "cogment.yaml"))
+	assert.NoError(t, err)
+
+	params := &TrialParams{}
+
+	input := `{` +
+		`"config":{"foo":"testing unmarshalling"},` +
+		`"environment":{"implementation":"my_environment"},` +
+		`"actors": []` +
+		`}`
+	err = json.Unmarshal([]byte(input), &params)
+	assert.NoError(t, err)
+	assert.Len(t, params.Actors, 0)
+
+	_, err = params.FullyUnmarshal(tsm)
+
+	var validationErr validator.ValidationErrors
+	assert.ErrorAs(t, err, &validationErr)
+	fmt.Println(validationErr)
+	assert.Len(t, validationErr, 1)
+	assert.Contains(t, validationErr, "TrialParams.Actors")
 }

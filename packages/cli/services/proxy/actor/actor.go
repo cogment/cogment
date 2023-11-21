@@ -151,10 +151,11 @@ func (manager *Manager) GetTrial(trialID string, actorName string) (TrialInfo, e
 	return trial.Info(), nil
 }
 
+//nolint:lll
 type JoinTrialResult struct {
 	TrialInfo
 	RecvEvent
-	ActorConfig *trialspec.DynamicPbMessage `json:"actor_config,omitempty"`
+	ActorConfig *trialspec.DynamicPbMessage `json:"actor_config,omitempty" description:"Actor configuration, following the format defined in the spec file for its actor_class"`
 }
 
 // JoinTrial awaits for a trial to be started, make an actor join it and wait for the initial received event.

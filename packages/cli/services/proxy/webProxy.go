@@ -69,23 +69,6 @@ func Run(ctx context.Context, options Options) error {
 		)
 	}
 
-	orchestratorEndpoints, err := directory.InquireEndpoint(
-		ctx,
-		options.OrchestratorEndpoint,
-		options.DirectoryEndpoint,
-		options.DirectoryAuthToken,
-	)
-	if err != nil {
-		return err
-	}
-
-	orchestratorEndpoint := orchestratorEndpoints[0]
-	if len(orchestratorEndpoints) > 1 {
-		log.WithField("orchestrator", orchestratorEndpoint).Warning(
-			"More that one matching orchestrator found, picking the first",
-		)
-	}
-
 	// Build a trial spec manager
 	trialSpecManager, err := trialspec.NewFromFile(options.SpecFile)
 	if err != nil {
@@ -93,7 +76,12 @@ func Run(ctx context.Context, options Options) error {
 	}
 
 	// Build the controller
-	controller, err := controller.NewController(orchestratorEndpoint, trialSpecManager)
+	controller, err := controller.NewController(
+		options.OrchestratorEndpoint,
+		options.DirectoryEndpoint,
+		options.DirectoryAuthToken,
+		trialSpecManager,
+	)
 	if err != nil {
 		return err
 	}
@@ -213,4 +201,16 @@ func Run(ctx context.Context, options Options) error {
 	})
 
 	return group.Wait()
+}
+
+func GenerateOpenAPISpec(outputFile string) error {
+	// Build a barebones http server server (no actor manager, no controller, no secret).
+	// This server is never started, this would require a call to `httpServer.ListenAndServe()`.
+	// However it is used to generate the OpenAPI spec from the inspection of its routes.
+	httpServer, err := httpserver.New(8080, nil, nil, "nosecret")
+	if err != nil {
+		return err
+	}
+
+	return httpServer.GenerateOpenAPISpec(outputFile)
 }

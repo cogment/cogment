@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Added
+
+- Web proxy's openapi json specification can be retrieved from `/openapi.json` with a full documentation of each route.
+- Web proxy's openapi json specification published alongside the cogment binaries.
+
+### Changed
+
+- The web proxy now reconnects to the orchestrator for each trial listing request.
+
 ## v2.21.1 - 2023-11-13
 
 ### Changed
@@ -37,7 +46,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - HTTP calls to the web proxy are now only logged in Debug.
-
 
 ## v2.19.0 - 2023-09-23
 

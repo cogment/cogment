@@ -20,145 +20,139 @@ import (
 	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/services/proxy/trialspec"
 	"github.com/cogment/cogment/utils/endpoint"
+	"gopkg.in/go-playground/validator.v8"
 )
 
-// Wrapper around `cogmentAPI.TrialParams` to provide full JSON serialization/deserialization
+//nolint:lll
 type TrialParams struct {
-	*cogmentAPI.TrialParams
-	spec *trialspec.Manager
-}
-
-func NewTrialParams(
-	spec *trialspec.Manager,
-) *TrialParams {
-	return &TrialParams{
-		TrialParams: &cogmentAPI.TrialParams{},
-		spec:        spec,
-	}
-}
-
-type rawActorParams struct {
-	Name                     string            `json:"name,omitempty"`
-	ActorClass               string            `json:"actor_class,omitempty"`
-	Endpoint                 endpoint.Endpoint `json:"endpoint,omitempty"`
-	Implementation           string            `json:"implementation,omitempty"`
-	Config                   *json.RawMessage  `json:"config,omitempty"`
-	InitialConnectionTimeout float32           `json:"initial_connection_timeout,omitempty"`
-	ResponseTimeout          float32           `json:"response_timeout,omitempty"`
-	Optional                 bool              `json:"optional,omitempty"`
-	DefaultAction            *json.RawMessage  `json:"default_action,omitempty"`
-}
-
-type rawDatalogParams struct {
-	Endpoint      endpoint.Endpoint `json:"endpoint,omitempty"`
-	ExcludeFields []string          `json:"exclude_fields,omitempty"`
-}
-
-type rawEnvironmentParams struct {
-	Config         *json.RawMessage  `json:"config,omitempty"`
-	Name           string            `json:"name,omitempty"`
-	Endpoint       endpoint.Endpoint `json:"endpoint,omitempty"`
-	Implementation string            `json:"implementation,omitempty"`
-}
-
-type rawTrialParams struct {
-	Config        *json.RawMessage  `json:"config,omitempty"`
+	Config        *json.RawMessage  `json:"config,omitempty" description:"Trial configuration, following the format defined in the spec file"`
 	Properties    map[string]string `json:"properties,omitempty"`
-	MaxSteps      uint32            `json:"max_steps,omitempty"`
-	MaxInactivity uint32            `json:"max_inactivity,omitempty"`
+	MaxSteps      uint32            `json:"max_steps,omitempty" description:"The maximum number of time steps (ticks) that the trial will run" default:"0"`
+	MaxInactivity uint32            `json:"max_inactivity,omitempty" description:"The number of seconds of inactivity after which a trial will be hard terminated" default:"30"`
 	// int64 / uint64 values are serialized/deserialized as string to be aligned with the behavior of protobuf
-	NbBufferedTicks int64                `json:"nb_buffered_ticks,omitempty,string"`
-	Datalog         rawDatalogParams     `json:"datalog,omitempty"`
-	Environment     rawEnvironmentParams `json:"environment,omitempty"`
-	Actors          []*rawActorParams    `json:"actors,omitempty"`
+	NbBufferedTicks int64 `json:"nb_buffered_ticks,omitempty,string" description:"The number of ticks (steps) to buffer in the Orchestrator before sending the data to the datalog" validate:"omitempty,gt=1" format:"int64" default:"2"`
+
+	Datalog     DatalogParams     `json:"datalog,omitempty"`
+	Environment EnvironmentParams `json:"environment,omitempty" validate:"required"`
+
+	Actors []*ActorParams `json:"actors,omitempty" validate:"gt=0"`
 }
 
-func (trialParams *TrialParams) UnmarshalJSON(b []byte) error {
-	// Unmarshalling everything, stopping at the protobuf values
-	var rawTrial rawTrialParams
-	if err := json.Unmarshal(b, &rawTrial); err != nil {
-		return err
+//nolint:lll
+type DatalogParams struct {
+	Endpoint      endpoint.Endpoint `json:"endpoint,omitempty" description:"Endpoint for the datalog service"`
+	ExcludeFields []string          `json:"exclude_fields,omitempty" description:"List of fields to exclude from the data samples sent to the datalog service"`
+}
+
+//nolint:lll
+type EnvironmentParams struct {
+	Config         *json.RawMessage  `json:"config,omitempty" description:"Environment configuration, following the format defined in the spec file"`
+	Name           string            `json:"name,omitempty" description:"The name of the environment" default:"env"`
+	Endpoint       endpoint.Endpoint `json:"endpoint,omitempty" description:"Endpoint of the environment service" default:"cogment://discover/environment?__implementation=<implementation>"`
+	Implementation string            `json:"implementation,omitempty" description:"The name of the implementation to run the environment." validate:"required"`
+}
+
+//nolint:lll
+type ActorParams struct {
+	Name                     string            `json:"name,omitempty" description:"The name of the actor (must be unique in the trial)" validate:"required"`
+	ActorClass               string            `json:"actor_class,omitempty" description:"The name of the actor class" validate:"required"`
+	Endpoint                 endpoint.Endpoint `json:"endpoint,omitempty" description:"Endpoint of the actor" default:"cogment://discover/actor?__actor_class=<actor_class>&__implementation=<implementation>"`
+	Implementation           string            `json:"implementation,omitempty" description:"The name of the implementation to run this actor"`
+	Config                   *json.RawMessage  `json:"config,omitempty" description:"Actor configuration, following the format defined in the spec file"`
+	InitialConnectionTimeout float32           `json:"initial_connection_timeout,omitempty" description:"Maximum amount of time (in seconds) to wait for an actor to connect to a new trial, after which it is considered unavailable for the trial duration." default:"0" validate:"gte=0"`
+	ResponseTimeout          float32           `json:"response_timeout,omitempty" description:"Maximum amount of time (in seconds) to wait for an actor to respond with an action after an observation is sent, after which it is considered unavailable." default:"0" validate:"gte=0"`
+	Optional                 bool              `json:"optional,omitempty" description:"If set (true), the actor is optional." default:"false"`
+	DefaultAction            *json.RawMessage  `json:"default_action,omitempty" description:"This is only relevant for optional actors (see optional). If set, and the actor is not available, the environment will receive this action."`
+}
+
+func (trialParams *TrialParams) FullyUnmarshal(spec *trialspec.Manager) (*cogmentAPI.TrialParams, error) {
+	validate := validator.New(&validator.Config{TagName: "validate"})
+	err := validate.Struct(trialParams)
+	if err != nil {
+		return nil, err
 	}
 
-	if rawTrial.Config != nil {
-		trialConfig, err := trialParams.spec.NewTrialConfig()
+	pbTrialParams := &cogmentAPI.TrialParams{}
+
+	if trialParams.Config != nil {
+		trialConfig, err := spec.NewTrialConfig()
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		if err := json.Unmarshal(*rawTrial.Config, trialConfig); err != nil {
-			return err
+		if err := json.Unmarshal(*trialParams.Config, trialConfig); err != nil {
+			return nil, err
 		}
 
 		serializedTrialConfig, err := trialConfig.MarshalProto()
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		trialParams.TrialConfig = &cogmentAPI.SerializedMessage{
+		pbTrialParams.TrialConfig = &cogmentAPI.SerializedMessage{
 			Content: serializedTrialConfig,
 		}
 	} else {
-		trialParams.TrialConfig = &cogmentAPI.SerializedMessage{}
+		pbTrialParams.TrialConfig = &cogmentAPI.SerializedMessage{}
 	}
-	trialParams.Properties = rawTrial.Properties
-	trialParams.MaxSteps = rawTrial.MaxSteps
-	trialParams.MaxInactivity = rawTrial.MaxInactivity
-	trialParams.NbBufferedTicks = rawTrial.NbBufferedTicks
+	pbTrialParams.Properties = trialParams.Properties
+	pbTrialParams.MaxSteps = trialParams.MaxSteps
+	pbTrialParams.MaxInactivity = trialParams.MaxInactivity
+	pbTrialParams.NbBufferedTicks = trialParams.NbBufferedTicks
 
-	if rawTrial.Datalog.Endpoint.IsValid() {
-		trialParams.Datalog = &cogmentAPI.DatalogParams{
-			Endpoint:      rawTrial.Datalog.Endpoint.MarshalString(),
-			ExcludeFields: rawTrial.Datalog.ExcludeFields,
+	if trialParams.Datalog.Endpoint.IsValid() {
+		pbTrialParams.Datalog = &cogmentAPI.DatalogParams{
+			Endpoint:      trialParams.Datalog.Endpoint.MarshalString(),
+			ExcludeFields: trialParams.Datalog.ExcludeFields,
 		}
 	}
 
-	trialParams.Environment = &cogmentAPI.EnvironmentParams{}
+	pbTrialParams.Environment = &cogmentAPI.EnvironmentParams{}
 
-	environmentConfig, err := trialParams.spec.NewEnvironmentConfig()
+	environmentConfig, err := spec.NewEnvironmentConfig()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	if rawTrial.Environment.Config != nil {
-		if err := json.Unmarshal(*rawTrial.Environment.Config, environmentConfig); err != nil {
-			return err
+	if trialParams.Environment.Config != nil {
+		if err := json.Unmarshal(*trialParams.Environment.Config, environmentConfig); err != nil {
+			return nil, err
 		}
 	}
 
 	serializedEnvironmentConfig, err := environmentConfig.MarshalProto()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	trialParams.Environment.Config = &cogmentAPI.SerializedMessage{
+	pbTrialParams.Environment.Config = &cogmentAPI.SerializedMessage{
 		Content: serializedEnvironmentConfig,
 	}
 
-	trialParams.Environment.Name = rawTrial.Environment.Name
-	trialParams.Environment.Endpoint = rawTrial.Environment.Endpoint.MarshalString()
-	trialParams.Environment.Implementation = rawTrial.Environment.Implementation
+	pbTrialParams.Environment.Name = trialParams.Environment.Name
+	pbTrialParams.Environment.Endpoint = trialParams.Environment.Endpoint.MarshalString()
+	pbTrialParams.Environment.Implementation = trialParams.Environment.Implementation
 
-	trialParams.Actors = make([]*cogmentAPI.ActorParams, 0)
-	for _, rawActor := range rawTrial.Actors {
+	pbTrialParams.Actors = make([]*cogmentAPI.ActorParams, 0)
+	for _, rawActor := range trialParams.Actors {
 		actor := &cogmentAPI.ActorParams{}
 
-		actorConfig, err := trialParams.spec.NewActorConfig(rawActor.ActorClass)
+		actorConfig, err := spec.NewActorConfig(rawActor.ActorClass)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		// Actor config can be undefined
 		if actorConfig != nil {
 			if rawActor.Config != nil {
 				if err := json.Unmarshal(*rawActor.Config, actorConfig); err != nil {
-					return err
+					return nil, err
 				}
 			}
 
 			serializedActorConfig, err := actorConfig.MarshalProto()
 			if err != nil {
-				return err
+				return nil, err
 			}
 
 			actor.Config = &cogmentAPI.SerializedMessage{
@@ -168,20 +162,20 @@ func (trialParams *TrialParams) UnmarshalJSON(b []byte) error {
 			actor.Config = &cogmentAPI.SerializedMessage{}
 		}
 
-		defaultAction, err := trialParams.spec.NewAction(rawActor.ActorClass)
+		defaultAction, err := spec.NewAction(rawActor.ActorClass)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		if rawActor.DefaultAction != nil {
 			if err := json.Unmarshal(*rawActor.DefaultAction, defaultAction); err != nil {
-				return err
+				return nil, err
 			}
 		}
 
 		serializedDefaultAction, err := defaultAction.MarshalProto()
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		actor.DefaultAction = &cogmentAPI.SerializedMessage{
@@ -196,7 +190,7 @@ func (trialParams *TrialParams) UnmarshalJSON(b []byte) error {
 		actor.ResponseTimeout = rawActor.ResponseTimeout
 		actor.Optional = rawActor.Optional
 
-		trialParams.Actors = append(trialParams.Actors, actor)
+		pbTrialParams.Actors = append(pbTrialParams.Actors, actor)
 	}
-	return nil
+	return pbTrialParams, nil
 }
