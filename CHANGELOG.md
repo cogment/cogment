@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.21.2 - 2023-12-04
+
 ### Added
 
 - Web proxy's openapi json specification can be retrieved from `/openapi.json` with a full documentation of each route.
