@@ -21,6 +21,7 @@ import (
 
 	cogmentAPI "github.com/cogment/cogment/grpcapi/cogment/api"
 	"github.com/cogment/cogment/services/datastore/backend"
+	"github.com/cogment/cogment/services/datastore/utils"
 	"github.com/openlyinc/pointy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -266,6 +267,8 @@ func (s *datalogServer) RunTrialDatalog(stream cogmentAPI.DatalogSP_RunTrialData
 
 	errors := make(chan error)
 	defer close(errors)
+	batcher := utils.NewSampleBatcher(ctx, s.backend, errors)
+
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -286,12 +289,10 @@ func (s *datalogServer) RunTrialDatalog(stream cogmentAPI.DatalogSP_RunTrialData
 			return status.Errorf(codes.Internal, "DatalogServer.RunTrialDatalog: internal error %q", err)
 		}
 
-		go func() {
-			err = s.backend.AddSamples(ctx, []*cogmentAPI.StoredTrialSample{trialSample})
-			if err != nil {
-				errors <- status.Errorf(codes.Internal, "DatalogServer.RunTrialDatalog: internal error %q", err)
-			}
-		}()
+		err = batcher.AddSample(trialSample)
+		if err != nil {
+			return err
+		}
 
 		// Acknowledge the handling of the following "sample" message
 		err = stream.Send(&cogmentAPI.RunTrialDatalogOutput{})

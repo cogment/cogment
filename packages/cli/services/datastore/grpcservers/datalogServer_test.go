@@ -16,6 +16,7 @@ package grpcservers
 
 import (
 	"context"
+	"crypto/rand"
 	"io"
 	"net"
 	"os"
@@ -199,7 +200,7 @@ func BenchmarkDatalog(b *testing.B) {
 						Name:       "myactor4",
 						ActorClass: "class2",
 					}},
-				MaxSteps: 72,
+				MaxSteps: 1000000,
 			},
 		},
 	}
@@ -242,6 +243,7 @@ func BenchmarkDatalog(b *testing.B) {
 	}()
 
 	b.StartTimer()
+	expectedTickID := uint64(0)
 	for i := 0; i < b.N; i++ {
 		go func() {
 			for _, sample := range samples[i*chunkSize : i*chunkSize+chunkSize] {
@@ -249,8 +251,11 @@ func BenchmarkDatalog(b *testing.B) {
 			}
 		}()
 		// block until all samples are observables
+		var curr *cogmentAPI.StoredTrialSample
 		for j := 0; j < chunkSize; j++ {
-			<-storedSamples
+			curr = <-storedSamples
+			assert.Equal(b, expectedTickID, curr.TickId)
+			expectedTickID++
 		}
 	}
 	b.StopTimer()
@@ -263,6 +268,124 @@ func BenchmarkDatalog(b *testing.B) {
 	assert.NoError(b, err)
 	<-storedSamples
 
+}
+func TestInorderDelivery(t *testing.T) {
+	//TODO refactor init, destroy, and helper out of the test function
+	//init
+	fxt, err := createDatalogServerTestFixture()
+	assert.NoError(t, err)
+	defer fxt.destroy()
+
+	trialID := "mytrial"
+
+	ctx := metadata.AppendToOutgoingContext(fxt.ctx, "trial-id", trialID)
+	stream, err := fxt.client.RunTrialDatalog(ctx)
+	assert.NoError(t, err)
+	ack := make(chan int)
+	go func() {
+		index := 0
+		for {
+			_, err := stream.Recv()
+			if err == io.EOF {
+				// read done.
+				close(ack)
+				return
+			}
+			assert.NoError(t, err)
+			ack <- index
+			index++
+		}
+	}()
+	{
+		// Send the trial params
+		err = stream.Send(&cogmentAPI.RunTrialDatalogInput{
+			Msg: &cogmentAPI.RunTrialDatalogInput_TrialParams{
+				TrialParams: &cogmentAPI.TrialParams{
+					Actors: []*cogmentAPI.ActorParams{{
+						Name:       "myactor",
+						ActorClass: "class1",
+					},
+						{
+							Name:       "myactor2",
+							ActorClass: "class1",
+						},
+						{
+							Name:       "myactor3",
+							ActorClass: "class2",
+						},
+						{
+							Name:       "myactor4",
+							ActorClass: "class2",
+						}},
+					MaxSteps: 72,
+				},
+			},
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 0, <-ack)
+	}
+	{
+		// Make sure they are retrieved
+		res, err := fxt.backend.RetrieveTrials(
+			fxt.ctx,
+			backend.NewTrialFilter([]string{trialID}, map[string]string{}),
+			0, -1,
+		)
+		assert.NoError(t, err)
+		assert.Len(t, res.TrialInfos, 1)
+		assert.Equal(t, res.TrialInfos[0].TrialID, trialID)
+		assert.Equal(t, res.TrialInfos[0].SamplesCount, 0)
+	}
+
+	// helper function
+	randomSample := func(i int) *cogmentAPI.RunTrialDatalogInput {
+		randomContent := make([]byte, 4)
+		_, err := rand.Read(randomContent)
+		assert.NoError(t, err)
+		return &cogmentAPI.RunTrialDatalogInput{
+			Msg: &cogmentAPI.RunTrialDatalogInput_Sample{
+				Sample: &cogmentAPI.DatalogSample{
+					Info: &cogmentAPI.SampleInfo{
+						TickId: uint64(i),
+					},
+					Observations: &cogmentAPI.ObservationSet{
+						TickId:       int64(i),
+						ActorsMap:    []int32{0},
+						Observations: [][]byte{[]byte("an_observation")},
+					},
+					Actions: []*cogmentAPI.Action{{
+						TickId:  int64(i),
+						Content: randomContent,
+					}},
+				},
+			},
+		}
+	}
+	//actual test
+	{
+		samples := make(chan *cogmentAPI.StoredTrialSample)
+		go func() {
+			err := fxt.backend.ObserveSamples(fxt.ctx, backend.TrialSampleFilter{TrialIDs: []string{trialID}}, samples)
+			assert.NoError(t, err)
+		}()
+
+		// Send n samples
+		n := 20000
+		for i := 0; i < n; i++ {
+			assert.NoError(t, stream.Send(randomSample(i)))
+		}
+		// ensure they're observed in order
+		var observed *cogmentAPI.StoredTrialSample
+		for i := 0; i < n; i++ {
+			observed = <-samples
+			assert.Equal(t, i, int(observed.TickId))
+		}
+	}
+
+	// close
+	err = stream.CloseSend()
+	assert.NoError(t, err)
+	<-ack
 }
 
 func TestRunTrialDatalogSimple(t *testing.T) {
