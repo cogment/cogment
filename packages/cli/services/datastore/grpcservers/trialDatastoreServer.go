@@ -125,12 +125,12 @@ func (s *trialDatastoreServer) RetrieveTrials(
 
 		if err := g.Wait(); err != nil && !errors.Is(err, context.DeadlineExceeded) {
 			// context.DeadlineExceeded errors means the timeout we allocated to retrieve the trials is exceeded
-			return nil, status.Errorf(codes.Internal, "TrialDatastoreSPServer.ObserveSamples: internal error %q", err)
+			return nil, status.Errorf(codes.Internal, "Internal error while observing trials %q", err)
 		}
 	} else {
 		results, err := s.backend.RetrieveTrials(ctx, trialFilter, pageOffset, int(req.TrialsCount))
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "TrialDatastoreSPServer.ObserveSamples: internal error %q", err)
+			return nil, status.Errorf(codes.Internal, "Internal error while retrieving trials %q", err)
 		}
 		for _, trialInfo := range results.TrialInfos {
 			trialIds = append(trialIds, trialInfo.TrialID)
@@ -143,7 +143,7 @@ func (s *trialDatastoreServer) RetrieveTrials(
 	{
 		params, err := s.backend.GetTrialParams(ctx, trialIds)
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "TrialDatastoreSPServer.ObserveSamples: internal error %q", err)
+			return nil, status.Errorf(codes.Internal, "Internal error while retrieving trial parameters %q", err)
 		}
 
 		nextTrialHandle := strconv.Itoa(nextPageOffset)
@@ -229,7 +229,7 @@ func (s *trialDatastoreServer) AddTrial(
 		},
 	})
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "TrialDatastoreSPServer.ObserveSamples: internal error %q", err)
+		return nil, status.Errorf(codes.Internal, "Internal error while creating a trial %q", err)
 	}
 	return &cogmentAPI.AddTrialReply{}, nil
 }
@@ -262,7 +262,7 @@ func (s *trialDatastoreServer) AddSample(stream cogmentAPI.TrialDatastoreSP_AddS
 		if len(samplesChunk) == s.addSampleChunkSize {
 			err = s.backend.AddSamples(ctx, samplesChunk)
 			if err != nil {
-				return status.Errorf(codes.Internal, "TrialDatastoreSPServer.ObserveSamples: internal error %q", err)
+				return status.Errorf(codes.Internal, "Internal error while adding a chunk of samples %q", err)
 			}
 			samplesChunk = samplesChunk[:0] // Empty the slice while preserving allocated space
 		}
@@ -271,7 +271,7 @@ func (s *trialDatastoreServer) AddSample(stream cogmentAPI.TrialDatastoreSP_AddS
 	if len(samplesChunk) > 0 {
 		err := s.backend.AddSamples(ctx, samplesChunk)
 		if err != nil {
-			return status.Errorf(codes.Internal, "TrialDatastoreSPServer.ObserveSamples: internal error %q", err)
+			return status.Errorf(codes.Internal, "Internal error while adding the last chunk of samples %q", err)
 		}
 	}
 
@@ -284,7 +284,7 @@ func (s *trialDatastoreServer) DeleteTrials(
 ) (*cogmentAPI.DeleteTrialsReply, error) {
 	err := s.backend.DeleteTrials(ctx, req.TrialIds)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "TrialDatastoreSPServer.DeleteTrials: internal error %q", err)
+		return nil, status.Errorf(codes.Internal, "Internal error while deleting trials %q", err)
 	}
 	return &cogmentAPI.DeleteTrialsReply{}, nil
 }

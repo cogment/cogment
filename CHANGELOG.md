@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## Unreleased
 - Datalog: pass sample to persistence layer in order
 
+### Added
+
+- Improving errors returned by the datastore gRPC server.
+
 ## v2.21.2 - 2023-12-04
 
 ### Added
