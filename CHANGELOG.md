@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## v2.22.0 - 2024-02-15
+
 ### Added
 
 - Improving errors returned by the datastore gRPC server.
